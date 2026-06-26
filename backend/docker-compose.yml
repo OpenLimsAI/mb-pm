@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cmc-pms-pg
+    environment:
+      POSTGRES_USER: cmc
+      POSTGRES_PASSWORD: cmc
+      POSTGRES_DB: cmc_pms
+    ports:
+      - "5432:5432"
+    volumes:
+      - cmc_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cmc -d cmc_pms"]
+      interval: 5s
+      retries: 5
+
+  backend:
+    build: .
+    container_name: cmc-pms-api
+    environment:
+      DATABASE_URL: postgresql+psycopg://cmc:cmc@postgres:5432/cmc_pms
+      APP_ENV: development
+      APP_CORS_ORIGINS: http://localhost:5173
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/code/app
+      - ./alembic:/code/alembic
+      - ./alembic.ini:/code/alembic.ini
+    command: >
+      sh -c "alembic upgrade head &&
+             python -m app.seed.seed_data &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+volumes:
+  cmc_pgdata:

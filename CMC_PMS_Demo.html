@@ -1,0 +1,2128 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CMC-PMS Demo</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --surface: #ffffff;
+      --surface-2: #eef3f7;
+      --line: #d9e1ea;
+      --text: #1d2630;
+      --muted: #637083;
+      --teal: #147d7e;
+      --teal-soft: #d9f0ef;
+      --blue: #2f6fc9;
+      --blue-soft: #e5eefc;
+      --green: #2d8a55;
+      --green-soft: #e0f3e8;
+      --amber: #b47713;
+      --amber-soft: #fff0cf;
+      --red: #c9443c;
+      --red-soft: #fde4e0;
+      --violet: #6750a4;
+      --violet-soft: #ece7ff;
+      --coral: #c85d3e;
+      --shadow: 0 12px 30px rgba(38, 50, 65, 0.12);
+      --radius: 8px;
+      --sidebar: 248px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      font-size: 14px;
+      letter-spacing: 0;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: var(--sidebar) minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 18px 14px;
+      background: #20313b;
+      color: #eef7f7;
+      overflow-y: auto;
+    }
+
+    .brand {
+      display: grid;
+      grid-template-columns: 42px 1fr;
+      gap: 10px;
+      align-items: center;
+      padding: 8px 8px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.14);
+      margin-bottom: 12px;
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      background: #f4c95d;
+      color: #20313b;
+      border-radius: 8px;
+      font-weight: 800;
+    }
+
+    .brand-title {
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.25;
+    }
+
+    .brand-subtitle {
+      color: #b9c9cf;
+      font-size: 12px;
+      margin-top: 3px;
+    }
+
+    .nav-group-title {
+      padding: 14px 10px 7px;
+      color: #9fb2bb;
+      font-size: 12px;
+    }
+
+    .nav-button {
+      display: grid;
+      grid-template-columns: 28px 1fr auto;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      min-height: 40px;
+      margin: 3px 0;
+      padding: 8px 10px;
+      border-radius: 8px;
+      color: #dce8ea;
+      background: transparent;
+      text-align: left;
+    }
+
+    .nav-button:hover,
+    .nav-button.active {
+      background: #2f4652;
+      color: #ffffff;
+    }
+
+    .nav-icon {
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      background: rgba(255,255,255,0.08);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 22px;
+      height: 22px;
+      padding: 0 7px;
+      border-radius: 999px;
+      color: #ffffff;
+      background: var(--coral);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .main {
+      min-width: 0;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) auto auto auto;
+      gap: 12px;
+      align-items: center;
+      min-height: 68px;
+      padding: 14px 22px;
+      background: rgba(245,247,251,0.94);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(12px);
+    }
+
+    .search {
+      position: relative;
+    }
+
+    .search input {
+      width: 100%;
+      height: 40px;
+      padding: 0 14px 0 38px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .search::before {
+      content: "Q";
+      position: absolute;
+      left: 13px;
+      top: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .top-action,
+    .primary,
+    .secondary,
+    .ghost,
+    .danger {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      min-height: 36px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      white-space: nowrap;
+      font-weight: 650;
+    }
+
+    .top-action {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .primary {
+      background: var(--teal);
+      color: #ffffff;
+    }
+
+    .secondary {
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+
+    .ghost {
+      color: var(--teal);
+      background: transparent;
+    }
+
+    .danger {
+      background: var(--red-soft);
+      color: var(--red);
+    }
+
+    .content {
+      padding: 22px;
+      min-width: 0;
+    }
+
+    .page-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .page-title {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.2;
+    }
+
+    .page-meta {
+      margin-top: 7px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .grid.kpi {
+      grid-template-columns: repeat(4, minmax(180px, 1fr));
+    }
+
+    .grid.two {
+      grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+    }
+
+    .grid.three {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .panel {
+      min-width: 0;
+      padding: 16px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: 0 1px 0 rgba(38, 50, 65, 0.03);
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .panel-title {
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    .panel-note {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .metric {
+      min-height: 116px;
+      display: grid;
+      align-content: space-between;
+      gap: 12px;
+    }
+
+    .metric-value {
+      font-size: 29px;
+      font-weight: 800;
+      line-height: 1.1;
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .metric-trend {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .chip,
+    .status,
+    .mini-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .chip {
+      min-height: 28px;
+      padding: 5px 10px;
+      background: var(--surface-2);
+      color: var(--text);
+      font-size: 12px;
+    }
+
+    .mini-chip {
+      min-height: 22px;
+      padding: 3px 7px;
+      background: var(--surface-2);
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .status {
+      min-height: 24px;
+      padding: 4px 9px;
+      font-size: 12px;
+    }
+
+    .green { background: var(--green-soft); color: var(--green); }
+    .yellow { background: var(--amber-soft); color: var(--amber); }
+    .red { background: var(--red-soft); color: var(--red); }
+    .blue { background: var(--blue-soft); color: var(--blue); }
+    .teal { background: var(--teal-soft); color: var(--teal); }
+    .violet { background: var(--violet-soft); color: var(--violet); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 10px 9px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      background: #f8fafc;
+    }
+
+    td {
+      line-height: 1.45;
+    }
+
+    .table-actions {
+      display: flex;
+      gap: 6px;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .link-button {
+      color: var(--teal);
+      background: transparent;
+      font-weight: 750;
+      padding: 4px 0;
+    }
+
+    .tabs,
+    .segmented {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .tab,
+    .seg {
+      min-height: 34px;
+      padding: 8px 11px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .tab.active,
+    .seg.active {
+      color: #ffffff;
+      background: var(--teal);
+      border-color: var(--teal);
+    }
+
+    .health-matrix {
+      display: grid;
+      grid-template-columns: 150px repeat(6, minmax(72px, 1fr));
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .matrix-cell,
+    .matrix-head {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      padding: 8px 10px;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
+    }
+
+    .matrix-head {
+      color: var(--muted);
+      background: #f8fafc;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .matrix-cell:nth-child(7n),
+    .matrix-head:nth-child(7n) {
+      border-right: 0;
+    }
+
+    .dot {
+      display: inline-block;
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      margin-right: 7px;
+    }
+
+    .dot.green { background: var(--green); }
+    .dot.yellow { background: var(--amber); }
+    .dot.red { background: var(--red); }
+    .dot.gray { background: #a7b1be; }
+
+    .timeline {
+      display: grid;
+      gap: 10px;
+    }
+
+    .timeline-row {
+      display: grid;
+      grid-template-columns: 104px minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .track {
+      position: relative;
+      height: 28px;
+      border-radius: 999px;
+      background: #eef3f7;
+      overflow: hidden;
+    }
+
+    .bar {
+      position: absolute;
+      top: 5px;
+      height: 18px;
+      border-radius: 999px;
+      background: var(--teal);
+    }
+
+    .bar.critical {
+      background: var(--red);
+    }
+
+    .bar.bluebar {
+      background: var(--blue);
+    }
+
+    .bar.greenbar {
+      background: var(--green);
+    }
+
+    .bar.amberbar {
+      background: var(--amber);
+    }
+
+    .kanban {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(190px, 1fr));
+      gap: 12px;
+    }
+
+    .kanban-col {
+      min-height: 420px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .kanban-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      font-weight: 800;
+    }
+
+    .task-card {
+      display: grid;
+      gap: 8px;
+      padding: 11px;
+      margin-bottom: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .task-title {
+      font-weight: 800;
+      line-height: 1.4;
+    }
+
+    .task-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .task-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: space-between;
+    }
+
+    .calendar {
+      overflow: auto;
+    }
+
+    .calendar-grid {
+      min-width: 860px;
+      display: grid;
+      grid-template-columns: 128px repeat(14, 78px);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .cal-cell {
+      min-height: 50px;
+      padding: 8px;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
+      font-size: 12px;
+    }
+
+    .cal-head {
+      background: #f8fafc;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .booking {
+      min-height: 28px;
+      padding: 6px;
+      border-radius: 7px;
+      color: #ffffff;
+      line-height: 1.25;
+      overflow: hidden;
+    }
+
+    .booking.teal-bg { background: var(--teal); }
+    .booking.blue-bg { background: var(--blue); }
+    .booking.red-bg { background: var(--red); }
+    .booking.amber-bg { background: var(--amber); color: #231700; }
+    .booking.green-bg { background: var(--green); }
+
+    .heatmap {
+      overflow: auto;
+    }
+
+    .heat-grid {
+      min-width: 760px;
+      display: grid;
+      grid-template-columns: 130px repeat(8, 1fr);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .heat-cell {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 7px;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .heat-name {
+      justify-content: flex-start;
+      color: var(--text);
+      background: #f8fafc;
+    }
+
+    .load-low { background: #dff3e8; color: #256d45; }
+    .load-mid { background: #fff1cb; color: #8a5d0d; }
+    .load-high { background: #fde1dc; color: #ad342d; }
+
+    .editor-layout {
+      display: grid;
+      grid-template-columns: minmax(280px, 0.9fr) minmax(360px, 1.1fr);
+      gap: 14px;
+    }
+
+    .tree {
+      display: grid;
+      gap: 8px;
+    }
+
+    .tree-node {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 8px;
+      align-items: center;
+      padding: 9px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .tree-node.level-2 {
+      margin-left: 18px;
+      background: #f8fafc;
+    }
+
+    .tree-node.level-3 {
+      margin-left: 36px;
+    }
+
+    .tree-node.selected {
+      border-color: var(--teal);
+      box-shadow: inset 0 0 0 1px var(--teal);
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 10px;
+      color: var(--text);
+      background: var(--surface);
+    }
+
+    textarea {
+      min-height: 96px;
+      resize: vertical;
+    }
+
+    .wizard-steps {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .wizard-step {
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--muted);
+      background: #f8fafc;
+      font-weight: 800;
+      text-align: center;
+      padding: 8px;
+    }
+
+    .wizard-step.active {
+      color: #ffffff;
+      background: var(--teal);
+      border-color: var(--teal);
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: none;
+      place-items: center;
+      padding: 22px;
+      background: rgba(18, 29, 35, 0.48);
+    }
+
+    .modal-backdrop.open {
+      display: grid;
+    }
+
+    .modal {
+      width: min(980px, 100%);
+      max-height: calc(100vh - 44px);
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      background: var(--surface);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .modal.small {
+      width: min(620px, 100%);
+    }
+
+    .modal-head,
+    .modal-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .modal-foot {
+      border-top: 1px solid var(--line);
+      border-bottom: 0;
+      justify-content: flex-end;
+    }
+
+    .modal-title {
+      font-weight: 850;
+      font-size: 18px;
+    }
+
+    .modal-body {
+      padding: 16px;
+      overflow: auto;
+    }
+
+    .notice {
+      display: none;
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      z-index: 40;
+      width: min(420px, calc(100vw - 44px));
+      padding: 13px 14px;
+      border-radius: 8px;
+      color: #ffffff;
+      background: #20313b;
+      box-shadow: var(--shadow);
+      font-weight: 700;
+    }
+
+    .notice.show {
+      display: block;
+    }
+
+    .roadmap {
+      display: grid;
+      gap: 12px;
+    }
+
+    .phase-row {
+      display: grid;
+      grid-template-columns: 84px minmax(170px, 0.9fr) minmax(0, 1.6fr) 96px;
+      gap: 10px;
+      align-items: stretch;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .phase-id {
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      background: var(--teal-soft);
+      color: var(--teal);
+      font-size: 20px;
+      font-weight: 850;
+    }
+
+    .phase-title {
+      font-weight: 850;
+      margin-bottom: 6px;
+    }
+
+    .phase-list {
+      margin: 0;
+      padding-left: 18px;
+      line-height: 1.7;
+      color: var(--muted);
+    }
+
+    .progress-line {
+      height: 9px;
+      background: #e8edf3;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .progress-line span {
+      display: block;
+      height: 100%;
+      background: var(--teal);
+    }
+
+    .empty {
+      padding: 24px;
+      text-align: center;
+      color: var(--muted);
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+    }
+
+    @media (max-width: 1100px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+        height: auto;
+      }
+
+      .nav-grid-mobile {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 4px;
+      }
+
+      .topbar {
+        grid-template-columns: 1fr;
+      }
+
+      .grid.kpi,
+      .grid.two,
+      .grid.three,
+      .editor-layout,
+      .kanban {
+        grid-template-columns: 1fr;
+      }
+
+      .page-head,
+      .panel-head {
+        display: grid;
+      }
+
+      .health-matrix {
+        overflow-x: auto;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .content {
+        padding: 14px;
+      }
+
+      .form-grid,
+      .wizard-steps,
+      .phase-row {
+        grid-template-columns: 1fr;
+      }
+
+      .table-wrap {
+        overflow-x: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">CMC</div>
+        <div>
+          <div class="brand-title">CMC-PMS</div>
+          <div class="brand-subtitle">项目管理系统 Demo</div>
+        </div>
+      </div>
+      <div class="nav-grid-mobile" id="nav"></div>
+    </aside>
+
+    <section class="main">
+      <header class="topbar">
+        <div class="search">
+          <input id="globalSearch" type="search" placeholder="搜索项目、任务、模板、人员">
+        </div>
+        <button class="top-action" onclick="openCreateProject()">+ 创建项目</button>
+        <button class="top-action" onclick="go('alerts')">通知 <span class="badge" id="alertBadge">5</span></button>
+        <button class="top-action" onclick="go('admin')">CMC负责人</button>
+      </header>
+      <main class="content" id="content"></main>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="modalBackdrop">
+    <div class="modal" id="modal">
+      <div class="modal-head">
+        <div class="modal-title" id="modalTitle">弹窗</div>
+        <button class="secondary" onclick="closeModal()">关闭</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-foot" id="modalFoot"></div>
+    </div>
+  </div>
+
+  <div class="notice" id="notice"></div>
+
+  <script>
+    const navItems = [
+      { group: "项目运行", items: [
+        { id: "dashboard", label: "首页看板", icon: "DB" },
+        { id: "portfolio", label: "项目组合", icon: "PF" },
+        { id: "project", label: "单项目", icon: "PJ" },
+        { id: "gantt", label: "甘特图", icon: "GT" },
+        { id: "tasks", label: "任务看板", icon: "TK" }
+      ]},
+      { group: "资源与协作", items: [
+        { id: "resources", label: "资源日历", icon: "RC" },
+        { id: "workload", label: "人员负荷", icon: "SW" },
+        { id: "alerts", label: "预警通知", icon: "AN", badge: 5 }
+      ]},
+      { group: "配置与交付", items: [
+        { id: "templates", label: "模板管理", icon: "TE" },
+        { id: "reports", label: "报表导出", icon: "RP" },
+        { id: "admin", label: "系统管理", icon: "AD" },
+        { id: "roadmap", label: "分期规划", icon: "M" }
+      ]}
+    ];
+
+    const projects = [
+      { id: "P001", name: "CMAB00012 XX单抗注射液", type: "单抗", owner: "林然", phase: "IND", health: "yellow", progress: 62, milestone: "IND资料包完成", days: 18, delay: 3 },
+      { id: "P002", name: "CMAB00017 双抗候选物", type: "多抗", owner: "周澈", phase: "Ph1/2", health: "red", progress: 41, milestone: "上游参数锁定", days: 7, delay: 9 },
+      { id: "P003", name: "CMAB00021 商业化变更", type: "单抗", owner: "何芮", phase: "商业化", health: "green", progress: 78, milestone: "PPQ批记录归档", days: 32, delay: 0 },
+      { id: "P004", name: "CMAB00026 BLA准备", type: "单抗", owner: "陈序", phase: "BLA", health: "yellow", progress: 55, milestone: "CTD M3初稿", days: 21, delay: 2 },
+      { id: "P005", name: "CMAB00033 临床前开发", type: "多抗", owner: "梁安", phase: "临床前", health: "green", progress: 28, milestone: "细胞株筛选完成", days: 45, delay: 0 }
+    ];
+
+    const stages = ["临床前", "IND", "Ph1/2", "Ph3", "BLA", "商业化"];
+    const moduleList = ["USP", "DSP", "DP", "分析", "稳定性", "CTD", "生产支持"];
+
+    let activeView = "dashboard";
+    let dashboardRole = "manager";
+    let ganttScale = "week";
+    let ganttModule = "全部";
+    let selectedTemplateNode = "T001";
+    let importStep = 1;
+    let wizardStep = 1;
+
+    const tasks = [
+      { id: "T001", title: "培养基筛选与优化", status: "进行中", owner: "蒋若", module: "USP", project: "CMAB00012", start: 4, len: 22, critical: true, effort: 20, progress: 55 },
+      { id: "T002", title: "补料策略开发", status: "未开始", owner: "宋珩", module: "USP", project: "CMAB00012", start: 18, len: 18, critical: true, effort: 12, progress: 0 },
+      { id: "T003", title: "Protein A捕获筛选", status: "阻塞", owner: "陈序", module: "DSP", project: "CMAB00017", start: 9, len: 25, critical: false, effort: 15, progress: 38 },
+      { id: "T004", title: "纯度方法开发", status: "进行中", owner: "韩霁", module: "分析", project: "CMAB00026", start: 2, len: 28, critical: true, effort: 18, progress: 61 },
+      { id: "T005", title: "工程批生产排程", status: "未开始", owner: "李峻", module: "生产支持", project: "CMAB00021", start: 35, len: 14, critical: false, effort: 8, progress: 0 },
+      { id: "T006", title: "IND分析方法开发完成", status: "已完成", owner: "韩霁", module: "分析", project: "CMAB00012", start: 1, len: 10, critical: false, effort: 0, progress: 100 }
+    ];
+
+    const people = [
+      { name: "蒋若", role: "上游工艺工程师", group: "USP", load: [66, 72, 84, 96, 78, 64, 58, 70], tasks: 7 },
+      { name: "宋珩", role: "上游工艺工程师", group: "USP", load: [42, 55, 61, 69, 72, 68, 60, 48], tasks: 4 },
+      { name: "陈序", role: "下游工艺工程师", group: "DSP", load: [88, 94, 101, 96, 86, 74, 63, 59], tasks: 9 },
+      { name: "韩霁", role: "分析研究员", group: "分析", load: [74, 82, 90, 92, 88, 79, 73, 68], tasks: 8 },
+      { name: "李峻", role: "生产计划", group: "生产支持", load: [61, 62, 58, 67, 76, 82, 79, 73], tasks: 5 },
+      { name: "梁安", role: "制剂工程师", group: "DP", load: [35, 48, 52, 56, 57, 61, 66, 62], tasks: 3 }
+    ];
+
+    const templateNodes = [
+      { id: "SP1", level: 2, name: "IND-USP 上游工艺开发", stage: "IND", module: "USP", duration: 110, effort: 67, milestone: false, ownerRole: "上游工艺工程师" },
+      { id: "T001", level: 3, parent: "SP1", name: "培养基筛选与优化", stage: "IND", module: "USP", duration: 30, effort: 20, milestone: false, ownerRole: "上游工艺工程师", deps: "" },
+      { id: "T002", level: 3, parent: "SP1", name: "补料策略开发", stage: "IND", module: "USP", duration: 20, effort: 12, milestone: false, ownerRole: "上游工艺工程师", deps: "T001" },
+      { id: "T003", level: 3, parent: "SP1", name: "工艺参数优化", stage: "IND", module: "USP", duration: 45, effort: 25, milestone: false, ownerRole: "上游工艺工程师", deps: "T001,T002" },
+      { id: "M001", level: 3, parent: "SP1", name: "上游工艺参数锁定", stage: "IND", module: "USP", duration: 0, effort: 0, milestone: true, ownerRole: "项目负责人", deps: "T003" },
+      { id: "SP2", level: 2, name: "IND-DSP 下游工艺开发", stage: "IND", module: "DSP", duration: 90, effort: 52, milestone: false, ownerRole: "下游工艺工程师" },
+      { id: "T005", level: 3, parent: "SP2", name: "Protein A捕获筛选", stage: "IND", module: "DSP", duration: 25, effort: 15, milestone: false, ownerRole: "下游工艺工程师", deps: "M001" },
+      { id: "T006", level: 3, parent: "SP2", name: "精纯步骤开发", stage: "IND", module: "DSP", duration: 40, effort: 22, milestone: false, ownerRole: "下游工艺工程师", deps: "T005" }
+    ];
+
+    const alerts = [
+      { level: "red", type: "里程碑风险", title: "CMAB00017 上游参数锁定预计延迟 9 天", owner: "周澈", time: "今天 09:20" },
+      { level: "yellow", type: "人员过载", title: "陈序未来两周负荷超过 90%", owner: "CMC负责人", time: "今天 08:10" },
+      { level: "yellow", type: "资源冲突", title: "200L反应器在 5月8日存在双重占用", owner: "李峻", time: "昨天 16:42" },
+      { level: "blue", type: "关键路径变更", title: "纯度方法开发进入关键路径", owner: "韩霁", time: "昨天 13:15" },
+      { level: "red", type: "任务延迟", title: "Protein A捕获筛选阻塞超过 3 天", owner: "陈序", time: "昨天 10:33" }
+    ];
+
+    function esc(value) {
+      return String(value ?? "").replace(/[&<>"']/g, ch => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+      }[ch]));
+    }
+
+    function renderNav() {
+      const nav = document.getElementById("nav");
+      nav.innerHTML = navItems.map(group => `
+        <div class="nav-group">
+          <div class="nav-group-title">${group.group}</div>
+          ${group.items.map(item => `
+            <button class="nav-button ${activeView === item.id ? "active" : ""}" onclick="go('${item.id}')">
+              <span class="nav-icon">${item.icon}</span>
+              <span>${item.label}</span>
+              ${item.badge ? `<span class="badge">${item.badge}</span>` : `<span></span>`}
+            </button>
+          `).join("")}
+        </div>
+      `).join("");
+    }
+
+    function go(view) {
+      activeView = view;
+      renderNav();
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function pageHead(title, meta, actions = "") {
+      return `
+        <div class="page-head">
+          <div>
+            <h1 class="page-title">${title}</h1>
+            <div class="page-meta">${meta}</div>
+          </div>
+          <div class="toolbar">${actions}</div>
+        </div>
+      `;
+    }
+
+    function statusLabel(health) {
+      const map = {
+        green: ["green", "绿灯"],
+        yellow: ["yellow", "黄灯"],
+        red: ["red", "红灯"],
+        blue: ["blue", "关注"]
+      };
+      const item = map[health] || ["blue", health];
+      return `<span class="status ${item[0]}">${item[1]}</span>`;
+    }
+
+    function render() {
+      const map = {
+        dashboard: renderDashboard,
+        portfolio: renderPortfolio,
+        project: renderProject,
+        gantt: renderGantt,
+        tasks: renderTasks,
+        resources: renderResources,
+        workload: renderWorkload,
+        alerts: renderAlerts,
+        templates: renderTemplates,
+        reports: renderReports,
+        admin: renderAdmin,
+        roadmap: renderRoadmap
+      };
+      document.getElementById("content").innerHTML = (map[activeView] || renderDashboard)();
+      afterRender();
+    }
+
+    function afterRender() {
+      if (activeView === "templates") bindTemplateForm();
+    }
+
+    function renderDashboard() {
+      const roleTabs = [
+        ["manager", "管理者看板"],
+        ["process", "工艺开发看板"],
+        ["production", "生产支持看板"]
+      ];
+      let roleContent = "";
+      if (dashboardRole === "manager") {
+        roleContent = managerDashboard();
+      } else if (dashboardRole === "process") {
+        roleContent = processDashboard();
+      } else {
+        roleContent = productionDashboard();
+      }
+      return `
+        ${pageHead("首页看板", "按角色切换项目组合、个人待办、生产支持视角。", `
+          <div class="segmented">
+            ${roleTabs.map(([id, label]) => `<button class="seg ${dashboardRole === id ? "active" : ""}" onclick="setDashboardRole('${id}')">${label}</button>`).join("")}
+          </div>
+        `)}
+        ${roleContent}
+      `;
+    }
+
+    function managerDashboard() {
+      return `
+        <div class="grid kpi">
+          <div class="panel metric">
+            <div>
+              <div class="metric-label">活跃项目</div>
+              <div class="metric-value">9</div>
+            </div>
+            <div class="metric-trend"><span>3个上市产品 + 6个在研</span><span class="status blue">组合</span></div>
+          </div>
+          <div class="panel metric">
+            <div>
+              <div class="metric-label">红灯项目</div>
+              <div class="metric-value">1</div>
+            </div>
+            <div class="metric-trend"><span>CMAB00017</span><span class="status red">需处理</span></div>
+          </div>
+          <div class="panel metric">
+            <div>
+              <div class="metric-label">关键路径任务</div>
+              <div class="metric-value">12</div>
+            </div>
+            <div class="metric-trend"><span>4项本周变更</span><span class="status yellow">预警</span></div>
+          </div>
+          <div class="panel metric">
+            <div>
+              <div class="metric-label">人员过载</div>
+              <div class="metric-value">2</div>
+            </div>
+            <div class="metric-trend"><span>未来2周超过90%</span><span class="status red">负荷</span></div>
+          </div>
+        </div>
+
+        <div class="grid two" style="margin-top:14px;">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <div class="panel-title">项目健康度矩阵</div>
+                <div class="panel-note">行=项目，列=阶段，颜色来自延期、里程碑风险、关键路径、资源冲突综合评分。</div>
+              </div>
+              <button class="ghost" onclick="go('portfolio')">查看组合</button>
+            </div>
+            ${healthMatrix()}
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-title">关键里程碑倒计时</div>
+              <button class="ghost" onclick="go('alerts')">处理预警</button>
+            </div>
+            <div class="timeline">
+              ${projects.slice(0,4).map(p => `
+                <div class="timeline-row">
+                  <strong>${p.id}</strong>
+                  <div class="track"><span class="bar ${p.health === "red" ? "critical" : p.health === "yellow" ? "amberbar" : "greenbar"}" style="left:${Math.max(2, 70 - p.days)}%; width:${Math.min(88, 18 + p.progress / 2)}%;"></span></div>
+                  <span class="status ${p.health}">${p.days}天</span>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+        </div>
+
+        <div class="grid three" style="margin-top:14px;">
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">延迟任务 Top-N</div><span class="panel-note">按影响度排序</span></div>
+            ${miniAlertList(["Protein A捕获筛选", "CTD M3初稿汇总", "上游参数锁定"])}
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">人员负荷概览</div><button class="ghost" onclick="go('workload')">进入负荷</button></div>
+            ${miniWorkload()}
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">资源冲突预警</div><button class="ghost" onclick="go('resources')">查看日历</button></div>
+            <div class="task-card"><div class="task-title">200L反应器</div><div class="task-meta"><span class="status red">5月8日冲突</span><span class="mini-chip">CMAB00017 / CMAB00021</span></div></div>
+            <div class="task-card"><div class="task-title">AKTA Pure 2</div><div class="task-meta"><span class="status yellow">5月14日高占用</span><span class="mini-chip">DSP</span></div></div>
+          </div>
+        </div>
+      `;
+    }
+
+    function processDashboard() {
+      return `
+        <div class="grid two">
+          <div class="panel">
+            <div class="panel-head">
+              <div><div class="panel-title">我的待办任务</div><div class="panel-note">工艺开发人员视角，聚焦本人任务、参与项目与负荷状态。</div></div>
+              <button class="ghost" onclick="go('tasks')">任务看板</button>
+            </div>
+            <div class="kanban" style="grid-template-columns:repeat(3,minmax(0,1fr));">
+              ${["未开始", "进行中", "阻塞"].map(status => `
+                <div class="kanban-col">
+                  <div class="kanban-head">${status}<span class="mini-chip">${tasks.filter(t => t.status === status).length}</span></div>
+                  ${tasks.filter(t => t.status === status).slice(0,2).map(taskCard).join("") || `<div class="empty">暂无任务</div>`}
+                </div>
+              `).join("")}
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">我的负荷状态</div><span class="status yellow">本周 84%</span></div>
+            ${miniWorkload("蒋若")}
+            <div style="height:14px;"></div>
+            <div class="panel-title" style="margin-bottom:10px;">我参与的项目</div>
+            ${projects.slice(0,3).map(p => `<div class="task-card"><div class="task-title">${p.name}</div><div class="task-meta">${statusLabel(p.health)}<span class="mini-chip">${p.phase}</span><span class="mini-chip">${p.progress}%</span></div></div>`).join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    function productionDashboard() {
+      return `
+        <div class="grid two">
+          <div class="panel">
+            <div class="panel-head">
+              <div><div class="panel-title">近期批次排程</div><div class="panel-note">生产支持视角，聚焦设备、产线、批次和待处理任务。</div></div>
+              <button class="ghost" onclick="go('resources')">资源日历</button>
+            </div>
+            ${resourceCalendar(true)}
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">待处理任务清单</div><button class="ghost" onclick="go('tasks')">更新状态</button></div>
+            ${["工程批生产排程", "PPQ批记录归档", "设备清洁确认"].map((name, i) => `
+              <div class="task-card">
+                <div class="task-title">${name}</div>
+                <div class="task-meta"><span class="status ${i === 0 ? "yellow" : "blue"}">${i === 0 ? "待确认" : "进行中"}</span><span class="mini-chip">生产支持</span></div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    function setDashboardRole(role) {
+      dashboardRole = role;
+      render();
+    }
+
+    function healthMatrix() {
+      const heads = ["项目", ...stages];
+      return `<div class="health-matrix">
+        ${heads.map(h => `<div class="matrix-head">${h}</div>`).join("")}
+        ${projects.map((p, index) => `
+          <div class="matrix-cell"><strong>${p.id}</strong></div>
+          ${stages.map((s, sIndex) => {
+            const active = s === p.phase;
+            const dot = active ? p.health : (sIndex < stages.indexOf(p.phase) ? "green" : "gray");
+            return `<div class="matrix-cell"><span class="dot ${dot}"></span>${active ? p.phase : ""}</div>`;
+          }).join("")}
+        `).join("")}
+      </div>`;
+    }
+
+    function miniAlertList(names) {
+      return names.map((name, i) => `
+        <div class="task-card">
+          <div class="task-title">${name}</div>
+          <div class="task-meta">
+            <span class="status ${i === 0 ? "red" : "yellow"}">${i === 0 ? "影响里程碑" : "需关注"}</span>
+            <span class="mini-chip">延迟 ${i + 2} 天</span>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function miniWorkload(name) {
+      const rows = name ? people.filter(p => p.name === name) : people.slice(0,4);
+      return rows.map(p => {
+        const now = p.load[2];
+        const cls = now > 90 ? "red" : now > 70 ? "yellow" : "green";
+        return `<div style="margin-bottom:11px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><strong>${p.name}</strong><span class="status ${cls}">${now}%</span></div>
+          <div class="progress-line"><span style="width:${Math.min(100, now)}%;"></span></div>
+        </div>`;
+      }).join("");
+    }
+
+    function renderPortfolio() {
+      return `
+        ${pageHead("项目组合管理", "覆盖项目创建、模板自动生成、组合总览、健康度和项目生命周期入口。", `
+          <button class="secondary" onclick="toast('已导出项目组合矩阵.xlsx')">导出组合</button>
+          <button class="primary" onclick="openCreateProject()">+ 创建新项目</button>
+        `)}
+        <div class="grid two">
+          <div class="panel">
+            <div class="panel-head">
+              <div><div class="panel-title">项目组合总览</div><div class="panel-note">行=项目，列=阶段，红黄绿来自系统自动计算。</div></div>
+              <div class="tabs"><button class="tab active">活跃</button><button class="tab">暂停</button><button class="tab">归档</button></div>
+            </div>
+            ${healthMatrix()}
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">项目健康度规则</div><button class="ghost" onclick="toast('Demo中为示例评分，正式版应配置公式。')">查看公式</button></div>
+            <table>
+              <tbody>
+                <tr><td>里程碑风险</td><td><span class="status red">高权重</span></td></tr>
+                <tr><td>关键路径延迟</td><td><span class="status red">高权重</span></td></tr>
+                <tr><td>人员过载</td><td><span class="status yellow">中权重</span></td></tr>
+                <tr><td>资源冲突</td><td><span class="status yellow">中权重</span></td></tr>
+                <tr><td>任务完成率</td><td><span class="status blue">趋势项</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="panel" style="margin-top:14px;">
+          <div class="panel-head"><div class="panel-title">项目列表</div><span class="panel-note">点击项目进入单项目工作台。</span></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>项目编号</th><th>项目名称</th><th>产品类型</th><th>阶段</th><th>负责人</th><th>健康度</th><th>进度</th><th>近期里程碑</th><th></th></tr></thead>
+              <tbody>
+                ${projects.map(p => `
+                  <tr>
+                    <td><strong>${p.id}</strong></td>
+                    <td>${p.name}</td>
+                    <td>${p.type}</td>
+                    <td>${p.phase}</td>
+                    <td>${p.owner}</td>
+                    <td>${statusLabel(p.health)}</td>
+                    <td><div class="progress-line"><span style="width:${p.progress}%;"></span></div></td>
+                    <td>${p.milestone}<br><span class="panel-note">${p.days}天后</span></td>
+                    <td class="table-actions"><button class="link-button" onclick="go('project')">详情</button><button class="link-button" onclick="go('gantt')">甘特</button></td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderProject() {
+      return `
+        ${pageHead("单项目工作台", "展示三级 WBS、任务状态、里程碑、延迟影响推演和阶段评审。", `
+          <button class="secondary" onclick="simulateDelay()">延迟影响分析</button>
+          <button class="primary" onclick="go('gantt')">打开甘特图</button>
+        `)}
+        <div class="grid two">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <div class="panel-title">CMAB00012 XX单抗注射液</div>
+                <div class="panel-note">三级结构：项目 → 子项目 → 任务，任务下不允许创建子层级。</div>
+              </div>
+              <span class="status yellow">IND阶段</span>
+            </div>
+            ${wbsTree()}
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">项目摘要</div><span class="status yellow">黄灯</span></div>
+            <table>
+              <tbody>
+                <tr><td>项目负责人</td><td>林然</td></tr>
+                <tr><td>来源模板</td><td>单抗 IND 标准模板 V1.2</td></tr>
+                <tr><td>计划周期</td><td>2026-05-06 至 2026-11-28</td></tr>
+                <tr><td>当前进度</td><td><div class="progress-line"><span style="width:62%;"></span></div></td></tr>
+                <tr><td>关键路径</td><td>4 个任务</td></tr>
+                <tr><td>下一里程碑</td><td>IND资料包完成，18天后</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="grid three" style="margin-top:14px;">
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">里程碑管理</div><button class="ghost" onclick="toast('已设置里程碑提醒')">设置提醒</button></div>
+            ${["上游工艺参数锁定", "IND分析方法开发完成", "IND资料包完成"].map((m, i) => `<div class="task-card"><div class="task-title">${m}</div><div class="task-meta"><span class="status ${i === 0 ? "yellow" : "blue"}">${i === 0 ? "可评审" : "待前置"}</span><span class="mini-chip">${18 + i * 9}天后</span></div></div>`).join("")}
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">阶段评审</div><button class="ghost" onclick="toast('已提交阶段评审确认')">确认推进</button></div>
+            <div class="task-card"><div class="task-title">IND阶段评审</div><div class="task-meta"><span class="status yellow">等待USP/DSP里程碑</span><span class="mini-chip">3/5完成</span></div></div>
+            <div class="task-card"><div class="task-title">资料归档检查</div><div class="task-meta"><span class="status blue">进行中</span><span class="mini-chip">QA预留</span></div></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">延迟影响链路</div><button class="ghost" onclick="simulateDelay()">推演</button></div>
+            <div class="timeline">
+              ${["培养基筛选与优化", "补料策略开发", "工艺参数优化", "上游工艺参数锁定"].map((name, i) => `<div class="timeline-row"><strong>T00${i+1}</strong><div>${name}</div><span class="status ${i > 1 ? "red" : "yellow"}">+${i+1}天</span></div>`).join("")}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function wbsTree() {
+      return `<div class="tree">
+        <div class="tree-node"><span class="mini-chip">L1</span><strong>CMAB00012 XX单抗注射液</strong><span class="status yellow">项目</span></div>
+        ${templateNodes.map(n => `<div class="tree-node level-${n.level}">
+          <span class="mini-chip">L${n.level}</span>
+          <span>${n.name}</span>
+          <span class="status ${n.milestone ? "violet" : n.level === 2 ? "teal" : "blue"}">${n.milestone ? "里程碑" : n.level === 2 ? "子项目" : "任务"}</span>
+        </div>`).join("")}
+      </div>`;
+    }
+
+    function simulateDelay() {
+      openModal("延迟影响分析", `
+        <div class="form-grid">
+          <div class="field"><label>选择任务</label><select><option>培养基筛选与优化</option><option>Protein A捕获筛选</option></select></div>
+          <div class="field"><label>预计延迟天数</label><input type="number" value="5"></div>
+        </div>
+        <div style="height:14px;"></div>
+        <div class="panel" style="box-shadow:none;">
+          <div class="panel-head"><div class="panel-title">传导结果</div><span class="status red">影响2个里程碑</span></div>
+          <div class="timeline">
+            ${["培养基筛选与优化 +5天", "补料策略开发 +5天", "工艺参数优化 +5天", "上游工艺参数锁定 +5天", "IND资料包完成 +3天"].map((x, i) => `
+              <div class="timeline-row"><strong>${i + 1}</strong><div>${x}</div><span class="status ${i > 2 ? "red" : "yellow"}">${i > 2 ? "里程碑" : "任务"}</span></div>
+            `).join("")}
+          </div>
+        </div>
+      `, `<button class="secondary" onclick="closeModal()">取消</button><button class="primary" onclick="toast('已生成延迟影响报告');closeModal()">生成报告</button>`);
+    }
+
+    function renderGantt() {
+      const modules = ["全部", ...moduleList];
+      const filtered = ganttModule === "全部" ? tasks : tasks.filter(t => t.module === ganttModule);
+      return `
+        ${pageHead("甘特图与关键路径", "支持任务排期、依赖关系、关键路径高亮、日/周/月/季度缩放。", `
+          <div class="segmented">${["day", "week", "month", "quarter"].map(s => `<button class="seg ${ganttScale === s ? "active" : ""}" onclick="setGanttScale('${s}')">${({day:"日",week:"周",month:"月",quarter:"季度"})[s]}</button>`).join("")}</div>
+        `)}
+        <div class="panel">
+          <div class="panel-head">
+            <div><div class="panel-title">CMAB00012 / CMAB00017 任务排期</div><div class="panel-note">红色为关键路径，拖拽排期在正式版中落库并触发下游联动。</div></div>
+            <select style="width:160px;" onchange="setGanttModule(this.value)">
+              ${modules.map(m => `<option ${m === ganttModule ? "selected" : ""}>${m}</option>`).join("")}
+            </select>
+          </div>
+          <div class="timeline">
+            ${filtered.map(t => `
+              <div class="timeline-row">
+                <strong>${t.id}</strong>
+                <div class="track"><span class="bar ${t.critical ? "critical" : t.module === "DSP" ? "bluebar" : t.module === "分析" ? "greenbar" : "amberbar"}" style="left:${t.start}%;width:${Math.max(8, t.len)}%;"></span></div>
+                <span class="status ${t.critical ? "red" : "blue"}">${t.critical ? "关键" : t.module}</span>
+              </div>
+            `).join("") || `<div class="empty">当前筛选没有任务</div>`}
+          </div>
+        </div>
+        <div class="grid three" style="margin-top:14px;">
+          <div class="panel"><div class="panel-head"><div class="panel-title">依赖关系</div></div>${dependencyTable()}</div>
+          <div class="panel"><div class="panel-head"><div class="panel-title">CPM计算结果</div></div><table><tbody><tr><td>关键任务</td><td>4</td></tr><tr><td>总浮动时间</td><td>0 天</td></tr><tr><td>预计里程碑影响</td><td><span class="status yellow">+3天</span></td></tr></tbody></table></div>
+          <div class="panel"><div class="panel-head"><div class="panel-title">筛选条件</div></div><div class="task-meta"><span class="chip">项目</span><span class="chip">阶段</span><span class="chip">模块</span><span class="chip">负责人</span><span class="chip">关键路径</span></div></div>
+        </div>
+      `;
+    }
+
+    function dependencyTable() {
+      return `<table><tbody>
+        <tr><td>T001</td><td>FS</td><td>T002</td></tr>
+        <tr><td>T001,T002</td><td>FS</td><td>T003</td></tr>
+        <tr><td>T003</td><td>FS</td><td>M001</td></tr>
+        <tr><td>M001</td><td>FS</td><td>T005</td></tr>
+      </tbody></table>`;
+    }
+
+    function setGanttScale(scale) {
+      ganttScale = scale;
+      render();
+    }
+
+    function setGanttModule(module) {
+      ganttModule = module;
+      render();
+    }
+
+    function renderTasks() {
+      const statuses = ["未开始", "进行中", "阻塞", "已完成"];
+      return `
+        ${pageHead("任务管理与看板", "任务创建、属性、状态流转、批量操作、交付物和本人任务视图。", `
+          <button class="secondary" onclick="toast('已批量调整负责人')">批量负责人</button>
+          <button class="primary" onclick="openTaskModal()">+ 新建任务</button>
+        `)}
+        <div class="kanban">
+          ${statuses.map(status => `
+            <div class="kanban-col">
+              <div class="kanban-head">${status}<span class="mini-chip">${tasks.filter(t => t.status === status).length}</span></div>
+              ${tasks.filter(t => t.status === status).map(taskCard).join("") || `<div class="empty">暂无任务</div>`}
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    function taskCard(t) {
+      return `
+        <div class="task-card">
+          <div class="task-title">${t.title}</div>
+          <div class="task-meta">
+            <span class="mini-chip">${t.project}</span>
+            <span class="mini-chip">${t.module}</span>
+            <span class="mini-chip">${t.owner}</span>
+            ${t.critical ? `<span class="status red">关键路径</span>` : ""}
+          </div>
+          <div class="progress-line"><span style="width:${t.progress}%;"></span></div>
+          <div class="task-actions">
+            <button class="link-button" onclick="openTaskDetail('${t.id}')">详情</button>
+            <button class="link-button" onclick="nextTaskStatus('${t.id}')">流转</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function nextTaskStatus(id) {
+      const order = ["未开始", "进行中", "阻塞", "已完成"];
+      const task = tasks.find(t => t.id === id);
+      if (!task) return;
+      task.status = order[(order.indexOf(task.status) + 1) % order.length];
+      task.progress = task.status === "已完成" ? 100 : task.status === "进行中" ? Math.max(task.progress, 30) : task.progress;
+      toast(`${task.title} 已流转为：${task.status}`);
+      render();
+    }
+
+    function openTaskDetail(id) {
+      const t = tasks.find(item => item.id === id);
+      openModal("任务详情", `
+        <div class="form-grid">
+          <div class="field"><label>任务ID</label><input value="${t.id}"></div>
+          <div class="field"><label>任务名称</label><input value="${t.title}"></div>
+          <div class="field"><label>负责人</label><select>${people.map(p => `<option ${p.name === t.owner ? "selected" : ""}>${p.name}</option>`).join("")}</select></div>
+          <div class="field"><label>状态</label><select>${["未开始","进行中","阻塞","延迟","已完成","已验证"].map(s => `<option ${s === t.status ? "selected" : ""}>${s}</option>`).join("")}</select></div>
+          <div class="field"><label>预估工时(人天)</label><input type="number" value="${t.effort}"></div>
+          <div class="field"><label>进度</label><input type="number" value="${t.progress}"></div>
+          <div class="field full"><label>交付物</label><input value="方案链接 / 数据包 / 批记录附件"></div>
+          <div class="field full"><label>备注</label><textarea>用于 demo 的任务属性面板，正式版记录状态流转操作人和时间。</textarea></div>
+        </div>
+      `, `<button class="secondary" onclick="closeModal()">取消</button><button class="primary" onclick="toast('任务已保存');closeModal()">保存任务</button>`);
+    }
+
+    function openTaskModal() {
+      openModal("新建任务", `
+        <div class="form-grid">
+          <div class="field"><label>所属项目</label><select><option>CMAB00012 XX单抗注射液</option></select></div>
+          <div class="field"><label>所属子项目</label><select><option>IND-USP 上游工艺开发</option><option>IND-DSP 下游工艺开发</option></select></div>
+          <div class="field full"><label>任务名称</label><input value="新增任务"></div>
+          <div class="field"><label>负责人</label><select>${people.map(p => `<option>${p.name}</option>`).join("")}</select></div>
+          <div class="field"><label>计划日期</label><input value="2026-05-10 至 2026-05-30"></div>
+          <div class="field"><label>预估工时(人天)</label><input type="number" value="8"></div>
+          <div class="field"><label>优先级</label><select><option>高</option><option>中</option><option>低</option></select></div>
+        </div>
+      `, `<button class="secondary" onclick="closeModal()">取消</button><button class="primary" onclick="toast('任务已创建');closeModal()">创建</button>`);
+    }
+
+    function renderResources() {
+      return `
+        ${pageHead("资源日历", "设备、产线、批次排程，支持冲突标注和手动录入，预留 MES/ERP 同步接口。", `
+          <button class="secondary" onclick="toast('已导出资源占用报表.xlsx')">导出</button>
+          <button class="primary" onclick="toast('已新增资源占用')">+ 预订资源</button>
+        `)}
+        <div class="panel">
+          <div class="panel-head">
+            <div><div class="panel-title">设备/产线日历</div><div class="panel-note">不同项目用不同颜色，冲突用红色标注。</div></div>
+            <div class="tabs"><button class="tab active">日历</button><button class="tab">甘特</button></div>
+          </div>
+          ${resourceCalendar()}
+        </div>
+        <div class="grid three" style="margin-top:14px;">
+          <div class="panel"><div class="panel-head"><div class="panel-title">资源清单</div></div><table><tbody><tr><td>200L反应器</td><td><span class="status red">冲突</span></td></tr><tr><td>AKTA Pure 2</td><td><span class="status yellow">高占用</span></td></tr><tr><td>灌装线A</td><td><span class="status green">可用</span></td></tr></tbody></table></div>
+          <div class="panel"><div class="panel-head"><div class="panel-title">跨项目冲突</div></div>${miniAlertList(["200L反应器双重占用", "AKTA Pure 2窗口不足"])}</div>
+          <div class="panel"><div class="panel-head"><div class="panel-title">接口预留</div></div><div class="task-meta"><span class="chip">MES同步</span><span class="chip">ERP排程</span><span class="chip">Webhook</span></div></div>
+        </div>
+      `;
+    }
+
+    function resourceCalendar(compact) {
+      const days = Array.from({ length: compact ? 7 : 14 }, (_, i) => `5/${6 + i}`);
+      const resources = ["200L反应器", "AKTA Pure 2", "灌装线A", "稳定性箱"];
+      return `<div class="calendar"><div class="calendar-grid" style="${compact ? "grid-template-columns:128px repeat(7,78px);min-width:650px;" : ""}">
+        <div class="cal-cell cal-head">资源</div>${days.map(d => `<div class="cal-cell cal-head">${d}</div>`).join("")}
+        ${resources.map((r, ri) => `
+          <div class="cal-cell cal-head">${r}</div>
+          ${days.map((d, di) => {
+            const hit = (ri === 0 && di >= 2 && di <= 4) || (ri === 1 && di >= 7 && di <= 9) || (ri === 2 && di >= 4 && di <= 5) || (ri === 3 && di >= 1 && di <= 10);
+            const conflict = ri === 0 && di === 2;
+            return `<div class="cal-cell">${hit ? `<div class="booking ${conflict ? "red-bg" : ri === 1 ? "blue-bg" : ri === 2 ? "green-bg" : "amber-bg"}">${conflict ? "冲突" : ri === 0 ? "工程批" : ri === 1 ? "DSP" : ri === 2 ? "PPQ" : "稳定性"}</div>` : ""}</div>`;
+          }).join("")}
+        `).join("")}
+      </div></div>`;
+    }
+
+    function renderWorkload() {
+      return `
+        ${pageHead("人员负荷管理", "按周展示全员负荷，分配任务时根据专业组与负荷率推荐候选人。", `
+          <button class="secondary" onclick="toast('已导出人员负荷报表.xlsx')">导出负荷</button>
+          <button class="primary" onclick="openRecommendModal()">人员推荐</button>
+        `)}
+        <div class="grid two">
+          <div class="panel">
+            <div class="panel-head">
+              <div><div class="panel-title">人员负荷全景图</div><div class="panel-note">绿色≤70%，黄色70%-90%，红色>90%。</div></div>
+              <select style="width:160px;"><option>全部专业组</option><option>USP</option><option>DSP</option><option>分析</option></select>
+            </div>
+            ${heatmap()}
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">任务分配推荐</div><span class="status green">USP任务</span></div>
+            ${recommendList()}
+          </div>
+        </div>
+        <div class="grid three" style="margin-top:14px;">
+          <div class="panel metric"><div><div class="metric-label">平均负荷率</div><div class="metric-value">74%</div></div><div class="metric-trend"><span>未来2周</span><span class="status yellow">偏高</span></div></div>
+          <div class="panel metric"><div><div class="metric-label">可分配人员</div><div class="metric-value">3</div></div><div class="metric-trend"><span>负荷≤70%</span><span class="status green">推荐</span></div></div>
+          <div class="panel metric"><div><div class="metric-label">过载预警</div><div class="metric-value">2</div></div><div class="metric-trend"><span>每日自动检查</span><span class="status red">预警</span></div></div>
+        </div>
+      `;
+    }
+
+    function heatmap() {
+      const weeks = ["W19","W20","W21","W22","W23","W24","W25","W26"];
+      return `<div class="heatmap"><div class="heat-grid">
+        <div class="heat-cell heat-name">人员</div>${weeks.map(w => `<div class="heat-cell heat-name">${w}</div>`).join("")}
+        ${people.map(p => `
+          <div class="heat-cell heat-name">${p.name}<span class="mini-chip" style="margin-left:6px;">${p.group}</span></div>
+          ${p.load.map(v => `<div class="heat-cell ${v > 90 ? "load-high" : v > 70 ? "load-mid" : "load-low"}">${v}%</div>`).join("")}
+        `).join("")}
+      </div></div>`;
+    }
+
+    function recommendList() {
+      const candidates = people
+        .filter(p => p.group === "USP")
+        .map(p => ({ ...p, after: p.load[2] + 12 }))
+        .sort((a, b) => a.load[2] - b.load[2]);
+      return candidates.map(p => `
+        <div class="task-card">
+          <div class="task-title">${p.name} <span class="mini-chip">${p.role}</span></div>
+          <div class="task-meta">
+            <span class="status ${p.load[2] <= 70 ? "green" : p.load[2] <= 90 ? "yellow" : "red"}">当前 ${p.load[2]}%</span>
+            <span class="status ${p.after <= 70 ? "green" : p.after <= 90 ? "yellow" : "red"}">分配后 ${p.after}%</span>
+            <span class="mini-chip">${p.tasks}项任务</span>
+          </div>
+          <button class="secondary" onclick="toast('已将任务分配给 ${p.name}')">选择候选人</button>
+        </div>
+      `).join("");
+    }
+
+    function openRecommendModal() {
+      openModal("人员推荐", `
+        <div class="form-grid">
+          <div class="field"><label>任务模块</label><select><option>USP</option><option>DSP</option><option>分析</option></select></div>
+          <div class="field"><label>预估工时(人天)</label><input type="number" value="8"></div>
+        </div>
+        <div style="height:14px;"></div>
+        ${recommendList()}
+      `, `<button class="secondary" onclick="closeModal()">取消</button>`);
+    }
+
+    function renderAlerts() {
+      return `
+        ${pageHead("预警与通知", "任务延迟、里程碑风险、关键路径变更、资源冲突、人员过载统一进入消息中心。", `
+          <button class="secondary" onclick="toast('已全部标记为已读')">全部已读</button>
+          <button class="primary" onclick="toast('已保存预警规则')">配置规则</button>
+        `)}
+        <div class="grid two">
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">预警列表</div><div class="tabs"><button class="tab active">全部</button><button class="tab">红色</button><button class="tab">未读</button></div></div>
+            ${alerts.map(a => `
+              <div class="task-card">
+                <div class="task-title">${a.title}</div>
+                <div class="task-meta"><span class="status ${a.level}">${a.type}</span><span class="mini-chip">${a.owner}</span><span class="mini-chip">${a.time}</span></div>
+              </div>
+            `).join("")}
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">预警规则引擎</div><span class="panel-note">一期系统内消息，预留邮件、企微、钉钉。</span></div>
+            <table>
+              <tbody>
+                <tr><td>任务延迟预警</td><td><span class="status green">启用</span></td></tr>
+                <tr><td>里程碑风险预警</td><td><span class="status green">启用</span></td></tr>
+                <tr><td>关键路径变更预警</td><td><span class="status green">启用</span></td></tr>
+                <tr><td>资源冲突预警</td><td><span class="status green">启用</span></td></tr>
+                <tr><td>人员过载预警</td><td><span class="status green">启用</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderTemplates() {
+      return `
+        ${pageHead("模板管理", "覆盖模板生命周期、在线可视化编辑、Excel导入导出、版本历史、预览与试用。", `
+          <button class="secondary" onclick="downloadTemplate()">下载Excel模板</button>
+          <button class="secondary" onclick="exportTemplate()">Excel导出</button>
+          <button class="primary" onclick="openImportWizard()">导入Excel</button>
+        `)}
+        <div class="grid two">
+          <div class="panel">
+            <div class="panel-head">
+              <div><div class="panel-title">模板列表</div><div class="panel-note">模板修改只影响后续新建项目。</div></div>
+              <button class="ghost" onclick="toast('已复制模板为草稿')">复制模板</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>模板</th><th>产品类型</th><th>版本</th><th>状态</th><th></th></tr></thead>
+                <tbody>
+                  <tr><td>单抗 IND 标准模板</td><td>单抗</td><td>V1.2</td><td><span class="status green">生效</span></td><td class="table-actions"><button class="link-button" onclick="toast('已打开预览')">预览</button><button class="link-button" onclick="scrollToEditor()">在线编辑</button></td></tr>
+                  <tr><td>多抗 Ph1/2 模板</td><td>多抗</td><td>V1.1</td><td><span class="status green">生效</span></td><td class="table-actions"><button class="link-button">历史</button><button class="link-button">停用</button></td></tr>
+                  <tr><td>商业化变更模板</td><td>单抗</td><td>V1.0</td><td><span class="status yellow">草稿</span></td><td class="table-actions"><button class="link-button">编辑</button><button class="link-button">发布</button></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">版本历史</div><button class="ghost" onclick="toast('已对比 V1.1 与 V1.2')">对比版本</button></div>
+            ${["V1.2 新增Excel导入/导出和工时调整", "V1.1 优化三级约束和人员负荷推荐", "V1.0 初始模板"].map((v, i) => `
+              <div class="task-card">
+                <div class="task-title">${v}</div>
+                <div class="task-meta"><span class="mini-chip">${i === 0 ? "2026-05-02" : "2026-04-30"}</span><span class="mini-chip">CMC负责人</span><span class="status ${i === 0 ? "green" : "blue"}">${i === 0 ? "当前" : "历史"}</span></div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+        <div class="panel" id="templateEditor" style="margin-top:14px;">
+          <div class="panel-head">
+            <div><div class="panel-title">模板可视化编辑器</div><div class="panel-note">左侧三级树，右侧属性面板。保存时生成 TemplateVersion 与字段级diff摘要。</div></div>
+            <div class="toolbar"><button class="secondary" onclick="toast('已撤销上一步')">撤销</button><button class="secondary" onclick="toast('已打开模拟甘特预览')">预览效果</button><button class="primary" onclick="saveTemplateVersion()">保存版本</button></div>
+          </div>
+          <div class="editor-layout">
+            <div class="tree">
+              <div class="tree-node"><span class="mini-chip">L1</span><strong>单抗 IND 标准模板</strong><span class="status teal">模板</span></div>
+              ${templateNodes.map(n => `<button class="tree-node level-${n.level} ${selectedTemplateNode === n.id ? "selected" : ""}" onclick="selectTemplateNode('${n.id}')">
+                <span class="mini-chip">L${n.level}</span>
+                <span style="text-align:left;">${n.name}</span>
+                <span class="status ${n.milestone ? "violet" : n.level === 2 ? "teal" : "blue"}">${n.milestone ? "里程碑" : n.level === 2 ? "子项目" : "任务"}</span>
+              </button>`).join("")}
+            </div>
+            <div>
+              ${templatePropertyForm()}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function templatePropertyForm() {
+      const node = templateNodes.find(n => n.id === selectedTemplateNode) || templateNodes[0];
+      return `<div class="form-grid" id="templateForm">
+        <div class="field full"><label>节点名称</label><input id="tplName" value="${esc(node.name)}"></div>
+        <div class="field"><label>所属阶段</label><select id="tplStage">${stages.map(s => `<option ${s === node.stage ? "selected" : ""}>${s}</option>`).join("")}</select></div>
+        <div class="field"><label>所属模块</label><select id="tplModule">${moduleList.map(m => `<option ${m === node.module ? "selected" : ""}>${m}</option>`).join("")}</select></div>
+        <div class="field"><label>默认工期(天)</label><input id="tplDuration" type="number" value="${node.duration}"></div>
+        <div class="field"><label>默认预估工时(人天)</label><input id="tplEffort" type="number" step="0.5" value="${node.effort}"></div>
+        <div class="field"><label>前置任务</label><input id="tplDeps" value="${esc(node.deps || "")}" ${node.level === 2 ? "disabled" : ""}></div>
+        <div class="field"><label>默认负责角色</label><select id="tplRole"><option>${node.ownerRole}</option><option>项目负责人</option><option>分析研究员</option><option>生产计划</option></select></div>
+        <div class="field"><label>是否里程碑</label><select id="tplMilestone"><option ${node.milestone ? "selected" : ""}>是</option><option ${!node.milestone ? "selected" : ""}>否</option></select></div>
+        <div class="field"><label>依赖类型</label><select><option>FS</option><option>SS</option><option>FF</option><option>SF</option></select></div>
+        <div class="field full"><label>备注/操作要点</label><textarea>标准操作说明，支持后续替换为富文本编辑器。</textarea></div>
+        <div class="field full">
+          <div class="toolbar" style="justify-content:flex-start;">
+            <button class="secondary" onclick="addTemplateTask()">+ 新增任务</button>
+            <button class="secondary" onclick="addTemplateSubproject()">+ 新增子项目</button>
+            <button class="danger" onclick="deleteTemplateNode()">删除节点</button>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    function bindTemplateForm() {
+      ["tplName","tplStage","tplModule","tplDuration","tplEffort","tplDeps","tplRole","tplMilestone"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener("change", updateTemplateNodeFromForm);
+      });
+    }
+
+    function updateTemplateNodeFromForm() {
+      const node = templateNodes.find(n => n.id === selectedTemplateNode);
+      if (!node) return;
+      node.name = document.getElementById("tplName").value;
+      node.stage = document.getElementById("tplStage").value;
+      node.module = document.getElementById("tplModule").value;
+      node.duration = Number(document.getElementById("tplDuration").value);
+      node.effort = Number(document.getElementById("tplEffort").value);
+      node.deps = document.getElementById("tplDeps")?.value || "";
+      node.ownerRole = document.getElementById("tplRole").value;
+      node.milestone = document.getElementById("tplMilestone").value === "是";
+      toast("模板节点属性已更新，保存后生成新版本");
+      render();
+    }
+
+    function selectTemplateNode(id) {
+      selectedTemplateNode = id;
+      render();
+      setTimeout(() => document.getElementById("templateEditor")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+    }
+
+    function addTemplateTask() {
+      const parent = templateNodes.find(n => n.id === selectedTemplateNode && n.level === 2) || templateNodes.find(n => n.level === 2);
+      const id = "T" + String(templateNodes.filter(n => n.level === 3).length + 10).padStart(3, "0");
+      templateNodes.push({ id, level: 3, parent: parent.id, name: "新增模板任务", stage: parent.stage, module: parent.module, duration: 10, effort: 5, milestone: false, ownerRole: parent.ownerRole, deps: "" });
+      selectedTemplateNode = id;
+      toast("已新增 Level 3 任务");
+      render();
+    }
+
+    function addTemplateSubproject() {
+      const id = "SP" + (templateNodes.filter(n => n.level === 2).length + 1);
+      templateNodes.push({ id, level: 2, name: "新增子项目", stage: "IND", module: "DP", duration: 30, effort: 12, milestone: false, ownerRole: "制剂工程师" });
+      selectedTemplateNode = id;
+      toast("已新增 Level 2 子项目");
+      render();
+    }
+
+    function deleteTemplateNode() {
+      const node = templateNodes.find(n => n.id === selectedTemplateNode);
+      if (!node) return;
+      if (node.level === 2 && templateNodes.some(n => n.parent === node.id)) {
+        toast("该子项目下存在任务，Demo中先给出约束警告");
+        return;
+      }
+      const index = templateNodes.findIndex(n => n.id === selectedTemplateNode);
+      templateNodes.splice(index, 1);
+      selectedTemplateNode = templateNodes[0]?.id || "";
+      toast("节点已删除，保存后写入新版本");
+      render();
+    }
+
+    function saveTemplateVersion() {
+      toast("模板已保存为 V1.3，变更摘要已生成");
+    }
+
+    function scrollToEditor() {
+      document.getElementById("templateEditor")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function downloadTemplate() {
+      toast("已生成标准Excel模板：填写说明、子项目清单、任务清单、数据字典参考、示例");
+    }
+
+    function exportTemplate() {
+      toast("已导出：单抗IND标准模板_V1.2_20260502.xlsx");
+    }
+
+    function openImportWizard() {
+      importStep = 1;
+      renderImportWizard();
+    }
+
+    function renderImportWizard() {
+      const body = `
+        <div class="wizard-steps">
+          ${["下载标准模板", "上传Excel", "校验结果", "预览确认"].map((s, i) => `<div class="wizard-step ${importStep === i + 1 ? "active" : ""}">${s}</div>`).join("")}
+        </div>
+        ${importStep === 1 ? importStepOne() : importStep === 2 ? importStepTwo() : importStep === 3 ? importStepThree() : importStepFour()}
+      `;
+      const foot = `<button class="secondary" onclick="closeModal()">关闭</button>${importStep > 1 ? `<button class="secondary" onclick="importStep--;renderImportWizard()">上一步</button>` : ""}<button class="primary" onclick="nextImportStep()">${importStep === 4 ? "提交导入" : "下一步"}</button>`;
+      openModal("模板Excel导入", body, foot);
+    }
+
+    function importStepOne() {
+      return `<div class="panel" style="box-shadow:none;"><div class="panel-head"><div class="panel-title">标准Excel文件结构</div><button class="secondary" onclick="downloadTemplate()">下载</button></div><table><tbody><tr><td>Sheet1</td><td>填写说明</td></tr><tr><td>Sheet2</td><td>子项目清单</td></tr><tr><td>Sheet3</td><td>任务清单</td></tr><tr><td>Sheet4</td><td>数据字典参考</td></tr><tr><td>Sheet5</td><td>示例</td></tr></tbody></table></div>`;
+    }
+
+    function importStepTwo() {
+      return `<div class="form-grid"><div class="field"><label>导入模式</label><select><option>创建新模板</option><option>覆盖更新现有模板</option></select></div><div class="field"><label>目标模板</label><select><option>单抗 IND 标准模板</option></select></div><div class="field full"><label>Excel文件</label><input value="单抗IND模板_调整版.xlsx"></div></div>`;
+    }
+
+    function importStepThree() {
+      return `<div class="grid two"><div class="panel" style="box-shadow:none;"><div class="panel-head"><div class="panel-title">校验通过</div><span class="status green">36项</span></div><table><tbody><tr><td>文件格式</td><td><span class="status green">通过</span></td></tr><tr><td>必填字段</td><td><span class="status green">通过</span></td></tr><tr><td>依赖成环</td><td><span class="status green">无</span></td></tr><tr><td>三级约束</td><td><span class="status green">通过</span></td></tr></tbody></table></div><div class="panel" style="box-shadow:none;"><div class="panel-head"><div class="panel-title">校验警告</div><span class="status yellow">2项</span></div><table><tbody><tr><td>任务清单 第12行</td><td>孤立任务，建议确认</td></tr><tr><td>任务清单 第21行</td><td>预估工时高于历史均值</td></tr></tbody></table></div></div>`;
+    }
+
+    function importStepFour() {
+      return `<div class="panel" style="box-shadow:none;"><div class="panel-head"><div class="panel-title">导入预览</div><span class="status blue">新增3项 修改7项 删除1项</span></div>${wbsTree()}<div style="height:12px;"></div><div class="status yellow">覆盖更新将创建新版本，仅影响此后新建项目，不影响已存在项目。</div></div>`;
+    }
+
+    function nextImportStep() {
+      if (importStep < 4) {
+        importStep += 1;
+        renderImportWizard();
+      } else {
+        toast("Excel导入完成，模板版本已更新为 V1.3");
+        closeModal();
+        render();
+      }
+    }
+
+    function renderReports() {
+      return `
+        ${pageHead("报表与数据导出", "项目周报/月报、单项目报告、资源占用、人员负荷、任务与甘特图数据导出。", `
+          <button class="secondary" onclick="toast('已生成月报预览')">预览月报</button>
+          <button class="primary" onclick="toast('已导出报表包.zip')">导出报表包</button>
+        `)}
+        <div class="grid three">
+          ${[
+            ["项目进度周报", "项目健康度、里程碑、延迟任务、风险事项", "Excel/PDF"],
+            ["单项目详细报告", "WBS、甘特图、任务状态、交付物", "Excel/PDF"],
+            ["资源占用报表", "设备、产线、项目、日期范围、冲突", "Excel"],
+            ["人员负荷报表", "按周负荷、专业组筛选、过载清单", "Excel"],
+            ["任务列表导出", "任务字段、状态流转、负责人、工时", "Excel"],
+            ["甘特图数据导出", "任务排期、依赖关系、关键路径", "Excel"]
+          ].map(item => `<div class="panel"><div class="panel-head"><div class="panel-title">${item[0]}</div><span class="status blue">${item[2]}</span></div><p class="page-meta">${item[1]}</p><button class="secondary" onclick="toast('${item[0]} 已加入导出队列')">生成</button></div>`).join("")}
+        </div>
+      `;
+    }
+
+    function renderAdmin() {
+      return `
+        ${pageHead("系统管理", "用户管理、角色权限、数据字典、专业组、操作日志、系统配置。", `
+          <button class="secondary" onclick="toast('已保存系统配置')">保存配置</button>
+          <button class="primary" onclick="toast('已新增用户')">+ 新增用户</button>
+        `)}
+        <div class="grid two">
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">用户与角色</div><span class="panel-note">RBAC 最小权限</span></div>
+            <div class="table-wrap"><table>
+              <thead><tr><th>姓名</th><th>角色</th><th>专业组</th><th>可用工时</th><th>状态</th></tr></thead>
+              <tbody>
+                ${people.map((p, i) => `<tr><td>${p.name}</td><td>${i === 0 ? "项目负责人" : i === 4 ? "生产支持人员" : "工艺开发人员"}</td><td>${p.group}</td><td>40小时/周</td><td><span class="status green">启用</span></td></tr>`).join("")}
+              </tbody>
+            </table></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">数据字典</div><button class="ghost" onclick="toast('已新增字典项')">新增项</button></div>
+            <table><tbody>
+              <tr><td>阶段列表</td><td>${stages.length}项</td><td><span class="status green">可配置</span></td></tr>
+              <tr><td>模块列表</td><td>${moduleList.length}项</td><td><span class="status green">可配置</span></td></tr>
+              <tr><td>产品类型</td><td>单抗/多抗/其他</td><td><span class="status green">可配置</span></td></tr>
+              <tr><td>任务状态</td><td>未开始/进行中/阻塞/延迟/已完成/已验证</td><td><span class="status green">可配置</span></td></tr>
+              <tr><td>专业组</td><td>USP/DSP/DP/分析/生产支持</td><td><span class="status green">可配置</span></td></tr>
+            </tbody></table>
+          </div>
+        </div>
+        <div class="grid two" style="margin-top:14px;">
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">权限矩阵</div><span class="status yellow">项目负责人创建项目待确认</span></div>
+            <div class="table-wrap"><table>
+              <thead><tr><th>功能</th><th>管理员</th><th>CMC负责人</th><th>项目负责人</th><th>执行人员</th></tr></thead>
+              <tbody>
+                <tr><td>模板编辑</td><td>是</td><td>是</td><td>否</td><td>否</td></tr>
+                <tr><td>项目创建</td><td>是</td><td>是</td><td>待确认</td><td>否</td></tr>
+                <tr><td>任务状态更新</td><td>是</td><td>是</td><td>是</td><td>本人</td></tr>
+                <tr><td>资源日历编辑</td><td>是</td><td>是</td><td>是</td><td>生产支持</td></tr>
+              </tbody>
+            </table></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">操作日志</div><span class="panel-note">不可删除，保留不少于1年</span></div>
+            ${["模板 V1.2 保存", "Excel导入校验完成", "任务 T003 状态改为阻塞", "人员分配变更", "用户权限调整"].map((x, i) => `<div class="task-card"><div class="task-title">${x}</div><div class="task-meta"><span class="mini-chip">CMC负责人</span><span class="mini-chip">2026-05-0${2 - Math.min(i,1)} 10:${20 + i}</span></div></div>`).join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderRoadmap() {
+      const phases = [
+        ["M1", "需求确认与原型", ["确认MVP范围与权限冲突", "输出高保真原型与交互说明", "确定健康度、负荷、CPM算法规则"], "3-4周", 15],
+        ["M2", "核心项目管理", ["登录/RBAC/数据字典", "项目、子项目、任务与三级WBS", "模板自动生成项目", "基础甘特图与任务看板"], "6-8周", 35],
+        ["M3", "模板与负荷", ["模板可视化编辑器", "Excel导入导出和校验", "模板版本管理/diff/回滚", "人员负荷与推荐引擎"], "5-7周", 55],
+        ["M4", "预警报表集成", ["关键路径与延迟推演", "资源日历与冲突", "预警通知", "报表与审计日志"], "3-4周", 78],
+        ["M5", "UAT与上线", ["5-8名核心用户试用2周", "性能压测与安全检查", "备份恢复演练", "正式内网部署"], "2-3周", 100]
+      ];
+      return `
+        ${pageHead("分批次实现规划", "按 URS 建议里程碑拆分，并将 Demo 覆盖的模块映射到交付批次。", `
+          <button class="secondary" onclick="toast('已导出实施路线图.xlsx')">导出规划</button>
+          <button class="primary" onclick="go('portfolio')">返回项目组合</button>
+        `)}
+        <div class="roadmap">
+          ${phases.map(p => `<div class="phase-row">
+            <div class="phase-id">${p[0]}</div>
+            <div><div class="phase-title">${p[1]}</div><span class="status blue">${p[3]}</span></div>
+            <ul class="phase-list">${p[2].map(x => `<li>${x}</li>`).join("")}</ul>
+            <div style="display:grid;align-content:center;gap:8px;"><div class="progress-line"><span style="width:${p[4]}%;"></span></div><span class="mini-chip">${p[4]}%</span></div>
+          </div>`).join("")}
+        </div>
+        <div class="panel" style="margin-top:14px;">
+          <div class="panel-head"><div class="panel-title">模块覆盖清单</div><span class="status green">Demo 已覆盖</span></div>
+          <div class="task-meta">
+            ${["项目组合", "项目创建向导", "模板引擎", "模板在线编辑", "Excel导入导出", "三级WBS", "甘特图", "关键路径", "任务看板", "资源日历", "人员负荷", "人员推荐", "预警通知", "报表导出", "用户权限", "数据字典", "操作日志", "未来接口预留"].map(x => `<span class="chip">${x}</span>`).join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    function openCreateProject() {
+      wizardStep = 1;
+      renderProjectWizard();
+    }
+
+    function renderProjectWizard() {
+      const steps = ["基本信息", "选择模板", "预览任务树", "确认创建"];
+      const body = `
+        <div class="wizard-steps">${steps.map((s, i) => `<div class="wizard-step ${wizardStep === i + 1 ? "active" : ""}">${s}</div>`).join("")}</div>
+        ${wizardStep === 1 ? wizardProjectInfo() : wizardStep === 2 ? wizardTemplateSelect() : wizardStep === 3 ? wizardPreview() : wizardConfirm()}
+      `;
+      const foot = `<button class="secondary" onclick="closeModal()">取消</button>${wizardStep > 1 ? `<button class="secondary" onclick="wizardStep--;renderProjectWizard()">上一步</button>` : ""}<button class="primary" onclick="nextWizardStep()">${wizardStep === 4 ? "创建项目" : "下一步"}</button>`;
+      openModal("创建新项目", body, foot);
+    }
+
+    function wizardProjectInfo() {
+      return `<div class="form-grid">
+        <div class="field"><label>项目名称</label><input value="CMAB00035 新单抗注射液"></div>
+        <div class="field"><label>产品类型</label><select><option>单抗</option><option>多抗</option><option>其他</option></select></div>
+        <div class="field"><label>目标阶段</label><select><option>IND</option><option>Ph1/2</option><option>BLA</option></select></div>
+        <div class="field"><label>项目负责人</label><select><option>林然</option><option>周澈</option><option>何芮</option></select></div>
+        <div class="field"><label>预计时间线</label><input value="2026-05-15 至 2026-12-20"></div>
+        <div class="field"><label>项目描述</label><input value="单抗IND阶段CMC项目"></div>
+      </div>`;
+    }
+
+    function wizardTemplateSelect() {
+      return `<div class="grid two"><div class="panel" style="box-shadow:none;"><div class="panel-head"><div class="panel-title">系统推荐模板</div><span class="status green">匹配度 92%</span></div><div class="task-card"><div class="task-title">单抗 IND 标准模板 V1.2</div><div class="task-meta"><span class="mini-chip">3个子项目</span><span class="mini-chip">28个任务</span><span class="mini-chip">6个里程碑</span></div></div></div><div class="panel" style="box-shadow:none;"><div class="panel-head"><div class="panel-title">推荐依据</div></div><table><tbody><tr><td>产品类型</td><td>单抗</td></tr><tr><td>目标阶段</td><td>IND</td></tr><tr><td>历史项目</td><td>CMAB00012</td></tr></tbody></table></div></div>`;
+    }
+
+    function wizardPreview() {
+      return `<div class="panel" style="box-shadow:none;"><div class="panel-head"><div class="panel-title">自动生成三级任务树预览</div><span class="status blue">含默认工期/工时/依赖/里程碑</span></div>${wbsTree()}</div>`;
+    }
+
+    function wizardConfirm() {
+      return `<div class="grid three"><div class="panel metric" style="box-shadow:none;"><div><div class="metric-label">子项目</div><div class="metric-value">3</div></div><span class="status teal">Level 2</span></div><div class="panel metric" style="box-shadow:none;"><div><div class="metric-label">任务</div><div class="metric-value">28</div></div><span class="status blue">Level 3</span></div><div class="panel metric" style="box-shadow:none;"><div><div class="metric-label">预估工时</div><div class="metric-value">186</div></div><span class="status yellow">人天</span></div></div><div style="height:12px;"></div><div class="status yellow">确认后项目进入执行跟踪阶段，模板版本固定为 V1.2。</div>`;
+    }
+
+    function nextWizardStep() {
+      if (wizardStep < 4) {
+        wizardStep += 1;
+        renderProjectWizard();
+      } else {
+        toast("项目已创建，并基于模板生成三级任务树");
+        closeModal();
+      }
+    }
+
+    function openModal(title, body, foot = "") {
+      document.getElementById("modalTitle").textContent = title;
+      document.getElementById("modalBody").innerHTML = body;
+      document.getElementById("modalFoot").innerHTML = foot || `<button class="primary" onclick="closeModal()">确定</button>`;
+      document.getElementById("modalBackdrop").classList.add("open");
+    }
+
+    function closeModal() {
+      document.getElementById("modalBackdrop").classList.remove("open");
+    }
+
+    function toast(message) {
+      const notice = document.getElementById("notice");
+      notice.textContent = message;
+      notice.classList.add("show");
+      clearTimeout(window.noticeTimer);
+      window.noticeTimer = setTimeout(() => notice.classList.remove("show"), 2400);
+    }
+
+    document.getElementById("globalSearch").addEventListener("keydown", event => {
+      if (event.key === "Enter") {
+        toast(`已搜索：${event.target.value || "全部"}`);
+      }
+    });
+
+    document.getElementById("modalBackdrop").addEventListener("click", event => {
+      if (event.target.id === "modalBackdrop") closeModal();
+    });
+
+    renderNav();
+    render();
+  </script>
+</body>
+</html>

@@ -1,0 +1,3853 @@
+{
+  "users": [
+    {
+      "id": "u1",
+      "username": "admin",
+      "displayName": "张管理",
+      "email": "admin@cmc.com",
+      "role": "admin",
+      "weeklyAvailableHours": 40,
+      "isActive": true,
+      "avatarColor": "#64748b"
+    },
+    {
+      "id": "u2",
+      "username": "guo.cmc",
+      "displayName": "郭主任",
+      "email": "guo@cmc.com",
+      "role": "cmc_lead",
+      "specialtyGroup": "CMC综合",
+      "weeklyAvailableHours": 40,
+      "isActive": true,
+      "avatarColor": "#2563eb"
+    },
+    {
+      "id": "u3",
+      "username": "li.pm1",
+      "displayName": "李项目",
+      "email": "li.pm@cmc.com",
+      "role": "project_lead",
+      "specialtyGroup": "CMC综合",
+      "weeklyAvailableHours": 40,
+      "isActive": true,
+      "avatarColor": "#0ea5e9"
+    },
+    {
+      "id": "u4",
+      "username": "zhao.pm2",
+      "displayName": "赵项目",
+      "email": "zhao.pm@cmc.com",
+      "role": "project_lead",
+      "specialtyGroup": "CMC综合",
+      "weeklyAvailableHours": 40,
+      "isActive": true,
+      "avatarColor": "#06b6d4"
+    },
+    {
+      "id": "u5",
+      "username": "chen.pm3",
+      "displayName": "陈项目",
+      "email": "chen.pm@cmc.com",
+      "role": "project_lead",
+      "specialtyGroup": "CMC综合",
+      "weeklyAvailableHours": 40,
+      "isActive": true,
+      "avatarColor": "#14b8a6"
+    },
+    {
+      "id": "u6",
+      "username": "liu.usp1",
+      "displayName": "刘上游",
+      "email": "liu.usp@cmc.com",
+      "role": "rd",
+      "specialtyGroup": "上游",
+      "weeklyAvailableHours": 40,
+      "isActive": true,
+      "avatarColor": "#10b981"
+    },
+    {
+      "id": "u7",
+      "username": "sun.usp2",
+      "displayName": "孙上游",
+      "email": "sun.usp@cmc.com",
+      "role": "rd",
+      "specialtyGroup": "上游",
+      "weeklyAvailableHours": 40,
+      "isActive": true,
+      "avatarColor": "#22c55e"
+    },
+    {
+      "id": "u8",
+      "username": "wu.dsp1",
+      "displayName": "吴下游",
+      "email": "wu.dsp@cmc.com",
+      "role": "rd",
+      "specialtyGroup": "下游",
+      "weeklyAvailableHours": 40,
+      "isActive": true,
+      "avatarColor": "#84cc16"
+    },
+    {
+      "id": "u9",
+      "username": "zhou.dsp2",
+      "displayName": "周下游",
+      "email": "zhou.dsp@cmc.com",
+      "role": "rd",
+      "specialtyGroup": "下游",
+      "weeklyAvailableHours": 40,
+      "isActive": true,
+      "avatarColor": "#a3e635"
+    },
+    {
+      "id": "u10",
+      "username": "qian.dp1",
+      "displayName": "钱制剂",
+      "email": "qian.dp@cmc.com",
+      "role": "rd",
+      "specialtyGroup": "制剂",
+      "weeklyAvailableHours": 40,
+      "isActive": true,
+      "avatarColor": "#eab308"
+    },
+    {
+      "id": "u11",
+      "username": "feng.dp2",
+      "displayName": "冯制剂",
+      "email": "feng.dp@cmc.com",
+      "role": "rd",
+      "specialtyGroup": "制剂",
+      "weeklyAvailableHours": 40,
+      "isActive": true,
+      "avatarColor": "#f59e0b"
+    },
+    {
+      "id": "u12",
+      "username": "jiang.ana1",
+      "displayName": "蒋分析",
+      "email": "jiang.ana@cmc.com",
+      "role": "rd",
+      "specialtyGroup": "分析",
+      "weeklyAvailableHours": 40,
+      "isActive": true,
+      "avatarColor": "#f97316"
+    },
+    {
+      "id": "u13",
+      "username": "han.ana2",
+      "displayName": "韩分析",
+      "email": "han.ana@cmc.com",
+      "role": "rd",
+      "specialtyGroup": "分析",
+      "weeklyAvailableHours": 40,
+      "isActive": true,
+      "avatarColor": "#ef4444"
+    },
+    {
+      "id": "u14",
+      "username": "tang.ana3",
+      "displayName": "唐分析",
+      "email": "tang.ana@cmc.com",
+      "role": "rd",
+      "specialtyGroup": "分析",
+      "weeklyAvailableHours": 40,
+      "isActive": true,
+      "avatarColor": "#ec4899"
+    },
+    {
+      "id": "u15",
+      "username": "feng.stab",
+      "displayName": "冯稳定",
+      "email": "feng.stab@cmc.com",
+      "role": "rd",
+      "specialtyGroup": "稳定性",
+      "weeklyAvailableHours": 40,
+      "isActive": true,
+      "avatarColor": "#d946ef"
+    },
+    {
+      "id": "u16",
+      "username": "shen.val",
+      "displayName": "沈验证",
+      "email": "shen.val@cmc.com",
+      "role": "rd",
+      "specialtyGroup": "工艺验证",
+      "weeklyAvailableHours": 40,
+      "isActive": true,
+      "avatarColor": "#a855f7"
+    },
+    {
+      "id": "u17",
+      "username": "mao.prod1",
+      "displayName": "毛生产",
+      "email": "mao.prod@cmc.com",
+      "role": "production",
+      "weeklyAvailableHours": 40,
+      "isActive": true,
+      "avatarColor": "#8b5cf6"
+    },
+    {
+      "id": "u18",
+      "username": "cao.prod2",
+      "displayName": "曹生产",
+      "email": "cao.prod@cmc.com",
+      "role": "production",
+      "weeklyAvailableHours": 40,
+      "isActive": true,
+      "avatarColor": "#6366f1"
+    },
+    {
+      "id": "u19",
+      "username": "qa.zhao",
+      "displayName": "赵质量",
+      "email": "qa.zhao@cmc.com",
+      "role": "qa_qc",
+      "specialtyGroup": "分析",
+      "weeklyAvailableHours": 40,
+      "isActive": true,
+      "avatarColor": "#dc2626"
+    },
+    {
+      "id": "u20",
+      "username": "qc.li",
+      "displayName": "李质量",
+      "email": "qc.li@cmc.com",
+      "role": "qa_qc",
+      "specialtyGroup": "分析",
+      "weeklyAvailableHours": 40,
+      "isActive": true,
+      "avatarColor": "#b91c1c"
+    },
+    {
+      "id": "u21",
+      "username": "zhang.san",
+      "displayName": "张三",
+      "email": "zhang.san@cmc.com",
+      "role": "rd",
+      "specialtyGroup": "上游",
+      "weeklyAvailableHours": 40,
+      "isActive": true,
+      "avatarColor": "#0891b2"
+    },
+    {
+      "id": "u22",
+      "username": "li.si",
+      "displayName": "李四",
+      "email": "li.si@cmc.com",
+      "role": "rd",
+      "specialtyGroup": "下游",
+      "weeklyAvailableHours": 40,
+      "isActive": true,
+      "avatarColor": "#0d9488"
+    }
+  ],
+  "templates": [
+    {
+      "id": "t-dmp-ds",
+      "name": "原液工艺开发（DMP v3.6 标准）",
+      "productType": "单抗",
+      "currentVersion": "V3.6",
+      "description": "基于 CMC Development Master Plan v3.6 第 3 章「原液工艺开发」标准化录入 — 33 任务（15 USP 上游 + 18 DSP 下游），含 CTD 章节映射 / 监管依据 / 成本预算 / 关键里程碑标识",
+      "isActive": true,
+      "createdBy": "u2",
+      "createdAt": "2026-05-09T08:00:00Z",
+      "updatedAt": "2026-05-09T08:00:00Z",
+      "versions": [
+        {
+          "id": "v-dmp-ds-3.6",
+          "templateId": "t-dmp-ds",
+          "versionNumber": "V3.6",
+          "structureJson": {
+            "id": "root",
+            "name": "原液工艺开发（DMP v3.6 标准模板）",
+            "children": [
+              {
+                "id": "sp-usp",
+                "name": "上游工艺开发 (USP) — 15 任务",
+                "stage": "Ph3",
+                "module": "USP",
+                "children": [
+                  {
+                    "id": "USP-001",
+                    "taskCode": "USP-001",
+                    "name": "平台培养基与补料筛选",
+                    "module": "USP",
+                    "stage": "临床前",
+                    "defaultRole": "上游",
+                    "defaultDuration": 42,
+                    "defaultEffort": 3,
+                    "isMilestone": false,
+                    "description": "基础培养基/补料体系的平台评估，筛选 2~3 组合",
+                    "ctdSection": "3.2.S.2.2",
+                    "output": "Media screening report",
+                    "regulatoryRef": "内部 SOP",
+                    "costBudget": 40,
+                    "collaborators": [
+                      "AS"
+                    ],
+                    "isCriticalPath": true,
+                    "predecessors": [
+                      {
+                        "taskCode": "CLD-007",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "USP-002",
+                    "taskCode": "USP-002",
+                    "name": "摇瓶 fed-batch 初筛",
+                    "module": "USP",
+                    "stage": "临床前",
+                    "defaultRole": "上游",
+                    "defaultDuration": 28,
+                    "defaultEffort": 3,
+                    "isMilestone": false,
+                    "description": "克隆/培养基组合的摇瓶 fed-batch 评价",
+                    "ctdSection": "3.2.S.2.6",
+                    "output": "SF screening data",
+                    "regulatoryRef": "内部 SOP",
+                    "costBudget": 30,
+                    "predecessors": [
+                      {
+                        "taskCode": "USP-001",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "USP-003",
+                    "taskCode": "USP-003",
+                    "name": "Ambr® 小规模多平行筛选",
+                    "module": "USP",
+                    "stage": "临床前",
+                    "defaultRole": "上游",
+                    "defaultDuration": 56,
+                    "defaultEffort": 4,
+                    "isMilestone": false,
+                    "description": "Ambr®15/250 高通量工艺筛选",
+                    "ctdSection": "3.2.S.2.6",
+                    "output": "Ambr DOE report",
+                    "regulatoryRef": "内部 SOP",
+                    "costBudget": 120,
+                    "predecessors": [
+                      {
+                        "taskCode": "USP-002",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "USP-004",
+                    "taskCode": "USP-004",
+                    "name": "接种密度与扩增策略 DOE",
+                    "module": "USP",
+                    "stage": "临床前",
+                    "defaultRole": "上游",
+                    "defaultDuration": 28,
+                    "defaultEffort": 3,
+                    "isMilestone": false,
+                    "description": "N-1/N 接种密度、扩增时间、传代次数 DOE",
+                    "ctdSection": "3.2.S.2.6",
+                    "output": "Inoculation DOE report",
+                    "regulatoryRef": "QbD 实践",
+                    "costBudget": 60,
+                    "predecessors": [
+                      {
+                        "taskCode": "USP-003",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "USP-005",
+                    "taskCode": "USP-005",
+                    "name": "补料策略 DOE",
+                    "module": "USP",
+                    "stage": "临床前",
+                    "defaultRole": "上游",
+                    "defaultDuration": 42,
+                    "defaultEffort": 3,
+                    "isMilestone": false,
+                    "description": "补料时间/次数/总量 DOE",
+                    "ctdSection": "3.2.S.2.6",
+                    "output": "Feeding DOE report",
+                    "regulatoryRef": "QbD 实践",
+                    "costBudget": 80,
+                    "isCriticalPath": true,
+                    "predecessors": [
+                      {
+                        "taskCode": "USP-003",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "USP-006",
+                    "taskCode": "USP-006",
+                    "name": "温度/pH/DO DOE",
+                    "module": "USP",
+                    "stage": "临床前",
+                    "defaultRole": "上游",
+                    "defaultDuration": 42,
+                    "defaultEffort": 4,
+                    "isMilestone": false,
+                    "description": "关键环境参数 DOE，含降温策略",
+                    "ctdSection": "3.2.S.2.6",
+                    "output": "Env param DOE report",
+                    "regulatoryRef": "QbD 实践",
+                    "costBudget": 80,
+                    "predecessors": [
+                      {
+                        "taskCode": "USP-005",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "USP-007",
+                    "taskCode": "USP-007",
+                    "name": "生产模式与工艺锁定 (fed-batch/perfusion)",
+                    "module": "USP",
+                    "stage": "临床前",
+                    "defaultRole": "上游",
+                    "defaultDuration": 21,
+                    "defaultEffort": 3,
+                    "isMilestone": true,
+                    "description": "综合 DOE 结果锁定工艺",
+                    "ctdSection": "3.2.S.2.2",
+                    "output": "USP Process Description v1",
+                    "regulatoryRef": "ICH Q11",
+                    "costBudget": 30,
+                    "collaborators": [
+                      "AS"
+                    ],
+                    "milestoneLabel": "上游工艺定型",
+                    "isCriticalPath": true,
+                    "predecessors": [
+                      {
+                        "taskCode": "USP-006",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "USP-008",
+                    "taskCode": "USP-008",
+                    "name": "种子扩增工艺开发",
+                    "module": "USP",
+                    "stage": "IND",
+                    "defaultRole": "上游",
+                    "defaultDuration": 28,
+                    "defaultEffort": 2,
+                    "isMilestone": false,
+                    "description": "Seed train 扩增比例/体积/传代时长",
+                    "ctdSection": "3.2.S.2.2",
+                    "output": "Seed train design",
+                    "regulatoryRef": "内部 SOP",
+                    "costBudget": 40,
+                    "predecessors": [
+                      {
+                        "taskCode": "USP-007",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "USP-009",
+                    "taskCode": "USP-009",
+                    "name": "2L 小罐工艺确认",
+                    "module": "USP",
+                    "stage": "临床前",
+                    "defaultRole": "上游",
+                    "defaultDuration": 42,
+                    "defaultEffort": 3,
+                    "isMilestone": false,
+                    "description": "2L 生物反应器工艺参数确认",
+                    "ctdSection": "3.2.S.2.6",
+                    "output": "2L confirmation report",
+                    "regulatoryRef": "内部 SOP",
+                    "costBudget": 60,
+                    "isCriticalPath": true,
+                    "predecessors": [
+                      {
+                        "taskCode": "USP-007",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "USP-010",
+                    "taskCode": "USP-010",
+                    "name": "50L 代表性备样批",
+                    "module": "USP",
+                    "stage": "临床前",
+                    "defaultRole": "上游",
+                    "defaultDuration": 42,
+                    "defaultEffort": 4,
+                    "isMilestone": true,
+                    "description": "50L 规模代表性批次，为 DSP 和分析提供原料",
+                    "ctdSection": "3.2.S.2.4",
+                    "output": "50L TT report",
+                    "regulatoryRef": "内部 SOP",
+                    "costBudget": 150,
+                    "collaborators": [
+                      "DSP",
+                      "AS"
+                    ],
+                    "milestoneLabel": "DSP 备样到位",
+                    "predecessors": [
+                      {
+                        "taskCode": "USP-009",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "USP-011",
+                    "taskCode": "USP-011",
+                    "name": "上游缩小模型 (SDM) 鉴定",
+                    "module": "USP",
+                    "stage": "Ph3",
+                    "defaultRole": "上游",
+                    "defaultDuration": 70,
+                    "defaultEffort": 4,
+                    "isMilestone": true,
+                    "description": "SDM 与预期生产规模的代表性确认（生长/滴度/PQ）",
+                    "ctdSection": "3.2.S.2.6",
+                    "output": "USP SDM qualification report",
+                    "regulatoryRef": "BioPhorum PC; QbD 实践",
+                    "costBudget": 80,
+                    "collaborators": [
+                      "AS"
+                    ],
+                    "milestoneLabel": "USP SDM 鉴定",
+                    "isCriticalPath": true,
+                    "predecessors": [
+                      {
+                        "taskCode": "PC-001",
+                        "type": "FS",
+                        "lagDays": 0
+                      },
+                      {
+                        "taskCode": "TT-002",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "USP-012",
+                    "taskCode": "USP-012",
+                    "name": "上游中间体 Hold Time 研究",
+                    "module": "USP",
+                    "stage": "Ph3",
+                    "defaultRole": "上游",
+                    "defaultDuration": 42,
+                    "defaultEffort": 2,
+                    "isMilestone": false,
+                    "description": "接种前种子/收获液保存时间与条件",
+                    "ctdSection": "3.2.S.2.4",
+                    "output": "Hold time report",
+                    "regulatoryRef": "ICH Q7",
+                    "costBudget": 30,
+                    "collaborators": [
+                      "AS"
+                    ],
+                    "predecessors": [
+                      {
+                        "taskCode": "USP-007",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "USP-013",
+                    "taskCode": "USP-013",
+                    "name": "上游原材料清单与备用源",
+                    "module": "USP",
+                    "stage": "Ph3",
+                    "defaultRole": "上游",
+                    "defaultDuration": 28,
+                    "defaultEffort": 2,
+                    "isMilestone": false,
+                    "description": "关键原材料（培养基/补料/消泡剂等）清单、供应商、备用源策略",
+                    "ctdSection": "3.2.S.2.3",
+                    "output": "USP RM list",
+                    "regulatoryRef": "ICH Q11",
+                    "costBudget": 20,
+                    "collaborators": [
+                      "RM"
+                    ],
+                    "predecessors": [
+                      {
+                        "taskCode": "USP-007",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "USP-014",
+                    "taskCode": "USP-014",
+                    "name": "澄清收获工艺开发",
+                    "module": "USP",
+                    "stage": "IND",
+                    "defaultRole": "上游",
+                    "defaultDuration": 28,
+                    "defaultEffort": 3,
+                    "isMilestone": false,
+                    "description": "离心/深层过滤/絮凝等澄清策略",
+                    "ctdSection": "3.2.S.2.2",
+                    "output": "Harvest dev report",
+                    "regulatoryRef": "内部 SOP",
+                    "costBudget": 50,
+                    "collaborators": [
+                      "DSP"
+                    ],
+                    "predecessors": [
+                      {
+                        "taskCode": "USP-010",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "USP-015",
+                    "taskCode": "USP-015",
+                    "name": "上游工艺描述与流程图",
+                    "module": "USP",
+                    "stage": "Ph3",
+                    "defaultRole": "上游",
+                    "defaultDuration": 28,
+                    "defaultEffort": 2,
+                    "isMilestone": false,
+                    "description": "工艺描述、流程图、参数范围",
+                    "ctdSection": "3.2.S.2.2",
+                    "output": "USP Process Description v2",
+                    "regulatoryRef": "ICH Q11; M3.2.S.2.2",
+                    "costBudget": 10,
+                    "collaborators": [
+                      "RA"
+                    ],
+                    "predecessors": [
+                      {
+                        "taskCode": "USP-007",
+                        "type": "FS",
+                        "lagDays": 0
+                      },
+                      {
+                        "taskCode": "USP-014",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "sp-dsp",
+                "name": "下游工艺开发 (DSP) — 18 任务",
+                "stage": "Ph3",
+                "module": "DSP",
+                "children": [
+                  {
+                    "id": "DSP-001",
+                    "taskCode": "DSP-001",
+                    "name": "下游平台工艺方案",
+                    "module": "DSP",
+                    "stage": "临床前",
+                    "defaultRole": "下游",
+                    "defaultDuration": 14,
+                    "defaultEffort": 2,
+                    "isMilestone": false,
+                    "description": "基于分子类型确定下游步骤组合（捕获/VI/层析/VF/UFDF）",
+                    "ctdSection": "3.2.S.2.2",
+                    "output": "DSP strategy doc",
+                    "regulatoryRef": "内部 SOP",
+                    "costBudget": 20,
+                    "collaborators": [
+                      "AS"
+                    ],
+                    "predecessors": [
+                      {
+                        "taskCode": "RD-003",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "DSP-002",
+                    "taskCode": "DSP-002",
+                    "name": "捕获层析开发 (Protein A)",
+                    "module": "DSP",
+                    "stage": "临床前",
+                    "defaultRole": "下游",
+                    "defaultDuration": 56,
+                    "defaultEffort": 3,
+                    "isMilestone": false,
+                    "description": "树脂筛选、载量/流速/缓冲体系/洗脱/CIP 条件",
+                    "ctdSection": "3.2.S.2.2",
+                    "output": "Capture dev report",
+                    "regulatoryRef": "ICH Q11",
+                    "costBudget": 100,
+                    "isCriticalPath": true,
+                    "predecessors": [
+                      {
+                        "taskCode": "DSP-001",
+                        "type": "FS",
+                        "lagDays": 0
+                      },
+                      {
+                        "taskCode": "USP-010",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "DSP-003",
+                    "taskCode": "DSP-003",
+                    "name": "低 pH 病毒灭活工艺开发",
+                    "module": "DSP",
+                    "stage": "临床前",
+                    "defaultRole": "下游",
+                    "defaultDuration": 28,
+                    "defaultEffort": 2,
+                    "isMilestone": false,
+                    "description": "pH/时间/温度/缓冲体系确定",
+                    "ctdSection": "3.2.A.2",
+                    "output": "VI dev report",
+                    "regulatoryRef": "ICH Q5A(R2)",
+                    "costBudget": 30,
+                    "collaborators": [
+                      "AS"
+                    ],
+                    "predecessors": [
+                      {
+                        "taskCode": "DSP-002",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "DSP-004",
+                    "taskCode": "DSP-004",
+                    "name": "中间纯化层析开发",
+                    "module": "DSP",
+                    "stage": "临床前",
+                    "defaultRole": "下游",
+                    "defaultDuration": 56,
+                    "defaultEffort": 3,
+                    "isMilestone": false,
+                    "description": "AEX/CEX/HIC 筛选与优化",
+                    "ctdSection": "3.2.S.2.2",
+                    "output": "Intermediate chrom report",
+                    "regulatoryRef": "ICH Q11",
+                    "costBudget": 80,
+                    "isCriticalPath": true,
+                    "predecessors": [
+                      {
+                        "taskCode": "DSP-003",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "DSP-005",
+                    "taskCode": "DSP-005",
+                    "name": "精纯层析开发",
+                    "module": "DSP",
+                    "stage": "临床前",
+                    "defaultRole": "下游",
+                    "defaultDuration": 42,
+                    "defaultEffort": 3,
+                    "isMilestone": false,
+                    "description": "第二步/第三步层析，杂质精纯",
+                    "ctdSection": "3.2.S.2.2",
+                    "output": "Polishing dev report",
+                    "regulatoryRef": "ICH Q11",
+                    "costBudget": 80,
+                    "isCriticalPath": true,
+                    "predecessors": [
+                      {
+                        "taskCode": "DSP-004",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "DSP-006",
+                    "taskCode": "DSP-006",
+                    "name": "病毒过滤工艺开发",
+                    "module": "DSP",
+                    "stage": "临床前",
+                    "defaultRole": "下游",
+                    "defaultDuration": 28,
+                    "defaultEffort": 2,
+                    "isMilestone": false,
+                    "description": "纳滤膜选型（15~20 nm）、载量/压力/预过滤",
+                    "ctdSection": "3.2.A.2",
+                    "output": "VF dev report",
+                    "regulatoryRef": "ICH Q5A(R2)",
+                    "costBudget": 60,
+                    "predecessors": [
+                      {
+                        "taskCode": "DSP-005",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "DSP-007",
+                    "taskCode": "DSP-007",
+                    "name": "UF/DF 工艺开发",
+                    "module": "DSP",
+                    "stage": "临床前",
+                    "defaultRole": "下游",
+                    "defaultDuration": 28,
+                    "defaultEffort": 3,
+                    "isMilestone": false,
+                    "description": "膜包选型、浓缩倍数、换液倍数、终浓度",
+                    "ctdSection": "3.2.S.2.2",
+                    "output": "UFDF dev report",
+                    "regulatoryRef": "内部 SOP",
+                    "costBudget": 50,
+                    "collaborators": [
+                      "DPS"
+                    ],
+                    "isCriticalPath": true,
+                    "predecessors": [
+                      {
+                        "taskCode": "DSP-006",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "DSP-008",
+                    "taskCode": "DSP-008",
+                    "name": "下游耗材选型",
+                    "module": "DSP",
+                    "stage": "临床前",
+                    "defaultRole": "下游",
+                    "defaultDuration": 28,
+                    "defaultEffort": 2,
+                    "isMilestone": true,
+                    "description": "深层过滤/除菌/除病毒/超滤/中间体袋/原液袋",
+                    "ctdSection": "3.2.S.2.6",
+                    "output": "Consumables selection report",
+                    "regulatoryRef": "内部 SOP",
+                    "costBudget": 30,
+                    "milestoneLabel": "下游耗材定型",
+                    "predecessors": [
+                      {
+                        "taskCode": "DSP-007",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "DSP-009",
+                    "taskCode": "DSP-009",
+                    "name": "层析填料寿命研究",
+                    "module": "DSP",
+                    "stage": "Ph3",
+                    "defaultRole": "下游",
+                    "defaultDuration": 84,
+                    "defaultEffort": 4,
+                    "isMilestone": true,
+                    "description": "树脂多循环载量/杂质去除/动态结合能力",
+                    "ctdSection": "3.2.S.2.5",
+                    "output": "Resin lifetime report",
+                    "regulatoryRef": "ICH Q7; 业界实践",
+                    "costBudget": 80,
+                    "collaborators": [
+                      "AS"
+                    ],
+                    "milestoneLabel": "填料寿命通过",
+                    "predecessors": [
+                      {
+                        "taskCode": "DSP-002",
+                        "type": "FS",
+                        "lagDays": 0
+                      },
+                      {
+                        "taskCode": "DSP-004",
+                        "type": "FS",
+                        "lagDays": 0
+                      },
+                      {
+                        "taskCode": "DSP-005",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "DSP-010",
+                    "taskCode": "DSP-010",
+                    "name": "下游中间体 Hold Time",
+                    "module": "DSP",
+                    "stage": "Ph3",
+                    "defaultRole": "下游",
+                    "defaultDuration": 42,
+                    "defaultEffort": 2,
+                    "isMilestone": false,
+                    "description": "各步中间体保存时间与条件",
+                    "ctdSection": "3.2.S.2.4",
+                    "output": "Intermediate hold time report",
+                    "regulatoryRef": "ICH Q7",
+                    "costBudget": 30,
+                    "collaborators": [
+                      "AS"
+                    ],
+                    "predecessors": [
+                      {
+                        "taskCode": "DSP-007",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "DSP-011",
+                    "taskCode": "DSP-011",
+                    "name": "下游 SDM 鉴定",
+                    "module": "DSP",
+                    "stage": "Ph3",
+                    "defaultRole": "下游",
+                    "defaultDuration": 70,
+                    "defaultEffort": 4,
+                    "isMilestone": true,
+                    "description": "层析/TFF 缩小模型与生产规模代表性确认",
+                    "ctdSection": "3.2.S.2.6",
+                    "output": "DSP SDM qualification report",
+                    "regulatoryRef": "BioPhorum PC",
+                    "costBudget": 80,
+                    "collaborators": [
+                      "AS"
+                    ],
+                    "milestoneLabel": "DSP SDM 鉴定",
+                    "isCriticalPath": true,
+                    "predecessors": [
+                      {
+                        "taskCode": "PC-001",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "DSP-012",
+                    "taskCode": "DSP-012",
+                    "name": "原液处方缓冲液交换",
+                    "module": "DSP",
+                    "stage": "IND",
+                    "defaultRole": "下游",
+                    "defaultDuration": 21,
+                    "defaultEffort": 2,
+                    "isMilestone": false,
+                    "description": "与 FS 联动，原液终缓冲体系",
+                    "ctdSection": "3.2.S.2.2",
+                    "output": "DS buffer exchange SOP",
+                    "regulatoryRef": "内部 SOP",
+                    "costBudget": 30,
+                    "collaborators": [
+                      "DPS"
+                    ],
+                    "predecessors": [
+                      {
+                        "taskCode": "DSP-007",
+                        "type": "FS",
+                        "lagDays": 0
+                      },
+                      {
+                        "taskCode": "FM-006",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "DSP-013",
+                    "taskCode": "DSP-013",
+                    "name": "原液储存容器与冻融研究",
+                    "module": "DSP",
+                    "stage": "Ph1/2",
+                    "defaultRole": "下游",
+                    "defaultDuration": 42,
+                    "defaultEffort": 3,
+                    "isMilestone": false,
+                    "description": "DS 袋/瓶/大规模冻存容器评估，冻融次数评价",
+                    "ctdSection": "3.2.S.2.4",
+                    "output": "DS container & freeze-thaw report",
+                    "regulatoryRef": "USP <1207>; 内部 SOP",
+                    "costBudget": 40,
+                    "collaborators": [
+                      "DPS",
+                      "AS"
+                    ],
+                    "predecessors": [
+                      {
+                        "taskCode": "DSP-012",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "DSP-014",
+                    "taskCode": "DSP-014",
+                    "name": "下游工艺锁定",
+                    "module": "DSP",
+                    "stage": "临床前",
+                    "defaultRole": "下游",
+                    "defaultDuration": 21,
+                    "defaultEffort": 3,
+                    "isMilestone": true,
+                    "description": "综合数据锁定下游工艺",
+                    "ctdSection": "3.2.S.2.2",
+                    "output": "DSP Process Description v1",
+                    "regulatoryRef": "ICH Q11",
+                    "costBudget": 20,
+                    "collaborators": [
+                      "AS",
+                      "RA"
+                    ],
+                    "milestoneLabel": "下游工艺定型",
+                    "isCriticalPath": true,
+                    "predecessors": [
+                      {
+                        "taskCode": "DSP-002",
+                        "type": "FS",
+                        "lagDays": 0
+                      },
+                      {
+                        "taskCode": "DSP-003",
+                        "type": "FS",
+                        "lagDays": 0
+                      },
+                      {
+                        "taskCode": "DSP-004",
+                        "type": "FS",
+                        "lagDays": 0
+                      },
+                      {
+                        "taskCode": "DSP-005",
+                        "type": "FS",
+                        "lagDays": 0
+                      },
+                      {
+                        "taskCode": "DSP-006",
+                        "type": "FS",
+                        "lagDays": 0
+                      },
+                      {
+                        "taskCode": "DSP-007",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "DSP-015",
+                    "taskCode": "DSP-015",
+                    "name": "50L 下游代表性批次",
+                    "module": "DSP",
+                    "stage": "临床前",
+                    "defaultRole": "下游",
+                    "defaultDuration": 42,
+                    "defaultEffort": 4,
+                    "isMilestone": false,
+                    "description": "与 USP-010 联动，50L 全流程代表性批",
+                    "ctdSection": "3.2.S.2.4",
+                    "output": "50L DSP report",
+                    "regulatoryRef": "内部 SOP",
+                    "costBudget": 150,
+                    "collaborators": [
+                      "UPS",
+                      "AS"
+                    ],
+                    "predecessors": [
+                      {
+                        "taskCode": "USP-010",
+                        "type": "FS",
+                        "lagDays": 0
+                      },
+                      {
+                        "taskCode": "DSP-014",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "DSP-016",
+                    "taskCode": "DSP-016",
+                    "name": "下游原材料清单与备用源",
+                    "module": "DSP",
+                    "stage": "Ph3",
+                    "defaultRole": "下游",
+                    "defaultDuration": 28,
+                    "defaultEffort": 2,
+                    "isMilestone": false,
+                    "description": "树脂/膜/缓冲盐/消毒剂清单、供应商、备用源",
+                    "ctdSection": "3.2.S.2.3",
+                    "output": "DSP RM list",
+                    "regulatoryRef": "ICH Q11",
+                    "costBudget": 20,
+                    "collaborators": [
+                      "RM"
+                    ],
+                    "predecessors": [
+                      {
+                        "taskCode": "DSP-014",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "DSP-017",
+                    "taskCode": "DSP-017",
+                    "name": "下游工艺描述与流程图",
+                    "module": "DSP",
+                    "stage": "Ph3",
+                    "defaultRole": "下游",
+                    "defaultDuration": 28,
+                    "defaultEffort": 2,
+                    "isMilestone": false,
+                    "description": "工艺描述、流程图、参数范围",
+                    "ctdSection": "3.2.S.2.2",
+                    "output": "DSP Process Description v2",
+                    "regulatoryRef": "ICH Q11; M3.2.S.2.2",
+                    "costBudget": 10,
+                    "collaborators": [
+                      "RA"
+                    ],
+                    "predecessors": [
+                      {
+                        "taskCode": "DSP-014",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "DSP-018",
+                    "taskCode": "DSP-018",
+                    "name": "下游 CPP/KPP 评估",
+                    "module": "DSP",
+                    "stage": "Ph3",
+                    "defaultRole": "下游",
+                    "defaultDuration": 28,
+                    "defaultEffort": 3,
+                    "isMilestone": false,
+                    "description": "基于 PC 数据的 CPP/KPP 分级",
+                    "ctdSection": "3.2.S.2.6",
+                    "output": "DSP CPP/KPP report",
+                    "regulatoryRef": "ICH Q8(R2); Q11",
+                    "costBudget": 40,
+                    "collaborators": [
+                      "AS"
+                    ],
+                    "predecessors": [
+                      {
+                        "taskCode": "PC-008",
+                        "type": "FS",
+                        "lagDays": 0
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "changeSummary": "初始版本：从 DMP v3.6「01_总表」第 3 章录入 33 任务，含完整字段（CTD 章节 / 输出物 / 监管依据 / 成本预算 / 协作部门）",
+          "changeSource": "excel_import",
+          "modifiedBy": "u2",
+          "modifiedAt": "2026-05-09T08:00:00Z",
+          "isCurrent": true
+        }
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "id": "p1",
+      "code": "MAB-201",
+      "name": "MAB-201 抗HER2单抗（基于 DMP 模板）",
+      "productType": "单抗",
+      "currentStage": "临床前",
+      "targetStage": "BLA",
+      "ownerId": "u3",
+      "status": "活跃",
+      "health": "green",
+      "plannedStart": "2025-09-01",
+      "plannedEnd": "2028-06-30",
+      "templateId": "t-dmp-ds",
+      "templateVersion": "V3.6",
+      "description": "从 DMP v3.6「3. 原液工艺开发」标准模板实例化创建 — 含 33 任务（15 USP + 18 DSP）",
+      "progress": 27,
+      "memberIds": []
+    },
+    {
+      "id": "p2",
+      "code": "MAB-202",
+      "name": "MAB-202 抗PD-L1单抗（基于 DMP 模板）",
+      "productType": "单抗",
+      "currentStage": "IND",
+      "targetStage": "BLA",
+      "ownerId": "u4",
+      "status": "活跃",
+      "health": "yellow",
+      "plannedStart": "2024-11-01",
+      "plannedEnd": "2027-09-30",
+      "templateId": "t-dmp-ds",
+      "templateVersion": "V3.6",
+      "description": "从 DMP v3.6 模板实例化 — 含 33 任务，DSP 工艺已基本完成，进入 PC（工艺表征）阶段，多任务并行进行中",
+      "progress": 65,
+      "memberIds": []
+    },
+    {
+      "id": "p3",
+      "code": "MAB-203",
+      "name": "MAB-203 抗CD20单抗（基于 DMP 模板）",
+      "productType": "单抗",
+      "currentStage": "临床前",
+      "targetStage": "IND",
+      "ownerId": "u5",
+      "status": "活跃",
+      "health": "green",
+      "plannedStart": "2026-02-01",
+      "plannedEnd": "2028-12-31",
+      "templateId": "t-dmp-ds",
+      "templateVersion": "V3.6",
+      "description": "从 DMP v3.6 模板实例化 — 含 33 任务，处于 USP 早期开发阶段",
+      "progress": 10,
+      "memberIds": []
+    }
+  ],
+  "subProjects": [
+    {
+      "id": "p1-sp-usp",
+      "name": "上游工艺开发 (USP) — 15 任务",
+      "projectId": "p1",
+      "stage": "Ph3",
+      "module": "USP",
+      "ownerId": "u6",
+      "status": "进行中",
+      "progress": 53,
+      "sortOrder": 1
+    },
+    {
+      "id": "p1-sp-dsp",
+      "name": "下游工艺开发 (DSP) — 18 任务",
+      "projectId": "p1",
+      "stage": "Ph3",
+      "module": "DSP",
+      "ownerId": "u8",
+      "status": "进行中",
+      "progress": 6,
+      "sortOrder": 2
+    },
+    {
+      "id": "p2-sp-usp",
+      "name": "上游工艺开发 (USP) — 15 任务",
+      "projectId": "p2",
+      "stage": "Ph3",
+      "module": "USP",
+      "ownerId": "u7",
+      "status": "进行中",
+      "progress": 73,
+      "sortOrder": 1
+    },
+    {
+      "id": "p2-sp-dsp",
+      "name": "下游工艺开发 (DSP) — 18 任务",
+      "projectId": "p2",
+      "stage": "Ph3",
+      "module": "DSP",
+      "ownerId": "u9",
+      "status": "进行中",
+      "progress": 63,
+      "sortOrder": 2
+    },
+    {
+      "id": "p3-sp-usp",
+      "name": "上游工艺开发 (USP) — 15 任务",
+      "projectId": "p3",
+      "stage": "Ph3",
+      "module": "USP",
+      "ownerId": "u6",
+      "status": "进行中",
+      "progress": 17,
+      "sortOrder": 1
+    },
+    {
+      "id": "p3-sp-dsp",
+      "name": "下游工艺开发 (DSP) — 18 任务",
+      "projectId": "p3",
+      "stage": "Ph3",
+      "module": "DSP",
+      "ownerId": "u9",
+      "status": "进行中",
+      "progress": 6,
+      "sortOrder": 2
+    }
+  ],
+  "tasks": [
+    {
+      "id": "p1-USP-001",
+      "code": "MAB-201-USP-001",
+      "name": "平台培养基与补料筛选",
+      "subProjectId": "p1-sp-usp",
+      "ownerId": "u6",
+      "status": "已完成",
+      "priority": "高",
+      "plannedStart": "2025-09-01",
+      "plannedEnd": "2025-10-13",
+      "estimatedEffort": 3,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": true,
+      "notes": "描述：基础培养基/补料体系的平台评估，筛选 2~3 组合 · CTD：3.2.S.2.2 · 监管：内部 SOP · 输出物：Media screening report",
+      "actualStart": "2025-09-01",
+      "actualEnd": "2025-10-13",
+      "actualEffort": 3
+    },
+    {
+      "id": "p1-USP-002",
+      "code": "MAB-201-USP-002",
+      "name": "摇瓶 fed-batch 初筛",
+      "subProjectId": "p1-sp-usp",
+      "ownerId": "u6",
+      "status": "已完成",
+      "priority": "中",
+      "plannedStart": "2025-10-13",
+      "plannedEnd": "2025-11-10",
+      "estimatedEffort": 3,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：克隆/培养基组合的摇瓶 fed-batch 评价 · CTD：3.2.S.2.6 · 监管：内部 SOP · 输出物：SF screening data",
+      "actualStart": "2025-10-13",
+      "actualEnd": "2025-11-10",
+      "actualEffort": 3
+    },
+    {
+      "id": "p1-USP-003",
+      "code": "MAB-201-USP-003",
+      "name": "Ambr® 小规模多平行筛选",
+      "subProjectId": "p1-sp-usp",
+      "ownerId": "u6",
+      "status": "已完成",
+      "priority": "中",
+      "plannedStart": "2025-11-10",
+      "plannedEnd": "2026-01-05",
+      "estimatedEffort": 4,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：Ambr®15/250 高通量工艺筛选 · CTD：3.2.S.2.6 · 监管：内部 SOP · 输出物：Ambr DOE report",
+      "actualStart": "2025-11-10",
+      "actualEnd": "2026-01-05",
+      "actualEffort": 4
+    },
+    {
+      "id": "p1-USP-004",
+      "code": "MAB-201-USP-004",
+      "name": "接种密度与扩增策略 DOE",
+      "subProjectId": "p1-sp-usp",
+      "ownerId": "u6",
+      "status": "已完成",
+      "priority": "中",
+      "plannedStart": "2026-01-05",
+      "plannedEnd": "2026-02-02",
+      "estimatedEffort": 3,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：N-1/N 接种密度、扩增时间、传代次数 DOE · CTD：3.2.S.2.6 · 监管：QbD 实践 · 输出物：Inoculation DOE report",
+      "actualStart": "2026-01-05",
+      "actualEnd": "2026-02-02",
+      "actualEffort": 3
+    },
+    {
+      "id": "p1-USP-005",
+      "code": "MAB-201-USP-005",
+      "name": "补料策略 DOE",
+      "subProjectId": "p1-sp-usp",
+      "ownerId": "u6",
+      "status": "已完成",
+      "priority": "高",
+      "plannedStart": "2026-01-05",
+      "plannedEnd": "2026-02-16",
+      "estimatedEffort": 3,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": true,
+      "notes": "描述：补料时间/次数/总量 DOE · CTD：3.2.S.2.6 · 监管：QbD 实践 · 输出物：Feeding DOE report",
+      "actualStart": "2026-01-05",
+      "actualEnd": "2026-02-16",
+      "actualEffort": 3
+    },
+    {
+      "id": "p1-USP-006",
+      "code": "MAB-201-USP-006",
+      "name": "温度/pH/DO DOE",
+      "subProjectId": "p1-sp-usp",
+      "ownerId": "u6",
+      "status": "已完成",
+      "priority": "中",
+      "plannedStart": "2026-02-16",
+      "plannedEnd": "2026-03-30",
+      "estimatedEffort": 4,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：关键环境参数 DOE，含降温策略 · CTD：3.2.S.2.6 · 监管：QbD 实践 · 输出物：Env param DOE report",
+      "actualStart": "2026-02-16",
+      "actualEnd": "2026-03-30",
+      "actualEffort": 4
+    },
+    {
+      "id": "p1-USP-007",
+      "code": "MAB-201-USP-007",
+      "name": "生产模式与工艺锁定 (fed-batch/perfusion)",
+      "subProjectId": "p1-sp-usp",
+      "ownerId": "u6",
+      "status": "已验证",
+      "priority": "高",
+      "plannedStart": "2026-03-30",
+      "plannedEnd": "2026-03-30",
+      "estimatedEffort": 3,
+      "progress": 100,
+      "isMilestone": true,
+      "isCriticalPath": true,
+      "notes": "描述：综合 DOE 结果锁定工艺 · CTD：3.2.S.2.2 · 监管：ICH Q11 · 输出物：USP Process Description v1 · 里程碑：上游工艺定型",
+      "actualStart": "2026-03-30",
+      "actualEnd": "2026-03-30",
+      "actualEffort": 3
+    },
+    {
+      "id": "p1-USP-008",
+      "code": "MAB-201-USP-008",
+      "name": "种子扩增工艺开发",
+      "subProjectId": "p1-sp-usp",
+      "ownerId": "u6",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2026-08-27",
+      "plannedEnd": "2026-09-24",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：Seed train 扩增比例/体积/传代时长 · CTD：3.2.S.2.2 · 监管：内部 SOP · 输出物：Seed train design"
+    },
+    {
+      "id": "p1-USP-009",
+      "code": "MAB-201-USP-009",
+      "name": "2L 小罐工艺确认",
+      "subProjectId": "p1-sp-usp",
+      "ownerId": "u6",
+      "status": "进行中",
+      "priority": "高",
+      "plannedStart": "2026-03-30",
+      "plannedEnd": "2026-05-11",
+      "estimatedEffort": 3,
+      "progress": 98,
+      "isMilestone": false,
+      "isCriticalPath": true,
+      "notes": "描述：2L 生物反应器工艺参数确认 · CTD：3.2.S.2.6 · 监管：内部 SOP · 输出物：2L confirmation report",
+      "actualStart": "2026-03-30"
+    },
+    {
+      "id": "p1-USP-010",
+      "code": "MAB-201-USP-010",
+      "name": "50L 代表性备样批",
+      "subProjectId": "p1-sp-usp",
+      "ownerId": "u6",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2026-05-11",
+      "plannedEnd": "2026-05-11",
+      "estimatedEffort": 4,
+      "progress": 0,
+      "isMilestone": true,
+      "isCriticalPath": false,
+      "notes": "描述：50L 规模代表性批次，为 DSP 和分析提供原料 · CTD：3.2.S.2.4 · 监管：内部 SOP · 输出物：50L TT report · 里程碑：DSP 备样到位"
+    },
+    {
+      "id": "p1-USP-011",
+      "code": "MAB-201-USP-011",
+      "name": "上游缩小模型 (SDM) 鉴定",
+      "subProjectId": "p1-sp-usp",
+      "ownerId": "u6",
+      "status": "未开始",
+      "priority": "高",
+      "plannedStart": "2027-08-22",
+      "plannedEnd": "2027-08-22",
+      "estimatedEffort": 4,
+      "progress": 0,
+      "isMilestone": true,
+      "isCriticalPath": true,
+      "notes": "描述：SDM 与预期生产规模的代表性确认（生长/滴度/PQ） · CTD：3.2.S.2.6 · 监管：BioPhorum PC; QbD 实践 · 输出物：USP SDM qualification report · 里程碑：USP SDM 鉴定"
+    },
+    {
+      "id": "p1-USP-012",
+      "code": "MAB-201-USP-012",
+      "name": "上游中间体 Hold Time 研究",
+      "subProjectId": "p1-sp-usp",
+      "ownerId": "u6",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2027-08-22",
+      "plannedEnd": "2027-10-03",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：接种前种子/收获液保存时间与条件 · CTD：3.2.S.2.4 · 监管：ICH Q7 · 输出物：Hold time report"
+    },
+    {
+      "id": "p1-USP-013",
+      "code": "MAB-201-USP-013",
+      "name": "上游原材料清单与备用源",
+      "subProjectId": "p1-sp-usp",
+      "ownerId": "u6",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2027-08-22",
+      "plannedEnd": "2027-09-19",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：关键原材料（培养基/补料/消泡剂等）清单、供应商、备用源策略 · CTD：3.2.S.2.3 · 监管：ICH Q11 · 输出物：USP RM list"
+    },
+    {
+      "id": "p1-USP-014",
+      "code": "MAB-201-USP-014",
+      "name": "澄清收获工艺开发",
+      "subProjectId": "p1-sp-usp",
+      "ownerId": "u6",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2026-08-27",
+      "plannedEnd": "2026-09-24",
+      "estimatedEffort": 3,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：离心/深层过滤/絮凝等澄清策略 · CTD：3.2.S.2.2 · 监管：内部 SOP · 输出物：Harvest dev report"
+    },
+    {
+      "id": "p1-USP-015",
+      "code": "MAB-201-USP-015",
+      "name": "上游工艺描述与流程图",
+      "subProjectId": "p1-sp-usp",
+      "ownerId": "u6",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2027-08-22",
+      "plannedEnd": "2027-09-19",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：工艺描述、流程图、参数范围 · CTD：3.2.S.2.2 · 监管：ICH Q11; M3.2.S.2.2 · 输出物：USP Process Description v2"
+    },
+    {
+      "id": "p1-DSP-001",
+      "code": "MAB-201-DSP-001",
+      "name": "下游平台工艺方案",
+      "subProjectId": "p1-sp-dsp",
+      "ownerId": "u8",
+      "status": "已完成",
+      "priority": "中",
+      "plannedStart": "2025-09-01",
+      "plannedEnd": "2025-09-15",
+      "estimatedEffort": 2,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：基于分子类型确定下游步骤组合（捕获/VI/层析/VF/UFDF） · CTD：3.2.S.2.2 · 监管：内部 SOP · 输出物：DSP strategy doc",
+      "actualStart": "2025-09-01",
+      "actualEnd": "2025-09-15",
+      "actualEffort": 2
+    },
+    {
+      "id": "p1-DSP-002",
+      "code": "MAB-201-DSP-002",
+      "name": "捕获层析开发 (Protein A)",
+      "subProjectId": "p1-sp-dsp",
+      "ownerId": "u8",
+      "status": "未开始",
+      "priority": "高",
+      "plannedStart": "2026-05-11",
+      "plannedEnd": "2026-07-06",
+      "estimatedEffort": 3,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": true,
+      "notes": "描述：树脂筛选、载量/流速/缓冲体系/洗脱/CIP 条件 · CTD：3.2.S.2.2 · 监管：ICH Q11 · 输出物：Capture dev report"
+    },
+    {
+      "id": "p1-DSP-003",
+      "code": "MAB-201-DSP-003",
+      "name": "低 pH 病毒灭活工艺开发",
+      "subProjectId": "p1-sp-dsp",
+      "ownerId": "u8",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2026-07-06",
+      "plannedEnd": "2026-08-03",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：pH/时间/温度/缓冲体系确定 · CTD：3.2.A.2 · 监管：ICH Q5A(R2) · 输出物：VI dev report"
+    },
+    {
+      "id": "p1-DSP-004",
+      "code": "MAB-201-DSP-004",
+      "name": "中间纯化层析开发",
+      "subProjectId": "p1-sp-dsp",
+      "ownerId": "u8",
+      "status": "未开始",
+      "priority": "高",
+      "plannedStart": "2026-08-03",
+      "plannedEnd": "2026-09-28",
+      "estimatedEffort": 3,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": true,
+      "notes": "描述：AEX/CEX/HIC 筛选与优化 · CTD：3.2.S.2.2 · 监管：ICH Q11 · 输出物：Intermediate chrom report"
+    },
+    {
+      "id": "p1-DSP-005",
+      "code": "MAB-201-DSP-005",
+      "name": "精纯层析开发",
+      "subProjectId": "p1-sp-dsp",
+      "ownerId": "u8",
+      "status": "未开始",
+      "priority": "高",
+      "plannedStart": "2026-09-28",
+      "plannedEnd": "2026-11-09",
+      "estimatedEffort": 3,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": true,
+      "notes": "描述：第二步/第三步层析，杂质精纯 · CTD：3.2.S.2.2 · 监管：ICH Q11 · 输出物：Polishing dev report"
+    },
+    {
+      "id": "p1-DSP-006",
+      "code": "MAB-201-DSP-006",
+      "name": "病毒过滤工艺开发",
+      "subProjectId": "p1-sp-dsp",
+      "ownerId": "u8",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2026-11-09",
+      "plannedEnd": "2026-12-07",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：纳滤膜选型（15~20 nm）、载量/压力/预过滤 · CTD：3.2.A.2 · 监管：ICH Q5A(R2) · 输出物：VF dev report"
+    },
+    {
+      "id": "p1-DSP-007",
+      "code": "MAB-201-DSP-007",
+      "name": "UF/DF 工艺开发",
+      "subProjectId": "p1-sp-dsp",
+      "ownerId": "u8",
+      "status": "未开始",
+      "priority": "高",
+      "plannedStart": "2026-12-07",
+      "plannedEnd": "2027-01-04",
+      "estimatedEffort": 3,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": true,
+      "notes": "描述：膜包选型、浓缩倍数、换液倍数、终浓度 · CTD：3.2.S.2.2 · 监管：内部 SOP · 输出物：UFDF dev report"
+    },
+    {
+      "id": "p1-DSP-008",
+      "code": "MAB-201-DSP-008",
+      "name": "下游耗材选型",
+      "subProjectId": "p1-sp-dsp",
+      "ownerId": "u8",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2027-01-04",
+      "plannedEnd": "2027-01-04",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": true,
+      "isCriticalPath": false,
+      "notes": "描述：深层过滤/除菌/除病毒/超滤/中间体袋/原液袋 · CTD：3.2.S.2.6 · 监管：内部 SOP · 输出物：Consumables selection report · 里程碑：下游耗材定型"
+    },
+    {
+      "id": "p1-DSP-009",
+      "code": "MAB-201-DSP-009",
+      "name": "层析填料寿命研究",
+      "subProjectId": "p1-sp-dsp",
+      "ownerId": "u8",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2027-08-22",
+      "plannedEnd": "2027-08-22",
+      "estimatedEffort": 4,
+      "progress": 0,
+      "isMilestone": true,
+      "isCriticalPath": false,
+      "notes": "描述：树脂多循环载量/杂质去除/动态结合能力 · CTD：3.2.S.2.5 · 监管：ICH Q7; 业界实践 · 输出物：Resin lifetime report · 里程碑：填料寿命通过"
+    },
+    {
+      "id": "p1-DSP-010",
+      "code": "MAB-201-DSP-010",
+      "name": "下游中间体 Hold Time",
+      "subProjectId": "p1-sp-dsp",
+      "ownerId": "u8",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2027-08-22",
+      "plannedEnd": "2027-10-03",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：各步中间体保存时间与条件 · CTD：3.2.S.2.4 · 监管：ICH Q7 · 输出物：Intermediate hold time report"
+    },
+    {
+      "id": "p1-DSP-011",
+      "code": "MAB-201-DSP-011",
+      "name": "下游 SDM 鉴定",
+      "subProjectId": "p1-sp-dsp",
+      "ownerId": "u8",
+      "status": "未开始",
+      "priority": "高",
+      "plannedStart": "2027-08-22",
+      "plannedEnd": "2027-08-22",
+      "estimatedEffort": 4,
+      "progress": 0,
+      "isMilestone": true,
+      "isCriticalPath": true,
+      "notes": "描述：层析/TFF 缩小模型与生产规模代表性确认 · CTD：3.2.S.2.6 · 监管：BioPhorum PC · 输出物：DSP SDM qualification report · 里程碑：DSP SDM 鉴定"
+    },
+    {
+      "id": "p1-DSP-012",
+      "code": "MAB-201-DSP-012",
+      "name": "原液处方缓冲液交换",
+      "subProjectId": "p1-sp-dsp",
+      "ownerId": "u8",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2027-01-04",
+      "plannedEnd": "2027-01-25",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：与 FS 联动，原液终缓冲体系 · CTD：3.2.S.2.2 · 监管：内部 SOP · 输出物：DS buffer exchange SOP"
+    },
+    {
+      "id": "p1-DSP-013",
+      "code": "MAB-201-DSP-013",
+      "name": "原液储存容器与冻融研究",
+      "subProjectId": "p1-sp-dsp",
+      "ownerId": "u8",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2027-02-23",
+      "plannedEnd": "2027-04-06",
+      "estimatedEffort": 3,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：DS 袋/瓶/大规模冻存容器评估，冻融次数评价 · CTD：3.2.S.2.4 · 监管：USP <1207>; 内部 SOP · 输出物：DS container & freeze-thaw report"
+    },
+    {
+      "id": "p1-DSP-014",
+      "code": "MAB-201-DSP-014",
+      "name": "下游工艺锁定",
+      "subProjectId": "p1-sp-dsp",
+      "ownerId": "u8",
+      "status": "未开始",
+      "priority": "高",
+      "plannedStart": "2027-01-04",
+      "plannedEnd": "2027-01-04",
+      "estimatedEffort": 3,
+      "progress": 0,
+      "isMilestone": true,
+      "isCriticalPath": true,
+      "notes": "描述：综合数据锁定下游工艺 · CTD：3.2.S.2.2 · 监管：ICH Q11 · 输出物：DSP Process Description v1 · 里程碑：下游工艺定型"
+    },
+    {
+      "id": "p1-DSP-015",
+      "code": "MAB-201-DSP-015",
+      "name": "50L 下游代表性批次",
+      "subProjectId": "p1-sp-dsp",
+      "ownerId": "u8",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2027-01-04",
+      "plannedEnd": "2027-02-15",
+      "estimatedEffort": 4,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：与 USP-010 联动，50L 全流程代表性批 · CTD：3.2.S.2.4 · 监管：内部 SOP · 输出物：50L DSP report"
+    },
+    {
+      "id": "p1-DSP-016",
+      "code": "MAB-201-DSP-016",
+      "name": "下游原材料清单与备用源",
+      "subProjectId": "p1-sp-dsp",
+      "ownerId": "u8",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2027-08-22",
+      "plannedEnd": "2027-09-19",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：树脂/膜/缓冲盐/消毒剂清单、供应商、备用源 · CTD：3.2.S.2.3 · 监管：ICH Q11 · 输出物：DSP RM list"
+    },
+    {
+      "id": "p1-DSP-017",
+      "code": "MAB-201-DSP-017",
+      "name": "下游工艺描述与流程图",
+      "subProjectId": "p1-sp-dsp",
+      "ownerId": "u8",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2027-08-22",
+      "plannedEnd": "2027-09-19",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：工艺描述、流程图、参数范围 · CTD：3.2.S.2.2 · 监管：ICH Q11; M3.2.S.2.2 · 输出物：DSP Process Description v2"
+    },
+    {
+      "id": "p1-DSP-018",
+      "code": "MAB-201-DSP-018",
+      "name": "下游 CPP/KPP 评估",
+      "subProjectId": "p1-sp-dsp",
+      "ownerId": "u8",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2027-08-22",
+      "plannedEnd": "2027-09-19",
+      "estimatedEffort": 3,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：基于 PC 数据的 CPP/KPP 分级 · CTD：3.2.S.2.6 · 监管：ICH Q8(R2); Q11 · 输出物：DSP CPP/KPP report"
+    },
+    {
+      "id": "p2-USP-001",
+      "code": "MAB-202-USP-001",
+      "name": "平台培养基与补料筛选",
+      "subProjectId": "p2-sp-usp",
+      "ownerId": "u7",
+      "status": "已完成",
+      "priority": "高",
+      "plannedStart": "2024-11-01",
+      "plannedEnd": "2024-12-13",
+      "estimatedEffort": 3,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": true,
+      "notes": "描述：基础培养基/补料体系的平台评估，筛选 2~3 组合 · CTD：3.2.S.2.2 · 监管：内部 SOP · 输出物：Media screening report",
+      "actualStart": "2024-11-01",
+      "actualEnd": "2024-12-13",
+      "actualEffort": 3
+    },
+    {
+      "id": "p2-USP-002",
+      "code": "MAB-202-USP-002",
+      "name": "摇瓶 fed-batch 初筛",
+      "subProjectId": "p2-sp-usp",
+      "ownerId": "u7",
+      "status": "已完成",
+      "priority": "中",
+      "plannedStart": "2024-12-13",
+      "plannedEnd": "2025-01-10",
+      "estimatedEffort": 3,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：克隆/培养基组合的摇瓶 fed-batch 评价 · CTD：3.2.S.2.6 · 监管：内部 SOP · 输出物：SF screening data",
+      "actualStart": "2024-12-13",
+      "actualEnd": "2025-01-10",
+      "actualEffort": 3
+    },
+    {
+      "id": "p2-USP-003",
+      "code": "MAB-202-USP-003",
+      "name": "Ambr® 小规模多平行筛选",
+      "subProjectId": "p2-sp-usp",
+      "ownerId": "u7",
+      "status": "已完成",
+      "priority": "中",
+      "plannedStart": "2025-01-10",
+      "plannedEnd": "2025-03-07",
+      "estimatedEffort": 4,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：Ambr®15/250 高通量工艺筛选 · CTD：3.2.S.2.6 · 监管：内部 SOP · 输出物：Ambr DOE report",
+      "actualStart": "2025-01-10",
+      "actualEnd": "2025-03-07",
+      "actualEffort": 4
+    },
+    {
+      "id": "p2-USP-004",
+      "code": "MAB-202-USP-004",
+      "name": "接种密度与扩增策略 DOE",
+      "subProjectId": "p2-sp-usp",
+      "ownerId": "u7",
+      "status": "已完成",
+      "priority": "中",
+      "plannedStart": "2025-03-07",
+      "plannedEnd": "2025-04-04",
+      "estimatedEffort": 3,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：N-1/N 接种密度、扩增时间、传代次数 DOE · CTD：3.2.S.2.6 · 监管：QbD 实践 · 输出物：Inoculation DOE report",
+      "actualStart": "2025-03-07",
+      "actualEnd": "2025-04-04",
+      "actualEffort": 3
+    },
+    {
+      "id": "p2-USP-005",
+      "code": "MAB-202-USP-005",
+      "name": "补料策略 DOE",
+      "subProjectId": "p2-sp-usp",
+      "ownerId": "u7",
+      "status": "已完成",
+      "priority": "高",
+      "plannedStart": "2025-03-07",
+      "plannedEnd": "2025-04-18",
+      "estimatedEffort": 3,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": true,
+      "notes": "描述：补料时间/次数/总量 DOE · CTD：3.2.S.2.6 · 监管：QbD 实践 · 输出物：Feeding DOE report",
+      "actualStart": "2025-03-07",
+      "actualEnd": "2025-04-18",
+      "actualEffort": 3
+    },
+    {
+      "id": "p2-USP-006",
+      "code": "MAB-202-USP-006",
+      "name": "温度/pH/DO DOE",
+      "subProjectId": "p2-sp-usp",
+      "ownerId": "u7",
+      "status": "已完成",
+      "priority": "中",
+      "plannedStart": "2025-04-18",
+      "plannedEnd": "2025-05-30",
+      "estimatedEffort": 4,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：关键环境参数 DOE，含降温策略 · CTD：3.2.S.2.6 · 监管：QbD 实践 · 输出物：Env param DOE report",
+      "actualStart": "2025-04-18",
+      "actualEnd": "2025-05-30",
+      "actualEffort": 4
+    },
+    {
+      "id": "p2-USP-007",
+      "code": "MAB-202-USP-007",
+      "name": "生产模式与工艺锁定 (fed-batch/perfusion)",
+      "subProjectId": "p2-sp-usp",
+      "ownerId": "u7",
+      "status": "已验证",
+      "priority": "高",
+      "plannedStart": "2025-05-30",
+      "plannedEnd": "2025-05-30",
+      "estimatedEffort": 3,
+      "progress": 100,
+      "isMilestone": true,
+      "isCriticalPath": true,
+      "notes": "描述：综合 DOE 结果锁定工艺 · CTD：3.2.S.2.2 · 监管：ICH Q11 · 输出物：USP Process Description v1 · 里程碑：上游工艺定型",
+      "actualStart": "2025-05-30",
+      "actualEnd": "2025-05-30",
+      "actualEffort": 3
+    },
+    {
+      "id": "p2-USP-008",
+      "code": "MAB-202-USP-008",
+      "name": "种子扩增工艺开发",
+      "subProjectId": "p2-sp-usp",
+      "ownerId": "u7",
+      "status": "已完成",
+      "priority": "中",
+      "plannedStart": "2025-10-27",
+      "plannedEnd": "2025-11-24",
+      "estimatedEffort": 2,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：Seed train 扩增比例/体积/传代时长 · CTD：3.2.S.2.2 · 监管：内部 SOP · 输出物：Seed train design",
+      "actualStart": "2025-10-27",
+      "actualEnd": "2025-11-24",
+      "actualEffort": 2
+    },
+    {
+      "id": "p2-USP-009",
+      "code": "MAB-202-USP-009",
+      "name": "2L 小罐工艺确认",
+      "subProjectId": "p2-sp-usp",
+      "ownerId": "u7",
+      "status": "已完成",
+      "priority": "高",
+      "plannedStart": "2025-05-30",
+      "plannedEnd": "2025-07-11",
+      "estimatedEffort": 3,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": true,
+      "notes": "描述：2L 生物反应器工艺参数确认 · CTD：3.2.S.2.6 · 监管：内部 SOP · 输出物：2L confirmation report",
+      "actualStart": "2025-05-30",
+      "actualEnd": "2025-07-11",
+      "actualEffort": 3
+    },
+    {
+      "id": "p2-USP-010",
+      "code": "MAB-202-USP-010",
+      "name": "50L 代表性备样批",
+      "subProjectId": "p2-sp-usp",
+      "ownerId": "u7",
+      "status": "已验证",
+      "priority": "中",
+      "plannedStart": "2025-07-11",
+      "plannedEnd": "2025-07-11",
+      "estimatedEffort": 4,
+      "progress": 100,
+      "isMilestone": true,
+      "isCriticalPath": false,
+      "notes": "描述：50L 规模代表性批次，为 DSP 和分析提供原料 · CTD：3.2.S.2.4 · 监管：内部 SOP · 输出物：50L TT report · 里程碑：DSP 备样到位",
+      "actualStart": "2025-07-11",
+      "actualEnd": "2025-07-11",
+      "actualEffort": 4
+    },
+    {
+      "id": "p2-USP-011",
+      "code": "MAB-202-USP-011",
+      "name": "上游缩小模型 (SDM) 鉴定",
+      "subProjectId": "p2-sp-usp",
+      "ownerId": "u7",
+      "status": "未开始",
+      "priority": "高",
+      "plannedStart": "2026-10-22",
+      "plannedEnd": "2026-10-22",
+      "estimatedEffort": 4,
+      "progress": 0,
+      "isMilestone": true,
+      "isCriticalPath": true,
+      "notes": "描述：SDM 与预期生产规模的代表性确认（生长/滴度/PQ） · CTD：3.2.S.2.6 · 监管：BioPhorum PC; QbD 实践 · 输出物：USP SDM qualification report · 里程碑：USP SDM 鉴定"
+    },
+    {
+      "id": "p2-USP-012",
+      "code": "MAB-202-USP-012",
+      "name": "上游中间体 Hold Time 研究",
+      "subProjectId": "p2-sp-usp",
+      "ownerId": "u7",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2026-10-22",
+      "plannedEnd": "2026-12-03",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：接种前种子/收获液保存时间与条件 · CTD：3.2.S.2.4 · 监管：ICH Q7 · 输出物：Hold time report"
+    },
+    {
+      "id": "p2-USP-013",
+      "code": "MAB-202-USP-013",
+      "name": "上游原材料清单与备用源",
+      "subProjectId": "p2-sp-usp",
+      "ownerId": "u7",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2026-10-22",
+      "plannedEnd": "2026-11-19",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：关键原材料（培养基/补料/消泡剂等）清单、供应商、备用源策略 · CTD：3.2.S.2.3 · 监管：ICH Q11 · 输出物：USP RM list"
+    },
+    {
+      "id": "p2-USP-014",
+      "code": "MAB-202-USP-014",
+      "name": "澄清收获工艺开发",
+      "subProjectId": "p2-sp-usp",
+      "ownerId": "u7",
+      "status": "已完成",
+      "priority": "中",
+      "plannedStart": "2025-10-27",
+      "plannedEnd": "2025-11-24",
+      "estimatedEffort": 3,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：离心/深层过滤/絮凝等澄清策略 · CTD：3.2.S.2.2 · 监管：内部 SOP · 输出物：Harvest dev report",
+      "actualStart": "2025-10-27",
+      "actualEnd": "2025-11-24",
+      "actualEffort": 3
+    },
+    {
+      "id": "p2-USP-015",
+      "code": "MAB-202-USP-015",
+      "name": "上游工艺描述与流程图",
+      "subProjectId": "p2-sp-usp",
+      "ownerId": "u7",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2026-10-22",
+      "plannedEnd": "2026-11-19",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：工艺描述、流程图、参数范围 · CTD：3.2.S.2.2 · 监管：ICH Q11; M3.2.S.2.2 · 输出物：USP Process Description v2"
+    },
+    {
+      "id": "p2-DSP-001",
+      "code": "MAB-202-DSP-001",
+      "name": "下游平台工艺方案",
+      "subProjectId": "p2-sp-dsp",
+      "ownerId": "u9",
+      "status": "已完成",
+      "priority": "中",
+      "plannedStart": "2024-11-01",
+      "plannedEnd": "2024-11-15",
+      "estimatedEffort": 2,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：基于分子类型确定下游步骤组合（捕获/VI/层析/VF/UFDF） · CTD：3.2.S.2.2 · 监管：内部 SOP · 输出物：DSP strategy doc",
+      "actualStart": "2024-11-01",
+      "actualEnd": "2024-11-15",
+      "actualEffort": 2
+    },
+    {
+      "id": "p2-DSP-002",
+      "code": "MAB-202-DSP-002",
+      "name": "捕获层析开发 (Protein A)",
+      "subProjectId": "p2-sp-dsp",
+      "ownerId": "u9",
+      "status": "已完成",
+      "priority": "高",
+      "plannedStart": "2025-07-11",
+      "plannedEnd": "2025-09-05",
+      "estimatedEffort": 3,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": true,
+      "notes": "描述：树脂筛选、载量/流速/缓冲体系/洗脱/CIP 条件 · CTD：3.2.S.2.2 · 监管：ICH Q11 · 输出物：Capture dev report",
+      "actualStart": "2025-07-11",
+      "actualEnd": "2025-09-05",
+      "actualEffort": 3
+    },
+    {
+      "id": "p2-DSP-003",
+      "code": "MAB-202-DSP-003",
+      "name": "低 pH 病毒灭活工艺开发",
+      "subProjectId": "p2-sp-dsp",
+      "ownerId": "u9",
+      "status": "已完成",
+      "priority": "中",
+      "plannedStart": "2025-09-05",
+      "plannedEnd": "2025-10-03",
+      "estimatedEffort": 2,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：pH/时间/温度/缓冲体系确定 · CTD：3.2.A.2 · 监管：ICH Q5A(R2) · 输出物：VI dev report",
+      "actualStart": "2025-09-05",
+      "actualEnd": "2025-10-03",
+      "actualEffort": 2
+    },
+    {
+      "id": "p2-DSP-004",
+      "code": "MAB-202-DSP-004",
+      "name": "中间纯化层析开发",
+      "subProjectId": "p2-sp-dsp",
+      "ownerId": "u9",
+      "status": "已完成",
+      "priority": "高",
+      "plannedStart": "2025-10-03",
+      "plannedEnd": "2025-11-28",
+      "estimatedEffort": 3,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": true,
+      "notes": "描述：AEX/CEX/HIC 筛选与优化 · CTD：3.2.S.2.2 · 监管：ICH Q11 · 输出物：Intermediate chrom report",
+      "actualStart": "2025-10-03",
+      "actualEnd": "2025-11-28",
+      "actualEffort": 3
+    },
+    {
+      "id": "p2-DSP-005",
+      "code": "MAB-202-DSP-005",
+      "name": "精纯层析开发",
+      "subProjectId": "p2-sp-dsp",
+      "ownerId": "u9",
+      "status": "已完成",
+      "priority": "高",
+      "plannedStart": "2025-11-28",
+      "plannedEnd": "2026-01-09",
+      "estimatedEffort": 3,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": true,
+      "notes": "描述：第二步/第三步层析，杂质精纯 · CTD：3.2.S.2.2 · 监管：ICH Q11 · 输出物：Polishing dev report",
+      "actualStart": "2025-11-28",
+      "actualEnd": "2026-01-09",
+      "actualEffort": 3
+    },
+    {
+      "id": "p2-DSP-006",
+      "code": "MAB-202-DSP-006",
+      "name": "病毒过滤工艺开发",
+      "subProjectId": "p2-sp-dsp",
+      "ownerId": "u9",
+      "status": "已完成",
+      "priority": "中",
+      "plannedStart": "2026-01-09",
+      "plannedEnd": "2026-02-06",
+      "estimatedEffort": 2,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：纳滤膜选型（15~20 nm）、载量/压力/预过滤 · CTD：3.2.A.2 · 监管：ICH Q5A(R2) · 输出物：VF dev report",
+      "actualStart": "2026-01-09",
+      "actualEnd": "2026-02-06",
+      "actualEffort": 2
+    },
+    {
+      "id": "p2-DSP-007",
+      "code": "MAB-202-DSP-007",
+      "name": "UF/DF 工艺开发",
+      "subProjectId": "p2-sp-dsp",
+      "ownerId": "u9",
+      "status": "已完成",
+      "priority": "高",
+      "plannedStart": "2026-02-06",
+      "plannedEnd": "2026-03-06",
+      "estimatedEffort": 3,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": true,
+      "notes": "描述：膜包选型、浓缩倍数、换液倍数、终浓度 · CTD：3.2.S.2.2 · 监管：内部 SOP · 输出物：UFDF dev report",
+      "actualStart": "2026-02-06",
+      "actualEnd": "2026-03-06",
+      "actualEffort": 3
+    },
+    {
+      "id": "p2-DSP-008",
+      "code": "MAB-202-DSP-008",
+      "name": "下游耗材选型",
+      "subProjectId": "p2-sp-dsp",
+      "ownerId": "u9",
+      "status": "已验证",
+      "priority": "中",
+      "plannedStart": "2026-03-06",
+      "plannedEnd": "2026-03-06",
+      "estimatedEffort": 2,
+      "progress": 100,
+      "isMilestone": true,
+      "isCriticalPath": false,
+      "notes": "描述：深层过滤/除菌/除病毒/超滤/中间体袋/原液袋 · CTD：3.2.S.2.6 · 监管：内部 SOP · 输出物：Consumables selection report · 里程碑：下游耗材定型",
+      "actualStart": "2026-03-06",
+      "actualEnd": "2026-03-06",
+      "actualEffort": 2
+    },
+    {
+      "id": "p2-DSP-009",
+      "code": "MAB-202-DSP-009",
+      "name": "层析填料寿命研究",
+      "subProjectId": "p2-sp-dsp",
+      "ownerId": "u9",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2026-10-22",
+      "plannedEnd": "2026-10-22",
+      "estimatedEffort": 4,
+      "progress": 0,
+      "isMilestone": true,
+      "isCriticalPath": false,
+      "notes": "描述：树脂多循环载量/杂质去除/动态结合能力 · CTD：3.2.S.2.5 · 监管：ICH Q7; 业界实践 · 输出物：Resin lifetime report · 里程碑：填料寿命通过"
+    },
+    {
+      "id": "p2-DSP-010",
+      "code": "MAB-202-DSP-010",
+      "name": "下游中间体 Hold Time",
+      "subProjectId": "p2-sp-dsp",
+      "ownerId": "u9",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2026-10-22",
+      "plannedEnd": "2026-12-03",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：各步中间体保存时间与条件 · CTD：3.2.S.2.4 · 监管：ICH Q7 · 输出物：Intermediate hold time report"
+    },
+    {
+      "id": "p2-DSP-011",
+      "code": "MAB-202-DSP-011",
+      "name": "下游 SDM 鉴定",
+      "subProjectId": "p2-sp-dsp",
+      "ownerId": "u9",
+      "status": "未开始",
+      "priority": "高",
+      "plannedStart": "2026-10-22",
+      "plannedEnd": "2026-10-22",
+      "estimatedEffort": 4,
+      "progress": 0,
+      "isMilestone": true,
+      "isCriticalPath": true,
+      "notes": "描述：层析/TFF 缩小模型与生产规模代表性确认 · CTD：3.2.S.2.6 · 监管：BioPhorum PC · 输出物：DSP SDM qualification report · 里程碑：DSP SDM 鉴定"
+    },
+    {
+      "id": "p2-DSP-012",
+      "code": "MAB-202-DSP-012",
+      "name": "原液处方缓冲液交换",
+      "subProjectId": "p2-sp-dsp",
+      "ownerId": "u9",
+      "status": "已完成",
+      "priority": "中",
+      "plannedStart": "2026-03-06",
+      "plannedEnd": "2026-03-27",
+      "estimatedEffort": 2,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：与 FS 联动，原液终缓冲体系 · CTD：3.2.S.2.2 · 监管：内部 SOP · 输出物：DS buffer exchange SOP",
+      "actualStart": "2026-03-06",
+      "actualEnd": "2026-03-27",
+      "actualEffort": 2
+    },
+    {
+      "id": "p2-DSP-013",
+      "code": "MAB-202-DSP-013",
+      "name": "原液储存容器与冻融研究",
+      "subProjectId": "p2-sp-dsp",
+      "ownerId": "u9",
+      "status": "进行中",
+      "priority": "中",
+      "plannedStart": "2026-04-25",
+      "plannedEnd": "2026-06-06",
+      "estimatedEffort": 3,
+      "progress": 36,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：DS 袋/瓶/大规模冻存容器评估，冻融次数评价 · CTD：3.2.S.2.4 · 监管：USP <1207>; 内部 SOP · 输出物：DS container & freeze-thaw report",
+      "actualStart": "2026-04-25"
+    },
+    {
+      "id": "p2-DSP-014",
+      "code": "MAB-202-DSP-014",
+      "name": "下游工艺锁定",
+      "subProjectId": "p2-sp-dsp",
+      "ownerId": "u9",
+      "status": "已验证",
+      "priority": "高",
+      "plannedStart": "2026-03-06",
+      "plannedEnd": "2026-03-06",
+      "estimatedEffort": 3,
+      "progress": 100,
+      "isMilestone": true,
+      "isCriticalPath": true,
+      "notes": "描述：综合数据锁定下游工艺 · CTD：3.2.S.2.2 · 监管：ICH Q11 · 输出物：DSP Process Description v1 · 里程碑：下游工艺定型",
+      "actualStart": "2026-03-06",
+      "actualEnd": "2026-03-06",
+      "actualEffort": 3
+    },
+    {
+      "id": "p2-DSP-015",
+      "code": "MAB-202-DSP-015",
+      "name": "50L 下游代表性批次",
+      "subProjectId": "p2-sp-dsp",
+      "ownerId": "u9",
+      "status": "已完成",
+      "priority": "中",
+      "plannedStart": "2026-03-06",
+      "plannedEnd": "2026-04-17",
+      "estimatedEffort": 4,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：与 USP-010 联动，50L 全流程代表性批 · CTD：3.2.S.2.4 · 监管：内部 SOP · 输出物：50L DSP report",
+      "actualStart": "2026-03-06",
+      "actualEnd": "2026-04-17",
+      "actualEffort": 4
+    },
+    {
+      "id": "p2-DSP-016",
+      "code": "MAB-202-DSP-016",
+      "name": "下游原材料清单与备用源",
+      "subProjectId": "p2-sp-dsp",
+      "ownerId": "u9",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2026-10-22",
+      "plannedEnd": "2026-11-19",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：树脂/膜/缓冲盐/消毒剂清单、供应商、备用源 · CTD：3.2.S.2.3 · 监管：ICH Q11 · 输出物：DSP RM list"
+    },
+    {
+      "id": "p2-DSP-017",
+      "code": "MAB-202-DSP-017",
+      "name": "下游工艺描述与流程图",
+      "subProjectId": "p2-sp-dsp",
+      "ownerId": "u9",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2026-10-22",
+      "plannedEnd": "2026-11-19",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：工艺描述、流程图、参数范围 · CTD：3.2.S.2.2 · 监管：ICH Q11; M3.2.S.2.2 · 输出物：DSP Process Description v2"
+    },
+    {
+      "id": "p2-DSP-018",
+      "code": "MAB-202-DSP-018",
+      "name": "下游 CPP/KPP 评估",
+      "subProjectId": "p2-sp-dsp",
+      "ownerId": "u9",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2026-10-22",
+      "plannedEnd": "2026-11-19",
+      "estimatedEffort": 3,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：基于 PC 数据的 CPP/KPP 分级 · CTD：3.2.S.2.6 · 监管：ICH Q8(R2); Q11 · 输出物：DSP CPP/KPP report"
+    },
+    {
+      "id": "p3-USP-001",
+      "code": "MAB-203-USP-001",
+      "name": "平台培养基与补料筛选",
+      "subProjectId": "p3-sp-usp",
+      "ownerId": "u6",
+      "status": "已完成",
+      "priority": "高",
+      "plannedStart": "2026-02-01",
+      "plannedEnd": "2026-03-15",
+      "estimatedEffort": 3,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": true,
+      "notes": "描述：基础培养基/补料体系的平台评估，筛选 2~3 组合 · CTD：3.2.S.2.2 · 监管：内部 SOP · 输出物：Media screening report",
+      "actualStart": "2026-02-01",
+      "actualEnd": "2026-03-15",
+      "actualEffort": 3
+    },
+    {
+      "id": "p3-USP-002",
+      "code": "MAB-203-USP-002",
+      "name": "摇瓶 fed-batch 初筛",
+      "subProjectId": "p3-sp-usp",
+      "ownerId": "u6",
+      "status": "已完成",
+      "priority": "中",
+      "plannedStart": "2026-03-15",
+      "plannedEnd": "2026-04-12",
+      "estimatedEffort": 3,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：克隆/培养基组合的摇瓶 fed-batch 评价 · CTD：3.2.S.2.6 · 监管：内部 SOP · 输出物：SF screening data",
+      "actualStart": "2026-03-15",
+      "actualEnd": "2026-04-12",
+      "actualEffort": 3
+    },
+    {
+      "id": "p3-USP-003",
+      "code": "MAB-203-USP-003",
+      "name": "Ambr® 小规模多平行筛选",
+      "subProjectId": "p3-sp-usp",
+      "ownerId": "u6",
+      "status": "进行中",
+      "priority": "中",
+      "plannedStart": "2026-04-12",
+      "plannedEnd": "2026-06-07",
+      "estimatedEffort": 4,
+      "progress": 50,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：Ambr®15/250 高通量工艺筛选 · CTD：3.2.S.2.6 · 监管：内部 SOP · 输出物：Ambr DOE report",
+      "actualStart": "2026-04-12"
+    },
+    {
+      "id": "p3-USP-004",
+      "code": "MAB-203-USP-004",
+      "name": "接种密度与扩增策略 DOE",
+      "subProjectId": "p3-sp-usp",
+      "ownerId": "u6",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2026-06-07",
+      "plannedEnd": "2026-07-05",
+      "estimatedEffort": 3,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：N-1/N 接种密度、扩增时间、传代次数 DOE · CTD：3.2.S.2.6 · 监管：QbD 实践 · 输出物：Inoculation DOE report"
+    },
+    {
+      "id": "p3-USP-005",
+      "code": "MAB-203-USP-005",
+      "name": "补料策略 DOE",
+      "subProjectId": "p3-sp-usp",
+      "ownerId": "u6",
+      "status": "未开始",
+      "priority": "高",
+      "plannedStart": "2026-06-07",
+      "plannedEnd": "2026-07-19",
+      "estimatedEffort": 3,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": true,
+      "notes": "描述：补料时间/次数/总量 DOE · CTD：3.2.S.2.6 · 监管：QbD 实践 · 输出物：Feeding DOE report"
+    },
+    {
+      "id": "p3-USP-006",
+      "code": "MAB-203-USP-006",
+      "name": "温度/pH/DO DOE",
+      "subProjectId": "p3-sp-usp",
+      "ownerId": "u6",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2026-07-19",
+      "plannedEnd": "2026-08-30",
+      "estimatedEffort": 4,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：关键环境参数 DOE，含降温策略 · CTD：3.2.S.2.6 · 监管：QbD 实践 · 输出物：Env param DOE report"
+    },
+    {
+      "id": "p3-USP-007",
+      "code": "MAB-203-USP-007",
+      "name": "生产模式与工艺锁定 (fed-batch/perfusion)",
+      "subProjectId": "p3-sp-usp",
+      "ownerId": "u6",
+      "status": "未开始",
+      "priority": "高",
+      "plannedStart": "2026-08-30",
+      "plannedEnd": "2026-08-30",
+      "estimatedEffort": 3,
+      "progress": 0,
+      "isMilestone": true,
+      "isCriticalPath": true,
+      "notes": "描述：综合 DOE 结果锁定工艺 · CTD：3.2.S.2.2 · 监管：ICH Q11 · 输出物：USP Process Description v1 · 里程碑：上游工艺定型"
+    },
+    {
+      "id": "p3-USP-008",
+      "code": "MAB-203-USP-008",
+      "name": "种子扩增工艺开发",
+      "subProjectId": "p3-sp-usp",
+      "ownerId": "u6",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2027-01-27",
+      "plannedEnd": "2027-02-24",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：Seed train 扩增比例/体积/传代时长 · CTD：3.2.S.2.2 · 监管：内部 SOP · 输出物：Seed train design"
+    },
+    {
+      "id": "p3-USP-009",
+      "code": "MAB-203-USP-009",
+      "name": "2L 小罐工艺确认",
+      "subProjectId": "p3-sp-usp",
+      "ownerId": "u6",
+      "status": "未开始",
+      "priority": "高",
+      "plannedStart": "2026-08-30",
+      "plannedEnd": "2026-10-11",
+      "estimatedEffort": 3,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": true,
+      "notes": "描述：2L 生物反应器工艺参数确认 · CTD：3.2.S.2.6 · 监管：内部 SOP · 输出物：2L confirmation report"
+    },
+    {
+      "id": "p3-USP-010",
+      "code": "MAB-203-USP-010",
+      "name": "50L 代表性备样批",
+      "subProjectId": "p3-sp-usp",
+      "ownerId": "u6",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2026-10-11",
+      "plannedEnd": "2026-10-11",
+      "estimatedEffort": 4,
+      "progress": 0,
+      "isMilestone": true,
+      "isCriticalPath": false,
+      "notes": "描述：50L 规模代表性批次，为 DSP 和分析提供原料 · CTD：3.2.S.2.4 · 监管：内部 SOP · 输出物：50L TT report · 里程碑：DSP 备样到位"
+    },
+    {
+      "id": "p3-USP-011",
+      "code": "MAB-203-USP-011",
+      "name": "上游缩小模型 (SDM) 鉴定",
+      "subProjectId": "p3-sp-usp",
+      "ownerId": "u6",
+      "status": "未开始",
+      "priority": "高",
+      "plannedStart": "2028-01-22",
+      "plannedEnd": "2028-01-22",
+      "estimatedEffort": 4,
+      "progress": 0,
+      "isMilestone": true,
+      "isCriticalPath": true,
+      "notes": "描述：SDM 与预期生产规模的代表性确认（生长/滴度/PQ） · CTD：3.2.S.2.6 · 监管：BioPhorum PC; QbD 实践 · 输出物：USP SDM qualification report · 里程碑：USP SDM 鉴定"
+    },
+    {
+      "id": "p3-USP-012",
+      "code": "MAB-203-USP-012",
+      "name": "上游中间体 Hold Time 研究",
+      "subProjectId": "p3-sp-usp",
+      "ownerId": "u6",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2028-01-22",
+      "plannedEnd": "2028-03-04",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：接种前种子/收获液保存时间与条件 · CTD：3.2.S.2.4 · 监管：ICH Q7 · 输出物：Hold time report"
+    },
+    {
+      "id": "p3-USP-013",
+      "code": "MAB-203-USP-013",
+      "name": "上游原材料清单与备用源",
+      "subProjectId": "p3-sp-usp",
+      "ownerId": "u6",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2028-01-22",
+      "plannedEnd": "2028-02-19",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：关键原材料（培养基/补料/消泡剂等）清单、供应商、备用源策略 · CTD：3.2.S.2.3 · 监管：ICH Q11 · 输出物：USP RM list"
+    },
+    {
+      "id": "p3-USP-014",
+      "code": "MAB-203-USP-014",
+      "name": "澄清收获工艺开发",
+      "subProjectId": "p3-sp-usp",
+      "ownerId": "u6",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2027-01-27",
+      "plannedEnd": "2027-02-24",
+      "estimatedEffort": 3,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：离心/深层过滤/絮凝等澄清策略 · CTD：3.2.S.2.2 · 监管：内部 SOP · 输出物：Harvest dev report"
+    },
+    {
+      "id": "p3-USP-015",
+      "code": "MAB-203-USP-015",
+      "name": "上游工艺描述与流程图",
+      "subProjectId": "p3-sp-usp",
+      "ownerId": "u6",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2028-01-22",
+      "plannedEnd": "2028-02-19",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：工艺描述、流程图、参数范围 · CTD：3.2.S.2.2 · 监管：ICH Q11; M3.2.S.2.2 · 输出物：USP Process Description v2"
+    },
+    {
+      "id": "p3-DSP-001",
+      "code": "MAB-203-DSP-001",
+      "name": "下游平台工艺方案",
+      "subProjectId": "p3-sp-dsp",
+      "ownerId": "u9",
+      "status": "已完成",
+      "priority": "中",
+      "plannedStart": "2026-02-01",
+      "plannedEnd": "2026-02-15",
+      "estimatedEffort": 2,
+      "progress": 100,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：基于分子类型确定下游步骤组合（捕获/VI/层析/VF/UFDF） · CTD：3.2.S.2.2 · 监管：内部 SOP · 输出物：DSP strategy doc",
+      "actualStart": "2026-02-01",
+      "actualEnd": "2026-02-15",
+      "actualEffort": 2
+    },
+    {
+      "id": "p3-DSP-002",
+      "code": "MAB-203-DSP-002",
+      "name": "捕获层析开发 (Protein A)",
+      "subProjectId": "p3-sp-dsp",
+      "ownerId": "u9",
+      "status": "未开始",
+      "priority": "高",
+      "plannedStart": "2026-10-11",
+      "plannedEnd": "2026-12-06",
+      "estimatedEffort": 3,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": true,
+      "notes": "描述：树脂筛选、载量/流速/缓冲体系/洗脱/CIP 条件 · CTD：3.2.S.2.2 · 监管：ICH Q11 · 输出物：Capture dev report"
+    },
+    {
+      "id": "p3-DSP-003",
+      "code": "MAB-203-DSP-003",
+      "name": "低 pH 病毒灭活工艺开发",
+      "subProjectId": "p3-sp-dsp",
+      "ownerId": "u9",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2026-12-06",
+      "plannedEnd": "2027-01-03",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：pH/时间/温度/缓冲体系确定 · CTD：3.2.A.2 · 监管：ICH Q5A(R2) · 输出物：VI dev report"
+    },
+    {
+      "id": "p3-DSP-004",
+      "code": "MAB-203-DSP-004",
+      "name": "中间纯化层析开发",
+      "subProjectId": "p3-sp-dsp",
+      "ownerId": "u9",
+      "status": "未开始",
+      "priority": "高",
+      "plannedStart": "2027-01-03",
+      "plannedEnd": "2027-02-28",
+      "estimatedEffort": 3,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": true,
+      "notes": "描述：AEX/CEX/HIC 筛选与优化 · CTD：3.2.S.2.2 · 监管：ICH Q11 · 输出物：Intermediate chrom report"
+    },
+    {
+      "id": "p3-DSP-005",
+      "code": "MAB-203-DSP-005",
+      "name": "精纯层析开发",
+      "subProjectId": "p3-sp-dsp",
+      "ownerId": "u9",
+      "status": "未开始",
+      "priority": "高",
+      "plannedStart": "2027-02-28",
+      "plannedEnd": "2027-04-11",
+      "estimatedEffort": 3,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": true,
+      "notes": "描述：第二步/第三步层析，杂质精纯 · CTD：3.2.S.2.2 · 监管：ICH Q11 · 输出物：Polishing dev report"
+    },
+    {
+      "id": "p3-DSP-006",
+      "code": "MAB-203-DSP-006",
+      "name": "病毒过滤工艺开发",
+      "subProjectId": "p3-sp-dsp",
+      "ownerId": "u9",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2027-04-11",
+      "plannedEnd": "2027-05-09",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：纳滤膜选型（15~20 nm）、载量/压力/预过滤 · CTD：3.2.A.2 · 监管：ICH Q5A(R2) · 输出物：VF dev report"
+    },
+    {
+      "id": "p3-DSP-007",
+      "code": "MAB-203-DSP-007",
+      "name": "UF/DF 工艺开发",
+      "subProjectId": "p3-sp-dsp",
+      "ownerId": "u9",
+      "status": "未开始",
+      "priority": "高",
+      "plannedStart": "2027-05-09",
+      "plannedEnd": "2027-06-06",
+      "estimatedEffort": 3,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": true,
+      "notes": "描述：膜包选型、浓缩倍数、换液倍数、终浓度 · CTD：3.2.S.2.2 · 监管：内部 SOP · 输出物：UFDF dev report"
+    },
+    {
+      "id": "p3-DSP-008",
+      "code": "MAB-203-DSP-008",
+      "name": "下游耗材选型",
+      "subProjectId": "p3-sp-dsp",
+      "ownerId": "u9",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2027-06-06",
+      "plannedEnd": "2027-06-06",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": true,
+      "isCriticalPath": false,
+      "notes": "描述：深层过滤/除菌/除病毒/超滤/中间体袋/原液袋 · CTD：3.2.S.2.6 · 监管：内部 SOP · 输出物：Consumables selection report · 里程碑：下游耗材定型"
+    },
+    {
+      "id": "p3-DSP-009",
+      "code": "MAB-203-DSP-009",
+      "name": "层析填料寿命研究",
+      "subProjectId": "p3-sp-dsp",
+      "ownerId": "u9",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2028-01-22",
+      "plannedEnd": "2028-01-22",
+      "estimatedEffort": 4,
+      "progress": 0,
+      "isMilestone": true,
+      "isCriticalPath": false,
+      "notes": "描述：树脂多循环载量/杂质去除/动态结合能力 · CTD：3.2.S.2.5 · 监管：ICH Q7; 业界实践 · 输出物：Resin lifetime report · 里程碑：填料寿命通过"
+    },
+    {
+      "id": "p3-DSP-010",
+      "code": "MAB-203-DSP-010",
+      "name": "下游中间体 Hold Time",
+      "subProjectId": "p3-sp-dsp",
+      "ownerId": "u9",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2028-01-22",
+      "plannedEnd": "2028-03-04",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：各步中间体保存时间与条件 · CTD：3.2.S.2.4 · 监管：ICH Q7 · 输出物：Intermediate hold time report"
+    },
+    {
+      "id": "p3-DSP-011",
+      "code": "MAB-203-DSP-011",
+      "name": "下游 SDM 鉴定",
+      "subProjectId": "p3-sp-dsp",
+      "ownerId": "u9",
+      "status": "未开始",
+      "priority": "高",
+      "plannedStart": "2028-01-22",
+      "plannedEnd": "2028-01-22",
+      "estimatedEffort": 4,
+      "progress": 0,
+      "isMilestone": true,
+      "isCriticalPath": true,
+      "notes": "描述：层析/TFF 缩小模型与生产规模代表性确认 · CTD：3.2.S.2.6 · 监管：BioPhorum PC · 输出物：DSP SDM qualification report · 里程碑：DSP SDM 鉴定"
+    },
+    {
+      "id": "p3-DSP-012",
+      "code": "MAB-203-DSP-012",
+      "name": "原液处方缓冲液交换",
+      "subProjectId": "p3-sp-dsp",
+      "ownerId": "u9",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2027-06-06",
+      "plannedEnd": "2027-06-27",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：与 FS 联动，原液终缓冲体系 · CTD：3.2.S.2.2 · 监管：内部 SOP · 输出物：DS buffer exchange SOP"
+    },
+    {
+      "id": "p3-DSP-013",
+      "code": "MAB-203-DSP-013",
+      "name": "原液储存容器与冻融研究",
+      "subProjectId": "p3-sp-dsp",
+      "ownerId": "u9",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2027-07-26",
+      "plannedEnd": "2027-09-06",
+      "estimatedEffort": 3,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：DS 袋/瓶/大规模冻存容器评估，冻融次数评价 · CTD：3.2.S.2.4 · 监管：USP <1207>; 内部 SOP · 输出物：DS container & freeze-thaw report"
+    },
+    {
+      "id": "p3-DSP-014",
+      "code": "MAB-203-DSP-014",
+      "name": "下游工艺锁定",
+      "subProjectId": "p3-sp-dsp",
+      "ownerId": "u9",
+      "status": "未开始",
+      "priority": "高",
+      "plannedStart": "2027-06-06",
+      "plannedEnd": "2027-06-06",
+      "estimatedEffort": 3,
+      "progress": 0,
+      "isMilestone": true,
+      "isCriticalPath": true,
+      "notes": "描述：综合数据锁定下游工艺 · CTD：3.2.S.2.2 · 监管：ICH Q11 · 输出物：DSP Process Description v1 · 里程碑：下游工艺定型"
+    },
+    {
+      "id": "p3-DSP-015",
+      "code": "MAB-203-DSP-015",
+      "name": "50L 下游代表性批次",
+      "subProjectId": "p3-sp-dsp",
+      "ownerId": "u9",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2027-06-06",
+      "plannedEnd": "2027-07-18",
+      "estimatedEffort": 4,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：与 USP-010 联动，50L 全流程代表性批 · CTD：3.2.S.2.4 · 监管：内部 SOP · 输出物：50L DSP report"
+    },
+    {
+      "id": "p3-DSP-016",
+      "code": "MAB-203-DSP-016",
+      "name": "下游原材料清单与备用源",
+      "subProjectId": "p3-sp-dsp",
+      "ownerId": "u9",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2028-01-22",
+      "plannedEnd": "2028-02-19",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：树脂/膜/缓冲盐/消毒剂清单、供应商、备用源 · CTD：3.2.S.2.3 · 监管：ICH Q11 · 输出物：DSP RM list"
+    },
+    {
+      "id": "p3-DSP-017",
+      "code": "MAB-203-DSP-017",
+      "name": "下游工艺描述与流程图",
+      "subProjectId": "p3-sp-dsp",
+      "ownerId": "u9",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2028-01-22",
+      "plannedEnd": "2028-02-19",
+      "estimatedEffort": 2,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：工艺描述、流程图、参数范围 · CTD：3.2.S.2.2 · 监管：ICH Q11; M3.2.S.2.2 · 输出物：DSP Process Description v2"
+    },
+    {
+      "id": "p3-DSP-018",
+      "code": "MAB-203-DSP-018",
+      "name": "下游 CPP/KPP 评估",
+      "subProjectId": "p3-sp-dsp",
+      "ownerId": "u9",
+      "status": "未开始",
+      "priority": "中",
+      "plannedStart": "2028-01-22",
+      "plannedEnd": "2028-02-19",
+      "estimatedEffort": 3,
+      "progress": 0,
+      "isMilestone": false,
+      "isCriticalPath": false,
+      "notes": "描述：基于 PC 数据的 CPP/KPP 分级 · CTD：3.2.S.2.6 · 监管：ICH Q8(R2); Q11 · 输出物：DSP CPP/KPP report"
+    }
+  ],
+  "taskDependencies": [
+    {
+      "id": "p1-dep-1",
+      "predecessorId": "p1-USP-001",
+      "successorId": "p1-USP-002",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-2",
+      "predecessorId": "p1-USP-002",
+      "successorId": "p1-USP-003",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-3",
+      "predecessorId": "p1-USP-003",
+      "successorId": "p1-USP-004",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-4",
+      "predecessorId": "p1-USP-003",
+      "successorId": "p1-USP-005",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-5",
+      "predecessorId": "p1-USP-005",
+      "successorId": "p1-USP-006",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-6",
+      "predecessorId": "p1-USP-006",
+      "successorId": "p1-USP-007",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-7",
+      "predecessorId": "p1-USP-007",
+      "successorId": "p1-USP-008",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-8",
+      "predecessorId": "p1-USP-007",
+      "successorId": "p1-USP-009",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-9",
+      "predecessorId": "p1-USP-009",
+      "successorId": "p1-USP-010",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-10",
+      "predecessorId": "p1-USP-007",
+      "successorId": "p1-USP-012",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-11",
+      "predecessorId": "p1-USP-007",
+      "successorId": "p1-USP-013",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-12",
+      "predecessorId": "p1-USP-010",
+      "successorId": "p1-USP-014",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-13",
+      "predecessorId": "p1-USP-007",
+      "successorId": "p1-USP-015",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-14",
+      "predecessorId": "p1-USP-014",
+      "successorId": "p1-USP-015",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-15",
+      "predecessorId": "p1-DSP-001",
+      "successorId": "p1-DSP-002",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-16",
+      "predecessorId": "p1-USP-010",
+      "successorId": "p1-DSP-002",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-17",
+      "predecessorId": "p1-DSP-002",
+      "successorId": "p1-DSP-003",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-18",
+      "predecessorId": "p1-DSP-003",
+      "successorId": "p1-DSP-004",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-19",
+      "predecessorId": "p1-DSP-004",
+      "successorId": "p1-DSP-005",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-20",
+      "predecessorId": "p1-DSP-005",
+      "successorId": "p1-DSP-006",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-21",
+      "predecessorId": "p1-DSP-006",
+      "successorId": "p1-DSP-007",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-22",
+      "predecessorId": "p1-DSP-007",
+      "successorId": "p1-DSP-008",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-23",
+      "predecessorId": "p1-DSP-002",
+      "successorId": "p1-DSP-009",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-24",
+      "predecessorId": "p1-DSP-004",
+      "successorId": "p1-DSP-009",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-25",
+      "predecessorId": "p1-DSP-005",
+      "successorId": "p1-DSP-009",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-26",
+      "predecessorId": "p1-DSP-007",
+      "successorId": "p1-DSP-010",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-27",
+      "predecessorId": "p1-DSP-007",
+      "successorId": "p1-DSP-012",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-28",
+      "predecessorId": "p1-DSP-012",
+      "successorId": "p1-DSP-013",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-29",
+      "predecessorId": "p1-DSP-002",
+      "successorId": "p1-DSP-014",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-30",
+      "predecessorId": "p1-DSP-003",
+      "successorId": "p1-DSP-014",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-31",
+      "predecessorId": "p1-DSP-004",
+      "successorId": "p1-DSP-014",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-32",
+      "predecessorId": "p1-DSP-005",
+      "successorId": "p1-DSP-014",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-33",
+      "predecessorId": "p1-DSP-006",
+      "successorId": "p1-DSP-014",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-34",
+      "predecessorId": "p1-DSP-007",
+      "successorId": "p1-DSP-014",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-35",
+      "predecessorId": "p1-USP-010",
+      "successorId": "p1-DSP-015",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-36",
+      "predecessorId": "p1-DSP-014",
+      "successorId": "p1-DSP-015",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-37",
+      "predecessorId": "p1-DSP-014",
+      "successorId": "p1-DSP-016",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p1-dep-38",
+      "predecessorId": "p1-DSP-014",
+      "successorId": "p1-DSP-017",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-1",
+      "predecessorId": "p2-USP-001",
+      "successorId": "p2-USP-002",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-2",
+      "predecessorId": "p2-USP-002",
+      "successorId": "p2-USP-003",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-3",
+      "predecessorId": "p2-USP-003",
+      "successorId": "p2-USP-004",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-4",
+      "predecessorId": "p2-USP-003",
+      "successorId": "p2-USP-005",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-5",
+      "predecessorId": "p2-USP-005",
+      "successorId": "p2-USP-006",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-6",
+      "predecessorId": "p2-USP-006",
+      "successorId": "p2-USP-007",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-7",
+      "predecessorId": "p2-USP-007",
+      "successorId": "p2-USP-008",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-8",
+      "predecessorId": "p2-USP-007",
+      "successorId": "p2-USP-009",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-9",
+      "predecessorId": "p2-USP-009",
+      "successorId": "p2-USP-010",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-10",
+      "predecessorId": "p2-USP-007",
+      "successorId": "p2-USP-012",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-11",
+      "predecessorId": "p2-USP-007",
+      "successorId": "p2-USP-013",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-12",
+      "predecessorId": "p2-USP-010",
+      "successorId": "p2-USP-014",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-13",
+      "predecessorId": "p2-USP-007",
+      "successorId": "p2-USP-015",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-14",
+      "predecessorId": "p2-USP-014",
+      "successorId": "p2-USP-015",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-15",
+      "predecessorId": "p2-DSP-001",
+      "successorId": "p2-DSP-002",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-16",
+      "predecessorId": "p2-USP-010",
+      "successorId": "p2-DSP-002",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-17",
+      "predecessorId": "p2-DSP-002",
+      "successorId": "p2-DSP-003",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-18",
+      "predecessorId": "p2-DSP-003",
+      "successorId": "p2-DSP-004",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-19",
+      "predecessorId": "p2-DSP-004",
+      "successorId": "p2-DSP-005",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-20",
+      "predecessorId": "p2-DSP-005",
+      "successorId": "p2-DSP-006",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-21",
+      "predecessorId": "p2-DSP-006",
+      "successorId": "p2-DSP-007",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-22",
+      "predecessorId": "p2-DSP-007",
+      "successorId": "p2-DSP-008",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-23",
+      "predecessorId": "p2-DSP-002",
+      "successorId": "p2-DSP-009",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-24",
+      "predecessorId": "p2-DSP-004",
+      "successorId": "p2-DSP-009",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-25",
+      "predecessorId": "p2-DSP-005",
+      "successorId": "p2-DSP-009",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-26",
+      "predecessorId": "p2-DSP-007",
+      "successorId": "p2-DSP-010",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-27",
+      "predecessorId": "p2-DSP-007",
+      "successorId": "p2-DSP-012",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-28",
+      "predecessorId": "p2-DSP-012",
+      "successorId": "p2-DSP-013",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-29",
+      "predecessorId": "p2-DSP-002",
+      "successorId": "p2-DSP-014",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-30",
+      "predecessorId": "p2-DSP-003",
+      "successorId": "p2-DSP-014",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-31",
+      "predecessorId": "p2-DSP-004",
+      "successorId": "p2-DSP-014",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-32",
+      "predecessorId": "p2-DSP-005",
+      "successorId": "p2-DSP-014",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-33",
+      "predecessorId": "p2-DSP-006",
+      "successorId": "p2-DSP-014",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-34",
+      "predecessorId": "p2-DSP-007",
+      "successorId": "p2-DSP-014",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-35",
+      "predecessorId": "p2-USP-010",
+      "successorId": "p2-DSP-015",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-36",
+      "predecessorId": "p2-DSP-014",
+      "successorId": "p2-DSP-015",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-37",
+      "predecessorId": "p2-DSP-014",
+      "successorId": "p2-DSP-016",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p2-dep-38",
+      "predecessorId": "p2-DSP-014",
+      "successorId": "p2-DSP-017",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-1",
+      "predecessorId": "p3-USP-001",
+      "successorId": "p3-USP-002",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-2",
+      "predecessorId": "p3-USP-002",
+      "successorId": "p3-USP-003",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-3",
+      "predecessorId": "p3-USP-003",
+      "successorId": "p3-USP-004",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-4",
+      "predecessorId": "p3-USP-003",
+      "successorId": "p3-USP-005",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-5",
+      "predecessorId": "p3-USP-005",
+      "successorId": "p3-USP-006",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-6",
+      "predecessorId": "p3-USP-006",
+      "successorId": "p3-USP-007",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-7",
+      "predecessorId": "p3-USP-007",
+      "successorId": "p3-USP-008",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-8",
+      "predecessorId": "p3-USP-007",
+      "successorId": "p3-USP-009",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-9",
+      "predecessorId": "p3-USP-009",
+      "successorId": "p3-USP-010",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-10",
+      "predecessorId": "p3-USP-007",
+      "successorId": "p3-USP-012",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-11",
+      "predecessorId": "p3-USP-007",
+      "successorId": "p3-USP-013",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-12",
+      "predecessorId": "p3-USP-010",
+      "successorId": "p3-USP-014",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-13",
+      "predecessorId": "p3-USP-007",
+      "successorId": "p3-USP-015",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-14",
+      "predecessorId": "p3-USP-014",
+      "successorId": "p3-USP-015",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-15",
+      "predecessorId": "p3-DSP-001",
+      "successorId": "p3-DSP-002",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-16",
+      "predecessorId": "p3-USP-010",
+      "successorId": "p3-DSP-002",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-17",
+      "predecessorId": "p3-DSP-002",
+      "successorId": "p3-DSP-003",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-18",
+      "predecessorId": "p3-DSP-003",
+      "successorId": "p3-DSP-004",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-19",
+      "predecessorId": "p3-DSP-004",
+      "successorId": "p3-DSP-005",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-20",
+      "predecessorId": "p3-DSP-005",
+      "successorId": "p3-DSP-006",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-21",
+      "predecessorId": "p3-DSP-006",
+      "successorId": "p3-DSP-007",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-22",
+      "predecessorId": "p3-DSP-007",
+      "successorId": "p3-DSP-008",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-23",
+      "predecessorId": "p3-DSP-002",
+      "successorId": "p3-DSP-009",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-24",
+      "predecessorId": "p3-DSP-004",
+      "successorId": "p3-DSP-009",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-25",
+      "predecessorId": "p3-DSP-005",
+      "successorId": "p3-DSP-009",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-26",
+      "predecessorId": "p3-DSP-007",
+      "successorId": "p3-DSP-010",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-27",
+      "predecessorId": "p3-DSP-007",
+      "successorId": "p3-DSP-012",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-28",
+      "predecessorId": "p3-DSP-012",
+      "successorId": "p3-DSP-013",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-29",
+      "predecessorId": "p3-DSP-002",
+      "successorId": "p3-DSP-014",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-30",
+      "predecessorId": "p3-DSP-003",
+      "successorId": "p3-DSP-014",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-31",
+      "predecessorId": "p3-DSP-004",
+      "successorId": "p3-DSP-014",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-32",
+      "predecessorId": "p3-DSP-005",
+      "successorId": "p3-DSP-014",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-33",
+      "predecessorId": "p3-DSP-006",
+      "successorId": "p3-DSP-014",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-34",
+      "predecessorId": "p3-DSP-007",
+      "successorId": "p3-DSP-014",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-35",
+      "predecessorId": "p3-USP-010",
+      "successorId": "p3-DSP-015",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-36",
+      "predecessorId": "p3-DSP-014",
+      "successorId": "p3-DSP-015",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-37",
+      "predecessorId": "p3-DSP-014",
+      "successorId": "p3-DSP-016",
+      "type": "FS",
+      "lagDays": 0
+    },
+    {
+      "id": "p3-dep-38",
+      "predecessorId": "p3-DSP-014",
+      "successorId": "p3-DSP-017",
+      "type": "FS",
+      "lagDays": 0
+    }
+  ],
+  "projectFinances": [
+    {
+      "projectId": "p1",
+      "totalBudget": 7000,
+      "spent": 1480,
+      "committed": 280,
+      "breakdown": {
+        "人力": 820,
+        "设备": 460,
+        "原材料": 280,
+        "外部服务": 180,
+        "其他": 20
+      },
+      "fiscalYear": "2025-2028",
+      "notes": "USP 早期开发完成，即将进入 IND 阶段"
+    },
+    {
+      "projectId": "p2",
+      "totalBudget": 7500,
+      "spent": 3680,
+      "committed": 520,
+      "breakdown": {
+        "人力": 1980,
+        "设备": 1080,
+        "原材料": 720,
+        "外部服务": 380,
+        "其他": 40
+      },
+      "fiscalYear": "2024-2027",
+      "notes": "IND 阶段进行中，DSP 工艺开发处于中段"
+    },
+    {
+      "projectId": "p3",
+      "totalBudget": 6800,
+      "spent": 380,
+      "committed": 220,
+      "breakdown": {
+        "人力": 380,
+        "设备": 140,
+        "原材料": 60,
+        "外部服务": 20,
+        "其他": 0
+      },
+      "fiscalYear": "2026-2028",
+      "notes": "项目初启动，USP 培养基筛选进行中"
+    }
+  ]
+}
