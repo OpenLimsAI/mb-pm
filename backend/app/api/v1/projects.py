@@ -18,7 +18,13 @@ from sqlalchemy.orm import Session, selectinload
 from app.api.deps import get_current_user, require_role
 from app.db.session import get_db
 from app.models import (
-    Project, ProjectFinance, ProjectMember, SubProject, Task, TaskDependency, User,
+    Project,
+    ProjectFinance,
+    ProjectMember,
+    SubProject,
+    Task,
+    TaskDependency,
+    User,
 )
 from app.schemas.common import Page, PageMeta
 from app.schemas.project import (
@@ -156,10 +162,7 @@ def get_project(
     user: User = Depends(get_current_user),
 ):
     project = (
-        db.query(Project)
-        .options(selectinload(Project.members))
-        .filter_by(id=project_id)
-        .first()
+        db.query(Project).options(selectinload(Project.members)).filter_by(id=project_id).first()
     )
     if not project:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
@@ -231,7 +234,9 @@ def replace_members(
     if not project:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
     if user.role not in ("admin", "cmc_lead") and project.owner_id != user.id:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "only owner / admin / cmc_lead can edit team")
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "only owner / admin / cmc_lead can edit team"
+        )
 
     db.query(ProjectMember).filter_by(project_id=project.id).delete()
     for mid in set(member_ids):

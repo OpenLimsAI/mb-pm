@@ -23,9 +23,7 @@ router = APIRouter(prefix="/baselines", tags=["baselines"])
 def _build_snapshot(db: Session, project: Project) -> dict:
     """按当前 DB 状态构建项目计划快照（键统一 camelCase，便于前端直接消费）。"""
     sub_ids = [s.id for s in db.query(SubProject).filter_by(project_id=project.id).all()]
-    tasks = (
-        db.query(Task).filter(Task.sub_project_id.in_(sub_ids)).all() if sub_ids else []
-    )
+    tasks = db.query(Task).filter(Task.sub_project_id.in_(sub_ids)).all() if sub_ids else []
     fin = db.query(ProjectFinance).filter_by(project_id=project.id).first()
 
     milestones = [
@@ -58,11 +56,7 @@ def list_baselines(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    rows = (
-        db.query(ProjectBaseline)
-        .order_by(ProjectBaseline.created_at.desc())
-        .all()
-    )
+    rows = db.query(ProjectBaseline).order_by(ProjectBaseline.created_at.desc()).all()
     return [BaselineOut.model_validate(b) for b in rows]
 
 

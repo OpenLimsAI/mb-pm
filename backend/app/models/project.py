@@ -36,7 +36,9 @@ class Project(Base, TimestampMixin):
     # 关系
     owner = relationship("User", back_populates="owned_projects", foreign_keys=[owner_id])
     members = relationship("ProjectMember", back_populates="project", cascade="all, delete-orphan")
-    sub_projects = relationship("SubProject", back_populates="project", cascade="all, delete-orphan")
+    sub_projects = relationship(
+        "SubProject", back_populates="project", cascade="all, delete-orphan"
+    )
     template = relationship("Template")
 
 
@@ -44,9 +46,7 @@ class ProjectMember(Base):
     """项目团队成员（多对多 — Project ↔ User）。"""
 
     __tablename__ = "project_members"
-    __table_args__ = (
-        PrimaryKeyConstraint("project_id", "user_id", name="pk_project_members"),
-    )
+    __table_args__ = (PrimaryKeyConstraint("project_id", "user_id", name="pk_project_members"),)
 
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))

@@ -28,6 +28,7 @@ def _status_for(progress: int) -> str:
 
 def _derive_health(tasks: list[Task], today: date = ANCHOR_TODAY) -> str:
     """红：有逾期里程碑；黄：有逾期任务或临近(≤14d)里程碑；否则绿。"""
+
     def incomplete(t: Task) -> bool:
         return t.status not in _DONE
 
@@ -37,8 +38,7 @@ def _derive_health(tasks: list[Task], today: date = ANCHOR_TODAY) -> str:
         for t in tasks
     )
     near_ms = any(
-        t.is_milestone and incomplete(t) and 0 <= (t.planned_end - today).days <= 14
-        for t in tasks
+        t.is_milestone and incomplete(t) and 0 <= (t.planned_end - today).days <= 14 for t in tasks
     )
     if overdue_ms:
         return "red"
