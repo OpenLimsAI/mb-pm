@@ -11,7 +11,8 @@ from app.db.base import Base, TimestampMixin
 class Project(Base, TimestampMixin):
     __tablename__ = "projects"
 
-    id: Mapped[str] = mapped_column(String(20), primary_key=True)
+    # 前端生成的项目 ID 及其派生的组合 ID 较长，统一用 64（issue #4）。
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
     code: Mapped[str] = mapped_column(String(40), unique=True, nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
 

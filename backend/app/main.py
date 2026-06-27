@@ -37,11 +37,29 @@ _STATIC = Path(settings.STATIC_DIR) if settings.STATIC_DIR else None
 _HAS_SPA = bool(_STATIC and (_STATIC / "index.html").is_file())
 
 
+# 需容纳前端拼接式组合 ID（`${projectId}-${childCode}`）的主键/外键列（issue #4）。
+# 新库由 create_all 直接建成 VARCHAR(64)；此处负责把「已存在的老库」就地加宽。
+_TARGET_ID_LEN = 64
+_WIDE_ID_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("projects", "id"),
+    ("project_members", "project_id"),
+    ("project_finances", "project_id"),
+    ("project_baselines", "project_id"),
+    ("sub_projects", "id"),
+    ("sub_projects", "project_id"),
+    ("tasks", "id"),
+    ("tasks", "sub_project_id"),
+    ("task_dependencies", "id"),
+    ("task_dependencies", "predecessor_id"),
+    ("task_dependencies", "successor_id"),
+)
+
+
 def _ensure_schema() -> None:
-    """轻量「迁移」：为已存在的表补齐新增列（无 alembic 时的兜底）。
-    create_all 不会改动已存在的表，故老库需要在此处 ALTER。SQLite / PostgreSQL
-    都支持 ADD COLUMN，幂等：列已存在则跳过。"""
-    from sqlalchemy import inspect as sa_inspect, text
+    """轻量「迁移」：为已存在的表补齐新增列 / 加宽过窄的 ID 列（无 alembic 时的兜底）。
+    create_all 不会改动已存在的表，故老库需要在此处 ALTER。幂等：满足目标则跳过。"""
+    from sqlalchemy import inspect as sa_inspect
+    from sqlalchemy import text
 
     insp = sa_inspect(engine)
     if "tasks" not in insp.get_table_names():
@@ -52,6 +70,25 @@ def _ensure_schema() -> None:
             with engine.begin() as conn:
                 conn.execute(text(f"ALTER TABLE tasks ADD COLUMN {col} NUMERIC(12,2)"))
             logger.info("已为 tasks 表补充 %s 列", col)
+
+    # —— 加宽组合 ID 列（issue #4）—— #
+    # SQLite 不强制 VARCHAR(n) 长度，也不支持 ALTER COLUMN ... TYPE，直接跳过。
+    if engine.dialect.name == "sqlite":
+        return
+    existing_tables = set(insp.get_table_names())
+    for table, col in _WIDE_ID_COLUMNS:
+        if table not in existing_tables:
+            continue
+        meta = {c["name"]: c for c in insp.get_columns(table)}.get(col)
+        if meta is None:
+            continue
+        length = getattr(meta["type"], "length", None)
+        if length is not None and length < _TARGET_ID_LEN:
+            with engine.begin() as conn:
+                conn.execute(
+                    text(f"ALTER TABLE {table} ALTER COLUMN {col} TYPE VARCHAR({_TARGET_ID_LEN})")
+                )
+            logger.info("已加宽 %s.%s → VARCHAR(%d)（issue #4）", table, col, _TARGET_ID_LEN)
 
 
 @asynccontextmanager
