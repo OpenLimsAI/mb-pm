@@ -52,6 +52,7 @@ function normalizeApiTask(t: Task): Task {
     estimatedEffort: toNum(t.estimatedEffort) ?? 0,
     actualEffort: toNum(t.actualEffort),
     costBudget: toNum(t.costBudget),
+    actualCost: toNum(t.actualCost),
   }
 }
 
@@ -133,6 +134,7 @@ export interface TaskProgressPatch {
   progress?: number
   ownerId?: string
   costBudget?: number | null
+  actualCost?: number | null
   plannedStart?: string
   plannedEnd?: string
   actualStart?: string | null

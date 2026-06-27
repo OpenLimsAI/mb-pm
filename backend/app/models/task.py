@@ -72,6 +72,8 @@ class Task(Base, TimestampMixin):
 
     # 成本预算（万元 RMB，含外包/耗材/CRO，不含内部人力）—— 源自模板 costBudget
     cost_budget: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    # 实际花费（万元 RMB）—— 任务执行过程中录入，与 cost_budget 对比
+    actual_cost: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
 
     progress: Mapped[int] = mapped_column(Integer, default=0)
     is_milestone: Mapped[bool] = mapped_column(Boolean, default=False, index=True)

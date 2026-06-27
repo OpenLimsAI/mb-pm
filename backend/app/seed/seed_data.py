@@ -165,6 +165,7 @@ def seed() -> None:
                     estimated_effort=t.get("estimatedEffort", 0),
                     actual_effort=t.get("actualEffort"),
                     cost_budget=t.get("costBudget"),
+                    actual_cost=t.get("actualCost"),
                     progress=t.get("progress", 0),
                     is_milestone=t.get("isMilestone", False),
                     is_critical_path=t.get("isCriticalPath", False),

@@ -57,6 +57,7 @@ class TaskBase(BaseModel):
     estimated_effort: Decimal = Decimal(0)
     actual_effort: Decimal | None = None
     cost_budget: Decimal | None = None
+    actual_cost: Decimal | None = None
     progress: int = 0
     is_milestone: bool = False
     is_critical_path: bool = False
@@ -83,6 +84,7 @@ class TaskUpdate(BaseModel):
     estimated_effort: Decimal | None = None
     actual_effort: Decimal | None = None
     cost_budget: Decimal | None = None
+    actual_cost: Decimal | None = None
     progress: int | None = None
     is_milestone: bool | None = None
     is_critical_path: bool | None = None

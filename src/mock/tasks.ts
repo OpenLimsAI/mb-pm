@@ -163,6 +163,10 @@ function instantiateTemplate(
     const dates = taskDates[leaf.taskCode!] || { start: projectStart, end: projectStart }
     const status = statusFor(dates.start, dates.end, !!leaf.isMilestone)
     const sp = template.children![subProjectIdx]
+    const prog = progressFor(status, dates.start, dates.end)
+    // 演示用：实际花费按进度比例从成本预算推算（已开始的任务才计花费）
+    const actualCost = leaf.costBudget != null && prog > 0
+      ? Math.round(leaf.costBudget * prog / 100) : undefined
 
     const t: Task = {
       id: taskIdOf(leaf.taskCode!),
@@ -176,7 +180,8 @@ function instantiateTemplate(
       plannedEnd: formatDate(dates.end),
       estimatedEffort: leaf.defaultEffort || 0,
       costBudget: leaf.costBudget,
-      progress: progressFor(status, dates.start, dates.end),
+      actualCost,
+      progress: prog,
       isMilestone: !!leaf.isMilestone,
       isCriticalPath: !!leaf.isCriticalPath,
       notes: [
