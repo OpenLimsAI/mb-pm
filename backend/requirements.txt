@@ -19,7 +19,10 @@ python-multipart==0.0.12
 openpyxl==3.1.5                   # 模板 Excel 导入/导出
 python-dateutil==2.9.0
 
+# PostgreSQL 驱动（部署默认数据库；binary 轮子自带 libpq，无需系统依赖）
+# SQLite 仍是默认本地后端，装上它不影响 SQLite 运行。
+psycopg[binary]==3.2.3
+
 # —— 可选（按需安装）——
-# PostgreSQL 驱动：       psycopg[binary]==3.2.3
 # 数据库迁移工具：        alembic==1.13.3
 # 开发/测试：             pytest==8.3.3  httpx==0.27.2  ruff==0.7.0

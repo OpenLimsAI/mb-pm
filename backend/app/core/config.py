@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     # 启动时若库为空则自动建表 + 灌种子数据
     AUTO_SEED: bool = True
 
+    # —— 前端静态资源 —— #
+    # 设为已构建的 SPA 目录（含 index.html）即由后端同源托管前端；
+    # 留空则纯 API 模式（本地 dev 用 Vite 独立跑前端）。容器镜像里指向 /code/static。
+    STATIC_DIR: str = ""
+
     # —— 应用 —— #
     APP_ENV: str = "development"
     APP_SECRET: str = "change-me"

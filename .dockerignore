@@ -1,0 +1,38 @@
+# —— 依赖 / 构建产物（镜像内重新安装与构建）——
+node_modules
+dist
+dist-ssr
+backend/.venv
+.venv
+**/__pycache__/
+*.py[cod]
+.pytest_cache
+.coverage
+.ruff_cache
+
+# —— 数据库 / 环境密钥（绝不进镜像）——
+*.db
+*.sqlite
+.env
+.env.*
+!.env.example
+!.env.local.example
+backend/.env
+*.local
+
+# —— VCS / 编辑器 / 系统 —— #
+.git
+.gitignore
+.github
+.claude
+.vscode
+.idea
+.DS_Store
+*.log
+
+# —— 文档 / 非运行资产（不影响构建）——
+*.md
+docs
+docx
+**/*.docx
+**/*.xlsx
