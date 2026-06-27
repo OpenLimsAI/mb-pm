@@ -14,8 +14,15 @@ from fastapi.staticfiles import StaticFiles
 
 import app.models  # noqa: F401  确保所有 ORM 表注册到 Base.metadata
 from app.api.v1 import (
-    auth, baselines, finances, projects, sub_projects, task_dependencies, tasks,
-    templates, users,
+    auth,
+    baselines,
+    finances,
+    projects,
+    sub_projects,
+    task_dependencies,
+    tasks,
+    templates,
+    users,
 )
 from app.core.config import settings
 from app.db.base import Base
@@ -44,6 +51,7 @@ async def lifespan(_: FastAPI):
             db.close()
         if empty:
             from app.seed.seed_data import seed
+
             logger.info("数据库为空 → 灌入种子数据 ...")
             seed()
         else:

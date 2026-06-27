@@ -36,29 +36,29 @@ def visible_project_ids_for(user: User, db: Session) -> set[str]:
                     or_(
                         Project.owner_id == user.id,
                         Project.id.in_(
-                            select(ProjectMember.project_id).where(
-                                ProjectMember.user_id == user.id
-                            )
+                            select(ProjectMember.project_id).where(ProjectMember.user_id == user.id)
                         ),
                     )
                 )
-            ).scalars().all()
+            )
+            .scalars()
+            .all()
         )
         return ids
 
     # rd / production / qa_qc：作为成员的项目
     member_pids = set(
-        db.execute(
-            select(ProjectMember.project_id).where(ProjectMember.user_id == user.id)
-        ).scalars().all()
+        db.execute(select(ProjectMember.project_id).where(ProjectMember.user_id == user.id))
+        .scalars()
+        .all()
     )
 
     # qa_qc 额外加上 — 任何项目里有 分析方法 / 稳定性 子项目的项目
     if user.role == "qa_qc":
         cross_pids = set(
-            db.execute(
-                select(SubProject.project_id).where(SubProject.module.in_(QC_CROSS_MODULES))
-            ).scalars().all()
+            db.execute(select(SubProject.project_id).where(SubProject.module.in_(QC_CROSS_MODULES)))
+            .scalars()
+            .all()
         )
         member_pids |= cross_pids
 
@@ -81,9 +81,9 @@ def visible_task_ids_for(user: User, db: Session) -> set[str]:
         if not proj_ids:
             return set()
         return set(
-            db.execute(
-                select(Task.id).join(SubProject).where(SubProject.project_id.in_(proj_ids))
-            ).scalars().all()
+            db.execute(select(Task.id).join(SubProject).where(SubProject.project_id.in_(proj_ids)))
+            .scalars()
+            .all()
         )
 
     # rd / production / qa_qc：本人任务（owner 或 collaborator）
@@ -97,7 +97,9 @@ def visible_task_ids_for(user: User, db: Session) -> set[str]:
                     cast(Task.collaborator_ids, String).like(f'%"{user.id}"%'),
                 )
             )
-        ).scalars().all()
+        )
+        .scalars()
+        .all()
     )
 
     # qa_qc 额外：跨项目分析/稳定性任务
@@ -107,7 +109,9 @@ def visible_task_ids_for(user: User, db: Session) -> set[str]:
                 select(Task.id)
                 .join(SubProject, Task.sub_project_id == SubProject.id)
                 .where(SubProject.module.in_(QC_CROSS_MODULES))
-            ).scalars().all()
+            )
+            .scalars()
+            .all()
         )
         own_ids |= qc_ids
 

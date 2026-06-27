@@ -30,8 +30,7 @@ def list_deps(
     visible = visible_task_ids_for(user, db)
     q = db.query(TaskDependency)
     q = q.filter(
-        (TaskDependency.predecessor_id.in_(visible))
-        & (TaskDependency.successor_id.in_(visible))
+        (TaskDependency.predecessor_id.in_(visible)) & (TaskDependency.successor_id.in_(visible))
     )
 
     if project_id:
@@ -43,8 +42,7 @@ def list_deps(
         )
     if task_id:
         q = q.filter(
-            (TaskDependency.predecessor_id == task_id)
-            | (TaskDependency.successor_id == task_id)
+            (TaskDependency.predecessor_id == task_id) | (TaskDependency.successor_id == task_id)
         )
 
     return [TaskDependencyOut.model_validate(d) for d in q.all()]

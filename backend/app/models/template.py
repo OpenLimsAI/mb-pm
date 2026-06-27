@@ -41,7 +41,9 @@ class TemplateVersion(Base):
     structure_json: Mapped[dict] = mapped_column(JSON, nullable=False)
 
     change_summary: Mapped[str | None] = mapped_column(Text)
-    change_source: Mapped[str] = mapped_column(String(20), nullable=False)  # visual_edit / excel_import
+    change_source: Mapped[str] = mapped_column(
+        String(20), nullable=False
+    )  # visual_edit / excel_import
     modified_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
     modified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     is_current: Mapped[bool] = mapped_column(Boolean, default=False, index=True)

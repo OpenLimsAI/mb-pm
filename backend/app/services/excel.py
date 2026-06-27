@@ -37,6 +37,7 @@ HEADER_FONT = Font(color="FFFFFF", bold=True, name="Microsoft YaHei")
 
 # ============= 导出 =============
 
+
 def template_structure_to_rows(root: dict[str, Any]) -> tuple[list[dict], list[dict], list[dict]]:
     """把 TemplateNode 树转成三张表 (子项目, 任务, 依赖)。"""
     sub_rows: list[dict] = []
@@ -45,33 +46,39 @@ def template_structure_to_rows(root: dict[str, Any]) -> tuple[list[dict], list[d
 
     children = root.get("children") or []
     for sub in children:
-        sub_rows.append({
-            "子项目名称": sub.get("name"),
-            "阶段": sub.get("stage"),
-            "模块": sub.get("module"),
-            "默认负责角色": sub.get("defaultRole"),
-            "备注": sub.get("notes"),
-        })
-        for task in sub.get("children") or []:
-            task_rows.append({
-                "任务编号": task.get("taskCode"),
-                "任务名称": task.get("name"),
+        sub_rows.append(
+            {
                 "子项目名称": sub.get("name"),
-                "阶段": task.get("stage") or sub.get("stage"),
-                "模块": task.get("module") or sub.get("module"),
-                "默认工期(天)": task.get("defaultDuration") or 0,
-                "默认工时(d)": task.get("defaultEffort") or 0,
-                "是否里程碑": "是" if task.get("isMilestone") else "否",
-                "默认负责角色": task.get("defaultRole"),
-                "备注": task.get("notes"),
-            })
+                "阶段": sub.get("stage"),
+                "模块": sub.get("module"),
+                "默认负责角色": sub.get("defaultRole"),
+                "备注": sub.get("notes"),
+            }
+        )
+        for task in sub.get("children") or []:
+            task_rows.append(
+                {
+                    "任务编号": task.get("taskCode"),
+                    "任务名称": task.get("name"),
+                    "子项目名称": sub.get("name"),
+                    "阶段": task.get("stage") or sub.get("stage"),
+                    "模块": task.get("module") or sub.get("module"),
+                    "默认工期(天)": task.get("defaultDuration") or 0,
+                    "默认工时(d)": task.get("defaultEffort") or 0,
+                    "是否里程碑": "是" if task.get("isMilestone") else "否",
+                    "默认负责角色": task.get("defaultRole"),
+                    "备注": task.get("notes"),
+                }
+            )
             for pred in task.get("predecessors") or []:
-                dep_rows.append({
-                    "后继任务编号": task.get("taskCode"),
-                    "前驱任务编号": pred.get("taskCode"),
-                    "类型": pred.get("type") or "FS",
-                    "滞后天数": pred.get("lagDays") or 0,
-                })
+                dep_rows.append(
+                    {
+                        "后继任务编号": task.get("taskCode"),
+                        "前驱任务编号": pred.get("taskCode"),
+                        "类型": pred.get("type") or "FS",
+                        "滞后天数": pred.get("lagDays") or 0,
+                    }
+                )
     return sub_rows, task_rows, dep_rows
 
 
@@ -103,25 +110,43 @@ def export_template_to_xlsx(template_name: str, version_number: str, structure_j
     ws["A4"] = "Sheet 含义：子项目清单 / 任务清单 / 任务依赖 / 数据字典"
     ws.column_dimensions["A"].width = 60
 
-    _write_sheet(wb, "子项目清单",
-                 ["子项目名称", "阶段", "模块", "默认负责角色", "备注"], sub_rows)
-    _write_sheet(wb, "任务清单",
-                 ["任务编号", "任务名称", "子项目名称", "阶段", "模块",
-                  "默认工期(天)", "默认工时(d)", "是否里程碑", "默认负责角色", "备注"],
-                 task_rows)
-    _write_sheet(wb, "任务依赖",
-                 ["后继任务编号", "前驱任务编号", "类型", "滞后天数"], dep_rows)
+    _write_sheet(wb, "子项目清单", ["子项目名称", "阶段", "模块", "默认负责角色", "备注"], sub_rows)
+    _write_sheet(
+        wb,
+        "任务清单",
+        [
+            "任务编号",
+            "任务名称",
+            "子项目名称",
+            "阶段",
+            "模块",
+            "默认工期(天)",
+            "默认工时(d)",
+            "是否里程碑",
+            "默认负责角色",
+            "备注",
+        ],
+        task_rows,
+    )
+    _write_sheet(wb, "任务依赖", ["后继任务编号", "前驱任务编号", "类型", "滞后天数"], dep_rows)
 
     # 数据字典 sheet（参考用）
     dict_ws = wb.create_sheet("数据字典")
-    dict_ws["A1"] = "阶段"; dict_ws["B1"] = "模块"; dict_ws["C1"] = "角色"; dict_ws["D1"] = "依赖类型"
+    dict_ws["A1"] = "阶段"
+    dict_ws["B1"] = "模块"
+    dict_ws["C1"] = "角色"
+    dict_ws["D1"] = "依赖类型"
     for c in ("A1", "B1", "C1", "D1"):
         dict_ws[c].fill = HEADER_FILL
         dict_ws[c].font = HEADER_FONT
-    for i, v in enumerate(STAGES, start=2): dict_ws.cell(row=i, column=1, value=v)
-    for i, v in enumerate(MODULES, start=2): dict_ws.cell(row=i, column=2, value=v)
-    for i, v in enumerate(ROLES, start=2): dict_ws.cell(row=i, column=3, value=v)
-    for i, v in enumerate(DEP_TYPES, start=2): dict_ws.cell(row=i, column=4, value=v)
+    for i, v in enumerate(STAGES, start=2):
+        dict_ws.cell(row=i, column=1, value=v)
+    for i, v in enumerate(MODULES, start=2):
+        dict_ws.cell(row=i, column=2, value=v)
+    for i, v in enumerate(ROLES, start=2):
+        dict_ws.cell(row=i, column=3, value=v)
+    for i, v in enumerate(DEP_TYPES, start=2):
+        dict_ws.cell(row=i, column=4, value=v)
 
     out = BytesIO()
     wb.save(out)
@@ -153,28 +178,71 @@ def generate_blank_template_xlsx() -> bytes:
         ws.cell(row=i, column=1, value=line)
     ws.column_dimensions["A"].width = 80
 
-    _write_sheet(wb, "子项目清单",
-                 ["子项目名称", "阶段", "模块", "默认负责角色", "备注"],
-                 [{"子项目名称": "（示例）IND-USP 上游开发", "阶段": "IND", "模块": "USP", "默认负责角色": "上游"}])
-    _write_sheet(wb, "任务清单",
-                 ["任务编号", "任务名称", "子项目名称", "阶段", "模块",
-                  "默认工期(天)", "默认工时(d)", "是否里程碑", "默认负责角色", "备注"],
-                 [{"任务编号": "T001", "任务名称": "（示例）培养基筛选", "子项目名称": "（示例）IND-USP 上游开发",
-                   "阶段": "IND", "模块": "USP", "默认工期(天)": 30, "默认工时(d)": 20,
-                   "是否里程碑": "否", "默认负责角色": "上游"}])
-    _write_sheet(wb, "任务依赖",
-                 ["后继任务编号", "前驱任务编号", "类型", "滞后天数"],
-                 [{"后继任务编号": "T002", "前驱任务编号": "T001", "类型": "FS", "滞后天数": 0}])
+    _write_sheet(
+        wb,
+        "子项目清单",
+        ["子项目名称", "阶段", "模块", "默认负责角色", "备注"],
+        [
+            {
+                "子项目名称": "（示例）IND-USP 上游开发",
+                "阶段": "IND",
+                "模块": "USP",
+                "默认负责角色": "上游",
+            }
+        ],
+    )
+    _write_sheet(
+        wb,
+        "任务清单",
+        [
+            "任务编号",
+            "任务名称",
+            "子项目名称",
+            "阶段",
+            "模块",
+            "默认工期(天)",
+            "默认工时(d)",
+            "是否里程碑",
+            "默认负责角色",
+            "备注",
+        ],
+        [
+            {
+                "任务编号": "T001",
+                "任务名称": "（示例）培养基筛选",
+                "子项目名称": "（示例）IND-USP 上游开发",
+                "阶段": "IND",
+                "模块": "USP",
+                "默认工期(天)": 30,
+                "默认工时(d)": 20,
+                "是否里程碑": "否",
+                "默认负责角色": "上游",
+            }
+        ],
+    )
+    _write_sheet(
+        wb,
+        "任务依赖",
+        ["后继任务编号", "前驱任务编号", "类型", "滞后天数"],
+        [{"后继任务编号": "T002", "前驱任务编号": "T001", "类型": "FS", "滞后天数": 0}],
+    )
 
     dict_ws = wb.create_sheet("数据字典")
-    dict_ws["A1"] = "阶段"; dict_ws["B1"] = "模块"; dict_ws["C1"] = "角色"; dict_ws["D1"] = "依赖类型"
+    dict_ws["A1"] = "阶段"
+    dict_ws["B1"] = "模块"
+    dict_ws["C1"] = "角色"
+    dict_ws["D1"] = "依赖类型"
     for c in ("A1", "B1", "C1", "D1"):
         dict_ws[c].fill = HEADER_FILL
         dict_ws[c].font = HEADER_FONT
-    for i, v in enumerate(STAGES, start=2): dict_ws.cell(row=i, column=1, value=v)
-    for i, v in enumerate(MODULES, start=2): dict_ws.cell(row=i, column=2, value=v)
-    for i, v in enumerate(ROLES, start=2): dict_ws.cell(row=i, column=3, value=v)
-    for i, v in enumerate(DEP_TYPES, start=2): dict_ws.cell(row=i, column=4, value=v)
+    for i, v in enumerate(STAGES, start=2):
+        dict_ws.cell(row=i, column=1, value=v)
+    for i, v in enumerate(MODULES, start=2):
+        dict_ws.cell(row=i, column=2, value=v)
+    for i, v in enumerate(ROLES, start=2):
+        dict_ws.cell(row=i, column=3, value=v)
+    for i, v in enumerate(DEP_TYPES, start=2):
+        dict_ws.cell(row=i, column=4, value=v)
 
     out = BytesIO()
     wb.save(out)
@@ -182,6 +250,7 @@ def generate_blank_template_xlsx() -> bytes:
 
 
 # ============= 导入 + 校验 =============
+
 
 def parse_excel(file_bytes: bytes) -> tuple[dict[str, Any] | None, list[ImportErrorRow]]:
     """解析 xlsx 字节流。
@@ -194,15 +263,25 @@ def parse_excel(file_bytes: bytes) -> tuple[dict[str, Any] | None, list[ImportEr
     try:
         wb = load_workbook(BytesIO(file_bytes), data_only=True)
     except Exception as e:
-        return None, [ImportErrorRow(sheet="-", row="-", col="-", level="format",
-                                     message=f"无法解析 xlsx 文件: {e}")]
+        return None, [
+            ImportErrorRow(
+                sheet="-", row="-", col="-", level="format", message=f"无法解析 xlsx 文件: {e}"
+            )
+        ]
 
     sheet_names = set(wb.sheetnames)
     required = {"子项目清单", "任务清单"}
     missing = required - sheet_names
     if missing:
-        return None, [ImportErrorRow(sheet=", ".join(missing), row="-", col="-", level="format",
-                                     message=f"缺少必需的 sheet：{', '.join(missing)}")]
+        return None, [
+            ImportErrorRow(
+                sheet=", ".join(missing),
+                row="-",
+                col="-",
+                level="format",
+                message=f"缺少必需的 sheet：{', '.join(missing)}",
+            )
+        ]
 
     # —— Sheet 1: 子项目清单 —— #
     sub_ws = wb["子项目清单"]
@@ -210,40 +289,81 @@ def parse_excel(file_bytes: bytes) -> tuple[dict[str, Any] | None, list[ImportEr
     sub_required = ["子项目名称", "阶段", "模块"]
     for h in sub_required:
         if h not in sub_headers:
-            errors.append(ImportErrorRow(sheet="子项目清单", row=1, col=h, level="format",
-                                         message=f"缺少必需列「{h}」"))
+            errors.append(
+                ImportErrorRow(
+                    sheet="子项目清单", row=1, col=h, level="format", message=f"缺少必需列「{h}」"
+                )
+            )
 
     sub_idx = {h: sub_headers.index(h) if h in sub_headers else -1 for h in sub_headers if h}
     sub_rows_dict: dict[str, dict] = {}
     for row_num, row in enumerate(sub_ws.iter_rows(min_row=2, values_only=True), start=2):
         if row is None or all(v is None or str(v).strip() == "" for v in row):
             continue
-        name = str(row[sub_idx["子项目名称"]] or "").strip() if sub_idx.get("子项目名称", -1) >= 0 else ""
+        name = (
+            str(row[sub_idx["子项目名称"]] or "").strip()
+            if sub_idx.get("子项目名称", -1) >= 0
+            else ""
+        )
         stage = str(row[sub_idx["阶段"]] or "").strip() if sub_idx.get("阶段", -1) >= 0 else ""
         module = str(row[sub_idx["模块"]] or "").strip() if sub_idx.get("模块", -1) >= 0 else ""
 
         if not name:
-            errors.append(ImportErrorRow(sheet="子项目清单", row=row_num, col="子项目名称",
-                                         level="format", message="必填字段不能为空"))
+            errors.append(
+                ImportErrorRow(
+                    sheet="子项目清单",
+                    row=row_num,
+                    col="子项目名称",
+                    level="format",
+                    message="必填字段不能为空",
+                )
+            )
             continue
         if name in sub_rows_dict:
-            errors.append(ImportErrorRow(sheet="子项目清单", row=row_num, col="子项目名称",
-                                         level="business", message=f"子项目名称 {name!r} 重复"))
+            errors.append(
+                ImportErrorRow(
+                    sheet="子项目清单",
+                    row=row_num,
+                    col="子项目名称",
+                    level="business",
+                    message=f"子项目名称 {name!r} 重复",
+                )
+            )
             continue
         if stage and stage not in STAGES:
-            errors.append(ImportErrorRow(sheet="子项目清单", row=row_num, col="阶段",
-                                         level="format",
-                                         message=f"{stage!r} 不在数据字典中（合法值：{'/'.join(STAGES)}）"))
+            errors.append(
+                ImportErrorRow(
+                    sheet="子项目清单",
+                    row=row_num,
+                    col="阶段",
+                    level="format",
+                    message=f"{stage!r} 不在数据字典中（合法值：{'/'.join(STAGES)}）",
+                )
+            )
         if module and module not in MODULES:
-            errors.append(ImportErrorRow(sheet="子项目清单", row=row_num, col="模块",
-                                         level="format",
-                                         message=f"{module!r} 不在数据字典中（合法值：{'/'.join(MODULES)}）"))
+            errors.append(
+                ImportErrorRow(
+                    sheet="子项目清单",
+                    row=row_num,
+                    col="模块",
+                    level="format",
+                    message=f"{module!r} 不在数据字典中（合法值：{'/'.join(MODULES)}）",
+                )
+            )
 
-        role = str(row[sub_idx["默认负责角色"]] or "").strip() if sub_idx.get("默认负责角色", -1) >= 0 else ""
-        notes = str(row[sub_idx.get("备注", -1)] or "").strip() if sub_idx.get("备注", -1) >= 0 else ""
+        role = (
+            str(row[sub_idx["默认负责角色"]] or "").strip()
+            if sub_idx.get("默认负责角色", -1) >= 0
+            else ""
+        )
+        notes = (
+            str(row[sub_idx.get("备注", -1)] or "").strip() if sub_idx.get("备注", -1) >= 0 else ""
+        )
         sub_rows_dict[name] = {
             "id": f"sp-{len(sub_rows_dict)+1}",
-            "name": name, "stage": stage, "module": module,
+            "name": name,
+            "stage": stage,
+            "module": module,
             "defaultRole": role or None,
             "notes": notes or None,
             "children": [],
@@ -255,8 +375,11 @@ def parse_excel(file_bytes: bytes) -> tuple[dict[str, Any] | None, list[ImportEr
     task_required = ["任务编号", "任务名称", "子项目名称"]
     for h in task_required:
         if h not in task_headers:
-            errors.append(ImportErrorRow(sheet="任务清单", row=1, col=h, level="format",
-                                         message=f"缺少必需列「{h}」"))
+            errors.append(
+                ImportErrorRow(
+                    sheet="任务清单", row=1, col=h, level="format", message=f"缺少必需列「{h}」"
+                )
+            )
 
     t_idx = {h: task_headers.index(h) if h in task_headers else -1 for h in task_headers if h}
     task_codes: dict[str, dict] = {}
@@ -265,63 +388,125 @@ def parse_excel(file_bytes: bytes) -> tuple[dict[str, Any] | None, list[ImportEr
             continue
         code = str(row[t_idx["任务编号"]] or "").strip() if t_idx.get("任务编号", -1) >= 0 else ""
         name = str(row[t_idx["任务名称"]] or "").strip() if t_idx.get("任务名称", -1) >= 0 else ""
-        sub_name = str(row[t_idx["子项目名称"]] or "").strip() if t_idx.get("子项目名称", -1) >= 0 else ""
+        sub_name = (
+            str(row[t_idx["子项目名称"]] or "").strip() if t_idx.get("子项目名称", -1) >= 0 else ""
+        )
 
         if not code:
-            errors.append(ImportErrorRow(sheet="任务清单", row=row_num, col="任务编号",
-                                         level="format", message="必填字段不能为空"))
+            errors.append(
+                ImportErrorRow(
+                    sheet="任务清单",
+                    row=row_num,
+                    col="任务编号",
+                    level="format",
+                    message="必填字段不能为空",
+                )
+            )
             continue
         if code in task_codes:
-            errors.append(ImportErrorRow(sheet="任务清单", row=row_num, col="任务编号",
-                                         level="business", message=f"任务编号 {code!r} 重复"))
+            errors.append(
+                ImportErrorRow(
+                    sheet="任务清单",
+                    row=row_num,
+                    col="任务编号",
+                    level="business",
+                    message=f"任务编号 {code!r} 重复",
+                )
+            )
             continue
         if not name:
-            errors.append(ImportErrorRow(sheet="任务清单", row=row_num, col="任务名称",
-                                         level="format", message="必填字段不能为空"))
+            errors.append(
+                ImportErrorRow(
+                    sheet="任务清单",
+                    row=row_num,
+                    col="任务名称",
+                    level="format",
+                    message="必填字段不能为空",
+                )
+            )
             continue
         if not sub_name or sub_name not in sub_rows_dict:
-            errors.append(ImportErrorRow(sheet="任务清单", row=row_num, col="子项目名称",
-                                         level="reference",
-                                         message=f"子项目 {sub_name!r} 在子项目清单中不存在"))
+            errors.append(
+                ImportErrorRow(
+                    sheet="任务清单",
+                    row=row_num,
+                    col="子项目名称",
+                    level="reference",
+                    message=f"子项目 {sub_name!r} 在子项目清单中不存在",
+                )
+            )
             continue
 
         # 类型校验
         def _opt_int(col: str) -> int | None:
             idx = t_idx.get(col, -1)
-            if idx < 0: return None
+            if idx < 0:
+                return None
             v = row[idx]
-            if v is None or str(v).strip() == "": return None
+            if v is None or str(v).strip() == "":
+                return None
             try:
                 return int(v)
             except (ValueError, TypeError):
-                errors.append(ImportErrorRow(sheet="任务清单", row=row_num, col=col,
-                                             level="format",
-                                             message=f"{v!r} 不是有效数字"))
+                errors.append(
+                    ImportErrorRow(
+                        sheet="任务清单",
+                        row=row_num,
+                        col=col,
+                        level="format",
+                        message=f"{v!r} 不是有效数字",
+                    )
+                )
                 return None
 
         duration = _opt_int("默认工期(天)") or 0
         effort = _opt_int("默认工时(d)") or 0
 
-        is_ms_raw = str(row[t_idx.get("是否里程碑", -1)] or "").strip() if t_idx.get("是否里程碑", -1) >= 0 else ""
+        is_ms_raw = (
+            str(row[t_idx.get("是否里程碑", -1)] or "").strip()
+            if t_idx.get("是否里程碑", -1) >= 0
+            else ""
+        )
         is_milestone = is_ms_raw.lower() in ("是", "true", "yes", "y", "1")
 
         stage = str(row[t_idx.get("阶段", -1)] or "").strip() if t_idx.get("阶段", -1) >= 0 else ""
         module = str(row[t_idx.get("模块", -1)] or "").strip() if t_idx.get("模块", -1) >= 0 else ""
         if stage and stage not in STAGES:
-            errors.append(ImportErrorRow(sheet="任务清单", row=row_num, col="阶段",
-                                         level="format", message=f"{stage!r} 不在数据字典中"))
+            errors.append(
+                ImportErrorRow(
+                    sheet="任务清单",
+                    row=row_num,
+                    col="阶段",
+                    level="format",
+                    message=f"{stage!r} 不在数据字典中",
+                )
+            )
         if module and module not in MODULES:
-            errors.append(ImportErrorRow(sheet="任务清单", row=row_num, col="模块",
-                                         level="format", message=f"{module!r} 不在数据字典中"))
+            errors.append(
+                ImportErrorRow(
+                    sheet="任务清单",
+                    row=row_num,
+                    col="模块",
+                    level="format",
+                    message=f"{module!r} 不在数据字典中",
+                )
+            )
 
-        role = str(row[t_idx.get("默认负责角色", -1)] or "").strip() if t_idx.get("默认负责角色", -1) >= 0 else ""
+        role = (
+            str(row[t_idx.get("默认负责角色", -1)] or "").strip()
+            if t_idx.get("默认负责角色", -1) >= 0
+            else ""
+        )
         notes = str(row[t_idx.get("备注", -1)] or "").strip() if t_idx.get("备注", -1) >= 0 else ""
 
         task_node = {
             "id": f"tk-{code}",
-            "taskCode": code, "name": name,
-            "stage": stage or None, "module": module or None,
-            "defaultDuration": duration, "defaultEffort": effort,
+            "taskCode": code,
+            "name": name,
+            "stage": stage or None,
+            "module": module or None,
+            "defaultDuration": duration,
+            "defaultEffort": effort,
             "isMilestone": is_milestone,
             "defaultRole": role or None,
             "notes": notes or None,
@@ -338,34 +523,79 @@ def parse_excel(file_bytes: bytes) -> tuple[dict[str, Any] | None, list[ImportEr
         for row_num, row in enumerate(dep_ws.iter_rows(min_row=2, values_only=True), start=2):
             if row is None or all(v is None or str(v).strip() == "" for v in row):
                 continue
-            succ = str(row[d_idx.get("后继任务编号", -1)] or "").strip() if d_idx.get("后继任务编号", -1) >= 0 else ""
-            pred = str(row[d_idx.get("前驱任务编号", -1)] or "").strip() if d_idx.get("前驱任务编号", -1) >= 0 else ""
-            dep_type = str(row[d_idx.get("类型", -1)] or "FS").strip() if d_idx.get("类型", -1) >= 0 else "FS"
+            succ = (
+                str(row[d_idx.get("后继任务编号", -1)] or "").strip()
+                if d_idx.get("后继任务编号", -1) >= 0
+                else ""
+            )
+            pred = (
+                str(row[d_idx.get("前驱任务编号", -1)] or "").strip()
+                if d_idx.get("前驱任务编号", -1) >= 0
+                else ""
+            )
+            dep_type = (
+                str(row[d_idx.get("类型", -1)] or "FS").strip()
+                if d_idx.get("类型", -1) >= 0
+                else "FS"
+            )
             try:
-                lag = int(row[d_idx.get("滞后天数", -1)] or 0) if d_idx.get("滞后天数", -1) >= 0 else 0
+                lag = (
+                    int(row[d_idx.get("滞后天数", -1)] or 0)
+                    if d_idx.get("滞后天数", -1) >= 0
+                    else 0
+                )
             except (ValueError, TypeError):
                 lag = 0
-                errors.append(ImportErrorRow(sheet="任务依赖", row=row_num, col="滞后天数",
-                                             level="format", message="滞后天数必须是整数"))
+                errors.append(
+                    ImportErrorRow(
+                        sheet="任务依赖",
+                        row=row_num,
+                        col="滞后天数",
+                        level="format",
+                        message="滞后天数必须是整数",
+                    )
+                )
 
             if not succ or succ not in task_codes:
-                errors.append(ImportErrorRow(sheet="任务依赖", row=row_num, col="后继任务编号",
-                                             level="reference",
-                                             message=f"任务编号 {succ!r} 不存在"))
+                errors.append(
+                    ImportErrorRow(
+                        sheet="任务依赖",
+                        row=row_num,
+                        col="后继任务编号",
+                        level="reference",
+                        message=f"任务编号 {succ!r} 不存在",
+                    )
+                )
                 continue
             if not pred or pred not in task_codes:
-                errors.append(ImportErrorRow(sheet="任务依赖", row=row_num, col="前驱任务编号",
-                                             level="reference",
-                                             message=f"任务编号 {pred!r} 不存在"))
+                errors.append(
+                    ImportErrorRow(
+                        sheet="任务依赖",
+                        row=row_num,
+                        col="前驱任务编号",
+                        level="reference",
+                        message=f"任务编号 {pred!r} 不存在",
+                    )
+                )
                 continue
             if dep_type not in DEP_TYPES:
-                errors.append(ImportErrorRow(sheet="任务依赖", row=row_num, col="类型",
-                                             level="format",
-                                             message=f"{dep_type!r} 不在数据字典中（合法值：FS/SS/FF/SF）"))
+                errors.append(
+                    ImportErrorRow(
+                        sheet="任务依赖",
+                        row=row_num,
+                        col="类型",
+                        level="format",
+                        message=f"{dep_type!r} 不在数据字典中（合法值：FS/SS/FF/SF）",
+                    )
+                )
                 continue
-            task_codes[succ]["predecessors"].append({
-                "taskCode": pred, "type": dep_type, "lagDays": lag,
-            })
+            task_codes[succ]["predecessors"].append(
+                {
+                    "taskCode": pred,
+                    "type": dep_type,
+                    "lagDays": lag,
+                }
+            )
 
     # —— 循环依赖检测（DFS）—— #
     def _has_cycle() -> str | None:
@@ -381,7 +611,7 @@ def parse_excel(file_bytes: bytes) -> tuple[dict[str, Any] | None, list[ImportEr
                 v = pre["taskCode"]
                 if color.get(v) == GRAY:
                     # 找到环
-                    return " → ".join(stack[stack.index(v):] + [v])
+                    return " → ".join(stack[stack.index(v) :] + [v])
                 if color.get(v) == WHITE:
                     res = dfs(v)
                     if res:
@@ -399,9 +629,15 @@ def parse_excel(file_bytes: bytes) -> tuple[dict[str, Any] | None, list[ImportEr
 
     cycle = _has_cycle()
     if cycle:
-        errors.append(ImportErrorRow(sheet="任务依赖", row="-", col="-",
-                                     level="logic",
-                                     message=f"检测到循环依赖：{cycle}"))
+        errors.append(
+            ImportErrorRow(
+                sheet="任务依赖",
+                row="-",
+                col="-",
+                level="logic",
+                message=f"检测到循环依赖：{cycle}",
+            )
+        )
 
     if errors:
         return None, errors
