@@ -14,8 +14,15 @@ from fastapi.staticfiles import StaticFiles
 
 import app.models  # noqa: F401  确保所有 ORM 表注册到 Base.metadata
 from app.api.v1 import (
-    auth, baselines, finances, projects, sub_projects, task_dependencies, tasks,
-    templates, users,
+    auth,
+    baselines,
+    finances,
+    projects,
+    sub_projects,
+    task_dependencies,
+    tasks,
+    templates,
+    users,
 )
 from app.core.config import settings
 from app.db.base import Base
@@ -62,6 +69,7 @@ async def lifespan(_: FastAPI):
             db.close()
         if empty:
             from app.seed.seed_data import seed
+
             logger.info("数据库为空 → 灌入种子数据 ...")
             seed()
         else:
@@ -122,7 +130,8 @@ def root():
 # 顺序很关键：先注册了上面的 /api、/health、/docs 等路由，再挂载静态与兜底，
 # 因此具体路由优先匹配，剩余路径才落到 SPA。
 if _HAS_SPA:
-    _assets = _STATIC / "assets"
+    _static_root = _STATIC.resolve()
+    _assets = _static_root / "assets"
     if _assets.is_dir():
         app.mount("/assets", StaticFiles(directory=_assets), name="assets")
 
@@ -131,10 +140,15 @@ if _HAS_SPA:
         # API / 文档保持 JSON 404，不被 SPA 兜底吞掉
         if full_path.startswith(("api/", "api", "docs", "redoc", "openapi.json", "health")):
             raise HTTPException(status_code=404, detail="Not Found")
-        # 命中真实静态文件（favicon.svg 等）则直接返回，否则回退 index.html 交给前端路由
-        candidate = _STATIC / full_path
-        if full_path and candidate.is_file():
+        # 命中真实静态文件（favicon.svg 等）则直接返回，否则回退 index.html 交给前端路由。
+        # 先把请求路径解析为绝对路径并校验其仍位于静态根目录内，阻止 ../ 目录遍历
+        # 读取静态目录之外的任意文件（如 /etc/passwd）。
+        try:
+            candidate = (_static_root / full_path).resolve()
+        except (OSError, RuntimeError, ValueError):
+            return FileResponse(_static_root / "index.html")
+        if full_path and candidate.is_file() and _static_root in candidate.parents:
             return FileResponse(candidate)
-        return FileResponse(_STATIC / "index.html")
+        return FileResponse(_static_root / "index.html")
 
-    logger.info("前端 SPA 已挂载 ← %s", _STATIC)
+    logger.info("前端 SPA 已挂载 ← %s", _static_root)

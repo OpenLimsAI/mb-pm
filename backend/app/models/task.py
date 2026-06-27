@@ -25,7 +25,9 @@ class SubProject(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(20), primary_key=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
 
     stage: Mapped[str] = mapped_column(String(20), nullable=False)
     module: Mapped[str] = mapped_column(String(20), nullable=False, index=True)

@@ -74,9 +74,7 @@ def list_tasks(
     # —— 业务过滤 —— #
     if project_id:
         # 通过 sub_project 关联到 project_id
-        sub_ids = [
-            s.id for s in db.query(SubProject).filter_by(project_id=project_id).all()
-        ]
+        sub_ids = [s.id for s in db.query(SubProject).filter_by(project_id=project_id).all()]
         q = q.filter(Task.sub_project_id.in_(sub_ids))
     if sub_project_id:
         q = q.filter(Task.sub_project_id == sub_project_id)
@@ -93,12 +91,7 @@ def list_tasks(
         q = q.filter(or_(Task.code.ilike(like), Task.name.ilike(like)))
 
     total = q.count()
-    items = (
-        q.order_by(Task.planned_start)
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-        .all()
-    )
+    items = q.order_by(Task.planned_start).offset((page - 1) * page_size).limit(page_size).all()
 
     return Page[TaskOut](
         items=[TaskOut.model_validate(t) for t in items],
@@ -168,8 +161,11 @@ def update_task(
     # 限制：执行者不能改 owner / 关键标志 / 里程碑 / 计划日期
     if is_own_task_only(user):
         protected = {
-            "owner_id", "is_critical_path", "is_milestone",
-            "planned_start", "planned_end",
+            "owner_id",
+            "is_critical_path",
+            "is_milestone",
+            "planned_start",
+            "planned_end",
         }
         provided = payload.model_dump(exclude_unset=True).keys()
         forbidden = protected & set(provided)
@@ -185,15 +181,17 @@ def update_task(
 
     # 状态变更钩子 → 写审计日志
     if payload.status and payload.status != old_status:
-        db.add(AuditLog(
-            id=f"log-{uuid4().hex[:12]}",
-            actor_id=user.id,
-            action="任务状态变更",
-            target="任务",
-            target_id=task.id,
-            detail=f"{old_status} → {payload.status}",
-            created_at=datetime.now(timezone.utc),
-        ))
+        db.add(
+            AuditLog(
+                id=f"log-{uuid4().hex[:12]}",
+                actor_id=user.id,
+                action="任务状态变更",
+                target="任务",
+                target_id=task.id,
+                detail=f"{old_status} → {payload.status}",
+                created_at=datetime.now(timezone.utc),
+            )
+        )
 
     # 进度汇总：任务变更后自动重算子项目 + 项目进度
     db.flush()

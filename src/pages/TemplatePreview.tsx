@@ -32,6 +32,19 @@ export default function TemplatePreview() {
 
   const cpm = useMemo(() => computeCPM(tasks, deps), [tasks, deps])
 
+  // 月份刻度：hook 必须在任何 early return 之前调用，否则违反 rules-of-hooks（渲染间 hook 数不一致会崩）
+  const months = useMemo(() => {
+    const m: { date: Date; label: string; x: number }[] = []
+    let cur = startOfMonth(projectStart)
+    const end = addDays(projectStart, totalDays)
+    while (cur <= end) {
+      const x = differenceInCalendarDays(cur, projectStart) * DAY_W
+      m.push({ date: cur, label: format(cur, 'yyyy-MM'), x })
+      cur = startOfMonth(addDays(cur, 32))
+    }
+    return m
+  }, [projectStart, totalDays])
+
   if (!template || !version) {
     return (
       <div className="p-6">
@@ -54,17 +67,6 @@ export default function TemplatePreview() {
   })
 
   const totalWidth = totalDays * DAY_W
-  const months = useMemo(() => {
-    const m: { date: Date; label: string; x: number }[] = []
-    let cur = startOfMonth(projectStart)
-    const end = addDays(projectStart, totalDays)
-    while (cur <= end) {
-      const x = differenceInCalendarDays(cur, projectStart) * DAY_W
-      m.push({ date: cur, label: format(cur, 'yyyy-MM'), x })
-      cur = startOfMonth(addDays(cur, 32))
-    }
-    return m
-  }, [projectStart, totalDays])
 
   const xOf = (d: Date) => differenceInCalendarDays(d, projectStart) * DAY_W
 

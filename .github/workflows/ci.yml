@@ -1,0 +1,84 @@
+name: CI
+
+# 质量护栏（分层渐进）：
+#   硬护栏（阻断）—— 前端类型检查+构建 / 后端 ruff 格式 / Docker 镜像可构建
+#   软护栏（仅报告，continue-on-error）—— eslint + ruff lint，存量问题逐步清理
+#
+# 要让硬护栏真正挡住合并，需在 GitHub → Settings → Branches 为 main 添加
+# 分支保护规则，把 frontend / backend / docker 三个 check 设为 Required。
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# 同一 PR/分支推新提交时，取消仍在跑的旧运行，节省 CI 额度
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ───────── 硬护栏 1：前端类型检查 + 构建 ─────────
+  frontend:
+    name: 前端 · 类型检查 + 构建（硬护栏）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: 构建（tsc -b 类型检查 + vite build）
+        run: npm run build
+
+  # ───────── 硬护栏 2：后端格式检查 ─────────
+  backend:
+    name: 后端 · ruff 格式检查（硬护栏）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install ruff==0.7.0
+      - name: 格式检查（与 pyproject.toml 配置一致）
+        run: ruff format --check backend/app
+
+  # ───────── 硬护栏 3：Docker 镜像可构建 ─────────
+  docker:
+    name: Docker · 镜像构建验证（硬护栏）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: 构建单镜像（SPA + API），仅验证可构建不推送
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ───────── 软护栏：lint 报告（不阻断合并）─────────
+  lint:
+    name: Lint 报告（软护栏 · 不阻断）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: eslint（存量问题仅报告）
+        run: npm run lint
+        continue-on-error: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install ruff==0.7.0
+      - name: ruff check（存量问题仅报告）
+        run: ruff check backend/app
+        continue-on-error: true

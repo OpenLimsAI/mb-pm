@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # ============= TemplateVersion =============
 
+
 class TemplateVersionBase(BaseModel):
     version_number: str = Field(..., max_length=20)
     structure_json: dict[str, Any]
@@ -29,6 +30,7 @@ class TemplateVersionOut(TemplateVersionBase):
 
 
 # ============= Template =============
+
 
 class TemplateBase(BaseModel):
     name: str = Field(..., max_length=120)
@@ -62,6 +64,7 @@ class TemplateOut(TemplateBase):
 
 # ============= Excel 导入校验 =============
 
+
 class ImportError(BaseModel):
     sheet: str
     row: int | str
@@ -76,8 +79,11 @@ class ImportResult(BaseModel):
     success=True 时 template_id / version_id 表示新创建/覆盖的记录。
     success=False 时 errors 列出所有问题。
     """
+
     success: bool
     template_id: str | None = None
     version_id: str | None = None
     errors: list[ImportError] = Field(default_factory=list)
-    summary: dict[str, int] = Field(default_factory=dict, description="如 {'subProjects': 5, 'tasks': 16, 'milestones': 4}")
+    summary: dict[str, int] = Field(
+        default_factory=dict, description="如 {'subProjects': 5, 'tasks': 16, 'milestones': 4}"
+    )

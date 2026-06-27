@@ -54,6 +54,7 @@ def _next_version_number(template: Template) -> str:
 
 # ============= CRUD =============
 
+
 @router.get("", response_model=list[TemplateOut])
 def list_templates(
     product_type: str | None = None,
@@ -152,26 +153,36 @@ async def import_excel(
 
     if mode == "create":
         if not new_name or not product_type:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "create 模式需提供 new_name + product_type")
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, "create 模式需提供 new_name + product_type"
+            )
         # 把根节点的 name 改为 new_name
         structure["name"] = new_name
 
         tmpl = Template(
             id=f"t-{uuid4().hex[:10]}",
-            name=new_name, product_type=product_type,
-            current_version="V1.0", description="通过 Excel 批量导入创建",
-            is_active=True, created_by=user.id,
+            name=new_name,
+            product_type=product_type,
+            current_version="V1.0",
+            description="通过 Excel 批量导入创建",
+            is_active=True,
+            created_by=user.id,
         )
-        db.add(tmpl); db.flush()
+        db.add(tmpl)
+        db.flush()
         ver = TemplateVersion(
             id=f"v-{uuid4().hex[:10]}",
-            template_id=tmpl.id, version_number="V1.0",
+            template_id=tmpl.id,
+            version_number="V1.0",
             structure_json=structure,
             change_summary=f"Excel 导入：{summary['subProjects']} 子项目 / {summary['tasks']} 任务",
             change_source="excel_import",
-            modified_by=user.id, modified_at=now, is_current=True,
+            modified_by=user.id,
+            modified_at=now,
+            is_current=True,
         )
-        db.add(ver); db.commit()
+        db.add(ver)
+        db.commit()
         return ImportResult(success=True, template_id=tmpl.id, version_id=ver.id, summary=summary)
 
     # overwrite 模式
@@ -188,11 +199,14 @@ async def import_excel(
     db.query(TemplateVersion).filter_by(template_id=tmpl.id).update({"is_current": False})
     new_ver = TemplateVersion(
         id=f"v-{uuid4().hex[:10]}",
-        template_id=tmpl.id, version_number=new_version_number,
+        template_id=tmpl.id,
+        version_number=new_version_number,
         structure_json=structure,
         change_summary=f"Excel 覆盖导入：{summary['subProjects']} 子项目 / {summary['tasks']} 任务",
         change_source="excel_import",
-        modified_by=user.id, modified_at=now, is_current=True,
+        modified_by=user.id,
+        modified_at=now,
+        is_current=True,
     )
     db.add(new_ver)
     tmpl.current_version = new_version_number
@@ -224,7 +238,12 @@ def update_template(
     db: Session = Depends(get_db),
     _user: User = Depends(require_role("admin", "cmc_lead")),
 ):
-    tmpl = db.query(Template).options(selectinload(Template.versions)).filter_by(id=template_id).first()
+    tmpl = (
+        db.query(Template)
+        .options(selectinload(Template.versions))
+        .filter_by(id=template_id)
+        .first()
+    )
     if not tmpl:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "template not found")
     for k, v in payload.model_dump(exclude_unset=True).items():
@@ -249,7 +268,12 @@ def delete_template(
 
 # ============= Versions =============
 
-@router.post("/{template_id}/versions", response_model=TemplateVersionOut, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/{template_id}/versions",
+    response_model=TemplateVersionOut,
+    status_code=status.HTTP_201_CREATED,
+)
 def add_version(
     template_id: str,
     payload: TemplateVersionCreate,
@@ -283,6 +307,7 @@ def add_version(
 
 # ============= Excel 导出 =============
 
+
 @router.get("/{template_id}/export")
 def export_template(
     template_id: str,
@@ -290,7 +315,12 @@ def export_template(
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
-    tmpl = db.query(Template).options(selectinload(Template.versions)).filter_by(id=template_id).first()
+    tmpl = (
+        db.query(Template)
+        .options(selectinload(Template.versions))
+        .filter_by(id=template_id)
+        .first()
+    )
     if not tmpl:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "template not found")
 

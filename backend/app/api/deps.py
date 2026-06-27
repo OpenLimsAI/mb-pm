@@ -33,7 +33,9 @@ def _resolve_demo_or_jwt(authorization: str, db: Session) -> User:
         return user
 
     if not authorization.startswith("Bearer "):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "expected Bearer token or DemoUser <username>")
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, "expected Bearer token or DemoUser <username>"
+        )
 
     token = authorization.removeprefix("Bearer ").strip()
     payload = decode_access_token(token)

@@ -25,6 +25,10 @@ class User(Base, TimestampMixin):
     hashed_password: Mapped[str | None] = mapped_column(String(120))
 
     # 关系
-    owned_projects = relationship("Project", back_populates="owner", foreign_keys="Project.owner_id")
-    project_memberships = relationship("ProjectMember", back_populates="user", cascade="all, delete-orphan")
+    owned_projects = relationship(
+        "Project", back_populates="owner", foreign_keys="Project.owner_id"
+    )
+    project_memberships = relationship(
+        "ProjectMember", back_populates="user", cascade="all, delete-orphan"
+    )
     owned_tasks = relationship("Task", back_populates="owner", foreign_keys="Task.owner_id")

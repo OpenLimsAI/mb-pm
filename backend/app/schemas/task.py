@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # ============= SubProject =============
 
+
 class SubProjectBase(BaseModel):
     name: str = Field(..., max_length=200)
     project_id: str
@@ -39,6 +40,7 @@ class SubProjectOut(SubProjectBase):
 
 
 # ============= Task =============
+
 
 class TaskBase(BaseModel):
     code: str = Field(..., max_length=50)
@@ -94,6 +96,7 @@ class TaskOut(TaskBase):
 
 
 # ============= TaskDependency =============
+
 
 class TaskDependencyBase(BaseModel):
     predecessor_id: str
