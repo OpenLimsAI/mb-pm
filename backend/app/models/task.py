@@ -23,7 +23,9 @@ class SubProject(Base, TimestampMixin):
 
     __tablename__ = "sub_projects"
 
-    id: Mapped[str] = mapped_column(String(20), primary_key=True)
+    # 组合 ID `${projectId}-${子项目code}` 可达 ~24 字符，故用 64（issue #4）。
+    # FK 列（project_id 等）未显式声明类型，自动继承所引用主键的宽度。
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     project_id: Mapped[str] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"), index=True
@@ -46,7 +48,8 @@ class Task(Base, TimestampMixin):
 
     __tablename__ = "tasks"
 
-    id: Mapped[str] = mapped_column(String(20), primary_key=True)
+    # 组合 ID `${projectId}-${taskCode}` 可达 ~30 字符，故用 64（issue #4）。
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
     code: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
 
@@ -99,7 +102,8 @@ class TaskDependency(Base):
 
     __tablename__ = "task_dependencies"
 
-    id: Mapped[str] = mapped_column(String(30), primary_key=True)
+    # 组合 ID `${projectId}-dep-${n}`；与任务 ID 保持同宽 64（issue #4）。
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
     predecessor_id: Mapped[str] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"))
     successor_id: Mapped[str] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"))
     type: Mapped[str] = mapped_column(String(2), nullable=False)

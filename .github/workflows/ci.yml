@@ -1,11 +1,11 @@
 name: CI
 
 # 质量护栏（分层渐进）：
-#   硬护栏（阻断）—— 前端类型检查+构建 / 后端 ruff 格式 / Docker 镜像可构建
+#   硬护栏（阻断）—— 前端类型检查+构建 / 后端 ruff 格式 / 后端 pytest（PostgreSQL）/ Docker 镜像可构建
 #   软护栏（仅报告，continue-on-error）—— eslint + ruff lint，存量问题逐步清理
 #
 # 要让硬护栏真正挡住合并，需在 GitHub → Settings → Branches 为 main 添加
-# 分支保护规则，把 frontend / backend / docker 三个 check 设为 Required。
+# 分支保护规则，把 frontend / backend / backend-tests / docker 四个 check 设为 Required。
 
 on:
   pull_request:
@@ -46,7 +46,41 @@ jobs:
       - name: 格式检查（与 pyproject.toml 配置一致）
         run: ruff format --check backend/app
 
-  # ───────── 硬护栏 3：Docker 镜像可构建 ─────────
+  # ───────── 硬护栏 3：后端 pytest（PostgreSQL 真实库）─────────
+  # 针对 PostgreSQL 跑，确保 issue #4 这类「仅 PostgreSQL 强制 VARCHAR 长度」
+  # 才会暴露的缺陷被回归测试守住（SQLite 不强制长度，单跑会漏）。
+  backend-tests:
+    name: 后端 · pytest（PostgreSQL · 硬护栏）
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: cmc_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d cmc_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://test:test@localhost:5432/cmc_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: 安装依赖（运行 + 测试）
+        working-directory: backend
+        run: pip install -r requirements-dev.txt
+      - name: pytest
+        working-directory: backend
+        run: python -m pytest tests/ -v
+
+  # ───────── 硬护栏 4：Docker 镜像可构建 ─────────
   docker:
     name: Docker · 镜像构建验证（硬护栏）
     runs-on: ubuntu-latest
