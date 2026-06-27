@@ -174,8 +174,6 @@ export default function Home() {
         </CardBody>
       </Card>
 
-      {/* §4 组合预算 */}
-      <FinanceSection finance={data.finance} overBudget={data.overBudget} />
     </div>
   )
 }
@@ -371,87 +369,3 @@ function ProjectCardWithMilestones({ project, bar }: { project: Project; bar: st
   )
 }
 
-// ============= 组合预算 =============
-
-const fmt = (v: number) => `¥${v.toLocaleString('zh-CN')}万`
-const financeCats = ['人力', '设备', '原材料', '外部服务', '其他'] as const
-
-function FinanceSection({ finance, overBudget }: {
-  finance: ReturnType<typeof summarizeFinances>
-  overBudget: { f: typeof projectFinances[number]; project?: Project; rate: number }[]
-}) {
-  const spentPct = finance.totalBudget ? (finance.totalSpent / finance.totalBudget) * 100 : 0
-  const commitPct = finance.totalBudget ? (finance.totalCommitted / finance.totalBudget) * 100 : 0
-  const cats = financeCats
-    .map((c) => ({ cat: c, val: finance.byCategory[c] }))
-    .filter((x) => x.val > 0)
-    .sort((a, b) => b.val - a.val)
-
-  return (
-    <Card>
-      <CardHeader
-        title={<span className="flex items-center gap-2"><Wallet className="w-4 h-4 text-brand-600" />组合预算</span>}
-        subtitle="在研项目预算执行与成本结构"
-        action={<Tag tone={overBudget.length > 0 ? 'red' : 'green'}>{overBudget.length > 0 ? `${overBudget.length} 超支` : '无超支'}</Tag>}
-      />
-      <CardBody>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* 总预算 + 执行 */}
-          <div>
-            <div className="text-xs text-ink-500">组合总预算</div>
-            <div className="text-2xl font-semibold text-ink-900 mt-0.5">{fmt(finance.totalBudget)}</div>
-            <div className="text-xs text-ink-500 mt-1">执行率 <span className="font-medium text-ink-700">{finance.executionRate}%</span></div>
-            <div className="mt-3 h-2.5 rounded-full bg-ink-100 overflow-hidden flex">
-              <div className="h-full bg-brand-600" style={{ width: `${spentPct}%` }} title="已花费" />
-              <div className="h-full bg-amber-400" style={{ width: `${commitPct}%` }} title="已承诺" />
-            </div>
-            <div className="flex items-center gap-3 mt-2 text-[11px] text-ink-500 flex-wrap">
-              <span className="flex items-center gap-1"><i className="w-2 h-2 rounded-sm bg-brand-600 inline-block" />已花费 {fmt(finance.totalSpent)}</span>
-              <span className="flex items-center gap-1"><i className="w-2 h-2 rounded-sm bg-amber-400 inline-block" />已承诺 {fmt(finance.totalCommitted)}</span>
-              <span className="flex items-center gap-1"><i className="w-2 h-2 rounded-sm bg-emerald-400 inline-block" />剩余 {fmt(finance.remaining)}</span>
-            </div>
-          </div>
-
-          {/* 成本结构 */}
-          <div>
-            <div className="text-xs text-ink-500 mb-2">成本结构（按类别）</div>
-            <div className="space-y-1.5">
-              {cats.map(({ cat, val }) => {
-                const pct = finance.totalSpent ? Math.round((val / finance.totalSpent) * 100) : 0
-                return (
-                  <div key={cat} className="flex items-center gap-2">
-                    <span className="text-xs text-ink-700 w-16 shrink-0">{cat}</span>
-                    <div className="flex-1 h-1.5 rounded-full bg-ink-100 overflow-hidden">
-                      <div className="h-full bg-brand-500 rounded-full" style={{ width: `${pct}%` }} />
-                    </div>
-                    <span className="text-[11px] text-ink-500 w-20 text-right shrink-0">{fmt(val)}</span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* 超支项目 */}
-          <div>
-            <div className="text-xs text-ink-500 mb-2">超支项目</div>
-            {overBudget.length === 0 ? (
-              <div className="flex items-center gap-2 text-sm text-emerald-700 py-2">
-                <CheckCircle2 className="w-4 h-4" /> 无超支项目
-              </div>
-            ) : (
-              <ul className="space-y-1.5">
-                {overBudget.slice(0, 3).map(({ f, project, rate }) => (
-                  <li key={f.projectId} className="flex items-center gap-2 text-sm">
-                    <span className="text-xs font-mono text-ink-500">{project?.code}</span>
-                    <span className="truncate flex-1">{project?.name}</span>
-                    <span className="text-red-600 font-medium">{rate}%</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      </CardBody>
-    </Card>
-  )
-}

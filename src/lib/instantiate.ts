@@ -174,6 +174,7 @@ export function instantiateTemplate(
       plannedStart: formatDate(dates.start),
       plannedEnd: formatDate(dates.end),
       estimatedEffort: leaf.defaultEffort || 0,
+      costBudget: leaf.costBudget,
       progress: progressFor(status, dates.start, dates.end),
       isMilestone: !!leaf.isMilestone,
       isCriticalPath: !!leaf.isCriticalPath,

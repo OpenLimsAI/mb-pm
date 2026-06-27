@@ -184,13 +184,14 @@ export function WBSTable({ project, onOpenTask, selectedTaskId }: Props) {
         {totalShown === 0 ? (
           <div className="py-12 text-center text-sm text-ink-500">没有匹配的任务，试试调整筛选条件。</div>
         ) : (
-          <table className="w-full text-sm border-collapse min-w-[920px]">
+          <table className="w-full text-sm border-collapse min-w-[1010px]">
             <thead>
               <tr className="text-[11px] text-ink-500 bg-ink-100/60 border-b border-ink-300/50">
-                <th className="text-left font-medium px-3 py-2 w-[34%]">任务</th>
+                <th className="text-left font-medium px-3 py-2 w-[32%]">任务</th>
                 <th className="text-left font-medium px-2 py-2 w-[100px]">负责人</th>
                 <th className="text-left font-medium px-2 py-2 w-[110px]">状态</th>
                 <th className="text-left font-medium px-2 py-2 w-[120px]">进度</th>
+                <th className="text-right font-medium px-2 py-2 w-[88px]">预算(万)</th>
                 <th className="text-left font-medium px-2 py-2 w-[124px]">计划开始</th>
                 <th className="text-left font-medium px-2 py-2 w-[170px]">计划结束</th>
                 <th className="text-left font-medium px-2 py-2 w-[124px]">实际结束</th>
@@ -228,16 +229,22 @@ function SubGroup({ sub, tasks, collapsed, onToggle, onOpenTask, selectedTaskId,
   team: User[]
   others: User[]
 }) {
+  const subBudget = tasks.reduce((a, t) => a + (t.costBudget ?? 0), 0)
   return (
     <>
       <tr className="bg-purple-50/50 border-b border-ink-300/40 cursor-pointer hover:bg-purple-50" onClick={onToggle}>
-        <td colSpan={7} className="px-3 py-1.5">
+        <td colSpan={8} className="px-3 py-1.5">
           <div className="flex items-center gap-2">
             {collapsed ? <ChevronRight className="w-3.5 h-3.5 text-ink-500" /> : <ChevronDown className="w-3.5 h-3.5 text-ink-500" />}
             <span className="tag bg-purple-100 text-purple-800 font-mono text-[10px]">Lv2</span>
             <span className="text-sm font-medium text-ink-900">{sub.name}</span>
             <span className="text-[11px] text-ink-500">{sub.stage} · {sub.module}</span>
             <span className="text-[11px] text-ink-400">{tasks.length} 项</span>
+            {subBudget > 0 && (
+              <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-px">
+                预算 {Math.round(subBudget).toLocaleString('zh-CN')} 万
+              </span>
+            )}
             <div className="flex-1" />
             <div className="flex items-center gap-1.5 w-32">
               <div className="flex-1 h-1.5 bg-ink-200 rounded">
@@ -271,6 +278,8 @@ function WBSRow({ task, onOpenTask, selected, team, others }: {
   const [rowState, setRowState] = useState<RowState>('idle')
   // 进度本地草稿（数字输入需要在 blur/Enter 时才提交）
   const [progressDraft, setProgressDraft] = useState<string>(String(task.progress))
+  // 预算本地草稿（万元；空串=未设置）
+  const [budgetDraft, setBudgetDraft] = useState<string>(task.costBudget != null ? String(task.costBudget) : '')
 
   // 提交一个或多个字段；保存成功后由全局 version bump 触发刷新
   const commit = async (patch: TaskProgressPatch) => {
@@ -305,6 +314,20 @@ function WBSRow({ task, onOpenTask, selected, team, others }: {
   }
 
   const onOwnerChange = (id: string) => { if (id && id !== task.ownerId) commit({ ownerId: id }) }
+
+  const commitBudget = () => {
+    const raw = budgetDraft.trim()
+    if (raw === '') {
+      if (task.costBudget != null) commit({ costBudget: null })
+      return
+    }
+    let v = Number(raw)
+    if (Number.isNaN(v) || v < 0) { setBudgetDraft(task.costBudget != null ? String(task.costBudget) : ''); return }
+    v = Math.round(v * 100) / 100
+    setBudgetDraft(String(v))
+    if (v === (task.costBudget ?? null)) return
+    commit({ costBudget: v })
+  }
 
   const onPlannedStart = (v: string) => { if (v && v !== task.plannedStart) commit({ plannedStart: v }) }
   const onPlannedEnd = (v: string) => {
@@ -401,6 +424,22 @@ function WBSRow({ task, onOpenTask, selected, team, others }: {
             <span className="text-[10px] text-ink-400">%</span>
           </div>
         )}
+      </td>
+
+      {/* 预算（万元，行内可改；空=未设置） */}
+      <td className="px-2 py-1.5">
+        <div className="flex items-center justify-end gap-0.5">
+          <input
+            type="number" min={0} step={5}
+            value={budgetDraft}
+            placeholder="—"
+            onChange={(e) => setBudgetDraft(e.target.value)}
+            onBlur={commitBudget}
+            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+            className="h-7 w-16 px-1 text-xs text-right rounded border border-transparent hover:border-ink-300 focus:border-brand-400 focus:bg-white focus:outline-none tabular-nums placeholder:text-ink-300"
+            title="成本预算（万元）"
+          />
+        </div>
       </td>
 
       {/* 计划开始 */}
