@@ -1,0 +1,49 @@
+# CMC-PMS · CTO Lite —— 本地部署验证编排
+#
+#   app       单镜像：FastAPI 同源托管前端 SPA + /api/v1
+#   postgres  独立的 PostgreSQL 数据实例（持久化卷 cmc_pgdata）
+#
+# 用法：  docker compose up --build      → 浏览器打开 http://localhost:8080
+# 端口对外避让本机已有服务：app 8080→8000，postgres 5433→5432。
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cmc-pms-pg
+    environment:
+      POSTGRES_USER: cmc
+      POSTGRES_PASSWORD: cmc
+      POSTGRES_DB: cmc_pms
+    ports:
+      - "5544:5432"          # 主机 5544 → 容器 5432（避开本机其它 postgres 占用）
+    volumes:
+      - cmc_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cmc -d cmc_pms"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cmc-pms:latest
+    container_name: cmc-pms-app
+    environment:
+      # 连接独立 postgres 实例（容器网络内主机名为 postgres）
+      DATABASE_URL: postgresql+psycopg://cmc:cmc@postgres:5432/cmc_pms
+      APP_ENV: production
+      # ⚠️ 生产请改成强随机值
+      APP_SECRET: please-change-me-in-prod
+      AUTO_SEED: "true"
+      STATIC_DIR: /code/static
+      APP_CORS_ORIGINS: http://localhost:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8000"          # 主机 8080 → 容器 8000
+
+volumes:
+  cmc_pgdata:
