@@ -14,7 +14,7 @@ import {
   Search, Diamond, Flame, ChevronDown, ChevronRight, Check, Loader2, AlertCircle,
   FolderTree, Filter, X,
 } from 'lucide-react'
-import type { Project, SubProject, Task, TaskStatus } from '../../types'
+import type { Project, SubProject, Task, TaskStatus, User } from '../../types'
 import { Card, CardBody, Avatar } from '../ui'
 import { getProjectSubs, getSubTasks, findUser, users, TODAY } from '../../mock'
 import { updateTaskProgress, type TaskProgressPatch } from '../../data/bootstrap'
@@ -65,6 +65,20 @@ export function WBSTable({ project, onOpenTask, selectedTaskId }: Props) {
     return users.filter((u) => ids.has(u.id))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subs])
+
+  // 可改派的负责人：在职用户，项目团队（负责人 + 成员）优先分组，便于行内改派
+  const teamIds = useMemo(
+    () => new Set<string>([project.ownerId, ...(project.memberIds || [])]),
+    [project.ownerId, project.memberIds],
+  )
+  const { team, others } = useMemo(() => {
+    const active = users.filter((u) => u.isActive !== false)
+    const byName = (a: User, b: User) => a.displayName.localeCompare(b.displayName, 'zh-Hans-CN')
+    return {
+      team: active.filter((u) => teamIds.has(u.id)).sort(byName),
+      others: active.filter((u) => !teamIds.has(u.id)).sort(byName),
+    }
+  }, [teamIds])
 
   const matches = (t: Task): boolean => {
     const kw = keyword.trim().toLowerCase()
@@ -192,6 +206,8 @@ export function WBSTable({ project, onOpenTask, selectedTaskId }: Props) {
                   onToggle={() => toggle(sub.id)}
                   onOpenTask={onOpenTask}
                   selectedTaskId={selectedTaskId}
+                  team={team}
+                  others={others}
                 />
               ))}
             </tbody>
@@ -202,13 +218,15 @@ export function WBSTable({ project, onOpenTask, selectedTaskId }: Props) {
   )
 }
 
-function SubGroup({ sub, tasks, collapsed, onToggle, onOpenTask, selectedTaskId }: {
+function SubGroup({ sub, tasks, collapsed, onToggle, onOpenTask, selectedTaskId, team, others }: {
   sub: SubProject
   tasks: Task[]
   collapsed: boolean
   onToggle: () => void
   onOpenTask?: (id: string) => void
   selectedTaskId?: string
+  team: User[]
+  others: User[]
 }) {
   return (
     <>
@@ -231,7 +249,7 @@ function SubGroup({ sub, tasks, collapsed, onToggle, onOpenTask, selectedTaskId 
         </td>
       </tr>
       {!collapsed && tasks.map((t) => (
-        <WBSRow key={t.id} task={t} onOpenTask={onOpenTask} selected={selectedTaskId === t.id} />
+        <WBSRow key={t.id} task={t} onOpenTask={onOpenTask} selected={selectedTaskId === t.id} team={team} others={others} />
       ))}
     </>
   )
@@ -239,12 +257,15 @@ function SubGroup({ sub, tasks, collapsed, onToggle, onOpenTask, selectedTaskId 
 
 type RowState = 'idle' | 'saving' | 'saved' | 'error'
 
-function WBSRow({ task, onOpenTask, selected }: {
+function WBSRow({ task, onOpenTask, selected, team, others }: {
   task: Task
   onOpenTask?: (id: string) => void
   selected?: boolean
+  team: User[]
+  others: User[]
 }) {
   const owner = findUser(task.ownerId)
+  const ownerInList = team.some((u) => u.id === task.ownerId) || others.some((u) => u.id === task.ownerId)
   const isMilestone = task.isMilestone
   const schedule = getTaskSchedule(task, TODAY)
   const [rowState, setRowState] = useState<RowState>('idle')
@@ -283,6 +304,8 @@ function WBSRow({ task, onOpenTask, selected }: {
     commit(patch)
   }
 
+  const onOwnerChange = (id: string) => { if (id && id !== task.ownerId) commit({ ownerId: id }) }
+
   const onPlannedStart = (v: string) => { if (v && v !== task.plannedStart) commit({ plannedStart: v }) }
   const onPlannedEnd = (v: string) => {
     if (!v || v === task.plannedEnd) return
@@ -318,14 +341,27 @@ function WBSRow({ task, onOpenTask, selected }: {
         </div>
       </td>
 
-      {/* 负责人 */}
+      {/* 负责人（行内可改派） */}
       <td className="px-2 py-1.5">
-        {owner && (
-          <div className="flex items-center gap-1.5 min-w-0">
-            <Avatar user={owner} size="sm" />
-            <span className="text-xs text-ink-700 truncate">{owner.displayName}</span>
-          </div>
-        )}
+        <div className="flex items-center gap-1.5 min-w-0">
+          {owner && <Avatar user={owner} size="sm" />}
+          <select
+            value={task.ownerId}
+            onChange={(e) => onOwnerChange(e.target.value)}
+            title="点击改派负责人"
+            className="h-7 w-[76px] px-1 text-xs text-ink-700 rounded border border-transparent hover:border-ink-300 bg-transparent focus:border-brand-400 focus:bg-white focus:outline-none cursor-pointer truncate"
+          >
+            {!ownerInList && <option value={task.ownerId}>{owner?.displayName ?? '（未知负责人）'}</option>}
+            <optgroup label="项目团队">
+              {team.map((u) => <option key={u.id} value={u.id}>{u.displayName}</option>)}
+            </optgroup>
+            {others.length > 0 && (
+              <optgroup label="其他成员">
+                {others.map((u) => <option key={u.id} value={u.id}>{u.displayName}</option>)}
+              </optgroup>
+            )}
+          </select>
+        </div>
       </td>
 
       {/* 状态（行内下拉，即时保存） */}

@@ -113,6 +113,7 @@ export async function createProjectBundle(bundle: ProjectBundle): Promise<string
 export interface TaskProgressPatch {
   status?: TaskStatus
   progress?: number
+  ownerId?: string
   plannedStart?: string
   plannedEnd?: string
   actualStart?: string | null
