@@ -88,6 +88,8 @@ export interface Task {
   actualEnd?: string
   estimatedEffort: number
   actualEffort?: number
+  /** 成本预算（万元 RMB，含外包/耗材/CRO，不含内部人力）—— 实例化自模板 costBudget */
+  costBudget?: number
   progress: number
   isMilestone: boolean
   isCriticalPath: boolean

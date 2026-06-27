@@ -30,10 +30,28 @@ _STATIC = Path(settings.STATIC_DIR) if settings.STATIC_DIR else None
 _HAS_SPA = bool(_STATIC and (_STATIC / "index.html").is_file())
 
 
+def _ensure_schema() -> None:
+    """轻量「迁移」：为已存在的表补齐新增列（无 alembic 时的兜底）。
+    create_all 不会改动已存在的表，故老库需要在此处 ALTER。SQLite / PostgreSQL
+    都支持 ADD COLUMN，幂等：列已存在则跳过。"""
+    from sqlalchemy import inspect as sa_inspect, text
+
+    insp = sa_inspect(engine)
+    if "tasks" not in insp.get_table_names():
+        return  # 新库由 create_all 直接带上新列
+    cols = {c["name"] for c in insp.get_columns("tasks")}
+    if "cost_budget" not in cols:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE tasks ADD COLUMN cost_budget NUMERIC(12,2)"))
+        logger.info("已为 tasks 表补充 cost_budget 列")
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     # 建表（SQLite 首次运行即创建文件）
     Base.metadata.create_all(bind=engine)
+    # 老库补齐新增列
+    _ensure_schema()
 
     # 库为空则灌种子（幂等：已有数据时不覆盖用户编辑/新建项目）
     if settings.AUTO_SEED:

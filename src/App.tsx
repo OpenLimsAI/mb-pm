@@ -9,6 +9,7 @@ import Templates from './pages/Templates'
 import TemplateDetail from './pages/TemplateDetail'
 import TemplateEditor from './pages/TemplateEditor'
 import TemplatePreview from './pages/TemplatePreview'
+import Finance from './pages/Finance'
 import OrgManagement from './pages/OrgManagement'
 import { AppLayout } from './components/layout/AppLayout'
 import { bootstrap } from './data/bootstrap'
@@ -36,6 +37,7 @@ export default function App() {
           <Route path="/templates/:id"        element={<TemplateDetail />} />
           <Route path="/templates/:id/edit"   element={<TemplateEditor />} />
           <Route path="/templates/:id/preview" element={<TemplatePreview />} />
+          <Route path="/finance"              element={<Finance />} />
           <Route path="/org"                  element={<OrgManagement />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

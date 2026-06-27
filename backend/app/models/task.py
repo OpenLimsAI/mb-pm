@@ -65,6 +65,9 @@ class Task(Base, TimestampMixin):
     estimated_effort: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=0)
     actual_effort: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
 
+    # 成本预算（万元 RMB，含外包/耗材/CRO，不含内部人力）—— 源自模板 costBudget
+    cost_budget: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+
     progress: Mapped[int] = mapped_column(Integer, default=0)
     is_milestone: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     is_critical_path: Mapped[bool] = mapped_column(Boolean, default=False)

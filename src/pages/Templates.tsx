@@ -6,7 +6,7 @@
 
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FileText, FileDown, Eye, Diamond, ListTree, ArrowRight, Plus, Trash2, Loader2 } from 'lucide-react'
+import { FileText, FileDown, Eye, Diamond, ListTree, ArrowRight, Plus, Trash2, Loader2, ArrowLeft } from 'lucide-react'
 import { findUser, projects } from '../mock'
 import type { Template } from '../types'
 import { Card, CardBody, Button, Tag, Avatar, EmptyState } from '../components/ui'
@@ -55,6 +55,12 @@ export default function Templates() {
     <div className="p-6 max-w-[1600px] mx-auto">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
+          <button
+            onClick={() => navigate('/projects')}
+            className="inline-flex items-center gap-1 text-xs text-ink-500 hover:text-brand-700 mb-1.5"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" /> 返回项目列表
+          </button>
           <h1 className="text-2xl font-semibold text-ink-900">研发流程模板</h1>
           <p className="text-sm text-ink-500 mt-1">
             标准化封装一条药物研发流程的全部项目信息 —— 三级 WBS、默认工期/工时、依赖、里程碑、关键路径，

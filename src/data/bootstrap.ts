@@ -37,6 +37,24 @@ function replaceArray<T>(target: T[], items: T[]): void {
 }
 
 /** 从后端拉取全量数据，覆盖 mock 运行时数组，并 bump 版本。 */
+/** 把可能为字符串的数值字段强制转回 number。
+ *  后端 Decimal 字段（estimatedEffort / actualEffort / costBudget）经 JSON 序列化
+ *  会变成字符串（如 "40.00"），若直接参与求和会发生字符串拼接 → NaN。
+ *  在数据入口统一归一，使 Task 的 number 类型契约成立（mock 模式本就是 number，无副作用）。 */
+const toNum = (v: unknown): number | undefined => {
+  if (v === null || v === undefined || v === '') return undefined
+  const n = typeof v === 'number' ? v : Number(v)
+  return Number.isNaN(n) ? undefined : n
+}
+function normalizeApiTask(t: Task): Task {
+  return {
+    ...t,
+    estimatedEffort: toNum(t.estimatedEffort) ?? 0,
+    actualEffort: toNum(t.actualEffort),
+    costBudget: toNum(t.costBudget),
+  }
+}
+
 export async function refreshAllData(): Promise<void> {
   const [projPage, subs, taskPage, deps, tmpls, usrs, fins, bls] = await Promise.all([
     projectsApi.listProjects({ pageSize: 500 }),
@@ -50,7 +68,7 @@ export async function refreshAllData(): Promise<void> {
   ])
   replaceArray(projects, projPage.items as unknown as Project[])
   replaceArray(subProjects, subs as unknown as SubProject[])
-  replaceArray(tasks, taskPage.items as unknown as Task[])
+  replaceArray(tasks, (taskPage.items as unknown as Task[]).map(normalizeApiTask))
   replaceArray(taskDependencies, deps as unknown as TaskDependency[])
   replaceArray(users, usrs as unknown as User[])
   replaceArray(projectFinances, fins as unknown as ProjectFinance[])
@@ -114,6 +132,7 @@ export interface TaskProgressPatch {
   status?: TaskStatus
   progress?: number
   ownerId?: string
+  costBudget?: number | null
   plannedStart?: string
   plannedEnd?: string
   actualStart?: string | null

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, FolderKanban, FileText, Users, Beaker, type LucideIcon } from 'lucide-react'
+import { LayoutDashboard, FolderKanban, Wallet, Users, Beaker, type LucideIcon } from 'lucide-react'
 import { cn } from '../../lib/cn'
 
 interface NavItem {
@@ -9,11 +9,11 @@ interface NavItem {
   end?: boolean
 }
 
-// CTO Lite：仅三大模块
+// 左侧主导航。模板管理改由「项目」页右上角入口进入，不再单列。
 const navItems: NavItem[] = [
   { to: '/',          label: '首页',   icon: LayoutDashboard, end: true },
   { to: '/projects',  label: '项目',   icon: FolderKanban },
-  { to: '/templates', label: '模板',   icon: FileText },
+  { to: '/finance',   label: '财务',   icon: Wallet },
   { to: '/org',       label: '组织',   icon: Users },
 ]
 

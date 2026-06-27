@@ -118,6 +118,7 @@ def seed() -> None:
                 planned_start=_date(t["plannedStart"]), planned_end=_date(t["plannedEnd"]),
                 actual_start=_date(t.get("actualStart")), actual_end=_date(t.get("actualEnd")),
                 estimated_effort=t.get("estimatedEffort", 0), actual_effort=t.get("actualEffort"),
+                cost_budget=t.get("costBudget"),
                 progress=t.get("progress", 0), is_milestone=t.get("isMilestone", False),
                 is_critical_path=t.get("isCriticalPath", False), notes=t.get("notes"),
                 tags=t.get("tags"),

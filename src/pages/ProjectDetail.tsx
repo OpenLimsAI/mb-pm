@@ -11,6 +11,7 @@ import { WBSTable } from '../components/project/WBSTable'
 import { Gantt } from '../components/project/Gantt'
 import { MilestonePanel } from '../components/project/MilestonePanel'
 import { MilestoneTimeline } from '../components/project/MilestoneTimeline'
+import { ProjectBudgetCard } from '../components/project/ProjectBudgetCard'
 import { BaselinePanel } from '../components/project/BaselinePanel'
 import { TeamPanel } from '../components/project/TeamPanel'
 import { TaskDrawer } from '../components/task/TaskDrawer'
@@ -59,10 +60,11 @@ export default function ProjectDetail() {
         <TabBtn current={tab} v="team"        icon={<Users className="w-4 h-4" />}             label="团队" onClick={setTab} />
       </div>
 
-      {/* 概览：里程碑路线图（横向置顶，宏观）→ 三级 WBS（下方） */}
+      {/* 概览：里程碑路线图（横向置顶，宏观）→ 预算与成本 → 三级 WBS（下方） */}
       {tab === 'overview' && (
         <div className="space-y-4">
           <MilestoneTimeline project={project} onSelectTask={handleSelectTask} />
+          <ProjectBudgetCard project={project} />
           <WBSTree project={project} onSelectTask={handleSelectTask} selectedTaskId={selectedTaskId} />
         </div>
       )}

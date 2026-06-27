@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { LayoutGrid, Rows3, GitBranch, Plus, Database, Server } from 'lucide-react'
+import { LayoutGrid, Rows3, GitBranch, Plus, Database, Server, FileText } from 'lucide-react'
 import { useAuth } from '../store/auth'
 import { can } from '../lib/permissions'
 import { projects } from '../mock'
@@ -57,6 +57,9 @@ export default function Projects() {
         </div>
         <div className="flex items-center gap-2">
           <ViewSwitcher view={view} onChange={setView} />
+          <Button variant="secondary" icon={<FileText className="w-4 h-4" />} onClick={() => navigate('/templates')}>
+            模板管理
+          </Button>
           {can(role, 'project.create') && (
             <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => navigate('/projects/new')}>
               创建项目
