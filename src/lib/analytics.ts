@@ -1,12 +1,14 @@
 // 看板/报表用计算函数（基于 Mock 数据派生）
 import { differenceInCalendarDays, format, startOfWeek, addWeeks, isBefore, parseISO } from 'date-fns'
 import {
-  projects, tasks, subProjects, users, alerts, resourceBookings, resources, calcWorkload, findUser,
+  projects, tasks, subProjects, users, alerts, resourceBookings, resources, calcWorkload, findUser, TODAY,
 } from '../mock'
 import type { Project, Task, Health } from '../types'
 import type { Scope } from './scope'
 
-const today = new Date()
+// 与 mock 数据共用同一「今日」锚点（2026-05-10）：KPI/趋势/延迟/里程碑等派生
+// 不再用真实 new Date()，口径与 risk.ts、schedule.ts、后端 rollup.py 保持一致。
+const today = TODAY
 
 // ===== 工具：按 scope 过滤项目/任务 =====
 function visibleProjects(scope?: Scope): Project[] {

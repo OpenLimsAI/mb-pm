@@ -1,7 +1,7 @@
 // 人员负荷计算（多周热力图数据）
 
 import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek } from 'date-fns'
-import { tasks, users } from '../mock'
+import { tasks, users, TODAY } from '../mock'
 import type { User, Task } from '../types'
 
 export interface WeekCell {
@@ -73,7 +73,7 @@ export interface WorkloadParams {
 }
 
 export function computeUserHeatmaps({ weeks = 8, startWeek, userIds }: WorkloadParams = {}): UserHeatmap[] {
-  const today = new Date()
+  const today = TODAY  // 与 mock 任务计划日期共用「今日」锚点（2026-05-10），口径与全局一致
   const baseWeek = startWeek || startOfWeek(today, { weekStartsOn: 1 })
   // 显示从前 1 周开始的 N 周
   const offset = -1

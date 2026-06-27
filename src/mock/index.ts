@@ -11,7 +11,7 @@ export * from './baselines'
 
 import { users } from './users'
 import { projects } from './projects'
-import { subProjects, tasks } from './tasks'
+import { subProjects, tasks, TODAY } from './tasks'
 
 // 工具函数
 export const findUser = (id: string) => users.find((u) => u.id === id)
@@ -30,7 +30,7 @@ export const getProjectTasks = (projectId: string) => {
 export const calcWorkload = (userId: string) => {
   const user = findUser(userId)
   if (!user) return { rate: 0, allocatedHours: 0, availableHours: 40 }
-  const today = new Date()
+  const today = TODAY  // 与 mock 任务计划日期共用「今日」锚点（2026-05-10）
   const weekStart = new Date(today)
   weekStart.setDate(today.getDate() - today.getDay() + 1)
   const weekEnd = new Date(weekStart)
