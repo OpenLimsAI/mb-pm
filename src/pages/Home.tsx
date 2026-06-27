@@ -12,11 +12,11 @@ import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   FolderKanban, TrendingUp, Diamond, AlertTriangle, Flame, Wallet,
-  AlertOctagon, BadgeCheck, ArrowRight, CheckCircle2, ShieldAlert, Clock,
+  AlertOctagon, BadgeCheck, ArrowRight, CheckCircle2, ShieldAlert, Clock, Users,
 } from 'lucide-react'
 import { differenceInCalendarDays, parseISO } from 'date-fns'
 import {
-  projects, tasks, subProjects, findUser, TODAY,
+  projects, tasks, subProjects, findUser, TODAY, users, calcWorkload,
   summarizeFinances, projectFinances, executionRate, isOverBudget,
 } from '../mock'
 import { roleLabels } from '../lib/permissions'
@@ -82,12 +82,24 @@ export default function Home() {
 
     const riskCount = risk.totalCount
 
+    // —— 组织 —— //
+    const activeUsers = users.filter((u) => u.isActive !== false)
+    const inactiveCount = users.length - activeUsers.length
+    const bySpecialty = new Map<string, number>()
+    activeUsers.forEach((u) => {
+      const g = u.specialtyGroup || '未分组'
+      bySpecialty.set(g, (bySpecialty.get(g) ?? 0) + 1)
+    })
+    const specialties = [...bySpecialty.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count)
+    const overloaded = activeUsers.filter((u) => calcWorkload(u.id).rate > 90).length
+    const org = { total: activeUsers.length, inactiveCount, specialties, overloaded }
+
     return {
       active, greens, yellows, reds, avgProgress,
       milestoneCount: incompleteMilestones.length,
       criticalCount: criticalActive.length,
       risk, riskCount,
-      finance, overBudget, buckets,
+      finance, overBudget, buckets, org,
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version])
@@ -173,6 +185,12 @@ export default function Home() {
                         projects={data.buckets.green} emptyMsg="—" />
         </CardBody>
       </Card>
+
+      {/* §4 财务总览 + 组织总览 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <FinanceOverview finance={data.finance} overBudgetCount={data.overBudget.length} />
+        <OrgOverview org={data.org} />
+      </div>
 
     </div>
   )
@@ -366,6 +384,95 @@ function ProjectCardWithMilestones({ project, bar }: { project: Project; bar: st
         </div>
       )}
     </Link>
+  )
+}
+
+// ============= 财务总览 / 组织总览 =============
+
+const fmt = (v: number) => `¥${Math.round(v).toLocaleString('zh-CN')}万`
+
+function FinanceOverview({ finance, overBudgetCount }: {
+  finance: ReturnType<typeof summarizeFinances>
+  overBudgetCount: number
+}) {
+  const spentPct = finance.totalBudget ? (finance.totalSpent / finance.totalBudget) * 100 : 0
+  const commitPct = finance.totalBudget ? (finance.totalCommitted / finance.totalBudget) * 100 : 0
+  return (
+    <Card>
+      <CardHeader
+        title={<span className="flex items-center gap-2"><Wallet className="w-4 h-4 text-brand-600" />财务总览</span>}
+        subtitle="在研项目组合预算执行"
+        action={<Link to="/finance" className="text-sm text-brand-600 hover:text-brand-700 flex items-center gap-1">进入财务 <ArrowRight className="w-3.5 h-3.5" /></Link>}
+      />
+      <CardBody>
+        <div className="flex items-baseline justify-between">
+          <div>
+            <div className="text-xs text-ink-500">组合总预算</div>
+            <div className="text-2xl font-semibold text-ink-900">{fmt(finance.totalBudget)}</div>
+          </div>
+          <div className="text-right">
+            <div className="text-xs text-ink-500">执行率</div>
+            <div className={cn('text-xl font-semibold', overBudgetCount > 0 ? 'text-red-600' : 'text-ink-900')}>{finance.executionRate}%</div>
+          </div>
+        </div>
+        <div className="mt-3 h-2.5 rounded-full bg-ink-100 overflow-hidden flex">
+          <div className="h-full bg-brand-600" style={{ width: `${Math.min(100, spentPct)}%` }} title="已花费" />
+          <div className="h-full bg-amber-400" style={{ width: `${Math.min(100 - Math.min(100, spentPct), commitPct)}%` }} title="已承诺" />
+        </div>
+        <div className="flex items-center gap-3 mt-2 text-[11px] text-ink-500 flex-wrap">
+          <span className="flex items-center gap-1"><i className="w-2 h-2 rounded-sm bg-brand-600 inline-block" />已花费 {fmt(finance.totalSpent)}</span>
+          <span className="flex items-center gap-1"><i className="w-2 h-2 rounded-sm bg-amber-400 inline-block" />已承诺 {fmt(finance.totalCommitted)}</span>
+          <span className="flex items-center gap-1"><i className="w-2 h-2 rounded-sm bg-emerald-400 inline-block" />剩余 {fmt(finance.remaining)}</span>
+          <span className="ml-auto">{overBudgetCount > 0 ? <Tag tone="red">{overBudgetCount} 超支</Tag> : <Tag tone="green">无超支</Tag>}</span>
+        </div>
+      </CardBody>
+    </Card>
+  )
+}
+
+function OrgOverview({ org }: {
+  org: { total: number; inactiveCount: number; specialties: { name: string; count: number }[]; overloaded: number }
+}) {
+  const maxCount = Math.max(1, ...org.specialties.map((s) => s.count))
+  return (
+    <Card>
+      <CardHeader
+        title={<span className="flex items-center gap-2"><Users className="w-4 h-4 text-brand-600" />组织总览</span>}
+        subtitle="成员与专业组分布"
+        action={<Link to="/org" className="text-sm text-brand-600 hover:text-brand-700 flex items-center gap-1">进入组织 <ArrowRight className="w-3.5 h-3.5" /></Link>}
+      />
+      <CardBody>
+        <div className="flex items-center gap-6">
+          <div>
+            <div className="text-xs text-ink-500">在册成员</div>
+            <div className="text-2xl font-semibold text-ink-900">{org.total}<span className="text-sm text-ink-400 font-normal"> 人</span></div>
+          </div>
+          {org.inactiveCount > 0 && (
+            <div>
+              <div className="text-xs text-ink-500">停用</div>
+              <div className="text-lg font-medium text-ink-500">{org.inactiveCount}</div>
+            </div>
+          )}
+          <div className="ml-auto">
+            {org.overloaded > 0 ? <Tag tone="red">{org.overloaded} 人高负荷</Tag> : <Tag tone="green">负荷正常</Tag>}
+          </div>
+        </div>
+        <div className="mt-3">
+          <div className="text-xs text-ink-500 mb-1.5">专业组分布</div>
+          <div className="space-y-1.5">
+            {org.specialties.slice(0, 6).map((s) => (
+              <div key={s.name} className="flex items-center gap-2">
+                <span className="text-xs text-ink-700 w-16 shrink-0 truncate" title={s.name}>{s.name}</span>
+                <div className="flex-1 h-1.5 rounded-full bg-ink-100 overflow-hidden">
+                  <div className="h-full bg-brand-500 rounded-full" style={{ width: `${(s.count / maxCount) * 100}%` }} />
+                </div>
+                <span className="text-[11px] text-ink-500 w-8 text-right shrink-0">{s.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </CardBody>
+    </Card>
   )
 }
 
