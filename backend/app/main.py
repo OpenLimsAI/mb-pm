@@ -47,10 +47,11 @@ def _ensure_schema() -> None:
     if "tasks" not in insp.get_table_names():
         return  # 新库由 create_all 直接带上新列
     cols = {c["name"] for c in insp.get_columns("tasks")}
-    if "cost_budget" not in cols:
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE tasks ADD COLUMN cost_budget NUMERIC(12,2)"))
-        logger.info("已为 tasks 表补充 cost_budget 列")
+    for col in ("cost_budget", "actual_cost"):
+        if col not in cols:
+            with engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE tasks ADD COLUMN {col} NUMERIC(12,2)"))
+            logger.info("已为 tasks 表补充 %s 列", col)
 
 
 @asynccontextmanager

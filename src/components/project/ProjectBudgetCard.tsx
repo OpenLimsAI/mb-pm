@@ -26,17 +26,23 @@ export function ProjectBudgetCard({ project }: { project: Project }) {
 
   const finance = getProjectFinance(project.id)
 
-  // 自下而上：任务预算合计 + 按子项目分解
-  const { taskTotal, bySub } = useMemo(() => {
+  // 自下而上：任务预算合计 + 实际花费合计 + 按子项目分解
+  const { taskTotal, costTotal, bySub } = useMemo(() => {
     const subs = getProjectSubs(project.id).sort((a, b) => a.sortOrder - b.sortOrder)
     const bySub = subs
-      .map((s) => ({
-        sub: s,
-        total: getSubTasks(s.id).reduce((a, t) => a + (t.costBudget ?? 0), 0),
-      }))
+      .map((s) => {
+        const ts = getSubTasks(s.id)
+        return {
+          sub: s,
+          total: ts.reduce((a, t) => a + (t.costBudget ?? 0), 0),
+          cost: ts.reduce((a, t) => a + (t.actualCost ?? 0), 0),
+        }
+      })
       .filter((x) => x.total > 0)
-    const taskTotal = getProjectTasks(project.id).reduce((a, t) => a + (t.costBudget ?? 0), 0)
-    return { taskTotal, bySub }
+    const projTasks = getProjectTasks(project.id)
+    const taskTotal = projTasks.reduce((a, t) => a + (t.costBudget ?? 0), 0)
+    const costTotal = projTasks.reduce((a, t) => a + (t.actualCost ?? 0), 0)
+    return { taskTotal, costTotal, bySub }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id, version])
 
@@ -113,27 +119,36 @@ export function ProjectBudgetCard({ project }: { project: Project }) {
             )}
           </div>
 
-          {/* 3. WBS 任务预算（自下而上） */}
+          {/* 3. WBS 任务预算 / 花费（自下而上） */}
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-ink-500 flex items-center gap-1"><Coins className="w-3.5 h-3.5 text-amber-500" />WBS 任务预算合计</span>
-              <span className="text-sm font-semibold text-ink-900">{fmt(taskTotal)}</span>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-ink-500 flex items-center gap-1"><Coins className="w-3.5 h-3.5 text-amber-500" />WBS 任务预算 / 花费</span>
+              <span className="text-sm">
+                <span className="font-semibold text-ink-900">{fmt(taskTotal)}</span>
+                <span className="text-ink-400"> / </span>
+                <span className={`font-semibold ${costTotal > taskTotal ? 'text-red-600' : 'text-rose-600'}`}>{fmt(costTotal)}</span>
+              </span>
+            </div>
+            <div className="text-[11px] text-ink-400 mb-2">
+              花费占预算 <b className={costTotal > taskTotal ? 'text-red-600' : 'text-ink-600'}>{taskTotal ? Math.round(costTotal / taskTotal * 100) : 0}%</b>
             </div>
             {bySub.length > 0 ? (
               <div className="space-y-1.5">
-                {bySub.map(({ sub, total }) => {
+                {bySub.map(({ sub, total, cost }) => {
                   const pct = taskTotal ? Math.round((total / taskTotal) * 100) : 0
+                  const costPct = total ? Math.min(100, Math.round((cost / total) * 100)) : 0
                   return (
                     <div key={sub.id} className="flex items-center gap-2">
                       <span className="text-xs text-ink-700 w-24 shrink-0 truncate" title={sub.name}>{sub.name}</span>
-                      <div className="flex-1 h-1.5 rounded-full bg-ink-100 overflow-hidden">
-                        <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pct}%` }} />
+                      <div className="flex-1 h-1.5 rounded-full bg-ink-100 overflow-hidden relative" title={`预算 ${fmt(total)} · 花费 ${fmt(cost)}`}>
+                        <div className="h-full bg-amber-200 rounded-full absolute inset-y-0 left-0" style={{ width: `${pct}%` }} />
+                        <div className="h-full bg-rose-500 rounded-full absolute inset-y-0 left-0" style={{ width: `${Math.round(pct * costPct / 100)}%` }} />
                       </div>
-                      <span className="text-[11px] text-ink-500 w-16 text-right shrink-0">{fmt(total)}</span>
+                      <span className="text-[11px] text-ink-500 w-24 text-right shrink-0 tabular-nums">{fmt(total)}<span className="text-ink-300">/</span>{fmt(cost)}</span>
                     </div>
                   )
                 })}
-                <div className="text-[11px] text-ink-400 pt-1">源自各任务预算（模板 costBudget），可在 WBS 行内调整</div>
+                <div className="text-[11px] text-ink-400 pt-1">预算源自模板 costBudget · 花费为实际录入，均可在 WBS 行内调整</div>
               </div>
             ) : (
               <div className="text-xs text-ink-400">任务暂无预算明细</div>

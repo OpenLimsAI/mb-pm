@@ -30,19 +30,22 @@ export default function Finance() {
     const rows = projects
       .map((p) => {
         const f = getProjectFinance(p.id)
-        const taskBudget = getProjectTasks(p.id).reduce((a, t) => a + (t.costBudget ?? 0), 0)
-        return { p, f, taskBudget }
+        const tasks = getProjectTasks(p.id)
+        const taskBudget = tasks.reduce((a, t) => a + (t.costBudget ?? 0), 0)
+        const taskCost = tasks.reduce((a, t) => a + (t.actualCost ?? 0), 0)
+        return { p, f, taskBudget, taskCost }
       })
       .sort((a, b) => (b.f?.totalBudget ?? 0) - (a.f?.totalBudget ?? 0))
 
     const summary = summarizeFinances(projects.map((p) => p.id))
     const taskBudgetTotal = rows.reduce((a, r) => a + r.taskBudget, 0)
+    const taskCostTotal = rows.reduce((a, r) => a + r.taskCost, 0)
     const cats = CATS
       .map((c) => ({ cat: c, val: summary.byCategory[c] }))
       .filter((x) => x.val > 0)
       .sort((a, b) => b.val - a.val)
     const overBudget = rows.filter((r) => r.f && isOverBudget(r.f))
-    return { rows, summary, taskBudgetTotal, cats, overBudget }
+    return { rows, summary, taskBudgetTotal, taskCostTotal, cats, overBudget }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version])
 
@@ -155,14 +158,16 @@ export default function Finance() {
                 <th className="text-right font-medium px-3 py-2 w-[110px]">已承诺</th>
                 <th className="text-left font-medium px-3 py-2 w-[160px]">执行率</th>
                 <th className="text-right font-medium px-3 py-2 w-[110px]">剩余</th>
-                <th className="text-right font-medium px-3 py-2 w-[120px]">WBS 任务预算</th>
+                <th className="text-right font-medium px-3 py-2 w-[110px]">WBS 任务预算</th>
+                <th className="text-right font-medium px-3 py-2 w-[110px]">WBS 任务花费</th>
                 <th className="w-8" />
               </tr>
             </thead>
             <tbody>
-              {data.rows.map(({ p, f, taskBudget }) => {
+              {data.rows.map(({ p, f, taskBudget, taskCost }) => {
                 const over = f ? isOverBudget(f) : false
                 const rate = f ? executionRate(f) : 0
+                const taskOver = taskCost > taskBudget
                 return (
                   <tr
                     key={p.id}
@@ -193,6 +198,7 @@ export default function Finance() {
                       {f ? fmt(f.totalBudget - f.spent - f.committed) : '—'}
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums text-amber-700">{taskBudget > 0 ? fmt(taskBudget) : '—'}</td>
+                    <td className={cn('px-3 py-2.5 text-right tabular-nums', taskOver ? 'text-red-600 font-medium' : 'text-rose-600')}>{taskCost > 0 ? fmt(taskCost) : '—'}</td>
                     <td className="px-2 text-ink-300"><ChevronRight className="w-4 h-4" /></td>
                   </tr>
                 )
@@ -207,6 +213,7 @@ export default function Finance() {
                 <td className="px-3 py-2.5 text-[11px] text-ink-500">执行率 {summary.executionRate}%</td>
                 <td className="px-3 py-2.5 text-right tabular-nums">{fmt(summary.remaining)}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums text-amber-700">{fmt(data.taskBudgetTotal)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums text-rose-600">{fmt(data.taskCostTotal)}</td>
                 <td />
               </tr>
             </tfoot>
@@ -216,7 +223,7 @@ export default function Finance() {
 
       <p className="text-[11px] text-ink-400 flex items-center gap-1">
         <AlertTriangle className="w-3 h-3" />
-        项目级预算（总预算/已花费/已承诺）为财务口径；WBS 任务预算来自各任务成本预算，可在「项目 → WBS」行内调整。
+        项目级预算（总预算/已花费/已承诺）为财务口径；WBS 任务预算/花费来自各任务（成本预算 vs 实际录入），可在「项目 → WBS」行内调整。
       </p>
     </div>
   )

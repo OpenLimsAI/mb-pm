@@ -90,6 +90,8 @@ export interface Task {
   actualEffort?: number
   /** 成本预算（万元 RMB，含外包/耗材/CRO，不含内部人力）—— 实例化自模板 costBudget */
   costBudget?: number
+  /** 实际花费（万元 RMB）—— 任务执行过程中录入，与 costBudget 对比 */
+  actualCost?: number
   progress: number
   isMilestone: boolean
   isCriticalPath: boolean
