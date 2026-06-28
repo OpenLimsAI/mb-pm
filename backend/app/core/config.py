@@ -45,5 +45,14 @@ class Settings(BaseSettings):
     # —— 日志 —— #
     LOG_LEVEL: str = "INFO"
 
+    # —— Casdoor OIDC —— #
+    CASDOOR_ENDPOINT: str = "http://localhost:8000"
+    CASDOOR_CLIENT_ID: str = "mppm-client-id-0001"
+    CASDOOR_ORG: str = "mabpharm"
+
+    @property
+    def casdoor_jwks_url(self) -> str:
+        return f"{self.CASDOOR_ENDPOINT}/.well-known/jwks"
+
 
 settings = Settings()

@@ -38,17 +38,23 @@ def _resolve_demo_or_jwt(authorization: str, db: Session) -> User:
         )
 
     token = authorization.removeprefix("Bearer ").strip()
-    payload = decode_access_token(token)
-    if not payload:
+    from app.core.casdoor import verify_casdoor_token, extract_role
+    try:
+        claims = verify_casdoor_token(token)
+    except ValueError:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid or expired token")
 
-    user_id = payload.get("sub")
-    if not user_id:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "token missing sub")
+    username = claims.get("preferred_username") or claims.get("name")
+    if not username:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "token missing username")
 
-    user = db.query(User).filter_by(id=user_id).first()
+    user = db.query(User).filter_by(username=username).first()
     if not user:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "user not found")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, f"user {username!r} not provisioned")
+
+    role = extract_role(claims)
+    if role:
+        user.role = role  # Casdoor 为角色唯一来源（仅本请求内覆盖，不落库）
     return user
 
 
