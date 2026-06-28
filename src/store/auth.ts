@@ -1,20 +1,15 @@
-// 认证 store — Lite (CTO) 版
-//
-// CTO 版没有登录页：直接以「郭主任（CMC 负责人 / cmc_lead）」身份进入。
-// 该角色在权限矩阵里拥有全局组合视图（getScope → isAll）+ 模板维护权限，
-// 正好对应「CTO 纵览所有在研项目」的诉求。其余既有组件仍可正常读取 currentUser。
-
+// 认证 store —— 由 Casdoor 登录态派生当前用户。
 import { create } from 'zustand'
 import type { User } from '../types'
-import { users } from '../mock/users'
-
-// u2 = 郭主任 / cmc_lead；兜底取首个用户。
-const ctoUser: User = users.find((u) => u.id === 'u2') ?? users[0]
+import { users as mockUsers } from '../mock/users'
 
 interface AuthState {
-  currentUser: User
+  currentUser: User            // 保持非空，既有组件直接读 currentUser.role 不受影响
+  setCurrentUser: (u: User) => void
 }
 
-export const useAuth = create<AuthState>(() => ({
-  currentUser: ctoUser,
+export const useAuth = create<AuthState>((set) => ({
+  // 兜底：未登录前用首个 mock 用户占位（App.tsx 守卫会在无 token 时跳登录，主界面不会真正渲染）。
+  currentUser: mockUsers[0],
+  setCurrentUser: (u) => set({ currentUser: u }),
 }))

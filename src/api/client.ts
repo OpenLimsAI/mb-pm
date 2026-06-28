@@ -12,7 +12,7 @@ const TOKEN_KEY = 'cmc-pms-lite-jwt'  // Lite 版独立 token key
 /** 是否启用后端 API。env 未设置 / false → 用 mock 数据。 */
 export const USE_API = import.meta.env.VITE_USE_API === 'true'
 
-const baseURL = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000/api/v1'
+const baseURL = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8080/api/v1'
 
 // ============= snake_case <-> camelCase =============
 

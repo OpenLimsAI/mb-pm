@@ -1,6 +1,8 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Beaker, Loader2 } from 'lucide-react'
+import Callback from './pages/Callback'
+import { getAccessToken, login } from './lib/oidc'
 import Home from './pages/Home'
 import Projects from './pages/Projects'
 import ProjectDetail from './pages/ProjectDetail'
@@ -18,6 +20,11 @@ import { useDataStore } from './store/data'
 // CTO Lite：仅三大模块 —— 首页（项目组合总览）/ 项目 / 模板。
 export default function App() {
   const ready = useDataStore((s) => s.ready)
+
+  useEffect(() => {
+    if (window.location.pathname === '/callback') return
+    getAccessToken().then((t) => { if (!t) login() })
+  }, [])
 
   useEffect(() => {
     bootstrap()
@@ -40,6 +47,7 @@ export default function App() {
           <Route path="/finance"              element={<Finance />} />
           <Route path="/org"                  element={<OrgManagement />} />
         </Route>
+        <Route path="/callback" element={<Callback />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

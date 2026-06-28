@@ -5,8 +5,8 @@
 //
 // Mutations（创建项目 / 录入任务进展）：API 模式走后端并重新同步；mock 模式本地更新。
 
-import { USE_API, setToken } from '../api/client'
-import * as authApi from '../api/auth'
+import { USE_API, setToken, api } from '../api/client'
+import { getAccessToken } from '../lib/oidc'
 import * as projectsApi from '../api/projects'
 import * as subProjectsApi from '../api/subProjects'
 import * as tasksApi from '../api/tasks'
@@ -28,8 +28,6 @@ import { deriveRollup } from '../lib/instantiate'
 import { diffPredecessors } from '../lib/dependency-utils'
 import { TODAY } from '../mock'
 import type { BaselineSnapshot, Priority, ProductType, Project, ProjectBaseline, Role, SpecialtyGroup, SubProject, Task, TaskDependency, TaskStatus, Template, TemplateNode, TemplateVersion, User } from '../types'
-
-const CTO_USERNAME = 'guo.cmc'
 
 function replaceArray<T>(target: T[], items: T[]): void {
   target.length = 0
@@ -94,9 +92,12 @@ export async function bootstrap(): Promise<void> {
   }
 
   try {
-    const tok = await authApi.login({ username: CTO_USERNAME })
-    setToken(tok.accessToken)
-    useAuth.setState({ currentUser: tok.user as unknown as User })
+    const token = await getAccessToken()
+    if (token) {
+      setToken(token)
+      const me = await api.get('/auth/me')   // 后端用 Casdoor JWKS 验签（Task 6）
+      useAuth.getState().setCurrentUser(me.data as User)
+    }
     await refreshAllData()
     ds.setMode('api')
     ds.setReady(true)
