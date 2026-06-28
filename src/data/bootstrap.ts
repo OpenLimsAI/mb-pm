@@ -6,7 +6,7 @@
 // Mutations（创建项目 / 录入任务进展）：API 模式走后端并重新同步；mock 模式本地更新。
 
 import { USE_API, setToken, api } from '../api/client'
-import { getAccessToken } from '../lib/oidc'
+import { getAccessToken, login } from '../lib/oidc'
 import * as projectsApi from '../api/projects'
 import * as subProjectsApi from '../api/subProjects'
 import * as tasksApi from '../api/tasks'
@@ -91,13 +91,18 @@ export async function bootstrap(): Promise<void> {
     return
   }
 
+  // 鉴权门：未登录 → 跳转 Casdoor 托管登录页，不渲染主应用、不拉数据。
+  // （登录闭环：Casdoor → /callback 完成换取 token → 跳回 '/' 时本函数再以已登录态运行。）
+  const token = await getAccessToken()
+  if (!token) {
+    await login()
+    return
+  }
+
   try {
-    const token = await getAccessToken()
-    if (token) {
-      setToken(token)
-      const me = await api.get('/auth/me')   // 后端用 Casdoor JWKS 验签（Task 6）
-      useAuth.getState().setCurrentUser(me.data as User)
-    }
+    setToken(token)
+    const me = await api.get('/auth/me')   // 后端用 Casdoor JWKS 验签（Task 6）
+    useAuth.getState().setCurrentUser(me.data as User)
     await refreshAllData()
     ds.setMode('api')
     ds.setReady(true)

@@ -1,9 +1,7 @@
 import { useEffect } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { Beaker, Loader2 } from 'lucide-react'
 import Callback from './pages/Callback'
-import { USE_API } from './api/client'
-import { getAccessToken, login } from './lib/oidc'
 import Home from './pages/Home'
 import Projects from './pages/Projects'
 import ProjectDetail from './pages/ProjectDetail'
@@ -19,41 +17,45 @@ import { bootstrap } from './data/bootstrap'
 import { useDataStore } from './store/data'
 
 // CTO Lite：仅三大模块 —— 首页（项目组合总览）/ 项目 / 模板。
+//
+// 路由结构（鉴权门）：
+//   /callback        —— 永远渲染（OIDC 回调处理），不受 ready 门控，否则换取 token 的页面会被 BootSplash 挡住。
+//   其余所有路由      —— 经 <ReadyGate> 门控：bootstrap() 负责「未登录则跳 Casdoor、已登录才拉数据并 setReady」。
 export default function App() {
-  const ready = useDataStore((s) => s.ready)
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/callback" element={<Callback />} />
+        <Route element={<ReadyGate />}>
+          <Route element={<AppLayout />}>
+            <Route path="/"                      element={<Home />} />
+            <Route path="/projects"              element={<Projects />} />
+            <Route path="/projects/new"          element={<ProjectCreate />} />
+            <Route path="/projects/:id"          element={<ProjectDetail />} />
+            <Route path="/templates"             element={<Templates />} />
+            <Route path="/templates/:id"         element={<TemplateDetail />} />
+            <Route path="/templates/:id/edit"    element={<TemplateEditor />} />
+            <Route path="/templates/:id/preview" element={<TemplatePreview />} />
+            <Route path="/finance"               element={<Finance />} />
+            <Route path="/org"                   element={<OrgManagement />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  )
+}
 
-  useEffect(() => {
-    if (!USE_API) return
-    if (window.location.pathname === '/callback') return
-    getAccessToken().then((t) => { if (!t) login() })
-  }, [])
+// 鉴权 + 数据就绪门。仅在非 /callback 路由挂载，故 bootstrap 在回跳后才以已登录态运行。
+function ReadyGate() {
+  const ready = useDataStore((s) => s.ready)
 
   useEffect(() => {
     bootstrap()
   }, [])
 
   if (!ready) return <BootSplash />
-
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route element={<AppLayout />}>
-          <Route path="/"                     element={<Home />} />
-          <Route path="/projects"             element={<Projects />} />
-          <Route path="/projects/new"         element={<ProjectCreate />} />
-          <Route path="/projects/:id"         element={<ProjectDetail />} />
-          <Route path="/templates"            element={<Templates />} />
-          <Route path="/templates/:id"        element={<TemplateDetail />} />
-          <Route path="/templates/:id/edit"   element={<TemplateEditor />} />
-          <Route path="/templates/:id/preview" element={<TemplatePreview />} />
-          <Route path="/finance"              element={<Finance />} />
-          <Route path="/org"                  element={<OrgManagement />} />
-        </Route>
-        <Route path="/callback" element={<Callback />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
-  )
+  return <Outlet />
 }
 
 function BootSplash() {
