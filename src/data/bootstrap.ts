@@ -1,6 +1,6 @@
 // 应用引导 + 数据同步 —— 连接前端与 FastAPI 后端。
 //
-// 启动：以 CTO（郭主任）身份登录后端拿 JWT → 拉取全量数据填入 mock 运行时数组 → 渲染。
+// 启动：取 Casdoor access_token → setToken（axios）→ GET /auth/me → 设置 currentUser → 拉取全量数据。
 // 失败：回退到内置 mock 数据（离线只读）。
 //
 // Mutations（创建项目 / 录入任务进展）：API 模式走后端并重新同步；mock 模式本地更新。

@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Beaker, Loader2 } from 'lucide-react'
 import Callback from './pages/Callback'
+import { USE_API } from './api/client'
 import { getAccessToken, login } from './lib/oidc'
 import Home from './pages/Home'
 import Projects from './pages/Projects'
@@ -22,6 +23,7 @@ export default function App() {
   const ready = useDataStore((s) => s.ready)
 
   useEffect(() => {
+    if (!USE_API) return
     if (window.location.pathname === '/callback') return
     getAccessToken().then((t) => { if (!t) login() })
   }, [])
