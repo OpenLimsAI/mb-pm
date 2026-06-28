@@ -86,3 +86,10 @@ def test_reject_malformed_token(monkeypatch):
     monkeypatch.setattr(casdoor, "_fetch_jwks", lambda: {"keys": []})
     with pytest.raises(ValueError):
         casdoor.verify_casdoor_token("garbage")
+
+
+def test_demouser_rejected_in_production(client, admin_user, monkeypatch):
+    """DemoUser auth must return 401 outside development environment."""
+    monkeypatch.setattr(settings, "APP_ENV", "production")
+    resp = client.get("/api/v1/auth/me", headers={"Authorization": f"DemoUser {admin_user}"})
+    assert resp.status_code == 401

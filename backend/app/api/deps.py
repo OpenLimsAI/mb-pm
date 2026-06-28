@@ -3,7 +3,7 @@
 from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.security import decode_access_token
+from app.core.config import settings
 from app.db.session import get_db
 from app.models import User
 
@@ -26,6 +26,8 @@ def _resolve_demo_or_jwt(authorization: str, db: Session) -> User:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "missing Authorization header")
 
     if authorization.startswith("DemoUser "):
+        if settings.APP_ENV != "development":
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "DemoUser auth disabled outside development")
         username = authorization.removeprefix("DemoUser ").strip()
         user = db.query(User).filter_by(username=username).first()
         if not user:
