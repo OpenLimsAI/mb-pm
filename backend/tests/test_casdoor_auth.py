@@ -1,11 +1,20 @@
 """Casdoor JWKS 验签 + 角色提取单测（自签 RSA，不依赖在跑的 Casdoor）。"""
 import json
+import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 from jose import jwt, jwk
 
 from app.core import casdoor
 from app.core.config import settings
+
+
+@pytest.fixture(autouse=True)
+def reset_jwks_cache():
+    """每个测试前清空模块级 JWKS 缓存，防止测试间状态污染。"""
+    casdoor._jwks_cache = None
+    yield
+    casdoor._jwks_cache = None
 
 _KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 _KID = "test-kid-1"
@@ -68,3 +77,12 @@ def test_extract_role_variants():
     assert casdoor.extract_role({"roles": ["rd"]}) == "rd"
     assert casdoor.extract_role({"role": "admin"}) == "admin"
     assert casdoor.extract_role({"roles": []}) is None
+    # unknown role strings must return None
+    assert casdoor.extract_role({"role": "superadmin"}) is None
+    assert casdoor.extract_role({"roles": [{"name": "nope"}]}) is None
+
+
+def test_reject_malformed_token(monkeypatch):
+    monkeypatch.setattr(casdoor, "_fetch_jwks", lambda: {"keys": []})
+    with pytest.raises(ValueError):
+        casdoor.verify_casdoor_token("garbage")

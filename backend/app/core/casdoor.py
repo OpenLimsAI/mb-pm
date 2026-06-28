@@ -30,36 +30,39 @@ def _get_jwks(force: bool = False) -> dict:
 
 def verify_casdoor_token(token: str) -> dict[str, Any]:
     """验签并返回 claims；失败抛 ValueError。kid 未命中时刷新一次 JWKS。"""
-    header = jwt.get_unverified_header(token)
-    kid = header.get("kid")
+    try:
+        header = jwt.get_unverified_header(token)
+        kid = header.get("kid")
 
-    last: Exception = ValueError("no JWKS available")
-    for force in (False, True):
-        jwks = _get_jwks(force=force)
-        # 按 kid 选择单个 JWK；若没有 kid 则尝试所有 keys
-        keys = jwks.get("keys", [])
-        if kid:
-            candidates = [k for k in keys if k.get("kid") == kid]
-        else:
-            candidates = keys
+        last: Exception = ValueError("no JWKS available")
+        for force in (False, True):
+            jwks = _get_jwks(force=force)
+            # 按 kid 选择单个 JWK；若没有 kid 则尝试所有 keys
+            keys = jwks.get("keys", [])
+            if kid:
+                candidates = [k for k in keys if k.get("kid") == kid]
+            else:
+                candidates = keys
 
-        if not candidates and force:
-            break
+            if not candidates and force:
+                break
 
-        for key in candidates:
-            try:
-                return jwt.decode(
-                    token,
-                    key,
-                    algorithms=["RS256"],
-                    audience=settings.CASDOOR_CLIENT_ID,
-                    issuer=settings.CASDOOR_ENDPOINT,
-                    options={"verify_at_hash": False},
-                )
-            except JWTError as e:
-                last = e
+            for key in candidates:
+                try:
+                    return jwt.decode(
+                        token,
+                        key,
+                        algorithms=["RS256"],
+                        audience=settings.CASDOOR_CLIENT_ID,
+                        issuer=settings.CASDOOR_ENDPOINT,
+                        options={"verify_at_hash": False},
+                    )
+                except JWTError as e:
+                    last = e
 
-    raise ValueError(f"Casdoor token 验签失败: {last}")
+        raise ValueError(f"Casdoor token 验签失败: {last}")
+    except JWTError as exc:
+        raise ValueError(f"Casdoor token 解析失败: {exc}") from exc
 
 
 def extract_role(claims: dict[str, Any]) -> str | None:

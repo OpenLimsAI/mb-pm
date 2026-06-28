@@ -54,6 +54,7 @@ def _resolve_demo_or_jwt(authorization: str, db: Session) -> User:
 
     role = extract_role(claims)
     if role:
+        db.expunge(user)  # 防止本请求 commit 时把角色覆盖持久化到 users 表
         user.role = role  # Casdoor 为角色唯一来源（仅本请求内覆盖，不落库）
     return user
 
