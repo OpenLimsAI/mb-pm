@@ -46,13 +46,17 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     # —— Casdoor OIDC —— #
+    # CASDOOR_ENDPOINT 用于校验 token 的 issuer（须与 token 的 iss 字节一致，即浏览器侧 http://localhost:8000）。
+    # CASDOOR_JWKS_URL 是后端「拉取」JWKS 的地址，可与 issuer 不同：容器内需用 host.docker.internal
+    # 才能访问宿主机上的 Casdoor。留空则默认 {CASDOOR_ENDPOINT}/.well-known/jwks。
     CASDOOR_ENDPOINT: str = "http://localhost:8000"
+    CASDOOR_JWKS_URL: str = ""
     CASDOOR_CLIENT_ID: str = "mppm-client-id-0001"
     CASDOOR_ORG: str = "mabpharm"
 
     @property
     def casdoor_jwks_url(self) -> str:
-        return f"{self.CASDOOR_ENDPOINT}/.well-known/jwks"
+        return self.CASDOOR_JWKS_URL or f"{self.CASDOOR_ENDPOINT}/.well-known/jwks"
 
 
 settings = Settings()

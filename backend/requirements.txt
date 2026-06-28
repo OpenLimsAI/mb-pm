@@ -23,6 +23,8 @@ python-dateutil==2.9.0
 # SQLite 仍是默认本地后端，装上它不影响 SQLite 运行。
 psycopg[binary]==3.2.3
 
+# 数据库迁移（PostgreSQL 部署时由 `alembic upgrade head` 建表/迁移；SQLite 本地走自动建表）
+alembic==1.13.3
+
 # —— 可选（按需安装）——
-# 数据库迁移工具：        alembic==1.13.3
 # 开发/测试：             pytest==8.3.3  httpx==0.27.2  ruff==0.7.0
