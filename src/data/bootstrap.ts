@@ -1,12 +1,12 @@
 // 应用引导 + 数据同步 —— 连接前端与 FastAPI 后端。
 //
-// 启动：以 CTO（郭主任）身份登录后端拿 JWT → 拉取全量数据填入 mock 运行时数组 → 渲染。
+// 启动：取 Casdoor access_token → setToken（axios）→ GET /auth/me → 设置 currentUser → 拉取全量数据。
 // 失败：回退到内置 mock 数据（离线只读）。
 //
 // Mutations（创建项目 / 录入任务进展）：API 模式走后端并重新同步；mock 模式本地更新。
 
-import { USE_API, setToken } from '../api/client'
-import * as authApi from '../api/auth'
+import { USE_API, setToken, api } from '../api/client'
+import { getAccessToken, login } from '../lib/oidc'
 import * as projectsApi from '../api/projects'
 import * as subProjectsApi from '../api/subProjects'
 import * as tasksApi from '../api/tasks'
@@ -28,8 +28,6 @@ import { deriveRollup } from '../lib/instantiate'
 import { diffPredecessors } from '../lib/dependency-utils'
 import { TODAY } from '../mock'
 import type { BaselineSnapshot, Priority, ProductType, Project, ProjectBaseline, Role, SpecialtyGroup, SubProject, Task, TaskDependency, TaskStatus, Template, TemplateNode, TemplateVersion, User } from '../types'
-
-const CTO_USERNAME = 'guo.cmc'
 
 function replaceArray<T>(target: T[], items: T[]): void {
   target.length = 0
@@ -93,10 +91,18 @@ export async function bootstrap(): Promise<void> {
     return
   }
 
+  // 鉴权门：未登录 → 跳转 Casdoor 托管登录页，不渲染主应用、不拉数据。
+  // （登录闭环：Casdoor → /callback 完成换取 token → 跳回 '/' 时本函数再以已登录态运行。）
+  const token = await getAccessToken()
+  if (!token) {
+    await login()
+    return
+  }
+
   try {
-    const tok = await authApi.login({ username: CTO_USERNAME })
-    setToken(tok.accessToken)
-    useAuth.setState({ currentUser: tok.user as unknown as User })
+    setToken(token)
+    const me = await api.get('/auth/me')   // 后端用 Casdoor JWKS 验签（Task 6）
+    useAuth.getState().setCurrentUser(me.data as User)
     await refreshAllData()
     ds.setMode('api')
     ds.setReady(true)

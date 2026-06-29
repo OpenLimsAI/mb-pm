@@ -1,6 +1,7 @@
-import { Search } from 'lucide-react'
+import { Search, LogOut } from 'lucide-react'
 import { useAuth } from '../../store/auth'
 import { roleLabels } from '../../lib/permissions'
+import { logout } from '../../lib/oidc'
 import { Avatar } from '../ui/Avatar'
 
 export function TopBar() {
@@ -27,6 +28,17 @@ export function TopBar() {
           <div className="text-[10px] text-ink-500 leading-tight">{roleLabels[user.role]} · 决策视图</div>
         </div>
       </div>
+
+      {/* 登出（RP-initiated logout：清本地会话 + 跳 Casdoor end-session） */}
+      <button
+        type="button"
+        onClick={() => logout()}
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm text-ink-600 hover:text-ink-900 hover:bg-ink-100 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+        title="登出"
+      >
+        <LogOut className="w-4 h-4" />
+        登出
+      </button>
     </header>
   )
 }

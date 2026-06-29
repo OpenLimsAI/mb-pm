@@ -6,8 +6,10 @@ services:
       POSTGRES_USER: cmc
       POSTGRES_PASSWORD: cmc
       POSTGRES_DB: cmc_pms
-    ports:
-      - "5432:5432"
+    # 不对宿主机暴露端口：仅供 backend 经 compose 网络 (postgres:5432) 访问。
+    # （宿主机 5432 已被 mb-casd 的 Casdoor Postgres 占用，且对外暴露 DB 也不安全。）
+    expose:
+      - "5432"
     volumes:
       - cmc_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -21,18 +23,31 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://cmc:cmc@postgres:5432/cmc_pms
       APP_ENV: development
-      APP_CORS_ORIGINS: http://localhost:5173
+      # 前端跑在 5175（Vite strictPort）
+      APP_CORS_ORIGINS: http://localhost:5175
+      # Casdoor 鉴权：issuer 须与 token 的 iss 一致（浏览器侧 localhost:8000）；
+      # JWKS 拉取走 host.docker.internal 才能从容器访问宿主机上的 Casdoor。
+      CASDOOR_ENDPOINT: http://localhost:8000
+      CASDOOR_JWKS_URL: http://host.docker.internal:8000/.well-known/jwks
+      CASDOOR_CLIENT_ID: mppm-client-id-0001
+      CASDOOR_ORG: mabpharm
+    extra_hosts:
+      # Linux 下让 host.docker.internal 解析到宿主机网关（Docker Desktop/Mac 默认已支持）。
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
+    # 宿主机 8080 → 容器 8000（8000 已被 Casdoor 占用），与前端 VITE_API_URL 一致。
     ports:
-      - "8000:8000"
+      - "8080:8000"
     volumes:
       - ./app:/code/app
       - ./alembic:/code/alembic
       - ./alembic.ini:/code/alembic.ini
+    # 建表用 SQLAlchemy create_all（从 ORM 模型生成全部表），不依赖 alembic 迁移
+    # —— 现有迁移与模型有漂移（缺 project_finances 等表），本地开发以模型为准。
     command: >
-      sh -c "alembic upgrade head &&
+      sh -c "python -c 'import app.models; from app.db.base import Base; from app.db.session import engine; Base.metadata.create_all(bind=engine)' &&
              python -m app.seed.seed_data &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
