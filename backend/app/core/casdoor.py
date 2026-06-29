@@ -3,6 +3,7 @@
 JWKS 用标准库 urllib 拉取并进程内缓存（运行时不引入新依赖）；
 验签用 python-jose（已含 cryptography）。
 """
+
 import json
 import urllib.request
 from typing import Any

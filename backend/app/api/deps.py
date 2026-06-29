@@ -27,7 +27,9 @@ def _resolve_demo_or_jwt(authorization: str, db: Session) -> User:
 
     if authorization.startswith("DemoUser "):
         if settings.APP_ENV != "development":
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "DemoUser auth disabled outside development")
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED, "DemoUser auth disabled outside development"
+            )
         username = authorization.removeprefix("DemoUser ").strip()
         user = db.query(User).filter_by(username=username).first()
         if not user:
@@ -41,6 +43,7 @@ def _resolve_demo_or_jwt(authorization: str, db: Session) -> User:
 
     token = authorization.removeprefix("Bearer ").strip()
     from app.core.casdoor import verify_casdoor_token, extract_role
+
     try:
         claims = verify_casdoor_token(token)
     except ValueError:
