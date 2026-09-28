@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, FolderKanban, ListChecks, GanttChartSquare, Gauge, Wallet, Users, Beaker, ChevronDown,
+  LayoutDashboard, FolderKanban, ListChecks, GanttChartSquare, Gauge, Wallet, Users, ChevronDown,
   Settings2, BookOpen, type LucideIcon,
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
@@ -63,25 +63,30 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="w-56 shrink-0 bg-white border-r border-ink-300/40 flex flex-col">
+    <aside className="app-sidebar">
       {/* Logo */}
-      <div className="h-14 px-4 flex items-center gap-2 border-b border-ink-300/40">
-        <div className="w-8 h-8 rounded-md bg-brand-600 flex items-center justify-center text-white">
-          <Beaker className="w-5 h-5" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold text-ink-900 leading-tight flex items-center gap-1.5">
+      <div className="app-brand">
+        <img
+          src="/brand/maibo-pharma-logo.png"
+          alt="迈博药业"
+          width={48}
+          height={48}
+          className="app-brand-logo"
+        />
+        <div className="app-brand-copy flex-1 min-w-0">
+          <div className="text-base font-semibold text-white leading-tight flex items-center gap-1.5">
             CMC-PMS
-            <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-brand-50 text-brand-700 border border-brand-200">
+            <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-white/10 text-cyan-100 border border-white/20">
               CTO
             </span>
           </div>
-          <div className="text-[10px] text-ink-500 leading-tight">研发项目组合 · 决策视图</div>
+          <div className="text-[10px] text-blue-100 mt-1 leading-tight">研发项目组合 · 决策视图</div>
         </div>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+      <nav aria-label="主导航" className="app-nav flex-1 px-3 py-5 space-y-1 overflow-y-auto">
+        <p className="app-nav-caption">工作空间</p>
         {navItems.filter(allowed).map((it) => {
           const children = it.children?.filter(allowed) ?? []
           if (children.length === 0) return <NavItemLink key={it.to} item={it} />
@@ -101,12 +106,12 @@ export function Sidebar() {
                   aria-controls={groupId}
                   aria-label={`${open ? '收起' : '展开'}「${it.label}」子菜单`}
                   title={open ? '收起' : '展开'}
-                  className="w-7 h-7 shrink-0 rounded-md flex items-center justify-center text-ink-500 hover:bg-ink-100 hover:text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                  className="app-nav-toggle w-7 h-7 shrink-0 rounded-md flex items-center justify-center text-ink-500 hover:bg-ink-100 hover:text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
                 >
                   <ChevronDown className={cn('w-4 h-4 transition-transform', !open && '-rotate-90')} />
                 </button>
               </div>
-              <div id={groupId} hidden={!open} className="mt-0.5 ml-5 pl-2 border-l border-ink-300/60 space-y-0.5">
+              <div id={groupId} hidden={!open} className="app-nav-children mt-1 ml-5 pl-2 border-l border-ink-300/60 space-y-1">
                 {children.map((c) => <NavItemLink key={c.to} item={c} child />)}
               </div>
             </div>
@@ -115,7 +120,7 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-3 py-3 border-t border-ink-300/40 text-[11px] text-ink-500">
+      <div className="app-sidebar-footer px-5 py-4 border-t border-ink-300/40 text-[11px] text-ink-500">
         <div>URS-CMC-PMS-001</div>
         <div className="opacity-70">© CMC 部 · 内部使用</div>
       </div>
@@ -130,19 +135,21 @@ function NavItemLink({
     <NavLink
       to={item.to}
       end={item.end}
+      title={item.label}
+      aria-label={item.label}
       className={({ isActive }) =>
         cn(
-          'flex items-center gap-2.5 rounded-md transition-colors',
+          'app-nav-link flex items-center gap-2.5 rounded-md transition-colors',
           child ? 'px-2.5 py-1.5 text-[13px]' : 'px-3 py-2 text-sm',
           isActive || highlight
-            ? 'bg-brand-50 text-brand-700 font-medium'
-            : 'text-ink-700 hover:bg-ink-100',
+            ? 'app-nav-active bg-brand-50 text-brand-800 font-semibold'
+            : 'text-ink-700 hover:bg-brand-50/60',
           className,
         )
       }
     >
       <item.icon className={cn('shrink-0', child ? 'w-3.5 h-3.5' : 'w-4 h-4')} />
-      <span>{item.label}</span>
+      <span className="app-nav-label">{item.label}</span>
     </NavLink>
   )
 }

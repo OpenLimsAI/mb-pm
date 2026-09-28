@@ -3,11 +3,22 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --app-header-background: rgb(35, 72, 111);
+  }
   html, body, #root {
     height: 100%;
   }
   body {
     @apply bg-ink-100 text-ink-900 font-sans antialiased;
+  }
+  :where(a, button, summary):focus-visible {
+    outline: 2px solid #087b9c;
+    outline-offset: 3px;
+  }
+  ::selection {
+    background: #d8f0f6;
+    color: #103c58;
   }
 }
 
@@ -36,6 +47,66 @@
   .input {
     @apply w-full px-3 py-1.5 rounded-md border border-ink-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500;
   }
+  /* 深蓝导航、浅灰工作区、白色卡片；亮色仅用作信息分组与状态提示。 */
+  .app-sidebar {
+    @apply w-56 shrink-0 bg-white border-r border-ink-300/60 flex flex-col;
+  }
+  .app-brand {
+    @apply h-16 px-4 flex items-center gap-2.5 shrink-0 border-b border-white/10;
+    background-color: var(--app-header-background);
+  }
+  .app-brand-logo {
+    @apply w-12 h-12 rounded bg-white object-contain shrink-0;
+  }
+  .app-topbar {
+    @apply h-16 px-6 flex items-center gap-5 shrink-0 text-white;
+    background-color: var(--app-header-background);
+    box-shadow: 0 2px 6px rgb(16 60 88 / 0.12);
+  }
+  .app-workspace-name {
+    @apply text-sm font-medium whitespace-nowrap text-white;
+  }
+  .app-nav-caption {
+    @apply px-3 pb-3 text-[10px] font-medium tracking-widest text-ink-500;
+  }
+  .app-nav-link {
+    position: relative;
+    min-height: 38px;
+  }
+  .app-nav-active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 9px;
+    bottom: 9px;
+    width: 3px;
+    border-radius: 2px;
+    background: #78bf43;
+  }
+  .app-nav-active > svg {
+    @apply text-brand-600;
+  }
+  .metric-card {
+    overflow: hidden;
+  }
+  .metric-body {
+    @apply px-3 pt-6 pb-5 text-center;
+  }
+  .metric-value {
+    @apply text-ink-900 font-medium tabular-nums tracking-tight;
+    font-size: clamp(28px, 2.5vw, 38px);
+    line-height: 1.15;
+  }
+  .metric-note {
+    @apply text-[11px] text-ink-500 mt-2;
+    min-height: 17px;
+  }
+  .metric-caption {
+    @apply px-3 py-3 text-xs flex items-center justify-between gap-2 bg-white text-ink-700 border-t border-ink-300/40;
+  }
+  .auth-shell {
+    background: linear-gradient(to bottom, var(--app-header-background) 0, var(--app-header-background) 32%, #edf1f3 32%, #edf1f3 100%);
+  }
   /* 项目 AI 分析报告（Markdown 渲染） */
   .ai-report { @apply text-sm leading-7 text-ink-700 break-words; }
   .ai-report h1, .ai-report h2 { @apply text-lg font-semibold text-ink-900 mt-7 mb-3; }
@@ -51,4 +122,32 @@
   .ai-report blockquote { @apply border-l-4 border-brand-200 pl-4 text-ink-500; }
   .ai-report pre { @apply bg-ink-100 rounded-md p-3 overflow-auto; }
   .ai-report a { @apply text-brand-700 underline; }
+}
+
+@media (max-width: 1100px) {
+  .app-workspace-name { display: none; }
+}
+
+@media (max-width: 760px) {
+  .app-sidebar { width: 64px; }
+  .app-brand { justify-content: center; padding: 0; }
+  .app-brand-copy, .app-nav-label, .app-nav-caption, .app-sidebar-footer, .app-nav-toggle { display: none; }
+  .app-nav { padding: 16px 8px; }
+  .app-nav-link { justify-content: center; padding: 10px; min-height: 42px; }
+  .app-nav-children, .app-nav-children[hidden] { display: block; margin: 4px 0; padding: 0; border: 0; }
+  .app-nav-children .app-nav-link { min-height: 38px; }
+  .app-topbar { padding: 0 14px; gap: 8px; }
+  .app-search { display: none; }
+  .app-workspace-name { display: block; font-size: 12px; }
+  .app-account-role { display: none; }
+  .app-account { padding: 4px; gap: 6px; }
+  .app-main > .p-6 { padding: 20px 16px; }
+}
+
+@media (max-width: 420px) {
+  .app-workspace-name { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse { animation: none; }
 }

@@ -5,12 +5,212 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="CMC-PMS 新功能说明、旧新版本对照与历次更新记录。">
 <title>CMC-PMS · 版本更新</title>
-<style>:root{color-scheme:light;--ink:#162d37;--muted:#556c76;--teal:#087c78;--line:#d9e5e7;--paper:#f5f8f9;--soft:#e8f5f2;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--paper)}
-*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:84px}body{margin:0;font-size:14px;line-height:1.8}a{color:inherit;text-decoration:none}a:focus-visible,summary:focus-visible,[tabindex]:focus-visible{outline:3px solid #15a59e;outline-offset:4px}h1,h2,h3,p{margin:0}h1,h2,h3{line-height:1.4}ul,ol{margin:0;padding-left:1.4em}li+li{margin-top:8px}.skip{position:fixed;top:-100px;left:12px;background:white;padding:12px;z-index:10}.skip:focus{top:12px}.topbar{height:68px;padding:0 max(28px,calc((100vw - 1140px)/2));display:flex;justify-content:space-between;align-items:center;background:#fff;border-bottom:1px solid var(--line);gap:16px}.wordmark{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:750;letter-spacing:.5px}.mark{display:grid;place-items:center;background:var(--ink);color:#8ce2cf;border-radius:9px;width:32px;height:32px;font-family:Georgia,serif;font-size:23px}.wordmark-sub{font-size:12px;color:var(--muted);font-weight:400;border-left:1px solid var(--line);padding-left:12px;letter-spacing:1px}.download{font-size:12px;font-weight:600;border:1px solid var(--line);border-radius:6px;padding:6px 12px;white-space:nowrap}.download:hover{background:var(--soft);border-color:var(--teal)}.shell{max-width:1140px;margin:auto;padding:32px 28px 0}.hero{position:relative;overflow:hidden;padding:44px 44px 0;border-radius:16px;background:#142f39;color:white}.hero:after{content:"";position:absolute;right:-95px;top:-160px;width:420px;height:420px;border:1px solid #ffffff10;border-radius:50%;box-shadow:0 0 0 52px #ffffff04,0 0 0 104px #ffffff03;pointer-events:none}.eyebrow{font-size:11px;letter-spacing:2px;font-weight:700;color:var(--teal);margin-bottom:12px}.hero .eyebrow{color:#8ce2cf;display:flex;align-items:center;gap:14px}.eyebrow span{display:inline-block;height:1px;width:28px;background:#8ce2cf80}h1{font-size:clamp(29px,4vw,44px);letter-spacing:-1px}.lead{max-width:680px;font-size:16px;line-height:1.9;color:#c4d8dc;margin-top:18px}.hero-meta{display:flex;gap:18px;align-items:center;font-size:11px;color:#a9c4cc;margin:26px 0 30px;flex-wrap:wrap}.pill{border:1px solid #638b9560;padding:3px 10px;border-radius:100px;color:#d5e9e9}.hero-bottom{display:flex;gap:36px;border-top:1px solid #ffffff18;padding:19px 0;font-size:12px;color:#c4d8dc}.hero-bottom b{color:#8ce2cf;font-size:11px;margin-right:8px;font-family:monospace}.contents{display:flex;gap:28px;flex-wrap:wrap;padding:20px 0;border-bottom:1px solid var(--line);font-size:13px;font-weight:650}.contents a:hover{color:var(--teal)}.contents span{background:#e0eaec;color:var(--muted);border-radius:5px;padding:1px 6px;font-size:10px;margin-left:5px}.section{padding-top:48px;scroll-margin-top:20px}.section-heading{display:flex;justify-content:space-between;align-items:end;gap:20px;margin-bottom:22px}.section-heading .eyebrow{margin-bottom:6px}.section-heading h2{font-size:25px;letter-spacing:-.5px}.section-heading>p{font-size:12px;color:var(--muted)}.feature-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.feature{padding:25px;background:white;border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column}.feature-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}.feature-number{font-family:Georgia,serif;font-size:28px;color:#90aaaF;line-height:1}.tag{display:inline-block;padding:2px 9px;border-radius:5px;background:var(--soft);font-size:11px;color:#14625d;font-weight:600;white-space:nowrap}.feature h3{font-size:18px;margin-bottom:10px}.feature>p{font-size:13px;color:var(--muted);flex:1}.feature footer{border-top:1px solid #edf1f3;margin-top:20px;padding-top:14px;font-size:11px;line-height:1.8;color:#4e656f}.feature footer div+div{margin-top:6px}.label{color:#7b929a;display:inline-block;min-width:50px;font-size:10px}.section-note{color:var(--muted);font-size:12px;line-height:1.8;margin:-8px 0 20px;max-width:850px}.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:white}table{border-collapse:collapse;text-align:left;width:100%;min-width:690px;font-size:12px}th,td{padding:17px 20px;border-bottom:1px solid var(--line);vertical-align:top}thead th{font-size:11px;background:#eaf0f2;color:#4b6570;font-weight:600}tbody th{font-weight:650;width:15%;white-space:nowrap}td:nth-child(2){width:31%;color:var(--muted)}td:nth-child(3){width:44%}tr:last-child th,tr:last-child td{border-bottom:0}tbody tr:hover{background:#fafcfc}.role-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.role-card{background:#fff;border:1px solid var(--line);border-top:3px solid var(--teal);border-radius:8px;padding:23px}.role-card h3{font-size:15px;margin-bottom:16px}.role-card ol{font-size:12px;color:var(--muted)}.role-card li::marker{font-weight:700;color:var(--teal)}.boundary{margin-top:20px;border:1px solid #e5ddc5;background:#fcfaf3;border-radius:10px;padding:22px 26px}.boundary h3{font-size:14px;color:#725b22;margin-bottom:12px}.boundary ul{font-size:12px;color:#706349}.release-list{border-top:1px solid var(--line)}.release{border-bottom:1px solid var(--line);padding:0 4px}.release summary{display:flex;gap:25px;align-items:center;cursor:pointer;list-style:none;padding:24px 0}.release summary::-webkit-details-marker{display:none}.release-date{width:132px;flex-shrink:0;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}.release-version{display:block;font-size:10px;color:var(--teal);margin-top:4px}.release-title{font-size:16px;font-weight:650;flex:1;display:flex;align-items:center;gap:10px;flex-wrap:wrap}.latest{font-size:10px;color:#14625d;background:var(--soft);border-radius:4px;padding:2px 7px;font-weight:500}.expand{font-size:24px;color:var(--muted);width:24px;text-align:center;font-weight:300}.release[open] .expand{transform:rotate(45deg)}.release-body{margin-left:157px;padding-bottom:28px;font-size:13px;color:var(--muted)}.release-body>p{margin-bottom:20px}.change-group{display:grid;grid-template-columns:50px 1fr;gap:10px;margin-top:16px}.change-group h3{font-size:11px;color:var(--teal);padding-top:3px}.change-group ul{font-size:12px}.page-footer{margin-top:50px;padding:24px 0;border-top:1px solid var(--line);display:flex;gap:20px;justify-content:space-between;color:#73868e;font-size:11px}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
-.feature-badges{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}.feature-top{gap:12px}.feature-major{background:#f6f3ff;border-color:#b7a5ed;box-shadow:inset 0 3px 0 #7956c4}.feature-major .feature-number{color:#7956c4}.feature-major .tag{color:#654298;background:#ebe3fa}.feature-major footer{border-top-color:#e4dbf3}.major-badge{display:inline-block;white-space:nowrap;background:#6d45ad;color:#fff;border-radius:5px;padding:3px 10px;font-size:11px;font-weight:700;letter-spacing:.3px}
-@media(max-width:760px){.topbar{padding:0 20px}.wordmark-sub{display:none}.shell{padding:20px 16px 0}.hero{padding:30px 24px 0}.lead{font-size:14px}.hero-meta{gap:10px}.hero-bottom{gap:18px;font-size:10px}.contents{gap:12px 20px;font-size:12px}.section{padding-top:34px}.section-heading{display:block}.section-heading>p{margin-top:8px}.section-heading h2{font-size:22px}.feature-grid,.role-grid{grid-template-columns:1fr}.feature{padding:22px}.release summary{gap:12px;align-items:flex-start}.release-date{width:90px;font-size:11px}.release-title{font-size:14px}.release-body{margin-left:0;padding-left:0}.page-footer{flex-direction:column;gap:4px}th,td{padding:14px}.boundary{padding:20px}}
-@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
-@media print{html{scroll-behavior:auto}body{background:#fff;color:#111;font-size:11px}.topbar,.contents,.download,.expand,.skip{display:none}.shell{max-width:none;padding:0}.hero{background:#fff;color:#111;border:1px solid #bbb;padding:20px}.hero:after,.hero-bottom{display:none}.hero .eyebrow,.lead,.hero-meta,.pill{color:#333}.hero-meta{margin:12px 0 0}.section{padding-top:24px}.feature-grid{grid-template-columns:repeat(2,1fr)}.feature,.role-card,.boundary{break-inside:avoid}.table-wrap{overflow:visible}table{min-width:0}th,td{padding:8px}.release details,.release{break-inside:avoid}.release::details-content{content-visibility:visible}.release>.release-body{display:block!important}.release summary{padding:14px 0}.release-body{margin-left:0}.page-footer{margin-top:24px}.section-heading h2{font-size:20px}h1{font-size:30px}}
+<style>:root {
+  color-scheme: light;
+  --navy: #23486f;
+  --ink: #263e4a;
+  --muted: #586f7b;
+  --cyan: #087b9c;
+  --green: #25774c;
+  --line: #d8e2e6;
+  --paper: #edf1f3;
+  --soft: #eef8f2;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 28px; }
+body { margin: 0; font-size: 14px; line-height: 1.8; }
+a { color: inherit; text-decoration: none; }
+a:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--cyan); outline-offset: 4px; }
+::selection { background: #d8f0f6; color: #103c58; }
+h1, h2, h3, p { margin: 0; }
+h1, h2, h3 { line-height: 1.4; }
+ul, ol { margin: 0; padding-left: 1.4em; }
+li + li { margin-top: 8px; }
+.skip { position: fixed; top: -100px; left: 12px; background: white; padding: 12px; z-index: 10; }
+.skip:focus { top: 12px; }
+.topbar {
+  min-height: 64px;
+  padding: 12px max(28px, calc((100vw - 1180px) / 2));
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  background: var(--navy);
+  color: white;
+  box-shadow: 0 2px 6px #103c581f;
+}
+.wordmark { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; letter-spacing: .3px; }
+.mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 5px; background: #ffffff14; color: #9de7f1; border-bottom: 3px solid #78bf43; font-size: 24px; font-weight: 500; }
+.wordmark-sub { font-size: 12px; color: #d3e5ef; font-weight: 400; border-left: 1px solid #ffffff30; padding-left: 14px; margin-left: 4px; }
+.download { font-size: 12px; font-weight: 600; border: 1px solid #ffffff55; border-radius: 5px; padding: 7px 14px; white-space: nowrap; }
+.download:hover { background: #ffffff15; border-color: #9de7f1; }
+.topbar a:focus-visible { outline-color: #9de7f1; }
+.shell { max-width: 1180px; margin: auto; padding: 28px 28px 0; }
+.hero { padding: 32px 36px 0; border: 1px solid var(--line); border-top: 4px solid #08b4d1; border-radius: 8px; background: white; box-shadow: 0 2px 8px #154d700b; }
+.eyebrow { font-size: 10px; letter-spacing: 1.8px; font-weight: 700; color: var(--green); margin-bottom: 10px; }
+.hero .eyebrow { color: var(--cyan); display: flex; align-items: center; gap: 12px; }
+.eyebrow span { display: inline-block; height: 1px; width: 24px; background: #08b4d1; }
+h1 { font-size: clamp(30px, 4vw, 42px); letter-spacing: -.8px; color: var(--navy); }
+.lead { max-width: 720px; font-size: 15px; line-height: 1.9; color: var(--muted); margin-top: 12px; }
+.hero-meta { display: flex; gap: 16px; align-items: center; font-size: 11px; color: var(--muted); margin: 20px 0 24px; flex-wrap: wrap; }
+.pill { background: #eef9fc; color: var(--cyan); border: 1px solid #c9e9f0; padding: 3px 10px; border-radius: 4px; }
+.hero-bottom { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.hero-bottom a { display: flex; align-items: center; gap: 10px; border-top: 3px solid #08b4d1; padding: 13px 0; font-size: 12px; font-weight: 600; color: var(--navy); }
+.hero-bottom a:nth-child(2) { border-color: #78bf43; }
+.hero-bottom a:nth-child(3) { border-color: #f5b64c; }
+.hero-bottom a:hover { color: var(--cyan); }
+.hero-bottom b { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.hero-bottom a > span { margin-left: auto; color: var(--muted); }
+.contents { display: flex; gap: 30px; flex-wrap: wrap; padding: 0 20px; margin-top: 20px; background: white; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; font-weight: 600; }
+.contents a { padding: 14px 0 12px; border-bottom: 3px solid transparent; }
+.contents a:hover { color: var(--cyan); border-bottom-color: #78bf43; }
+.contents span { background: #edf1f3; color: var(--muted); border-radius: 4px; padding: 1px 6px; font-size: 10px; margin-left: 5px; }
+.section { padding-top: 36px; scroll-margin-top: 20px; }
+.section-heading { display: flex; justify-content: space-between; align-items: end; gap: 20px; margin-bottom: 18px; }
+.section-heading .eyebrow { margin-bottom: 5px; }
+.section-heading h2 { font-size: 23px; font-weight: 650; color: var(--green); letter-spacing: -.4px; }
+.section-heading > p { font-size: 12px; color: var(--muted); }
+.feature-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.feature {
+  --feature-accent: #08b4d1;
+  padding: 23px 23px 0;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 2px 8px #154d700b;
+}
+.feature:nth-child(2) { --feature-accent: #5d92bb; }
+.feature:nth-child(3) { --feature-accent: #37b594; }
+.feature:nth-child(4) { --feature-accent: #78bf43; }
+.feature:nth-child(5) { --feature-accent: #f5b64c; }
+.feature:nth-child(6) { --feature-accent: #ee9a39; }
+.feature-top { display: flex; justify-content: space-between; align-items: start; gap: 10px; margin-bottom: 18px; }
+.feature-number { font-size: 27px; font-weight: 400; color: #748b97; line-height: 1; font-variant-numeric: tabular-nums; }
+.feature-badges { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; background: var(--soft); font-size: 11px; color: var(--green); font-weight: 600; white-space: nowrap; }
+.feature h3 { font-size: 17px; font-weight: 650; margin-bottom: 12px; line-height: 1.65; }
+.feature > p { font-size: 12px; line-height: 1.9; color: var(--muted); flex: 1; }
+.feature footer { margin: 22px -23px 0; padding: 13px 20px 16px; border-top: 4px solid var(--feature-accent); background: #f8fafb; font-size: 11px; line-height: 1.8; color: #536c78; }
+.feature footer div + div { margin-top: 7px; }
+.label { color: #627984; display: inline-block; min-width: 48px; font-size: 10px; font-weight: 600; }
+.feature-major { background: #f2fbfe; border-color: #79c7d9; box-shadow: inset 0 3px 0 #08b4d1, 0 2px 8px #154d700b; }
+.feature-major .feature-number, .feature-major h3 { color: var(--navy); }
+.feature-major .tag { color: var(--cyan); background: #dff2f7; }
+.feature-major footer { background: #eaf6fa; }
+.major-badge { display: inline-block; white-space: nowrap; background: var(--navy); color: white; border-radius: 4px; padding: 3px 9px; font-size: 10px; font-weight: 650; letter-spacing: .2px; }
+.section-note { color: var(--muted); font-size: 12px; line-height: 1.8; margin: -4px 0 18px; max-width: 850px; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: white; }
+table { border-collapse: collapse; text-align: left; width: 100%; min-width: 690px; font-size: 12px; }
+th, td { padding: 17px 20px; border-bottom: 1px solid #e6edef; vertical-align: top; }
+thead th { font-size: 11px; background: #e3edf2; color: var(--navy); font-weight: 650; }
+tbody th { font-weight: 650; width: 15%; white-space: nowrap; }
+td:nth-child(2) { width: 31%; color: var(--muted); }
+td:nth-child(3) { width: 44%; }
+tr:last-child th, tr:last-child td { border-bottom: 0; }
+tbody tr:nth-child(even) { background: #f5f8f9; }
+tbody tr:hover { background: #edf8fb; }
+.role-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.role-card { background: white; border: 1px solid var(--line); border-top: 3px solid #78bf43; border-radius: 8px; padding: 23px; }
+.role-card:nth-child(2) { border-top-color: #08b4d1; }
+.role-card:nth-child(3) { border-top-color: #f5b64c; }
+.role-card h3 { font-size: 15px; color: var(--green); margin-bottom: 16px; }
+.role-card ol { font-size: 12px; color: var(--muted); }
+.role-card li::marker { font-weight: 700; color: var(--cyan); }
+.boundary { margin-top: 20px; border: 1px solid #ecdcb8; border-left: 3px solid #f5b64c; background: #fffbf3; border-radius: 6px; padding: 22px 26px; }
+.boundary h3 { font-size: 14px; color: #79581e; margin-bottom: 12px; }
+.boundary ul { font-size: 12px; color: #706349; }
+.release-list { border: 1px solid var(--line); border-radius: 8px; background: white; overflow: hidden; }
+.release { border-bottom: 1px solid var(--line); padding: 0 24px; }
+.release:last-child { border-bottom: 0; }
+.release[open] { box-shadow: inset 3px 0 0 #08b4d1; }
+.release summary { display: flex; gap: 25px; align-items: center; cursor: pointer; list-style: none; padding: 23px 0; }
+.release summary::-webkit-details-marker { display: none; }
+.release summary:hover .release-title { color: var(--cyan); }
+.release-date { width: 132px; flex-shrink: 0; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.release-version { display: block; font-size: 10px; color: var(--cyan); margin-top: 4px; }
+.release-title { font-size: 15px; font-weight: 650; flex: 1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.latest { font-size: 10px; color: var(--green); background: var(--soft); border-radius: 4px; padding: 2px 7px; font-weight: 600; }
+.expand { font-size: 24px; color: var(--muted); width: 24px; text-align: center; font-weight: 300; }
+.release[open] .expand { transform: rotate(45deg); }
+.release-body { margin-left: 157px; padding-bottom: 28px; font-size: 13px; color: var(--muted); }
+.release-body > p { margin-bottom: 20px; }
+.change-group { display: grid; grid-template-columns: 50px 1fr; gap: 10px; margin-top: 16px; }
+.change-group h3 { font-size: 11px; color: var(--green); padding-top: 3px; }
+.change-group ul { font-size: 12px; }
+.page-footer { margin-top: 36px; padding: 24px 0; border-top: 1px solid var(--line); display: flex; gap: 20px; justify-content: space-between; color: var(--muted); font-size: 11px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+@media (max-width: 1040px) {
+  .feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .topbar { padding: 12px 20px; }
+  .wordmark-sub { display: none; }
+  .shell { padding: 20px 16px 0; }
+  .hero { padding: 26px 24px 0; }
+  .lead { font-size: 14px; }
+  .hero-meta { gap: 10px; }
+  .hero-bottom { gap: 14px; }
+  .hero-bottom a { font-size: 11px; gap: 6px; }
+  .hero-bottom a > span { display: none; }
+  .contents { gap: 0 20px; padding: 4px 16px; }
+  .contents a { padding: 10px 0 8px; }
+  .section { padding-top: 30px; }
+  .section-heading { display: block; }
+  .section-heading > p { margin-top: 8px; }
+  .section-heading h2 { font-size: 21px; }
+  .feature-grid, .role-grid { grid-template-columns: 1fr; }
+  .release { padding: 0 18px; }
+  .release summary { gap: 12px; align-items: flex-start; }
+  .release-date { width: 90px; font-size: 11px; }
+  .release-title { font-size: 14px; }
+  .release-body { margin-left: 0; }
+  .page-footer { flex-direction: column; gap: 4px; }
+  th, td { padding: 14px; }
+  .boundary { padding: 20px; }
+}
+@media (max-width: 360px) {
+  .topbar { gap: 8px; padding: 12px; }
+  .wordmark { font-size: 15px; gap: 6px; }
+  .download { padding: 6px 8px; font-size: 11px; }
+  .hero { padding: 22px 18px 0; }
+  .hero-bottom { gap: 10px; }
+  .hero-bottom b { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+@media print {
+  html { scroll-behavior: auto; }
+  body { background: white; color: #111; font-size: 11px; }
+  .topbar, .contents, .download, .expand, .skip { display: none; }
+  .shell { max-width: none; padding: 0; }
+  .hero { background: white; color: #111; border: 1px solid #bbb; padding: 20px; box-shadow: none; }
+  .hero-bottom { display: none; }
+  .hero .eyebrow, .lead, .hero-meta, .pill { color: #333; }
+  .hero-meta { margin: 12px 0 0; }
+  .section { padding-top: 24px; }
+  .feature-grid { grid-template-columns: repeat(2, 1fr); }
+  .feature, .role-card, .boundary { break-inside: avoid; box-shadow: none; }
+  .feature { background: white; }
+  .major-badge { background: white; color: #154d70; border: 1px solid #154d70; }
+  .table-wrap { overflow: visible; }
+  table { min-width: 0; }
+  th, td { padding: 8px; }
+  .release { break-inside: avoid; }
+  .release::details-content { content-visibility: visible; }
+  .release > .release-body { display: block !important; }
+  .release summary { padding: 14px 0; }
+  .release-body { margin-left: 0; }
+  .page-footer { margin-top: 24px; }
+  .section-heading h2 { font-size: 20px; }
+  h1 { font-size: 30px; }
+}
 </style>
 </head>
 <body>
@@ -22,9 +222,9 @@
   <h1 id="page-title">版本更新</h1>
   <p class="lead">从项目组合总览，到团队日常协作。统一账号、串联任务与资源，用预算和分析支撑每一次项目决策。</p>
   <div class="hero-meta"><span class="pill">功能说明 · 2026-09-28</span><span>面向管理者与项目执行团队</span></div>
-  <div class="hero-bottom"><span><b>01</b> AI 分析</span><span><b>02</b> 团队协作</span><span><b>03</b> 统一身份</span></div>
+  <div class="hero-bottom"><a href="#features"><b>01</b> AI 分析 <span aria-hidden="true">↗</span></a><a href="#comparison"><b>02</b> 团队协作 <span aria-hidden="true">↗</span></a><a href="#getting-started"><b>03</b> 统一身份 <span aria-hidden="true">↗</span></a></div>
 </section>
-<nav class="contents" aria-label="说明章节"><a href="#features">新功能亮点</a><a href="#comparison">旧新版本对照</a><a href="#getting-started">按角色上手</a><a href="#releases">Release notes <span>5</span></a></nav>
+<nav class="contents" aria-label="说明章节"><a href="#features">新功能亮点</a><a href="#comparison">旧新版本对照</a><a href="#getting-started">按角色上手</a><a href="#releases">Release notes <span>6</span></a></nav>
 <section id="features" class="section" aria-labelledby="features-title">
   <div class="section-heading"><div><p class="eyebrow">FEATURE HIGHLIGHTS</p><h2 id="features-title">这次升级，带来了什么</h2></div><p>找到入口，了解用途，再开始使用。</p></div>
   <div class="feature-grid"><article class="feature feature-major"><div class="feature-top"><span class="feature-number">01</span><div class="feature-badges"><span class="tag">AI 分析</span><span class="major-badge">本次重大升级</span></div></div><h3>把项目和财务数据整理成行动建议</h3><p>新增项目分析与组合财务分析，支持默认提示词、本次关注重点、最近 20 份报告存档和 Markdown 导出。数据变化后提示报告过期，分析结果不直接修改业务数据。</p><footer><div><span class="label">在哪里</span>项目详情 → AI 分析 · 财务 → AI 财务分析</div><div><span class="label">谁能用</span>管理者；组合财务分析限系统管理员 / CMC 负责人</div></footer></article><article class="feature"><div class="feature-top"><span class="feature-number">02</span><div class="feature-badges"><span class="tag">账号与权限</span></div></div><h3>每位成员都有自己的工作视图</h3><p>通过统一身份平台登录，按角色和项目关系展示数据。所有用户都可在设置中修改用户名和密码；管理员可控制是否开放自助注册。</p><footer><div><span class="label">在哪里</span>登录页 · 设置 → 我的账号</div><div><span class="label">谁能用</span>所有成员</div></footer></article><article class="feature"><div class="feature-top"><span class="feature-number">03</span><div class="feature-badges"><span class="tag">任务协作</span></div></div><h3>把今天该做的事集中到一处</h3><p>新增我的看板和跨项目任务清单，可按负责人、状态、优先级及逾期情况筛选。管理者可批量调整状态和负责人，执行人员可更新自己的任务。</p><footer><div><span class="label">在哪里</span>首页 → 我的看板 · 项目 → 任务</div><div><span class="label">谁能用</span>所有成员，操作范围按角色区分</div></footer></article><article class="feature"><div class="feature-top"><span class="feature-number">04</span><div class="feature-badges"><span class="tag">计划与资源</span></div></div><h3>提前看见排期冲突和人员过载</h3><p>联合甘特图汇总多项目时间轴；人员负荷支持 4 / 8 / 12 周热力图和未来 4 周过载预警。推荐负责人结合专业组与负荷，支持对指定任务改派。</p><footer><div><span class="label">在哪里</span>项目 → 甘特图 / 人员负荷</div><div><span class="label">谁能用</span>管理者；执行人员使用单项目甘特视图</div></footer></article><article class="feature"><div class="feature-top"><span class="feature-number">05</span><div class="feature-badges"><span class="tag">风险推演</span></div></div><h3>先看延迟影响，再决定如何调整</h3><p>选定任务与延迟天数，沿依赖链推算受影响任务、关键路径、里程碑和项目完工时间。推演结果供决策参考，不会自动修改原计划。</p><footer><div><span class="label">在哪里</span>项目详情 → 延迟推演</div><div><span class="label">谁能用</span>可访问该项目的成员</div></footer></article><article class="feature"><div class="feature-top"><span class="feature-number">06</span><div class="feature-badges"><span class="tag">预算管理</span></div></div><h3>让任务花费与项目预算使用同一口径</h3><p>项目已花费由任务实际花费自动汇总；系统管理员和 CMC 负责人可维护项目预算、已承诺金额及成本结构，修改保留审计记录。</p><footer><div><span class="label">在哪里</span>项目概览 → 预算与成本 · 财务</div><div><span class="label">谁能用</span>预算编辑限系统管理员 / CMC 负责人</div></footer></article></div>
@@ -42,7 +242,7 @@
 <section id="releases" class="section" aria-labelledby="releases-title">
   <div class="section-heading"><div><p class="eyebrow">RELEASE NOTES</p><h2 id="releases-title">每一次变化，都有记录</h2></div><p>按时间倒序 · 展开查看详情</p></div>
   <p class="section-note">以下名称用于区分功能阶段。历史日期依据代码提交记录整理，不等同于客户环境的上线日期。</p>
-  <div class="release-list"><details class="release" id="release-notes-20260928" open><summary><span class="release-date"><time datetime="2026-09-28">2026-09-28</time><span class="release-version">功能说明更新</span></span><span class="release-title">新增版本更新中心<span class="latest">本次更新</span></span><span class="expand" aria-hidden="true">+</span></summary><div class="release-body"><p>把每次升级的变化留在系统里，方便新成员上手，也便于老用户回看。</p><div class="change-group"><h3>新增</h3><ul><li>左侧导航新增版本更新入口。</li><li>AI 分析置于功能介绍首位，以“本次重大升级”标签重点展示。</li><li>提供新版亮点、旧新功能对照、角色上手指引及功能边界说明。</li><li>支持独立 HTML 阅读、下载和打印；历史更新按时间倒序保留。</li></ul></div></div></details><details class="release" id="iam-20260928" open><summary><span class="release-date"><time datetime="2026-09-28">2026-09-28</time><span class="release-version">IAM 协作版</span></span><span class="release-title">统一账号，贯通任务、资源、预算与分析</span><span class="expand" aria-hidden="true">+</span></summary><div class="release-body"><p>在原有组合总览和项目管理基础上，增加面向不同角色的日常协作能力。</p><div class="change-group"><h3>重大功能</h3><ul><li>项目 / 财务 AI 分析、模型设置、提示词、报告存档及 Markdown 导出。</li></ul></div><div class="change-group"><h3>新增</h3><ul><li>统一登录与退出、可配置的自助注册、用户名和密码自助修改。</li><li>个人看板、跨项目任务筛选和批量操作、多项目联合甘特图。</li><li>人员负荷热力图、过载预警、推荐负责人和任务改派。</li><li>项目延迟推演、项目删除确认流程。</li></ul></div><div class="change-group"><h3>增强</h3><ul><li>项目预算可编辑，预算变更记录修改人及前后值；任务实际花费自动汇总至项目。</li><li>新建项目的总预算默认取任务预算合计，实际花费不再按进度预填演示数值。</li><li>按登录身份约束任务操作及财务、基线数据范围；执行人员不能修改任务预算。</li><li>任务、甘特图、人员负荷收在项目导航分组中，可折叠。</li></ul></div></div></details><details class="release" id="iam-20260629"><summary><span class="release-date"><time datetime="2026-06-29">2026-06-29</time><span class="release-version">IAM 接入记录</span></span><span class="release-title">接入统一身份登录</span><span class="expand" aria-hidden="true">+</span></summary><div class="release-body"><p>开发历史中的 IAM 接入阶段；后续由 IAM 协作版完善登录会话与账号自助能力。</p><div class="change-group"><h3>新增</h3><ul><li>接入 Casdoor OIDC 登录、退出及后端令牌验签。</li></ul></div></div></details><details class="release" id="lite-20260627"><summary><span class="release-date"><time datetime="2026-06-27">2026-06-27</time><span class="release-version">Lite 增强记录</span></span><span class="release-title">完善财务、组织与项目维护</span><span class="expand" aria-hidden="true">+</span></summary><div class="release-body"><p>旧版已经具备的能力，在新版中继续保留。</p><div class="change-group"><h3>新增</h3><ul><li>首页增加财务总览、组织总览。</li><li>任务预算贯通前后端，新增财务版块与 WBS 实际花费列。</li><li>WBS 行内改派负责人，团队成员删除时检查其仍负责的任务。</li></ul></div><div class="change-group"><h3>修复</h3><ul><li>修复 PostgreSQL 下长任务 ID 导致模板导入失败的问题。</li></ul></div></div></details><details class="release" id="lite-20260626"><summary><span class="release-date"><time datetime="2026-06-26">2026-06-26</time><span class="release-version">Lite 初始记录</span></span><span class="release-title">建立研发项目组合管理基础</span><span class="expand" aria-hidden="true">+</span></summary><div class="release-body"><p>围绕 CMC 研发的项目、任务与模板提供管理者总览。</p><div class="change-group"><h3>基础</h3><ul><li>项目组合首页、项目详情、WBS、里程碑、基线与团队视图。</li><li>模板管理与从模板创建项目，后端保存项目与任务数据。</li></ul></div></div></details></div>
+  <div class="release-list"><details class="release" id="visual-refresh-20260928" open><summary><span class="release-date"><time datetime="2026-09-28">2026-09-28</time><span class="release-version">界面焕新</span></span><span class="release-title">深蓝导航与清爽的卡片工作区<span class="latest">本次更新</span></span><span class="expand" aria-hidden="true">+</span></summary><div class="release-body"><p>统一系统首页、导航和版本更新页的视觉语言，让项目数据和操作入口更清晰。</p><div class="change-group"><h3>视觉</h3><ul><li>采用深蓝顶栏、浅灰工作区、白色卡片和青蓝操作色，绿色标识当前导航与内容标题。</li><li>左上角使用迈博药业企业标识，顶部统一为指定的深蓝色 RGB（35, 72, 111）。</li><li>项目组合指标统一使用白底、深色数字与灰色说明，取消彩色底栏；风险与预算状态继续按实际数据展示。</li><li>版本更新页重新设计功能卡片、对照表和更新记录；AI 分析保持首位与“本次重大升级”标签。</li></ul></div><div class="change-group"><h3>体验</h3><ul><li>窄屏使用图标导航，功能说明卡片自动切换为单列。</li><li>增加键盘焦点提示，并保留 HTML 下载、打印和历史记录展开功能。</li></ul></div></div></details><details class="release" id="release-notes-20260928" open><summary><span class="release-date"><time datetime="2026-09-28">2026-09-28</time><span class="release-version">功能说明更新</span></span><span class="release-title">新增版本更新中心</span><span class="expand" aria-hidden="true">+</span></summary><div class="release-body"><p>把每次升级的变化留在系统里，方便新成员上手，也便于老用户回看。</p><div class="change-group"><h3>新增</h3><ul><li>左侧导航新增版本更新入口。</li><li>AI 分析置于功能介绍首位，以“本次重大升级”标签重点展示。</li><li>提供新版亮点、旧新功能对照、角色上手指引及功能边界说明。</li><li>支持独立 HTML 阅读、下载和打印；历史更新按时间倒序保留。</li></ul></div></div></details><details class="release" id="iam-20260928"><summary><span class="release-date"><time datetime="2026-09-28">2026-09-28</time><span class="release-version">IAM 协作版</span></span><span class="release-title">统一账号，贯通任务、资源、预算与分析</span><span class="expand" aria-hidden="true">+</span></summary><div class="release-body"><p>在原有组合总览和项目管理基础上，增加面向不同角色的日常协作能力。</p><div class="change-group"><h3>重大功能</h3><ul><li>项目 / 财务 AI 分析、模型设置、提示词、报告存档及 Markdown 导出。</li></ul></div><div class="change-group"><h3>新增</h3><ul><li>统一登录与退出、可配置的自助注册、用户名和密码自助修改。</li><li>个人看板、跨项目任务筛选和批量操作、多项目联合甘特图。</li><li>人员负荷热力图、过载预警、推荐负责人和任务改派。</li><li>项目延迟推演、项目删除确认流程。</li></ul></div><div class="change-group"><h3>增强</h3><ul><li>项目预算可编辑，预算变更记录修改人及前后值；任务实际花费自动汇总至项目。</li><li>新建项目的总预算默认取任务预算合计，实际花费不再按进度预填演示数值。</li><li>按登录身份约束任务操作及财务、基线数据范围；执行人员不能修改任务预算。</li><li>任务、甘特图、人员负荷收在项目导航分组中，可折叠。</li></ul></div></div></details><details class="release" id="iam-20260629"><summary><span class="release-date"><time datetime="2026-06-29">2026-06-29</time><span class="release-version">IAM 接入记录</span></span><span class="release-title">接入统一身份登录</span><span class="expand" aria-hidden="true">+</span></summary><div class="release-body"><p>开发历史中的 IAM 接入阶段；后续由 IAM 协作版完善登录会话与账号自助能力。</p><div class="change-group"><h3>新增</h3><ul><li>接入 Casdoor OIDC 登录、退出及后端令牌验签。</li></ul></div></div></details><details class="release" id="lite-20260627"><summary><span class="release-date"><time datetime="2026-06-27">2026-06-27</time><span class="release-version">Lite 增强记录</span></span><span class="release-title">完善财务、组织与项目维护</span><span class="expand" aria-hidden="true">+</span></summary><div class="release-body"><p>旧版已经具备的能力，在新版中继续保留。</p><div class="change-group"><h3>新增</h3><ul><li>首页增加财务总览、组织总览。</li><li>任务预算贯通前后端，新增财务版块与 WBS 实际花费列。</li><li>WBS 行内改派负责人，团队成员删除时检查其仍负责的任务。</li></ul></div><div class="change-group"><h3>修复</h3><ul><li>修复 PostgreSQL 下长任务 ID 导致模板导入失败的问题。</li></ul></div></div></details><details class="release" id="lite-20260626"><summary><span class="release-date"><time datetime="2026-06-26">2026-06-26</time><span class="release-version">Lite 初始记录</span></span><span class="release-title">建立研发项目组合管理基础</span><span class="expand" aria-hidden="true">+</span></summary><div class="release-body"><p>围绕 CMC 研发的项目、任务与模板提供管理者总览。</p><div class="change-group"><h3>基础</h3><ul><li>项目组合首页、项目详情、WBS、里程碑、基线与团队视图。</li><li>模板管理与从模板创建项目，后端保存项目与任务数据。</li></ul></div></div></details></div>
 </section>
 <footer class="page-footer"><span>CMC-PMS · 版本更新</span><span>功能随版本持续完善，权限以实际账号为准。</span></footer>
 </main>

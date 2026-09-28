@@ -16,7 +16,7 @@ export function AppLayout() {
             <WifiOff className="w-3.5 h-3.5 shrink-0" /> {notice}
           </div>
         )}
-        <main className="flex-1 overflow-auto">
+        <main className="app-main flex-1 overflow-auto">
           <Outlet />
         </main>
       </div>

@@ -32,7 +32,7 @@ const html = `<!doctype html>
   <h1 id="page-title">${escape(notes.title)}</h1>
   <p class="lead">${escape(notes.intro)}</p>
   <div class="hero-meta"><span class="pill">功能说明 · ${escape(notes.releases[0].date)}</span><span>面向管理者与项目执行团队</span></div>
-  <div class="hero-bottom"><span><b>01</b> AI 分析</span><span><b>02</b> 团队协作</span><span><b>03</b> 统一身份</span></div>
+  <div class="hero-bottom"><a href="#features"><b>01</b> AI 分析 <span aria-hidden="true">↗</span></a><a href="#comparison"><b>02</b> 团队协作 <span aria-hidden="true">↗</span></a><a href="#getting-started"><b>03</b> 统一身份 <span aria-hidden="true">↗</span></a></div>
 </section>
 <nav class="contents" aria-label="说明章节"><a href="#features">新功能亮点</a><a href="#comparison">旧新版本对照</a><a href="#getting-started">按角色上手</a><a href="#releases">Release notes <span>${notes.releases.length}</span></a></nav>
 <section id="features" class="section" aria-labelledby="features-title">
