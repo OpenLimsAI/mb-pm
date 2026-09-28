@@ -33,6 +33,9 @@ backend/.env
 # —— 文档 / 非运行资产（不影响构建）——
 *.md
 docs
+!docs/releases/
+!docs/releases/notes.json
+!docs/releases/style.css
 docx
 **/*.docx
 **/*.xlsx
@@ -46,3 +49,6 @@ id_rsa.*
 id_ed25519
 id_ed25519.*
 *.pem
+
+# 部署目录包含运行配置和凭据，不属于镜像源码。
+deploy

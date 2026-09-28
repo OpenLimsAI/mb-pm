@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, FolderKanban, ListChecks, GanttChartSquare, Gauge, Wallet, Users, Beaker, ChevronDown,
-  Settings2, type LucideIcon,
+  Settings2, BookOpen, type LucideIcon,
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { can, type PermKey } from '../../lib/permissions'
@@ -31,6 +31,7 @@ const navItems: NavItem[] = [
   { to: '/finance',   label: '财务',   icon: Wallet },
   { to: '/org',       label: '组织',   icon: Users },
   { to: '/settings',  label: '设置',   icon: Settings2 },
+  { to: '/release-notes', label: '版本更新', icon: BookOpen },
 ]
 
 // 记住用户收起的分组（仅本浏览器的界面偏好；读写失败时按默认全部展开）

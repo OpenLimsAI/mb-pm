@@ -4,6 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "release-notes": "node scripts/build-release-notes.mjs",
+    "predev": "npm run release-notes",
+    "prebuild": "npm run release-notes",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",

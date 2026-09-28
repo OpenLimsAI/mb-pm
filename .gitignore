@@ -54,3 +54,13 @@ id_rsa.*
 id_ed25519
 id_ed25519.*
 *.pem
+
+# 客户部署凭据与数据库备份
+deploy/**/ACCOUNTS.private.txt
+deploy/**/init_data.json
+deploy/**/app.conf
+deploy/**/tunnel-token
+deploy/**/seed/
+deploy/**/verification.json
+deploy/**/*.private.json
+deploy/**/private-config-backups/

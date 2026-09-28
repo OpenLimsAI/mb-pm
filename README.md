@@ -104,3 +104,15 @@ npm run dev                            # http://localhost:5175
 ```
 
 技术栈：React 19 · TypeScript · Vite · Tailwind CSS v3 · Zustand ｜ FastAPI · SQLAlchemy 2 · SQLite。
+
+## 新功能说明与版本更新
+
+左侧「版本更新」提供新版亮点、旧新功能对照、角色上手指南与历次 Release notes。
+应用内入口为 `/release-notes`；独立 HTML 位于 `public/release-notes.html`，可直接打开、下载和打印。
+
+每次升级在 `docs/releases/notes.json` 中追加记录，执行 `npm run release-notes` 生成 HTML；
+开发启动和生产构建也会自动生成。维护步骤与本次对照依据见 [更新记录维护说明](docs/releases/README.md)。
+
+部署维护请先看 [部署交接简明](docs/部署交接简明.md)：当前环境、修改与发布步骤、验证及回滚。
+
+完整交付说明见 [Release notes](CHANGELOG.md)。

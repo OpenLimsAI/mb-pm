@@ -17,6 +17,7 @@ import Tasks from './pages/Tasks'
 import GanttPage from './pages/Gantt'
 import Workload from './pages/Workload'
 import Settings from './pages/Settings'
+import ReleaseNotes from './pages/ReleaseNotes'
 import { AppLayout } from './components/layout/AppLayout'
 import { RequirePerm } from './components/auth/RequirePerm'
 import { Button } from './components/ui'
@@ -56,6 +57,7 @@ export default function App() {
             <Route path="/finance"               element={<Finance />} />
             <Route path="/org"                   element={<OrgManagement />} />
             <Route path="/settings"              element={<Settings />} />
+            <Route path="/release-notes"         element={<ReleaseNotes />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
