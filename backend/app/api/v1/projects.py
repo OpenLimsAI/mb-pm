@@ -5,7 +5,7 @@
     POST   /api/v1/projects                  创建（admin / cmc_lead）
     GET    /api/v1/projects/{id}             详情
     PATCH  /api/v1/projects/{id}             部分更新（owner 或 admin / cmc_lead）
-    DELETE /api/v1/projects/{id}             删除（admin / cmc_lead）
+    DELETE /api/v1/projects/{id}             删除（admin / cmc_lead，含子项目/任务/依赖/团队/财务/基线）
     PUT    /api/v1/projects/{id}/members     全量替换团队成员
 """
 
@@ -13,12 +13,15 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user, require_role
 from app.db.session import get_db
 from app.models import (
     Project,
+    ProjectAIAnalysis,
+    ProjectBaseline,
     ProjectFinance,
     ProjectMember,
     SubProject,
@@ -33,9 +36,19 @@ from app.schemas.project import (
     ProjectOut,
     ProjectUpdate,
 )
+from app.services.rollup import live_health
 from app.services.scope import visible_project_ids_for
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+def _out(projects: list[Project], db: Session) -> list[ProjectOut]:
+    """构造响应；health 按当天实时派生（services/rollup.live_health），不依赖已存值。"""
+    health = live_health(db, projects)
+    return [
+        ProjectOut.from_orm_with_members(p).model_copy(update={"health": health[p.id]})
+        for p in projects
+    ]
 
 
 def _scoped_filter(stmt, user: User, db: Session):
@@ -61,21 +74,18 @@ def list_projects(
 
     if status_filter:
         stmt = stmt.where(Project.status == status_filter)
-    if health:
-        stmt = stmt.where(Project.health == health)
     if keyword:
         like = f"%{keyword}%"
         stmt = stmt.where(or_(Project.name.ilike(like), Project.code.ilike(like)))
 
-    # 简单 count（生产可改子查询优化）
-    total = db.execute(stmt).unique().scalars().all()
-    total_count = len(total)
-
-    items = total[(page - 1) * page_size : page * page_size]
+    # health 按当天实时派生，故在派生后再按 health 过滤（简单 count，生产可改子查询优化）
+    outs = _out(db.execute(stmt).unique().scalars().all(), db)
+    if health:
+        outs = [o for o in outs if o.health == health]
 
     return Page[ProjectOut](
-        items=[ProjectOut.from_orm_with_members(p) for p in items],
-        meta=PageMeta(page=page, page_size=page_size, total=total_count),
+        items=outs[(page - 1) * page_size : page * page_size],
+        meta=PageMeta(page=page, page_size=page_size, total=len(outs)),
     )
 
 
@@ -104,7 +114,7 @@ def create_project(
 
     db.commit()
     db.refresh(project)
-    return ProjectOut.from_orm_with_members(project)
+    return _out([project], db)[0]
 
 
 @router.post("/import", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
@@ -146,13 +156,14 @@ def import_project(
         db.add(TaskDependency(**d.model_dump()))
 
     if payload.finance is not None:
-        fin = payload.finance.model_dump()
+        # 已花费由任务实际花费实时汇总，不采用请求中的值
+        fin = payload.finance.model_dump(exclude={"spent"})
         fin["project_id"] = project.id  # 以新项目 id 为准
         db.add(ProjectFinance(**fin))
 
     db.commit()
     db.refresh(project)
-    return ProjectOut.from_orm_with_members(project)
+    return _out([project], db)[0]
 
 
 @router.get("/{project_id}", response_model=ProjectOut)
@@ -167,14 +178,13 @@ def get_project(
     if not project:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
 
-    # 行级权限校验
-    if user.role not in ("admin", "cmc_lead"):
-        is_owner = project.owner_id == user.id
-        is_member = any(m.user_id == user.id for m in project.members)
-        if not (is_owner or is_member):
-            raise HTTPException(status.HTTP_403_FORBIDDEN, "no access to this project")
+    # 行级权限校验：与列表同一套可见范围（services/scope.py）
+    if user.role not in ("admin", "cmc_lead") and project.id not in visible_project_ids_for(
+        user, db
+    ):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "no access to this project")
 
-    return ProjectOut.from_orm_with_members(project)
+    return _out([project], db)[0]
 
 
 @router.patch("/{project_id}", response_model=ProjectOut)
@@ -206,7 +216,7 @@ def update_project(
 
     db.commit()
     db.refresh(project)
-    return ProjectOut.from_orm_with_members(project)
+    return _out([project], db)[0]
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -215,11 +225,22 @@ def delete_project(
     db: Session = Depends(get_db),
     user: User = Depends(require_role("admin", "cmc_lead")),
 ):
+    """删除项目，连同子项目 / 任务 / 任务依赖 / 团队关联 / 财务 / 基线 / AI 分析；不删除用户账号。"""
     project = db.query(Project).filter_by(id=project_id).first()
     if not project:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
-    db.delete(project)
-    db.commit()
+    try:
+        # 财务、基线、AI 分析在 Project 上没有 ORM 关系，且 SQLite 默认不执行外键级联：显式删除，避免孤儿行。
+        for model in (ProjectFinance, ProjectBaseline, ProjectAIAnalysis):
+            db.query(model).filter_by(project_id=project.id).delete(synchronize_session=False)
+        # 团队、子项目 → 任务 → 任务依赖 由 ORM cascade 删除。
+        db.delete(project)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "项目仍被其他记录引用，暂时无法删除。"
+        ) from None
 
 
 @router.put("/{project_id}/members", response_model=ProjectOut)
@@ -245,4 +266,4 @@ def replace_members(
         db.add(ProjectMember(project_id=project.id, user_id=mid))
     db.commit()
     db.refresh(project)
-    return ProjectOut.from_orm_with_members(project)
+    return _out([project], db)[0]

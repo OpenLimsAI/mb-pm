@@ -63,7 +63,7 @@ export function Gantt({ project, selectedTaskId, onSelectTask }: Props) {
     return differenceInCalendarDays(d, range.start) * dayW
   }
 
-  // 与全局「今日」锚点一致（演示数据冻结在 2026-05-10），保证今日线位置与逾期判定自洽。
+  // 与全局「今日」（本机当前日期）一致，保证今日线位置与逾期判定自洽。
   const today = TODAY
   const todayX = xOf(today)
   const isTodayInRange = todayX >= 0 && todayX <= totalWidth

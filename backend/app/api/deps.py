@@ -1,75 +1,63 @@
-"""FastAPI 通用依赖：DB 会话 + 当前用户。"""
+"""FastAPI 通用依赖：当前用户（IAM 服务端会话，或严格验签的 Casdoor Bearer token）+ 角色门。
 
-from fastapi import Depends, Header, HTTPException, status
+演示身份头（DemoUser）与本地签发的 HS256 JWT 均已移除，一律返回 401。
+"""
+
+import time
+from urllib.parse import urlsplit
+
+from cryptography.fernet import InvalidToken
+from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.security import (
+    SESSION_COOKIE,
+    decode_access_token,
+    digest,
+    resolve_identity,
+    unseal,
+)
 from app.db.session import get_db
-from app.models import User
+from app.models import IAMSession, User
 
 
-def get_current_user(
-    authorization: str = Header(default="", alias="Authorization"),
-    db: Session = Depends(get_db),
-) -> User:
-    """从 Authorization 头解析 JWT 并返回 User。
-
-    演示模式可绕过：传 `X-Demo-User: <username>` 头部直接登录该用户。
-    """
-    # 演示快捷登录（不能上线）
-    # 注意：真实项目应去掉以下分支
-    return _resolve_demo_or_jwt(authorization, db)
+def require_same_origin(request: Request) -> None:
+    """cookie 认证的写操作要求精确的可信 Origin（含端口；仅靠 SameSite 挡不住同站其他端口）。"""
+    parsed = urlsplit(settings.pms_origin)
+    expected = f"{parsed.scheme}://{parsed.netloc}"
+    if request.headers.get("origin") != expected:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "请求来源验证失败，请从系统入口重新操作")
 
 
-def _resolve_demo_or_jwt(authorization: str, db: Session) -> User:
-    if not authorization:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "missing Authorization header")
-
-    if authorization.startswith("DemoUser "):
-        if settings.APP_ENV != "development":
-            raise HTTPException(
-                status.HTTP_401_UNAUTHORIZED, "DemoUser auth disabled outside development"
-            )
-        username = authorization.removeprefix("DemoUser ").strip()
-        user = db.query(User).filter_by(username=username).first()
-        if not user:
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, f"demo user {username!r} not found")
-        return user
-
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status.HTTP_401_UNAUTHORIZED, "expected Bearer token or DemoUser <username>"
-        )
-
-    token = authorization.removeprefix("Bearer ").strip()
-    from app.core.casdoor import verify_casdoor_token, extract_role
-
-    try:
-        claims = verify_casdoor_token(token)
-    except ValueError:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid or expired token")
-
-    username = claims.get("preferred_username") or claims.get("name")
-    if not username:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "token missing username")
-
-    user = db.query(User).filter_by(username=username).first()
-    if not user:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, f"user {username!r} not provisioned")
-
-    role = extract_role(claims)
-    if role:
-        db.expunge(user)  # 防止本请求 commit 时把角色覆盖持久化到 users 表
-        user.role = role  # Casdoor 为角色唯一来源（仅本请求内覆盖，不落库）
-    return user
+def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
+    authorization = request.headers.get("authorization", "")
+    if authorization:
+        # 直连 API 的客户端：须携带已绑定用户的有效 Casdoor access token。
+        if not authorization.startswith("Bearer "):
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "请使用 IAM 登录，演示身份头已禁用")
+        token = authorization[7:].strip()
+    else:
+        session_id = request.cookies.get(SESSION_COOKIE, "")
+        session = db.get(IAMSession, digest(session_id)) if session_id else None
+        if not session or session.expires_at <= int(time.time()):
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "请先登录 IAM")
+        if request.method not in {"GET", "HEAD", "OPTIONS"}:
+            require_same_origin(request)
+        try:
+            token = unseal(session.tokens)["access_token"]
+        except (InvalidToken, ValueError, KeyError) as exc:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "登录会话已失效") from exc
+    # 每次请求都重新验签并校验组织 / 唯一角色 / 账号启用状态。
+    return resolve_identity(decode_access_token(token), db)
 
 
 def require_role(*roles: str):
-    """工厂：返回一个 dependency，限定调用者必须具备某些角色之一。"""
+    """工厂：返回一个 dependency，限定调用者必须具备某些角色之一（角色来自 IAM）。"""
 
     def _dep(user: User = Depends(get_current_user)) -> User:
         if user.role not in roles:
-            raise HTTPException(status.HTTP_403_FORBIDDEN, f"requires role in {roles}")
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "当前 IAM 角色无权执行此操作")
         return user
 
     return _dep

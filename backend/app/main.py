@@ -14,6 +14,8 @@ from fastapi.staticfiles import StaticFiles
 
 import app.models  # noqa: F401  确保所有 ORM 表注册到 Base.metadata
 from app.api.v1 import (
+    account,
+    ai,
     auth,
     baselines,
     finances,
@@ -55,6 +57,14 @@ _WIDE_ID_COLUMNS: tuple[tuple[str, str], ...] = (
 )
 
 
+# (表, 列, 类型) —— 后来新增、老库里可能缺失的列（create_all 不会给已存在的表补列）。
+_ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
+    ("tasks", "cost_budget", "NUMERIC(12,2)"),
+    ("tasks", "actual_cost", "NUMERIC(12,2)"),
+    ("project_ai_analyses", "prompt", "TEXT NOT NULL DEFAULT ''"),
+)
+
+
 def _ensure_schema() -> None:
     """轻量「迁移」：为已存在的表补齐新增列 / 加宽过窄的 ID 列（无 alembic 时的兜底）。
     create_all 不会改动已存在的表，故老库需要在此处 ALTER。幂等：满足目标则跳过。"""
@@ -62,20 +72,19 @@ def _ensure_schema() -> None:
     from sqlalchemy import text
 
     insp = sa_inspect(engine)
-    if "tasks" not in insp.get_table_names():
-        return  # 新库由 create_all 直接带上新列
-    cols = {c["name"] for c in insp.get_columns("tasks")}
-    for col in ("cost_budget", "actual_cost"):
-        if col not in cols:
+    existing_tables = set(insp.get_table_names())
+    for table, col, ddl in _ADDED_COLUMNS:
+        if table not in existing_tables:
+            continue  # 新库由 create_all 直接带上新列
+        if col not in {c["name"] for c in insp.get_columns(table)}:
             with engine.begin() as conn:
-                conn.execute(text(f"ALTER TABLE tasks ADD COLUMN {col} NUMERIC(12,2)"))
-            logger.info("已为 tasks 表补充 %s 列", col)
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}"))
+            logger.info("已为 %s 表补充 %s 列", table, col)
 
     # —— 加宽组合 ID 列（issue #4）—— #
     # SQLite 不强制 VARCHAR(n) 长度，也不支持 ALTER COLUMN ... TYPE，直接跳过。
     if engine.dialect.name == "sqlite":
         return
-    existing_tables = set(insp.get_table_names())
     for table, col in _WIDE_ID_COLUMNS:
         if table not in existing_tables:
             continue
@@ -133,6 +142,16 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def prevent_auth_response_caching(request, call_next):
+    # API 响应均依赖登录身份：禁止缓存，且不向外泄露 Referer。
+    response = await call_next(request)
+    if request.url.path.startswith("/api/v1/"):
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Referrer-Policy"] = "no-referrer"
+    return response
+
+
 # —— 健康检查 —— #
 @app.get("/health", tags=["meta"])
 def health():
@@ -142,6 +161,7 @@ def health():
 # —— v1 路由 —— #
 API_PREFIX = "/api/v1"
 app.include_router(auth.router, prefix=API_PREFIX)
+app.include_router(account.router, prefix=API_PREFIX)
 app.include_router(users.router, prefix=API_PREFIX)
 app.include_router(projects.router, prefix=API_PREFIX)
 app.include_router(sub_projects.router, prefix=API_PREFIX)
@@ -150,6 +170,7 @@ app.include_router(task_dependencies.router, prefix=API_PREFIX)
 app.include_router(templates.router, prefix=API_PREFIX)
 app.include_router(finances.router, prefix=API_PREFIX)
 app.include_router(baselines.router, prefix=API_PREFIX)
+app.include_router(ai.router, prefix=API_PREFIX)
 
 
 @app.get("/", include_in_schema=False)

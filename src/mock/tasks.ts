@@ -17,9 +17,11 @@ import type {
 import { dmpDrugSubstanceStructure } from './templates-dmp'
 import { projects } from './projects'
 
-// 演示快照锚点：整个 Lite 应用统一以此为「今日」，保证示例数据的状态/进度/
-// 风险判定确定且自洽（首页、模板实例化均复用此常量）。
-export const TODAY = new Date('2026-05-10T00:00:00Z')
+// 「今日」：取本机当前日期（页面加载时确定），整个应用统一以此判定状态 / 进度 / 逾期 / 负荷 / 今日线
+// （首页、模板实例化、离线演示数据均复用此常量）。以「本地日历日的 UTC 零点」表示：
+// toISOString().slice(0, 10) 即本地日期，且与 new Date('YYYY-MM-DD')（UTC 零点）口径一致。
+const NOW = new Date()
+export const TODAY = new Date(Date.UTC(NOW.getFullYear(), NOW.getMonth(), NOW.getDate()))
 const DAY_MS = 86400000
 
 const formatDate = (d: Date): string => d.toISOString().slice(0, 10)

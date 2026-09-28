@@ -1,6 +1,5 @@
 """Pydantic 请求/响应模型 — 与 ORM 解耦，便于版本演进。"""
 
-from app.schemas.auth import LoginRequest, TokenResponse  # noqa: F401
 from app.schemas.common import APIError, Page, PageMeta  # noqa: F401
 from app.schemas.project import (  # noqa: F401
     ProjectCreate,

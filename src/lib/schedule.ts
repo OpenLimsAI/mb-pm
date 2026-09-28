@@ -43,8 +43,8 @@ export function isTaskDone(task: Pick<Task, 'status'>): boolean {
 }
 
 /**
- * 计算任务的排程状态。`today` 默认使用与 mock 数据一致的 TODAY 锚点，
- * 调用方也可显式传入（例如未来接入真实系统时间）。
+ * 计算任务的排程状态。`today` 默认使用全局统一的 TODAY（本机当前日期），
+ * 调用方也可显式传入。
  */
 export function getTaskSchedule(
   task: Pick<Task, 'status' | 'plannedEnd' | 'actualEnd'>,

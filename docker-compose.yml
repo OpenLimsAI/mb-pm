@@ -5,6 +5,10 @@
 #
 # 用法：  docker compose up --build      → 浏览器打开 http://localhost:8080
 # 端口对外避让本机已有服务：app 8080→8000，postgres 5433→5432。
+#
+# 登录走 mb-casd（Casdoor）IAM：先在本目录 .env（或 shell 环境）中设置
+#   APP_SECRET=<≥32 字符随机值>   CASDOOR_CLIENT_SECRET=<Casdoor 应用 mp-pm 的 secret>
+# 以及按需覆盖 CASDOOR_ENDPOINT / CASDOOR_INTERNAL_URL / PMS_PUBLIC_URL（见 README「IAM 登录」）。
 
 services:
   postgres:
@@ -34,11 +38,31 @@ services:
       # 连接独立 postgres 实例（容器网络内主机名为 postgres）
       DATABASE_URL: postgresql+psycopg://cmc:cmc@postgres:5432/cmc_pms
       APP_ENV: production
-      # ⚠️ 生产请改成强随机值
-      APP_SECRET: please-change-me-in-prod
+      # 兼作 IAM 会话令牌加密密钥：≥32 字符强随机值
+      APP_SECRET: ${APP_SECRET:?请在 .env 设置 APP_SECRET（≥32 字符随机值）}
       AUTO_SEED: "true"
       STATIC_DIR: /code/static
-      APP_CORS_ORIGINS: http://localhost:8080
+      APP_CORS_ORIGINS: ${PMS_PUBLIC_URL:-http://localhost:8080}
+      # —— mb-casd / Casdoor IAM —— #
+      # 用户访问本系统的 origin；HTTPS 部署时改为 https://域名 并设 IAM_COOKIE_SECURE=true
+      PMS_PUBLIC_URL: ${PMS_PUBLIC_URL:-http://localhost:8080}
+      IAM_COOKIE_SECURE: ${IAM_COOKIE_SECURE:-false}
+      # 浏览器访问的 IAM 地址（= token issuer）；容器内换 token / 拉 JWKS 走内部地址
+      CASDOOR_ENDPOINT: ${CASDOOR_ENDPOINT:-http://localhost:8000}
+      CASDOOR_INTERNAL_URL: ${CASDOOR_INTERNAL_URL:-http://host.docker.internal:8000}
+      CASDOOR_CLIENT_ID: ${CASDOOR_CLIENT_ID:-mppm-client-id-0001}
+      CASDOOR_CLIENT_SECRET: ${CASDOOR_CLIENT_SECRET:?请在 .env 设置 Casdoor 应用 mp-pm 的 client secret}
+      CASDOOR_ORG: ${CASDOOR_ORG:-mabpharm}
+      # 登录页自助注册：新账号只获得执行层角色（rd / production / qa_qc）
+      IAM_SIGNUP_ENABLED: ${IAM_SIGNUP_ENABLED:-true}
+      IAM_SIGNUP_ROLE: ${IAM_SIGNUP_ROLE:-rd}
+      # AI 设置（含 API Key）放在持久卷里，容器重建不丢失
+      AI_SETTINGS_PATH: /data/ai/ai-settings.json
+    volumes:
+      - ai_settings:/data/ai
+    extra_hosts:
+      # Linux 下让 host.docker.internal 解析到宿主机（Docker Desktop 默认已支持）
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
@@ -47,3 +71,4 @@ services:
 
 volumes:
   cmc_pgdata:
+  ai_settings:

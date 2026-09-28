@@ -3,15 +3,20 @@
 // 3 个项目：P1 早期 / P2 中段 / P3 刚启动 — 反映各自的 spent / committed 状态。
 
 export type FinanceCategory = '人力' | '设备' | '原材料' | '外部服务' | '其他'
+export const FINANCE_CATEGORIES: FinanceCategory[] = ['人力', '设备', '原材料', '外部服务', '其他']
 
 export interface ProjectFinance {
   projectId: string
   totalBudget: number
+  /** 已花费 = 项目全部任务实际花费合计（API 模式由后端汇总；离线演示时本地重算，见 data/bootstrap） */
   spent: number
   committed: number
+  /** 成本结构（手工填报） */
   breakdown: Record<FinanceCategory, number>
-  fiscalYear: string
-  notes?: string
+  fiscalYear: string | null
+  notes?: string | null
+  /** 任务预算合计 */
+  taskBudget?: number
 }
 
 // 预算估算原则：DMP 模板 33 任务累计预算 ~1740 万；考虑到原液工艺开发只占
@@ -88,7 +93,7 @@ export function summarizeFinances(activeProjectIds: string[]): FinanceSummary {
   for (const f of finances) {
     for (const k in byCategory) {
       const cat = k as FinanceCategory
-      byCategory[cat] += f.breakdown[cat]
+      byCategory[cat] += f.breakdown?.[cat] ?? 0
     }
   }
   return {

@@ -44,3 +44,13 @@ backend/.env
 
 # Local editor / harness config (per-developer, not shared)
 .claude/
+
+# AI 设置（含 API Key），仅存后端本机
+backend/.local/
+
+# SSH 私钥等凭据（部署用），切勿提交
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+*.pem

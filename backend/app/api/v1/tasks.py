@@ -8,7 +8,7 @@
     DELETE /api/v1/tasks/{id}                  删除（admin/cmc_lead/project_lead）
 
 权限矩阵参考前端 lib/permissions.ts：
-  admin/cmc_lead/project_lead → 全字段更新
+  admin/cmc_lead/project_lead → 全字段更新（project_lead 仅限自己负责 / 参与的项目）
   rd/production/qa_qc         → 仅能改本人 owner 或 collaborator 的任务
 """
 
@@ -33,6 +33,17 @@ from app.services.scope import (
 )
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
+
+
+# 执行层（rd / production / qa_qc）更新自己任务时不能改的字段 → 提示用名称
+EXECUTOR_PROTECTED = {
+    "owner_id": "负责人",
+    "is_critical_path": "关键路径标记",
+    "is_milestone": "里程碑标记",
+    "planned_start": "计划开始",
+    "planned_end": "计划结束",
+    "cost_budget": "任务预算",
+}
 
 
 def _can_user_modify_task(user: User, task: Task) -> bool:
@@ -158,21 +169,20 @@ def update_task(
             "rd / production / qa_qc 仅能更新自己负责或参与的任务",
         )
 
-    # 限制：执行者不能改 owner / 关键标志 / 里程碑 / 计划日期
+    # project_lead 仅能改自己负责 / 参与的项目内的任务（与新建 / 删除同一口径）
+    if not is_full_access(user) and not is_own_task_only(user):
+        sub = db.query(SubProject).filter_by(id=task.sub_project_id).first()
+        if not sub or sub.project_id not in visible_project_ids_for(user, db):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "no access")
+
+    # 限制：执行者不能改 owner / 关键标志 / 里程碑 / 计划日期 / 任务预算（实际花费可录入）
     if is_own_task_only(user):
-        protected = {
-            "owner_id",
-            "is_critical_path",
-            "is_milestone",
-            "planned_start",
-            "planned_end",
-        }
         provided = payload.model_dump(exclude_unset=True).keys()
-        forbidden = protected & set(provided)
+        forbidden = [label for field, label in EXECUTOR_PROTECTED.items() if field in provided]
         if forbidden:
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,
-                f"executor cannot modify fields: {', '.join(sorted(forbidden))}",
+                f"执行层不能修改任务的{'、'.join(forbidden)}，请联系项目负责人",
             )
 
     old_status = task.status

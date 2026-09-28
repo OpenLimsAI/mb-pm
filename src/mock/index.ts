@@ -30,7 +30,7 @@ export const getProjectTasks = (projectId: string) => {
 export const calcWorkload = (userId: string) => {
   const user = findUser(userId)
   if (!user) return { rate: 0, allocatedHours: 0, availableHours: 40 }
-  const today = TODAY  // 与 mock 任务计划日期共用「今日」锚点（2026-05-10）
+  const today = TODAY  // 全局统一的「今日」（本机当前日期）
   const weekStart = new Date(today)
   weekStart.setDate(today.getDate() - today.getDay() + 1)
   const weekEnd = new Date(weekStart)

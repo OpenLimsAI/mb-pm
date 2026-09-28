@@ -1,12 +1,12 @@
 // 应用引导 + 数据同步 —— 连接前端与 FastAPI 后端。
 //
-// 启动：取 Casdoor access_token → setToken（axios）→ GET /auth/me → 设置 currentUser → 拉取全量数据。
-// 失败：回退到内置 mock 数据（离线只读）。
+// 启动：GET /auth/me 确认 IAM 会话（HttpOnly cookie）→ 拉取当前用户可见范围内的全量数据
+//       填入 mock 运行时数组 → 渲染。未登录 / 身份不可用由 App 的路由守卫处理。
+// 连不上后端（仅本地开发）：回退到内置 mock 数据（离线只读）。
 //
 // Mutations（创建项目 / 录入任务进展）：API 模式走后端并重新同步；mock 模式本地更新。
 
-import { USE_API, setToken, api } from '../api/client'
-import { getAccessToken, login } from '../lib/oidc'
+import { USE_API, asAPIError } from '../api/client'
 import * as projectsApi from '../api/projects'
 import * as subProjectsApi from '../api/subProjects'
 import * as tasksApi from '../api/tasks'
@@ -77,45 +77,88 @@ export async function refreshAllData(): Promise<void> {
 }
 
 let _started = false
+/** 当前运行时数据是按哪个身份（id:role）加载的 —— 身份变化时须整页重载。 */
+let _loadedFor: string | null = null
+
+const identityKey = (u: User | null) => (u ? `${u.id}:${u.role}` : null)
+
+/** 离线演示：以郭主任（CMC 负责人 / 全局视图）身份浏览内置 mock 数据，无需登录。 */
+function enterOfflineMode(notice: string | null): void {
+  hydrateCreatedIntoMock() // 离线：复用本地持久化的新建项目
+  syncOfflineSpent() // 与后端同一规则：已花费 = 任务实际花费合计
+  const cto = users.find((u) => u.id === 'u2') ?? users[0]
+  useAuth.setState({ currentUser: cto, status: 'offline', error: null })
+  const ds = useDataStore.getState()
+  ds.setMode('mock')
+  ds.setNotice(notice)
+  ds.setReady(true)
+}
 
 /** 应用首屏引导（幂等，StrictMode 双调用安全）。 */
 export async function bootstrap(): Promise<void> {
   if (_started) return
   _started = true
-  const ds = useDataStore.getState()
 
   if (!USE_API) {
-    hydrateCreatedIntoMock() // 离线：复用本地持久化的新建项目
-    ds.setMode('mock')
-    ds.setReady(true)
+    enterOfflineMode(null)
     return
   }
 
-  // 鉴权门：未登录 → 跳转 Casdoor 托管登录页，不渲染主应用、不拉数据。
-  // （登录闭环：Casdoor → /callback 完成换取 token → 跳回 '/' 时本函数再以已登录态运行。）
-  const token = await getAccessToken()
-  if (!token) {
-    await login()
+  // 鉴权门：先向后端确认 IAM 会话，未登录不拉任何业务数据。
+  await useAuth.getState().refresh()
+  const { status, currentUser } = useAuth.getState()
+  if (status === 'offline') {
+    console.warn('[bootstrap] 后端不可用，回退到离线 mock 数据')
+    enterOfflineMode('后端未连接 —— 当前为离线只读演示数据。启动后端后刷新即可持久化。')
+    return
+  }
+  if (status !== 'ready') {
+    // 未登录（守卫跳 /login）或身份不可用（守卫展示原因）：允许之后重新引导。
+    _started = false
     return
   }
 
   try {
-    setToken(token)
-    const me = await api.get('/auth/me')   // 后端用 Casdoor JWKS 验签（Task 6）
-    useAuth.getState().setCurrentUser(me.data as User)
     await refreshAllData()
+    _loadedFor = identityKey(currentUser)
+    const ds = useDataStore.getState()
     ds.setMode('api')
     ds.setReady(true)
   } catch (e) {
-    console.warn('[bootstrap] 后端不可用，回退到离线 mock 数据：', e)
-    hydrateCreatedIntoMock()
-    ds.setMode('mock')
-    ds.setNotice('后端未连接 —— 当前为离线只读演示数据。启动后端后刷新即可持久化。')
-    ds.setReady(true)
+    _started = false
+    const { status: code, detail } = asAPIError(e)
+    // 401 已由拦截器转为未登录态；其他错误交给守卫展示。
+    if (code !== 401) useAuth.setState({ status: 'error', error: `数据加载失败：${detail}` })
   }
 }
 
+/**
+ * 窗口重新获得焦点时复核 IAM 会话：过期 → 未登录态（守卫跳登录页）；
+ * 已换成别的账号 / 角色 → 整页重载，避免残留上一身份可见范围内的数据。返回取消监听函数。
+ */
+export function watchIdentity(): () => void {
+  const onFocus = () => {
+    if (useDataStore.getState().mode !== 'api') return
+    void useAuth.getState().refresh().then(() => {
+      const { status, currentUser } = useAuth.getState()
+      if (status === 'ready' && identityKey(currentUser) !== _loadedFor) window.location.reload()
+    })
+  }
+  window.addEventListener('focus', onFocus)
+  return () => window.removeEventListener('focus', onFocus)
+}
+
 // ============= Mutations =============
+
+/**
+ * 删除项目（仅 API 模式，后端限 admin / cmc_lead）：后端级联删除子项目 / 任务 / 依赖 /
+ * 团队关联 / 财务 / 基线，随后整体重新同步。离线演示数据不支持删除。
+ */
+export async function deleteProjectEntry(projectId: string): Promise<void> {
+  if (useDataStore.getState().mode !== 'api') throw new Error('离线演示数据不支持删除项目')
+  await projectsApi.deleteProject(projectId)
+  await refreshAllData()
+}
 
 /** 创建项目（API：整包写后端 + 重新同步；mock：本地持久化）。返回新项目 id。 */
 export async function createProjectBundle(bundle: ProjectBundle): Promise<string> {
@@ -131,8 +174,46 @@ export async function createProjectBundle(bundle: ProjectBundle): Promise<string
     return dto.id
   }
   useProjectsStore.getState().createProject(bundle)
+  syncOfflineSpent(bundle.project.id)
   useDataStore.getState().bump()
   return bundle.project.id
+}
+
+/**
+ * 设置 / 修改项目预算（admin / cmc_lead）：总预算、已承诺、成本结构、财年、备注。
+ * 已花费不在此维护 —— 始终是任务实际花费合计。API：PUT 后重新同步；离线：改运行时数组。
+ */
+export async function updateProjectFinanceEntry(projectId: string, input: financesApi.ProjectFinanceInput): Promise<void> {
+  if (useDataStore.getState().mode === 'api') {
+    await financesApi.updateFinance(projectId, input)
+    await refreshAllData()
+    return
+  }
+  const entry: ProjectFinance = {
+    projectId,
+    totalBudget: input.totalBudget,
+    spent: 0,
+    committed: input.committed,
+    breakdown: input.breakdown as ProjectFinance['breakdown'],
+    fiscalYear: input.fiscalYear,
+    notes: input.notes,
+  }
+  const index = projectFinances.findIndex((f) => f.projectId === projectId)
+  if (index >= 0) projectFinances[index] = entry
+  else projectFinances.push(entry)
+  syncOfflineSpent(projectId)
+  useDataStore.getState().bump()
+}
+
+/** 离线演示：按运行时任务重算项目的已花费 / 任务预算合计（API 模式由后端汇总，不走这里）。 */
+function syncOfflineSpent(projectId?: string): void {
+  for (const f of projectFinances) {
+    if (projectId && f.projectId !== projectId) continue
+    const subIds = new Set(subProjects.filter((s) => s.projectId === f.projectId).map((s) => s.id))
+    const projTasks = tasks.filter((t) => subIds.has(t.subProjectId))
+    f.spent = Math.round(projTasks.reduce((a, t) => a + (t.actualCost ?? 0), 0) * 100) / 100
+    f.taskBudget = Math.round(projTasks.reduce((a, t) => a + (t.costBudget ?? 0), 0) * 100) / 100
+  }
 }
 
 export interface TaskProgressPatch {
@@ -157,6 +238,34 @@ export async function updateTaskProgress(taskId: string, patch: TaskProgressPatc
   }
   applyLocalTaskUpdate(taskId, patch)
   useDataStore.getState().bump()
+}
+
+export interface BatchUpdateResult {
+  updated: number
+  failed: { taskId: string; detail: string }[]
+}
+
+/**
+ * 批量更新任务（全局任务页的批量改状态 / 改负责人）。
+ * API：逐条 PATCH（每条都会在后端汇总项目进度，串行避免并发汇总互相覆盖），单条失败不中断，
+ * 全部完成后统一重新同步一次；mock：本地更新 + 汇总。
+ */
+export async function updateTasksBatch(taskIds: string[], patch: TaskProgressPatch): Promise<BatchUpdateResult> {
+  const failed: BatchUpdateResult['failed'] = []
+  if (useDataStore.getState().mode === 'api') {
+    for (const id of taskIds) {
+      try {
+        await tasksApi.updateTask(id, patch as never)
+      } catch (e) {
+        failed.push({ taskId: id, detail: asAPIError(e).detail })
+      }
+    }
+    await refreshAllData()
+  } else {
+    for (const id of taskIds) applyLocalTaskUpdate(id, patch)
+    useDataStore.getState().bump()
+  }
+  return { updated: taskIds.length - failed.length, failed }
 }
 
 /** 离线 mock 模式：本地更新任务并向上汇总子项目 + 项目进度。 */
@@ -185,6 +294,7 @@ function recomputeRollupForSub(subProjectId: string): void {
     ? Math.round(projTasks.reduce((a, x) => a + x.progress, 0) / projTasks.length)
     : 0
   proj.health = deriveRollup(projTasks, TODAY).health
+  syncOfflineSpent(proj.id)
 }
 
 // ============= 里程碑设置（新建 / 编辑 / 删除 + 关联任务） =============

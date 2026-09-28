@@ -163,9 +163,6 @@ export function instantiateTemplate(
     const status = statusFor(dates.start, dates.end, !!leaf.isMilestone)
     const sp = template.children![subProjectIdx]
     const prog = progressFor(status, dates.start, dates.end)
-    // 演示用：实际花费按进度比例从成本预算推算（已开始的任务才计花费）
-    const actualCost = leaf.costBudget != null && prog > 0
-      ? Math.round(leaf.costBudget * prog / 100) : undefined
 
     const t: Task = {
       id: taskIdOf(leaf.taskCode!),
@@ -179,7 +176,7 @@ export function instantiateTemplate(
       plannedEnd: formatDate(dates.end),
       estimatedEffort: leaf.defaultEffort || 0,
       costBudget: leaf.costBudget,
-      actualCost,
+      // 实际花费由任务负责人在 WBS 录入（汇总为项目「已花费」），新建时不预填
       progress: prog,
       isMilestone: !!leaf.isMilestone,
       isCriticalPath: !!leaf.isCriticalPath,
