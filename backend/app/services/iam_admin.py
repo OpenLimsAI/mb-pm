@@ -1,4 +1,4 @@
-"""Casdoor 管理接口：自助注册、本人改用户名 / 改密码（仅后端调用）。
+"""Casdoor 管理接口：本人改用户名 / 改密码（仅后端调用）。
 
 以应用的 client id / secret 调用 Casdoor —— 应用凭据在 Casdoor 中具备管理权限，
 所以这里只提供少数几个固定操作，目标一律限定在本组织（CASDOOR_ORG）：
@@ -8,7 +8,6 @@ Casdoor 业务失败时 HTTP 仍为 200、status=error，msg 按 Accept-Language
 """
 
 import logging
-import threading
 
 import httpx
 from fastapi import HTTPException
@@ -16,7 +15,6 @@ from fastapi import HTTPException
 from app.core.config import settings
 
 log = logging.getLogger(__name__)
-_role_lock = threading.Lock()
 
 
 class IAMError(Exception):
@@ -72,69 +70,6 @@ def get_user_by_name(name: str) -> dict | None:
     if isinstance(user, dict) and user.get("owner") == settings.CASDOOR_ORG:
         return user if user.get("name") == name else None
     return None
-
-
-def create_user(subject: str, name: str, display_name: str, email: str, password: str) -> None:
-    """建本组织普通账号。id 由我们生成：即登录后 token 的 sub，也用来认领 / 清理本次创建的账号。"""
-    _call(
-        "POST",
-        "add-user",
-        json={
-            "owner": settings.CASDOOR_ORG,
-            "id": subject,
-            "name": name,
-            "displayName": display_name,
-            "email": email,
-            "password": password,
-            "type": "normal-user",
-            "registerType": "PMS 自助注册",
-        },
-    )
-    created = get_user_by_name(name)
-    if not created or created.get("id") != subject:
-        raise HTTPException(503, "IAM 账号创建结果异常，请联系管理员")
-
-
-def _set_role_member(role: str, name: str, *, present: bool) -> None:
-    """Casdoor 没有「加 / 移单个成员」接口，只能读改写整条角色；本进程内串行化。"""
-    member = _member(name)
-    with _role_lock:
-        data = _call("GET", "get-role", params={"id": _member(role)}).get("data")
-        if (
-            not isinstance(data, dict)
-            or data.get("owner") != settings.CASDOOR_ORG
-            or data.get("name") != role
-        ):
-            raise HTTPException(503, f"IAM 中缺少角色 {role}，请联系管理员")
-        users = [u for u in data.get("users") or [] if u != member]
-        if present:
-            users.append(member)
-        _call("POST", "update-role", params={"id": _member(role)}, json={**data, "users": users})
-
-
-def grant_role(name: str, role: str) -> None:
-    _set_role_member(role, name, present=True)
-
-
-def discard_user(name: str, subject: str, role: str | None = None) -> None:
-    """注册中途失败时清理：只删 id 与本次生成值一致的账号（绝不误删同名的既有账号）。尽力而为，
-    移出角色失败也照样删号。"""
-    try:
-        user = get_user_by_name(name)
-    except Exception:
-        log.exception("无法确认未完成注册的 IAM 账号，请在 IAM 中核对：%s", _member(name))
-        return
-    if not user or user.get("id") != subject:
-        return
-    if role:
-        try:
-            _set_role_member(role, name, present=False)
-        except Exception:
-            log.exception("未能把 %s 移出 IAM 角色 %s，请在 IAM 中核对", _member(name), role)
-    try:
-        _call("POST", "delete-user", json={"owner": settings.CASDOOR_ORG, "name": name})
-    except Exception:
-        log.exception("清理未完成注册的 IAM 账号失败，请在 IAM 中手动删除：%s", _member(name))
 
 
 def verify_password(name: str, password: str) -> None:

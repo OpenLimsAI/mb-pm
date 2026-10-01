@@ -1,4 +1,4 @@
-"""自助注册 + 本人改用户名 / 改密码：用内存版 Casdoor 替身（按 v3 管理接口的真实返回形状），不访问外部 IAM。"""
+"""关闭自助注册 + 本人改用户名 / 改密码：用内存版 Casdoor 替身（按 v3 管理接口的真实返回形状），不访问外部 IAM。"""
 
 import copy
 import time
@@ -9,9 +9,10 @@ import pytest
 
 from app.api.v1 import auth as auth_api
 from app.core import security
-from app.core.config import settings
+from app.core.config import Settings, settings
 from app.db.session import SessionLocal
 from app.models import IAMIdentity, IAMSession, User
+from app.services import iam_admin
 
 ORG = "mabpharm"
 PASSWORD = "Current-pass1"
@@ -170,11 +171,7 @@ class FakeCasdoor:
 def casdoor(client, token_factory, monkeypatch):
     fake = FakeCasdoor()
     monkeypatch.setattr(httpx, "request", fake.request)
-    monkeypatch.setattr(settings, "IAM_SIGNUP_ENABLED", True)
-    monkeypatch.setattr(settings, "IAM_SIGNUP_ROLE", "rd")
-    auth_api._signup_hits.clear()
-    yield fake
-    auth_api._signup_hits.clear()
+    return fake
 
 
 @pytest.fixture
@@ -235,155 +232,54 @@ def open_session(token_factory, user_id, role):
     return sid
 
 
-# —— 自助注册 —— #
+# —— 已停用自助注册 —— #
 
 
-def test_config_reports_signup(client, casdoor, monkeypatch):
-    assert client.get("/api/v1/auth/config").json()["signup_enabled"] is True
-    monkeypatch.setattr(settings, "IAM_SIGNUP_ENABLED", False)
-    assert client.get("/api/v1/auth/config").json()["signup_enabled"] is False
+def test_legacy_signup_settings_cannot_reenable_registration(client, casdoor, monkeypatch):
+    # 兼容旧服务器仍保留的环境变量：加载配置后也不能重新开启本系统注册。
+    monkeypatch.setenv("IAM_SIGNUP_ENABLED", "true")
+    monkeypatch.setenv("IAM_SIGNUP_ROLE", "admin")
+    legacy_settings = Settings(_env_file=None, PMS_PUBLIC_URL="http://pms.test")
+    monkeypatch.setattr(auth_api, "settings", legacy_settings)
+    response = client.get("/api/v1/auth/config")
+    assert response.status_code == 200
+    assert response.json() == {
+        "login_url": "http://pms.test/api/v1/auth/login",
+        "signup_enabled": False,
+    }
+    assert client.post("/api/v1/auth/register", json=registration()).status_code == 410
+    assert casdoor.calls == []
 
 
-def test_register_creates_iam_account_role_and_bound_user(client, casdoor, token_factory):
-    body = registration(username="  New.Colleague-" + uuid4().hex[:4].upper() + " ")
-    response = client.post("/api/v1/auth/register", json=body, headers=origin())
-    assert response.status_code == 201, response.text
-    username = body["username"].strip().lower()
-    assert response.json() == {"username": username, "role": "rd"}
+@pytest.mark.parametrize("request_origin", [None, "http://pms.test", "http://evil.test"])
+@pytest.mark.parametrize("has_payload", [True, False])
+def test_registration_is_retired_without_side_effects(client, casdoor, request_origin, has_payload):
+    body = registration()
+    subject = casdoor.add(body["username"], role="rd")
+    users_before = copy.deepcopy(casdoor.users)
+    roles_before = copy.deepcopy(casdoor.roles)
+    db = SessionLocal()
+    try:
+        counts_before = (db.query(User).count(), db.query(IAMIdentity).count())
+    finally:
+        db.close()
 
-    account = casdoor.users[username]
-    assert account["password"] == body["password"]
-    assert casdoor.roles["rd"]["users"] == [f"{ORG}/{username}"]
-    user = row(User, username=username)
-    assert (user.display_name, user.email, user.role, user.is_active) == (
-        "新同事",
-        body["email"],
-        "rd",
-        True,
+    response = client.post(
+        "/api/v1/auth/register",
+        json=body if has_payload else None,
+        headers={"Origin": request_origin} if request_origin else {},
     )
-    # IAM id 已预绑定：登录后按 sub 直接找到这个业务用户
-    identity = row(IAMIdentity, subject=account["id"])
-    assert identity.issuer == settings.casdoor_issuer and identity.user_id == user.id
-    token = token_factory("rd", sub=account["id"], name=username)
-    me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
-    assert me.status_code == 200 and me.json()["id"] == user.id and me.json()["role"] == "rd"
-
-
-def test_register_requires_trusted_origin_and_enabled_signup(client, casdoor, monkeypatch):
-    assert client.post("/api/v1/auth/register", json=registration()).status_code == 403
-    bad = {"Origin": "http://evil.test"}
-    assert client.post("/api/v1/auth/register", json=registration(), headers=bad).status_code == 403
-    monkeypatch.setattr(settings, "IAM_SIGNUP_ENABLED", False)
-    response = client.post("/api/v1/auth/register", json=registration(), headers=origin())
-    assert response.status_code == 403
-    monkeypatch.setattr(settings, "IAM_SIGNUP_ENABLED", True)
-    # 管理角色不能作为自助注册的默认角色
-    monkeypatch.setattr(settings, "IAM_SIGNUP_ROLE", "admin")
-    response = client.post("/api/v1/auth/register", json=registration(), headers=origin())
-    assert response.status_code == 503
+    assert response.status_code == 410
+    assert response.json()["detail"] == "所有用户信息在iam平台管理"
     assert casdoor.calls == []
-
-
-@pytest.mark.parametrize(
-    "change",
-    [
-        {"username": "ab"},
-        {"username": "bad..name"},
-        {"username": "-lead"},
-        {"username": "trail_"},
-        {"username": "张三"},
-        {"username": "admin"},
-        {"username": "has space"},
-        {"password": "short1"},
-        {"password": "only-letters"},
-        {"password": "1234567890"},
-        {"password": "with space 1"},
-        {"password": "中文密码abc123"},
-        {"email": "not-an-email"},
-        {"display_name": "   "},
-    ],
-)
-def test_register_validation(client, casdoor, change):
-    response = client.post("/api/v1/auth/register", json=registration(**change), headers=origin())
-    assert response.status_code == 422
-    assert casdoor.calls == []
-
-
-def test_register_cannot_claim_existing_business_username_or_email(client, casdoor, iam_user):
-    # 预置但尚未开通 IAM 的业务用户：首次登录按用户名关联，自助注册不能抢注
-    existing = iam_user(f"t-pre.{uuid4().hex[:6]}", "rd")
-    for change in [{"username": existing.upper()}, {"email": f"{existing}@EXAMPLE.com"}]:
-        response = client.post(
-            "/api/v1/auth/register", json=registration(**change), headers=origin()
-        )
-        assert response.status_code == 409
-    assert casdoor.calls == []
-
-
-def test_register_keeps_existing_iam_account_on_conflict(client, casdoor):
-    body = registration()
-    subject = casdoor.add(body["username"])
-    response = client.post("/api/v1/auth/register", json=body, headers=origin())
-    assert response.status_code == 409 and "已存在" in response.json()["detail"]
+    assert casdoor.users == users_before and casdoor.roles == roles_before
     assert casdoor.users[body["username"]]["id"] == subject
-    assert "delete-user" not in casdoor.calls
     assert row(User, username=body["username"]) is None
-
-
-def test_register_rolls_back_iam_account_when_role_assignment_fails(client, casdoor):
-    casdoor.fail["update-role"] = "error"
-    body = registration()
-    response = client.post("/api/v1/auth/register", json=body, headers=origin())
-    assert response.status_code == 503
-    assert body["username"] not in casdoor.users
-    assert row(User, username=body["username"]) is None
-
-
-def test_register_cleans_up_account_when_iam_response_is_lost(client, casdoor):
-    casdoor.fail["add-user"] = "timeout-after-commit"
-    body = registration()
-    response = client.post("/api/v1/auth/register", json=body, headers=origin())
-    assert response.status_code == 503
-    assert body["username"] not in casdoor.users
-    assert row(User, username=body["username"]) is None
-
-
-def test_register_never_deletes_someone_elses_account_on_ambiguous_failure(client, casdoor):
-    body = registration()
-    subject = casdoor.add(body["username"])  # 同名账号（非本次创建）
-    casdoor.fail["add-user"] = "network"
-    response = client.post("/api/v1/auth/register", json=body, headers=origin())
-    assert response.status_code == 503
-    assert casdoor.users[body["username"]]["id"] == subject
-    assert "delete-user" not in casdoor.calls
-
-
-def test_register_rolls_back_iam_account_when_database_insert_fails(
-    client, casdoor, iam_user, monkeypatch
-):
-    body = registration()
-    grant = auth_api.iam_admin.grant_role
-
-    def racing_grant(name, role):
-        grant(name, role)
-        iam_user(body["username"], "rd")  # 并发请求抢先建了同名业务用户
-
-    monkeypatch.setattr(auth_api.iam_admin, "grant_role", racing_grant)
-    response = client.post("/api/v1/auth/register", json=body, headers=origin())
-    assert response.status_code == 409
-    assert body["username"] not in casdoor.users
-    assert casdoor.roles["rd"]["users"] == []
-
-
-def test_register_is_throttled_per_client(client, casdoor, iam_user):
-    taken = iam_user(f"t-taken.{uuid4().hex[:6]}", "rd")
-    codes = [
-        client.post(
-            "/api/v1/auth/register", json=registration(username=taken), headers=origin()
-        ).status_code
-        for _ in range(auth_api.SIGNUP_LIMIT + 1)
-    ]
-    assert codes == [409] * auth_api.SIGNUP_LIMIT + [429]
+    db = SessionLocal()
+    try:
+        assert (db.query(User).count(), db.query(IAMIdentity).count()) == counts_before
+    finally:
+        db.close()
 
 
 # —— 改密码 —— #
@@ -498,14 +394,14 @@ def test_change_username_reverts_iam_rename_when_sync_fails(
 ):
     user_id = member()
     target = new_name()
-    rename = auth_api.iam_admin.rename_user
+    rename = iam_admin.rename_user
 
     def racing_rename(subject, name):
         rename(subject, name)
         if name == target:
             iam_user(target, "rd")  # 并发请求抢先占用了这个业务用户名
 
-    monkeypatch.setattr(auth_api.iam_admin, "rename_user", racing_rename)
+    monkeypatch.setattr(iam_admin, "rename_user", racing_rename)
     body = {"new_username": target, "current_password": PASSWORD}
     response = client.post("/api/v1/account/username", json=body, headers=bearer(user_id, "rd"))
     assert response.status_code == 409 and "已撤销" in response.json()["detail"]

@@ -2,7 +2,6 @@ import { useEffect } from 'react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { AlertTriangle, Beaker, Loader2, LogOut, RotateCw } from 'lucide-react'
 import Login from './pages/Login'
-import Register from './pages/Register'
 import Home from './pages/Home'
 import Projects from './pages/Projects'
 import ProjectDetail from './pages/ProjectDetail'
@@ -29,14 +28,14 @@ import { useDataStore } from './store/data'
 //
 // 路由结构（鉴权门）：
 //   /login       —— 始终可渲染：跳转 mb-casd IAM 登录（授权码 + PKCE 由后端完成）。
-//   /register    —— 始终可渲染：自助注册（后端在 IAM 建号 + 建业务账号），之后走正常登录。
+//   /register    —— 兼容旧链接，回到登录页；账号统一在 IAM 平台开通。
 //   其余所有路由  —— 经 <ReadyGate>：未登录跳 /login；身份不可用显示原因；已登录才拉数据并渲染。
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        <Route path="/register" element={<Navigate to="/login" replace />} />
         <Route element={<ReadyGate />}>
           <Route element={<AppLayout />}>
             <Route path="/"                      element={<Home />} />

@@ -2,8 +2,8 @@
 
 路由：
     GET  /api/v1/auth/login      生成 state / nonce / PKCE，302 到 Casdoor 授权页
-    GET  /api/v1/auth/config     前端获取规范登录入口（保证 cookie 与回调同一 origin）、是否开放注册
-    POST /api/v1/auth/register   自助注册：在 IAM 本组织建号 + 分配执行层默认角色 + 建业务账号
+    GET  /api/v1/auth/config     前端获取规范登录入口（保证 cookie 与回调同一 origin）、兼容旧前端的关闭注册标记
+    POST /api/v1/auth/register   已停用：返回 410，账号由 IAM 平台开通
     GET  /api/v1/auth/callback   校验 state → 换 token → 验签 + nonce → 建立 HttpOnly 会话
     POST /api/v1/auth/logout     销毁业务会话，再跳 Casdoor /api/logout 清 SSO
     GET  /api/v1/auth/me         当前用户（角色取自 IAM）
@@ -12,16 +12,14 @@
 import base64
 import hashlib
 import secrets
-import threading
 import time
 from urllib.parse import urlencode
-from uuid import uuid4
 
 import httpx
 from cryptography.fernet import InvalidToken
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
-from sqlalchemy import delete, func
+from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -37,22 +35,12 @@ from app.core.security import (
     unseal,
 )
 from app.db.session import get_db
-from app.models import IAMIdentity, IAMLogin, IAMSession, User
-from app.schemas.account import RegisterInput
+from app.models import IAMLogin, IAMSession, User
 from app.schemas.user import UserOut
-from app.services import iam_admin
-from app.services.iam_admin import IAMError
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 LOGIN_PAGE = "/login"
-# 自助注册只能得到执行层角色；管理角色（admin / cmc_lead / project_lead）须由 IAM 管理员分配。
-SIGNUP_ROLES = {"rd", "production", "qa_qc"}
-SIGNUP_WINDOW, SIGNUP_LIMIT = 600, 10  # 同一来源 IP 每 10 分钟最多 10 次注册请求
-AVATAR_COLORS = ["#2563eb", "#0ea5e9", "#06b6d4", "#14b8a6", "#10b981", "#22c55e", "#84cc16"]
-AVATAR_COLORS += ["#eab308", "#f59e0b", "#f97316", "#ef4444", "#ec4899", "#a855f7", "#6366f1"]
-_signup_hits: dict[str, list[float]] = {}
-_signup_lock = threading.Lock()
 
 
 def set_cookie(response, name, value, age):
@@ -137,77 +125,15 @@ def config():
     # 规范 origin 下的登录入口：从其他端口 / 主机名进入时也会回到同一 origin，保证 cookie 与回调一致。
     return {
         "login_url": settings.pms_origin + "/api/v1/auth/login",
-        "signup_enabled": settings.IAM_SIGNUP_ENABLED and bool(settings.CASDOOR_CLIENT_SECRET),
+        # 保留兼容字段，旧前端也不能重新开放注册。
+        "signup_enabled": False,
     }
 
 
-def throttle_signup(request: Request) -> None:
-    key = request.client.host if request.client else "-"
-    now = time.monotonic()
-    with _signup_lock:
-        if len(_signup_hits) > 1000:  # 顺带清掉早已过窗的来源，防止无界增长
-            for stale in [k for k, v in _signup_hits.items() if now - v[-1] > SIGNUP_WINDOW]:
-                del _signup_hits[stale]
-        hits = [t for t in _signup_hits.get(key, []) if now - t < SIGNUP_WINDOW]
-        if len(hits) >= SIGNUP_LIMIT:
-            raise HTTPException(429, "注册请求过于频繁，请稍后再试")
-        _signup_hits[key] = [*hits, now]
-
-
-@router.post("/register", status_code=201)
-def register(payload: RegisterInput, request: Request, db: Session = Depends(get_db)):
-    """IAM 账号与业务账号一起建：新账号的 IAM id 预先绑定到新业务用户，登录后直接可用。
-
-    用户名 / 邮箱与已有业务用户（含尚未开通 IAM 的预置用户）冲突即拒绝，杜绝抢注他人账号。
-    任一步失败都回滚：删除本次创建的 IAM 账号，不留半成品。
-    """
-    require_same_origin(request)
-    if not settings.IAM_SIGNUP_ENABLED:
-        raise HTTPException(403, "当前未开放自助注册，请联系管理员开通账号")
-    role = settings.IAM_SIGNUP_ROLE
-    if role not in SIGNUP_ROLES:
-        raise HTTPException(503, "自助注册的默认角色配置无效，请联系管理员")
-    throttle_signup(request)
-    if db.query(User.id).filter(func.lower(User.username) == payload.username).first():
-        raise HTTPException(409, "该用户名已被占用")
-    if db.query(User.id).filter(func.lower(User.email) == payload.email).first():
-        raise HTTPException(409, "该邮箱已被其他账号使用")
-
-    subject = str(uuid4())
-    try:
-        iam_admin.create_user(
-            subject, payload.username, payload.display_name, payload.email, payload.password
-        )
-    except IAMError as exc:  # IAM 拒绝（如同名 / 同邮箱账号已存在），未建号
-        raise HTTPException(409, str(exc)) from exc
-    except HTTPException:  # 结果不明（超时等）：若账号已按本次 id 建出则删掉
-        iam_admin.discard_user(payload.username, subject)
-        raise
-    try:
-        iam_admin.grant_role(payload.username, role)
-        user = User(
-            id=f"u-{uuid4().hex[:10]}",
-            username=payload.username,
-            display_name=payload.display_name,
-            email=payload.email,
-            role=role,
-            weekly_available_hours=40,
-            is_active=True,
-            avatar_color=AVATAR_COLORS[int(digest(payload.username), 16) % len(AVATAR_COLORS)],
-        )
-        db.add(user)
-        db.flush()
-        db.add(IAMIdentity(issuer=settings.casdoor_issuer, subject=subject, user_id=user.id))
-        db.commit()
-    except Exception as exc:
-        db.rollback()
-        iam_admin.discard_user(payload.username, subject, role)
-        if isinstance(exc, IAMError):
-            raise HTTPException(503, "IAM 角色分配失败，请稍后重试") from exc
-        if isinstance(exc, IntegrityError):
-            raise HTTPException(409, "用户名或邮箱已被占用") from exc
-        raise
-    return {"username": payload.username, "role": role}
+@router.post("/register", deprecated=True)
+def register():
+    """旧客户端明确得到停用提示；不再接受注册资料或调用 IAM / 数据库建号。"""
+    raise HTTPException(410, "所有用户信息在iam平台管理")
 
 
 @router.get("/callback")

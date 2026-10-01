@@ -38,7 +38,6 @@ uv pip install --python .venv -r requirements.txt
 | `CASDOOR_ORG` | `mabpharm` | 只接受该组织的账号与角色 |
 | `PMS_PUBLIC_URL` | `http://localhost:5175` | 用户访问本系统的 origin；回调 `{PMS_PUBLIC_URL}/api/v1/auth/callback` |
 | `IAM_SESSION_SECONDS` / `IAM_COOKIE_SECURE` | `3600` / `false` | 会话最长时长；HTTPS 部署须设 `true` |
-| `IAM_SIGNUP_ENABLED` / `IAM_SIGNUP_ROLE` | `true` / `rd` | 登录页自助注册开关；新账号的 IAM 角色（仅限 rd / production / qa_qc） |
 
 ## 数据模型（三级 WBS）
 
@@ -52,7 +51,8 @@ IAM：`IAMIdentity`（issuer + sub ↔ 业务用户，一对一绑定）· `IAMS
   脚本可用已绑定用户的 Casdoor access token（`Authorization: Bearer …`）。每次请求都重新做 RS256 / JWKS 验签，
   并校验 issuer、audience、有效期、组织、唯一角色和本地账号启用状态。
 - **角色只取自 IAM token**（`roles[].name`），不读本地 `users.role`；首次登录按用户名关联**已预置**的业务用户，之后固定按 issuer + sub 绑定。
-- 自助注册与本人改用户名 / 密码经后端调用 Casdoor 管理接口（凭据即应用 client id / secret，在 Casdoor 中具备管理权限，
+- 本系统自助注册已停用，账号由 IAM 平台开通；旧 `IAM_SIGNUP_ENABLED` / `IAM_SIGNUP_ROLE` 配置已移除，不能重新开启注册。
+- 本人改用户名 / 密码经后端调用 Casdoor 管理接口（凭据即应用 client id / secret，在 Casdoor 中具备管理权限，
   因此只开放固定几个操作）：目标一律限定在 `CASDOOR_ORG`；改名 / 改密按当前用户已绑定的 IAM sub 定位账号，
   并先经 Casdoor 校验当前密码。Casdoor 改名时按用户名（不分组织）改写角色成员，若其他组织的角色 / 权限里有同名成员则拒绝自助改名。
 - 删除项目仅 admin / cmc_lead，即使是项目负责人（owner）也不能删除。
@@ -66,8 +66,8 @@ IAM：`IAMIdentity`（issuer + sub ↔ 业务用户，一对一绑定）· `IAMS
 | GET | `/auth/callback` | IAM 回调：换 token、验签、建立会话后回到 `return_to` |
 | POST | `/auth/logout` | 销毁会话并跳 Casdoor 登出 |
 | GET | `/auth/me` | 当前用户（角色来自 IAM） |
-| GET | `/auth/config` | 规范登录入口 `login_url`、是否开放注册 `signup_enabled` |
-| POST | `/auth/register` | 自助注册：IAM 建号 + 默认角色 + 业务成员（预绑定 IAM 身份）；同一来源 10 分钟最多 10 次 |
+| GET | `/auth/config` | 规范登录入口 `login_url`；兼容旧前端的 `signup_enabled` 固定为 `false` |
+| POST | `/auth/register` | 已停用，固定返回 410 和「所有用户信息在iam平台管理」，不创建账号 |
 | POST | `/account/username` | 本人改用户名（需当前密码）：改 IAM 用户名并同步业务成员 |
 | POST | `/account/password` | 本人改密码（需当前密码）：其他设备上的会话一并退出 |
 | GET/POST | `/projects` | 列表 / 创建 |

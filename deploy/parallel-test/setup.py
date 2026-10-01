@@ -195,7 +195,7 @@ def init(tag: str) -> None:
                 "organization": ORG,
                 "cert": "cert-built-in",
                 "enablePassword": True,
-                "enableSignUp": False,  # 自助注册走项目管理后端，不开放 Casdoor 自己的注册页
+                "enableSignUp": False,  # 账号由 IAM 管理员统一开通，不开放自助注册
                 "clientId": client_id,
                 "clientSecret": creds["CASDOOR_CLIENT_SECRET"],
                 "enablePkce": True,

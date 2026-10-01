@@ -66,10 +66,6 @@ class Settings(BaseSettings):
     PMS_PUBLIC_URL: str = "http://localhost:5175"
     IAM_SESSION_SECONDS: int = 3600
     IAM_COOKIE_SECURE: bool = False  # HTTPS 部署必须设为 true
-    # 自助注册：登录页「注册新账号」经后端在 IAM 本组织建号（不开放 Casdoor 自身的注册页）。
-    # 新账号只获得 IAM_SIGNUP_ROLE（仅限执行层角色 rd / production / qa_qc），管理角色须由 IAM 管理员分配。
-    IAM_SIGNUP_ENABLED: bool = True
-    IAM_SIGNUP_ROLE: str = "rd"
 
     @property
     def casdoor_issuer(self) -> str:

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom'
+import { Navigate, useLocation, useSearchParams } from 'react-router-dom'
 import { ArrowRight, LogOut, ShieldCheck } from 'lucide-react'
-import { getAuthConfig } from '../api/auth'
 import { USE_API } from '../api/client'
 import { useAuth } from '../store/auth'
 import { Button } from '../components/ui'
@@ -25,21 +24,11 @@ export default function Login() {
   const errorCode = params.get('error') ?? ''
   const [error, setError] = useState<string | undefined>(errors[errorCode])
   const [pending, setPending] = useState(false)
-  const [signupEnabled, setSignupEnabled] = useState(false)
 
   // 已登录时访问 /login（书签、后退）直接回到系统
   useEffect(() => {
     if (USE_API) void refresh()
   }, [refresh])
-
-  useEffect(() => {
-    if (!USE_API) return
-    let active = true
-    getAuthConfig()
-      .then((config) => { if (active) setSignupEnabled(config.signupEnabled) })
-      .catch(() => undefined) // 连不上时只是不显示注册入口；登录按钮自有报错
-    return () => { active = false }
-  }, [])
 
   if (!USE_API || status === 'ready' || status === 'offline') return <Navigate to="/" replace />
 
@@ -81,12 +70,7 @@ export default function Login() {
           切换账号
         </Button>
       )}
-      {signupEnabled && (
-        <p className="text-sm text-ink-500 text-center mt-6">
-          还没有账号？
-          <Link to="/register" className="text-brand-700 font-medium hover:underline ml-1">注册新账号</Link>
-        </p>
-      )}
+      <p className="text-sm text-ink-500 text-center mt-6">所有用户信息在iam平台管理</p>
     </AuthShell>
   )
 }

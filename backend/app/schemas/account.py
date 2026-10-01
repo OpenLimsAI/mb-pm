@@ -1,8 +1,8 @@
-"""自助注册、本人改用户名 / 改密码的请求体与校验规则（前端 src/lib/account.ts 同步）。"""
+"""本人改用户名 / 改密码的请求体与校验规则（前端 src/lib/account.ts 同步）。"""
 
 import re
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 # 小写字母 / 数字，可用 . _ - 分隔（不连续、不在首尾）；是 Casdoor 用户名规则的子集。
 USERNAME_RE = re.compile(r"[a-z0-9]+(?:[._-][a-z0-9]+)*")
@@ -30,41 +30,6 @@ def check_password(value: str) -> str:
     if not (re.search(r"[A-Za-z]", value) and re.search(r"[0-9]", value)):
         raise ValueError("密码需同时包含字母和数字")
     return value
-
-
-class RegisterInput(BaseModel):
-    username: str = Field(max_length=64)
-    display_name: str = Field(max_length=100)
-    email: EmailStr
-    password: str = Field(max_length=128)
-
-    @field_validator("username")
-    @classmethod
-    def _username(cls, value: str) -> str:
-        return check_username(value)
-
-    @field_validator("display_name")
-    @classmethod
-    def _display_name(cls, value: str) -> str:
-        value = value.strip()
-        if not 1 <= len(value) <= 50:
-            raise ValueError("姓名长度需为 1–50 个字符")
-        if any(ord(c) < 32 or ord(c) == 127 for c in value):
-            raise ValueError("姓名包含无效字符")
-        return value
-
-    @field_validator("email")
-    @classmethod
-    def _email(cls, value: str) -> str:
-        value = value.strip().lower()
-        if len(value) > 120:
-            raise ValueError("邮箱过长")
-        return value
-
-    @field_validator("password")
-    @classmethod
-    def _password(cls, value: str) -> str:
-        return check_password(value)
 
 
 class PasswordChange(BaseModel):

@@ -1,4 +1,4 @@
-// 账号规则（与后端 backend/app/schemas/account.py 保持一致）：注册、改用户名、改密码共用。
+// 账号规则（与后端 backend/app/schemas/account.py 保持一致）：改用户名、改密码共用。
 import axios from 'axios'
 
 export const USERNAME_HINT = '3–32 位小写字母或数字，可用 . _ - 分隔'
@@ -21,13 +21,6 @@ export function passwordProblem(value: string): string | null {
   if (value.length < 8 || value.length > 64) return '密码长度需为 8–64 位'
   if (!/^[\x21-\x7e]+$/.test(value)) return '密码只能由英文字母、数字和符号组成，不能包含空格'
   if (!/[A-Za-z]/.test(value) || !/[0-9]/.test(value)) return '密码需同时包含字母和数字'
-  return null
-}
-
-export function emailProblem(value: string): string | null {
-  const email = value.trim()
-  if (!email) return '请填写邮箱'
-  if (email.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return '邮箱格式不正确'
   return null
 }
 
