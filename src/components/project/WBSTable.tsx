@@ -54,33 +54,20 @@ export function WBSTable({ project, onOpenTask, selectedTaskId }: Props) {
   const [quick, setQuick] = useState<QuickFilter>('all')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
-  const subs = useMemo(
-    () => getProjectSubs(project.id).sort((a, b) => a.sortOrder - b.sortOrder),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [project.id],
-  )
-
-  // 该项目涉及的负责人（用于筛选下拉）
-  const ownerOptions = useMemo(() => {
-    const ids = new Set<string>()
-    subs.forEach((s) => getSubTasks(s.id).forEach((t) => ids.add(t.ownerId)))
-    return users.filter((u) => ids.has(u.id))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subs])
+  // 运行时数组会原地更新；每次数据版本刷新后重新读取，避免缓存旧子项目或负责人。
+  const subs = getProjectSubs(project.id).sort((a, b) => a.sortOrder - b.sortOrder)
+  const ownerIds = new Set(subs.flatMap((s) => getSubTasks(s.id).map((t) => t.ownerId)))
+  const ownerOptions = users.filter((u) => ownerIds.has(u.id))
 
   // 可改派的负责人：在职用户，项目团队（负责人 + 成员）优先分组，便于行内改派
   const teamIds = useMemo(
     () => new Set<string>([project.ownerId, ...(project.memberIds || [])]),
     [project.ownerId, project.memberIds],
   )
-  const { team, others } = useMemo(() => {
-    const active = users.filter((u) => u.isActive !== false)
-    const byName = (a: User, b: User) => a.displayName.localeCompare(b.displayName, 'zh-Hans-CN')
-    return {
-      team: active.filter((u) => teamIds.has(u.id)).sort(byName),
-      others: active.filter((u) => !teamIds.has(u.id)).sort(byName),
-    }
-  }, [teamIds])
+  const active = users.filter((u) => u.isActive !== false)
+  const byName = (a: User, b: User) => a.displayName.localeCompare(b.displayName, 'zh-Hans-CN')
+  const team = active.filter((u) => teamIds.has(u.id)).sort(byName)
+  const others = active.filter((u) => !teamIds.has(u.id)).sort(byName)
 
   const matches = (t: Task): boolean => {
     const kw = keyword.trim().toLowerCase()
@@ -113,7 +100,8 @@ export function WBSTable({ project, onOpenTask, selectedTaskId }: Props) {
   const toggle = (id: string) =>
     setCollapsed((prev) => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
 

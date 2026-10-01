@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { Card, CardBody, Button, Tag, EmptyState } from '../components/ui'
 import { modules, stages, specialtyGroups } from '../mock'
-import type { Module, SpecialtyGroup, Stage, TemplateNode } from '../types'
+import type { Module, SpecialtyGroup, Stage, Template, TemplateNode, TemplateVersion } from '../types'
 import { useTemplatesStore } from '../store/templates'
 import { useDataStore } from '../store/data'
 import { saveTemplateStructure } from '../data/bootstrap'
@@ -28,25 +28,8 @@ type TaskEditorState =
 
 export default function TemplateEditor() {
   const { id } = useParams()
-  const navigate = useNavigate()
-  const mode = useDataStore((s) => s.mode)
   const template = useTemplatesStore((s) => s.templates.find((t) => t.id === id))
   const version = template?.versions.find((v) => v.isCurrent)
-
-  const [draft, setDraft] = useState<TemplateNode | null>(null)
-  const [taskEditor, setTaskEditor] = useState<TaskEditorState | null>(null)
-  const [addingSub, setAddingSub] = useState(false)
-  const [summary, setSummary] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  // 首次加载用当前版本结构初始化草稿
-  useEffect(() => {
-    if (version && !draft) setDraft(cloneTree(version.structureJson))
-  }, [version, draft])
-
-  const codes = useMemo<TaskCodeRef[]>(() => (draft ? allTaskCodes(draft) : []), [draft])
-  const counts = draft ? countStructure(draft) : { subProjects: 0, tasks: 0, milestones: 0 }
 
   if (!template || !version) {
     return (
@@ -55,9 +38,23 @@ export default function TemplateEditor() {
       </div>
     )
   }
-  if (!draft) {
-    return <div className="p-6 text-sm text-ink-500">加载中…</div>
-  }
+
+  // 模板切换时建立新草稿；同一模板刷新时保留未保存的编辑。
+  return <TemplateEditorForm key={template.id} template={template} version={version} />
+}
+
+function TemplateEditorForm({ template, version }: { template: Template; version: TemplateVersion }) {
+  const navigate = useNavigate()
+  const mode = useDataStore((s) => s.mode)
+  const [draft, setDraft] = useState<TemplateNode>(() => cloneTree(version.structureJson))
+  const [taskEditor, setTaskEditor] = useState<TaskEditorState | null>(null)
+  const [addingSub, setAddingSub] = useState(false)
+  const [summary, setSummary] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const codes = useMemo<TaskCodeRef[]>(() => allTaskCodes(draft), [draft])
+  const counts = countStructure(draft)
 
   const subs = draft.children ?? []
   const nextVer = nextVersionNumber(template.currentVersion)

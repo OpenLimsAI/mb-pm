@@ -86,7 +86,7 @@ export function TaskDrawer({ task, onClose }: Props) {
         {/* Body */}
         <div className="flex-1 px-5 py-4 space-y-5">
           {/* 进展录入（核心：可编辑，写入后端并自动汇总到子项目/项目） */}
-          <ProgressEditor task={task} />
+          <ProgressEditor key={task.id} task={task} />
 
           {/* 状态流转 */}
           <Section title="状态流转" icon={<GitBranch className="w-3.5 h-3.5" />}>
@@ -246,8 +246,14 @@ function ProgressEditor({ task }: { task: Task }) {
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
 
-  // task 切换或刷新后，重置表单为最新值
-  useEffect(() => {
+  // 比较字段快照以兼容原地更新；无关刷新保留草稿，有新任务数据时在渲染前同步。
+  const source = JSON.stringify([
+    task.status, task.progress, task.plannedStart, task.plannedEnd,
+    task.actualStart, task.actualEnd, task.actualEffort,
+  ])
+  const [previousSource, setPreviousSource] = useState(source)
+  if (source !== previousSource) {
+    setPreviousSource(source)
     setStatus(task.status)
     setProgress(task.progress)
     setPlannedStart(task.plannedStart)
@@ -257,7 +263,7 @@ function ProgressEditor({ task }: { task: Task }) {
     setActualEffort(task.actualEffort != null ? String(task.actualEffort) : '')
     setSaved(false)
     setError(null)
-  }, [task.id, task.status, task.progress, task.plannedStart, task.plannedEnd, task.actualStart, task.actualEnd, task.actualEffort])
+  }
 
   const onStatus = (s: TaskStatus) => {
     setStatus(s)

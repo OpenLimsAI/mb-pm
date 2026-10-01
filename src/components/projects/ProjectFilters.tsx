@@ -2,25 +2,8 @@ import { Search, X } from 'lucide-react'
 import { productTypes, stages } from '../../mock/dictionaries'
 import { users } from '../../mock/users'
 import type { Health, ProductType, Stage, ProjectStatus } from '../../types'
+import { initialFilters, type FilterState } from '../../lib/projectFilters'
 import { cn } from '../../lib/cn'
-
-export interface FilterState {
-  keyword: string
-  productType: ProductType | 'all'
-  stage: Stage | 'all'
-  health: Health | 'all'
-  ownerId: string | 'all'
-  status: ProjectStatus | 'all'
-}
-
-export const initialFilters: FilterState = {
-  keyword: '',
-  productType: 'all',
-  stage: 'all',
-  health: 'all',
-  ownerId: 'all',
-  status: '活跃',
-}
 
 export function ProjectFilters({
   filters,
