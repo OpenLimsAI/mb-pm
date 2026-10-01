@@ -10,9 +10,9 @@ pydantic==2.9.2
 pydantic-settings==2.6.0
 email-validator==2.2.0
 
-# 认证（JWT；密码哈希用纯 Python 的 pbkdf2，无原生依赖）
+# 认证（mb-casd / Casdoor IAM：RS256 JWT 验签 + 会话令牌加密；httpx 用于换取授权码、拉取 JWKS）
 python-jose[cryptography]==3.3.0
-passlib==1.7.4
+httpx==0.27.2
 python-multipart==0.0.12
 
 # 业务
@@ -27,4 +27,4 @@ psycopg[binary]==3.2.3
 alembic==1.13.3
 
 # —— 可选（按需安装）——
-# 开发/测试：             pytest==8.3.3  httpx==0.27.2  ruff==0.7.0
+# 开发/测试：             pytest==8.3.3  ruff==0.7.0（见 requirements-dev.txt）

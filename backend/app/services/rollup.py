@@ -9,12 +9,11 @@
 
 from datetime import date
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Project, SubProject, Task
 
-# 演示快照锚点 —— 与前端 mock/tasks.ts 的 TODAY 一致，保证 health 判定确定且自洽。
-ANCHOR_TODAY = date(2026, 5, 10)
 _DONE = ("已完成", "已验证")
 
 
@@ -26,8 +25,12 @@ def _status_for(progress: int) -> str:
     return "未开始"
 
 
-def _derive_health(tasks: list[Task], today: date = ANCHOR_TODAY) -> str:
-    """红：有逾期里程碑；黄：有逾期任务或临近(≤14d)里程碑；否则绿。"""
+def _derive_health(tasks: list[Task], today: date | None = None) -> str:
+    """红：有逾期里程碑；黄：有逾期任务或临近(≤14d)里程碑；否则绿。
+
+    today 默认取服务器当天日期（每次调用时读取），与前端「今日」= 本机当前日期同一口径。
+    """
+    today = today or date.today()
 
     def incomplete(t: Task) -> bool:
         return t.status not in _DONE
@@ -45,6 +48,28 @@ def _derive_health(tasks: list[Task], today: date = ANCHOR_TODAY) -> str:
     if overdue_task or near_ms:
         return "yellow"
     return "green"
+
+
+def live_health(db: Session, projects: list[Project]) -> dict[str, str]:
+    """按「当天」实时派生各项目 health（一次查询取回相关任务，不写库）。
+
+    health 依赖日期：即使任务没有变动，里程碑也会随时间逾期 / 临近，已存值会逐日过期。
+    没有任务的项目沿用已存值。
+    """
+    if not projects:
+        return {}
+    rows = db.execute(
+        select(SubProject.project_id, Task)
+        .join(Task, Task.sub_project_id == SubProject.id)
+        .where(SubProject.project_id.in_([p.id for p in projects]))
+    ).all()
+    tasks_by_project: dict[str, list[Task]] = {}
+    for project_id, task in rows:
+        tasks_by_project.setdefault(project_id, []).append(task)
+    return {
+        p.id: _derive_health(tasks_by_project[p.id]) if p.id in tasks_by_project else p.health
+        for p in projects
+    }
 
 
 def recompute_subproject(db: Session, sub_id: str) -> None:

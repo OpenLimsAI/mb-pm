@@ -28,35 +28,68 @@ class Settings(BaseSettings):
     # 留空则纯 API 模式（本地 dev 用 Vite 独立跑前端）。容器镜像里指向 /code/static。
     STATIC_DIR: str = ""
 
+    # —— AI 设置 —— #
+    # 服务商地址 / 模型 / API Key 保存在后端本机文件（0600，不回传浏览器、不进 Git / 镜像）；
+    # 部署时指向持久化、受保护的目录。
+    AI_SETTINGS_PATH: str = ".local/ai-settings.json"
+
     # —— 应用 —— #
     APP_ENV: str = "development"
+    # 同时作为 IAM 会话令牌的加密密钥：须为 ≥32 字符的随机值，否则 IAM 登录返回 503。
     APP_SECRET: str = "change-me"
-    # CTO Lite 前端默认跑在 5175
-    APP_CORS_ORIGINS: str = "http://localhost:5175,http://localhost:5173,http://localhost:5174"
+    # CTO Lite 前端默认跑在 5175，并经同源代理访问 API。会话 cookie 会随跨域凭据请求发送，
+    # 故只放行本系统自己的前端（localhost 的 cookie 不区分端口，勿加入其他本地应用的端口）。
+    APP_CORS_ORIGINS: str = "http://localhost:5175"
 
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.APP_CORS_ORIGINS.split(",") if o.strip()]
 
-    # —— JWT —— #
-    JWT_ALGORITHM: str = "HS256"
-    JWT_ACCESS_EXPIRE_MINUTES: int = 480  # 8 小时
-
     # —— 日志 —— #
     LOG_LEVEL: str = "INFO"
 
-    # —— Casdoor OIDC —— #
-    # CASDOOR_ENDPOINT 用于校验 token 的 issuer（须与 token 的 iss 字节一致，即浏览器侧 http://localhost:8000）。
-    # CASDOOR_JWKS_URL 是后端「拉取」JWKS 的地址，可与 issuer 不同：容器内需用 host.docker.internal
-    # 才能访问宿主机上的 Casdoor。留空则默认 {CASDOOR_ENDPOINT}/.well-known/jwks。
+    # —— mb-casd / Casdoor IAM —— #
+    # 后端完成「授权码 + PKCE」交换，令牌加密存于服务端，浏览器只持有 HttpOnly 会话 cookie。
+    # CASDOOR_ENDPOINT：浏览器可访问的 Casdoor 地址，也是校验 token `iss` 的期望值（须与 iss 字节一致）。
+    # CASDOOR_INTERNAL_URL：后端访问 Casdoor 的地址（换 token / 拉 JWKS），容器内可指向
+    #   host.docker.internal 或内网地址；留空则同 CASDOOR_ENDPOINT。
+    # CASDOOR_JWKS_URL：单独覆盖 JWKS 地址（兼容旧配置）；留空则为 {内部地址}/.well-known/jwks。
     CASDOOR_ENDPOINT: str = "http://localhost:8000"
+    CASDOOR_INTERNAL_URL: str = ""
     CASDOOR_JWKS_URL: str = ""
     CASDOOR_CLIENT_ID: str = "mppm-client-id-0001"
+    CASDOOR_CLIENT_SECRET: str = ""  # 仅后端保存，绝不下发浏览器
     CASDOOR_ORG: str = "mabpharm"
+    # 用户在浏览器中访问本系统的 origin（协议 + 主机 + 端口，不带路径）。
+    # 回调 {PMS_PUBLIC_URL}/api/v1/auth/callback 与登出回跳 {PMS_PUBLIC_URL}/login
+    # 须登记在 Casdoor 应用的 redirectUris 中（localhost / 127.0.0.1 由 Casdoor 免登记放行）。
+    PMS_PUBLIC_URL: str = "http://localhost:5175"
+    IAM_SESSION_SECONDS: int = 3600
+    IAM_COOKIE_SECURE: bool = False  # HTTPS 部署必须设为 true
+
+    @property
+    def casdoor_issuer(self) -> str:
+        return self.CASDOOR_ENDPOINT.rstrip("/")
+
+    @property
+    def casdoor_internal_url(self) -> str:
+        return (self.CASDOOR_INTERNAL_URL or self.CASDOOR_ENDPOINT).rstrip("/")
 
     @property
     def casdoor_jwks_url(self) -> str:
-        return self.CASDOOR_JWKS_URL or f"{self.CASDOOR_ENDPOINT}/.well-known/jwks"
+        return self.CASDOOR_JWKS_URL or f"{self.casdoor_internal_url}/.well-known/jwks"
+
+    @property
+    def casdoor_token_url(self) -> str:
+        return f"{self.casdoor_internal_url}/api/login/oauth/access_token"
+
+    @property
+    def pms_origin(self) -> str:
+        return self.PMS_PUBLIC_URL.rstrip("/")
+
+    @property
+    def iam_callback_url(self) -> str:
+        return f"{self.pms_origin}/api/v1/auth/callback"
 
 
 settings = Settings()

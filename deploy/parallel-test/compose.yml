@@ -1,0 +1,105 @@
+# CMC-PMS Lite 新版「并行测试栈」—— 与现网 mb-pm-app / dikw-* 完全隔离。
+#
+#   pms-db   项目管理数据库（现网 mb_pm 的副本，PostgreSQL 18，与现网同版本）
+#   iam-db   Casdoor 数据库
+#   casdoor  IAM（组织 mabpharm / 应用 mp-pm），仅绑定服务器回环 127.0.0.1:18001
+#   app      新版单镜像（FastAPI 同源托管前端），仅绑定服务器回环 127.0.0.1:18082
+#
+# 不连现网数据库、不加入现网网络、不占用 80/443；验收经 SSH 隧道访问（见 README.md）。
+# 密钥与账号由 setup.py 生成在本目录 .env / app.conf / init_data.json / ACCOUNTS.private.txt（600）。
+
+name: mb-pm-v2
+
+x-pg-health: &pg-health
+  interval: 5s
+  timeout: 3s
+  retries: 30
+
+services:
+  pms-db:
+    image: pgvector/pgvector:0.8.2-pg18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mbpm
+      POSTGRES_PASSWORD: ${PMS_DB_PASSWORD:?run setup.py init first}
+      POSTGRES_DB: mb_pm
+    volumes:
+      - pms_pgdata:/var/lib/postgresql
+    healthcheck:
+      <<: *pg-health
+      test: ["CMD-SHELL", "pg_isready -U mbpm -d mb_pm"]
+    networks: [internal]
+
+  iam-db:
+    image: pgvector/pgvector:0.8.2-pg18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: casdoor
+      POSTGRES_PASSWORD: ${IAM_DB_PASSWORD:?run setup.py init first}
+      POSTGRES_DB: casdoor
+    volumes:
+      - iam_pgdata:/var/lib/postgresql
+    healthcheck:
+      <<: *pg-health
+      test: ["CMD-SHELL", "pg_isready -U casdoor -d casdoor"]
+    networks: [internal]
+
+  casdoor:
+    image: casbin/casdoor:3.100.0
+    restart: unless-stopped
+    command: ["--createDatabase=true"]
+    depends_on:
+      iam-db:
+        condition: service_healthy
+    environment:
+      RUNNING_IN_DOCKER: "true"
+    ports:
+      - "127.0.0.1:18001:8000"
+    volumes:
+      - ./app.conf:/conf/app.conf:ro
+      - ./init_data.json:/init_data.json:ro
+      - ./assets:/files:ro
+    networks: [internal]
+
+  app:
+    image: mb-pm:${PMS_IMAGE_TAG:?run setup.py init first}
+    restart: unless-stopped
+    depends_on:
+      pms-db:
+        condition: service_healthy
+      casdoor:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql+psycopg://mbpm:${PMS_DB_PASSWORD}@pms-db:5432/mb_pm
+      APP_ENV: production
+      APP_SECRET: ${APP_SECRET:?run setup.py init first}
+      AUTO_SEED: "false"            # 使用现网数据副本，绝不灌演示种子
+      STATIC_DIR: /code/static
+      LOG_LEVEL: INFO
+      PMS_PUBLIC_URL: ${PMS_PUBLIC_URL}
+      APP_CORS_ORIGINS: ${PMS_PUBLIC_URL}
+      CASDOOR_ENDPOINT: ${CASDOOR_ENDPOINT}
+      CASDOOR_INTERNAL_URL: http://casdoor:8000
+      CASDOOR_CLIENT_ID: ${CASDOOR_CLIENT_ID}
+      CASDOOR_CLIENT_SECRET: ${CASDOOR_CLIENT_SECRET:?run setup.py init first}
+      CASDOOR_ORG: mabpharm
+      IAM_COOKIE_SECURE: "false"    # 测试经 SSH 隧道走 http；正式切到 HTTPS 域名时改 true
+      AI_SETTINGS_PATH: /data/ai/ai-settings.json
+    volumes:
+      - ai_settings:/data/ai
+    ports:
+      - "127.0.0.1:18082:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks: [internal]
+
+networks:
+  internal: {}
+
+volumes:
+  pms_pgdata:
+  iam_pgdata:
+  ai_settings:

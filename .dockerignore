@@ -33,6 +33,22 @@ backend/.env
 # —— 文档 / 非运行资产（不影响构建）——
 *.md
 docs
+!docs/releases/
+!docs/releases/notes.json
+!docs/releases/style.css
 docx
 **/*.docx
 **/*.xlsx
+
+# AI 设置（含 API Key）不进镜像构建上下文
+**/.local
+
+# SSH 私钥等凭据不进构建上下文
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+*.pem
+
+# 部署目录包含运行配置和凭据，不属于镜像源码。
+deploy

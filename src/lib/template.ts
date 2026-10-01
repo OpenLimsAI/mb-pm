@@ -139,7 +139,7 @@ export interface NodeDiff {
   taskCode?: string
   level: 1 | 2
   isMilestone?: boolean
-  changes?: { field: string; from: any; to: any }[]
+  changes?: { field: string; from: TemplateNode[keyof TemplateNode]; to: TemplateNode[keyof TemplateNode] }[]
 }
 
 export function diffVersions(a: TemplateNode, b: TemplateNode): NodeDiff[] {
@@ -147,7 +147,7 @@ export function diffVersions(a: TemplateNode, b: TemplateNode): NodeDiff[] {
 
   function flatten(root: TemplateNode): { node: TemplateNode; level: 1 | 2; key: string }[] {
     const arr: { node: TemplateNode; level: 1 | 2; key: string }[] = []
-    root.children?.forEach((sub, _i) => {
+    root.children?.forEach((sub) => {
       arr.push({ node: sub, level: 1, key: `L1::${sub.name}` })
       sub.children?.forEach((task) => {
         const key = task.taskCode ? `L2::${sub.name}::${task.taskCode}` : `L2::${sub.name}::${task.name}`
@@ -174,7 +174,7 @@ export function diffVersions(a: TemplateNode, b: TemplateNode): NodeDiff[] {
         isMilestone: av.node.isMilestone,
       })
     } else {
-      const changes: { field: string; from: any; to: any }[] = []
+      const changes: { field: string; from: TemplateNode[keyof TemplateNode]; to: TemplateNode[keyof TemplateNode] }[] = []
       const fields: (keyof TemplateNode)[] = ['name', 'defaultDuration', 'defaultEffort', 'isMilestone', 'defaultRole', 'module']
       for (const f of fields) {
         if (JSON.stringify(av.node[f]) !== JSON.stringify(bv.node[f])) {

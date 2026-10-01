@@ -15,7 +15,7 @@ export function ProjectCard({ project }: { project: Project }) {
       to={`/projects/${project.id}`}
       className="block transition-shadow hover:shadow-card-hover"
     >
-      <Card className="p-4 h-full flex flex-col">
+      <Card className="p-4 h-full flex flex-col border-t-2 border-t-brand-300">
         {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="min-w-0 flex-1">

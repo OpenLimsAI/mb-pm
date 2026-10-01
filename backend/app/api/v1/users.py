@@ -14,7 +14,15 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_role
 from app.db.session import get_db
-from app.models import AuditLog, Project, SubProject, Task, User
+from app.models import (
+    AuditLog,
+    FinanceAIAnalysis,
+    Project,
+    ProjectAIAnalysis,
+    SubProject,
+    Task,
+    User,
+)
 from app.schemas.user import UserCreate, UserOut, UserUpdate
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -105,7 +113,11 @@ def delete_user(
     owns_task = db.query(Task).filter_by(owner_id=user_id).count()
     owns_sub = db.query(SubProject).filter_by(owner_id=user_id).count()
     has_audit = db.query(AuditLog).filter_by(actor_id=user_id).count()
-    if owns_proj or owns_task or owns_sub or has_audit:
+    has_analysis = (
+        db.query(ProjectAIAnalysis).filter_by(created_by=user_id).count()
+        + db.query(FinanceAIAnalysis).filter_by(created_by=user_id).count()
+    )
+    if owns_proj or owns_task or owns_sub or has_audit or has_analysis:
         parts = []
         if owns_proj:
             parts.append(f"{owns_proj} 个项目")
@@ -113,6 +125,8 @@ def delete_user(
             parts.append(f"{owns_task} 个任务")
         if owns_sub:
             parts.append(f"{owns_sub} 个子项目")
+        if has_analysis:
+            parts.append(f"{has_analysis} 份 AI 分析记录")
         detail = "、".join(parts) if parts else "审计记录"
         raise HTTPException(
             status.HTTP_409_CONFLICT,

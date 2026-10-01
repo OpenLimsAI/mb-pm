@@ -20,18 +20,6 @@ export interface Page<T> {
   meta: PageMeta
 }
 
-// ============= Auth =============
-
-export interface LoginRequest {
-  username: string
-}
-
-export interface TokenResponse {
-  accessToken: string
-  tokenType: string
-  user: UserDTO
-}
-
 // ============= User =============
 
 export interface UserDTO {

@@ -3,7 +3,7 @@
 策略：
     admin / cmc_lead   → 看全部
     project_lead       → 自己负责 + 作为成员的项目
-    rd / production    → 仅作为成员的项目（任务级用 owner/collaborator 进一步收窄）
+    rd / production    → 作为成员的项目 ∪ 有本人任务（负责 / 协作）的项目；任务级仍只看本人
     qa_qc              → 同上 + 跨项目"分析方法 / 稳定性"任务可见
 
 调用方式：
@@ -22,6 +22,16 @@ QC_CROSS_MODULES: set[str] = {"分析方法", "稳定性"}
 
 def is_full_access(user: User) -> bool:
     return user.role in ("admin", "cmc_lead")
+
+
+def _own_task_clause(user: User):
+    """本人负责或协作的任务。"""
+    return or_(
+        Task.owner_id == user.id,
+        # collaborator_ids 是通用 JSON 列；用对带引号 token 的文本 LIKE 做成员判断，
+        # 在 SQLite / PostgreSQL 均可（避免 JSON.contains 在 SQLite 上失效）。
+        cast(Task.collaborator_ids, String).like(f'%"{user.id}"%'),
+    )
 
 
 def visible_project_ids_for(user: User, db: Session) -> set[str]:
@@ -46,9 +56,19 @@ def visible_project_ids_for(user: User, db: Session) -> set[str]:
         )
         return ids
 
-    # rd / production / qa_qc：作为成员的项目
+    # rd / production / qa_qc：作为成员的项目 ∪ 有本人任务的项目（与前端 scope.ts 一致：
+    # 否则只被分配了任务、未被加入团队的执行者看得到任务却看不到所属项目 / 子项目）
     member_pids = set(
         db.execute(select(ProjectMember.project_id).where(ProjectMember.user_id == user.id))
+        .scalars()
+        .all()
+    )
+    member_pids |= set(
+        db.execute(
+            select(SubProject.project_id)
+            .join(Task, Task.sub_project_id == SubProject.id)
+            .where(_own_task_clause(user))
+        )
         .scalars()
         .all()
     )
@@ -87,20 +107,7 @@ def visible_task_ids_for(user: User, db: Session) -> set[str]:
         )
 
     # rd / production / qa_qc：本人任务（owner 或 collaborator）
-    own_ids = set(
-        db.execute(
-            select(Task.id).where(
-                or_(
-                    Task.owner_id == user.id,
-                    # collaborator_ids 是通用 JSON 列；用对带引号 token 的文本 LIKE 做成员判断，
-                    # 在 SQLite / PostgreSQL 均可（避免 JSON.contains 在 SQLite 上失效）。
-                    cast(Task.collaborator_ids, String).like(f'%"{user.id}"%'),
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
+    own_ids = set(db.execute(select(Task.id).where(_own_task_clause(user))).scalars().all())
 
     # qa_qc 额外：跨项目分析/稳定性任务
     if user.role == "qa_qc":

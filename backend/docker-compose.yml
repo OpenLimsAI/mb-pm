@@ -23,13 +23,16 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://cmc:cmc@postgres:5432/cmc_pms
       APP_ENV: development
-      # 前端跑在 5175（Vite strictPort）
+      # 兼作 IAM 会话加密密钥（≥32 字符随机值），与 client secret 一起写在 backend/.env 或 shell 环境中
+      APP_SECRET: ${APP_SECRET:?请设置 APP_SECRET（≥32 字符随机值）}
+      # 前端 Vite 跑在 5175，并把 /api 代理到本容器（前端 .env.local：API_PROXY_TARGET=http://localhost:8080）
       APP_CORS_ORIGINS: http://localhost:5175
-      # Casdoor 鉴权：issuer 须与 token 的 iss 一致（浏览器侧 localhost:8000）；
-      # JWKS 拉取走 host.docker.internal 才能从容器访问宿主机上的 Casdoor。
+      PMS_PUBLIC_URL: http://localhost:5175
+      # Casdoor：浏览器与 token issuer 用 localhost:8000；容器内换 token / 拉 JWKS 走 host.docker.internal
       CASDOOR_ENDPOINT: http://localhost:8000
-      CASDOOR_JWKS_URL: http://host.docker.internal:8000/.well-known/jwks
+      CASDOOR_INTERNAL_URL: http://host.docker.internal:8000
       CASDOOR_CLIENT_ID: mppm-client-id-0001
+      CASDOOR_CLIENT_SECRET: ${CASDOOR_CLIENT_SECRET:?请设置 Casdoor 应用 mp-pm 的 client secret}
       CASDOOR_ORG: mabpharm
     extra_hosts:
       # Linux 下让 host.docker.internal 解析到宿主机网关（Docker Desktop/Mac 默认已支持）。

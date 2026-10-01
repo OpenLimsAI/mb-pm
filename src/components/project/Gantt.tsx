@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect } from 'react'
+import { useCallback, useMemo, useState, useRef, useEffect } from 'react'
 import {
   GanttChartSquare, Flame, Diamond, ChevronDown, ChevronRight, GitBranch,
 } from 'lucide-react'
@@ -58,12 +58,12 @@ export function Gantt({ project, selectedTaskId, onSelectTask }: Props) {
     }
   }
 
-  const xOf = (date: Date | string) => {
+  const xOf = useCallback((date: Date | string) => {
     const d = typeof date === 'string' ? parseISO(date) : date
     return differenceInCalendarDays(d, range.start) * dayW
-  }
+  }, [range.start, dayW])
 
-  // 与全局「今日」锚点一致（演示数据冻结在 2026-05-10），保证今日线位置与逾期判定自洽。
+  // 与全局「今日」（本机当前日期）一致，保证今日线位置与逾期判定自洽。
   const today = TODAY
   const todayX = xOf(today)
   const isTodayInRange = todayX >= 0 && todayX <= totalWidth
@@ -77,7 +77,7 @@ export function Gantt({ project, selectedTaskId, onSelectTask }: Props) {
       cur = startOfMonth(addDays(cur, 32))
     }
     return m
-  }, [range.start, range.end, dayW])
+  }, [range.start, range.end, xOf])
 
   // sub 的范围
   const subRange = (sub: SubProject) => {
@@ -107,7 +107,7 @@ export function Gantt({ project, selectedTaskId, onSelectTask }: Props) {
     if (target < el.scrollLeft || target > el.scrollLeft + el.clientWidth - 200) {
       el.scrollTo({ left: target, behavior: 'smooth' })
     }
-  }, [selectedTaskId])
+  }, [selectedTaskId, cpm.byId, xOf])
 
   return (
     <Card className="overflow-hidden">
@@ -164,7 +164,8 @@ export function Gantt({ project, selectedTaskId, onSelectTask }: Props) {
                     onClick={(e) => {
                       e.stopPropagation()
                       const next = new Set(collapsed)
-                      next.has(r.sub.id) ? next.delete(r.sub.id) : next.add(r.sub.id)
+                      if (next.has(r.sub.id)) next.delete(r.sub.id)
+                      else next.add(r.sub.id)
                       setCollapsed(next)
                     }}
                   >

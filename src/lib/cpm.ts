@@ -175,3 +175,65 @@ export function computeCPM(tasks: Task[], deps: TaskDependency[]): CPMResult {
     criticalPathIds,
   }
 }
+
+// 延迟影响推演：给定任务 ID 和延迟天数，递归找出所有受影响的下游任务
+export interface DelayImpact {
+  taskId: string
+  taskName: string
+  taskCode: string
+  shiftDays: number
+  affectsCritical: boolean
+  affectsMilestone: boolean
+  newPlannedEnd: string
+  hops: number
+}
+
+export function simulateDelay(
+  cpm: CPMResult,
+  deps: TaskDependency[],
+  startTaskId: string,
+  delayDays: number
+): DelayImpact[] {
+  const result: DelayImpact[] = []
+  const seen = new Map<string, number>() // id -> max shift
+
+  // 邻接（出边）
+  const out = new Map<string, { id: string; type: DependencyType; lag: number }[]>()
+  cpm.tasks.forEach((t) => out.set(t.id, []))
+  deps.forEach((d) => {
+    if (!out.has(d.predecessorId) || !cpm.byId.has(d.successorId)) return
+    out.get(d.predecessorId)!.push({ id: d.successorId, type: d.type, lag: d.lagDays })
+  })
+
+  // BFS 推演
+  type Frame = { id: string; shift: number; hops: number }
+  const queue: Frame[] = [{ id: startTaskId, shift: delayDays, hops: 0 }]
+  while (queue.length) {
+    const f = queue.shift()!
+    const prevShift = seen.get(f.id) ?? -Infinity
+    if (f.shift <= prevShift) continue
+    seen.set(f.id, f.shift)
+
+    if (f.hops > 0) {
+      const t = cpm.byId.get(f.id)!
+      result.push({
+        taskId: t.id,
+        taskName: t.name,
+        taskCode: t.code,
+        shiftDays: f.shift,
+        affectsCritical: t.isOnCriticalPath,
+        affectsMilestone: t.isMilestone,
+        newPlannedEnd: format(addDays(parseISO(t.plannedEnd), f.shift), 'yyyy-MM-dd'),
+        hops: f.hops,
+      })
+    }
+
+    // 推到下游：FS/SS 通常会传递起点，FF/SF 通常会传递终点
+    for (const s of out.get(f.id) || []) {
+      // 简化模型：所有依赖都将 shift 完整传递（保守估计）
+      queue.push({ id: s.id, shift: f.shift, hops: f.hops + 1 })
+    }
+  }
+
+  return result.sort((a, b) => a.hops - b.hops || b.shiftDays - a.shiftDays)
+}

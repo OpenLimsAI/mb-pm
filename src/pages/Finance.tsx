@@ -1,57 +1,39 @@
 // 财务 —— 组合预算与成本中心（CTO 视角）。
 //
-// 集中所有财务信息：
+//「预算总览」：
 //   §1 组合 KPI —— 总预算 / 已花费 / 已承诺 / 剩余 / 执行率 / 超支项目
-//   §2 预算执行 + 成本结构（按类别）+ 超支项目（原首页「组合预算」迁移至此）
-//   §3 分项目预算明细 —— 每个项目的预算执行 + WBS 任务预算合计（自下而上）
+//   §2 预算执行 + 成本结构（手工填报）+ 超支项目
+//   §3 分项目预算明细 —— 每个项目的预算执行 + 任务预算合计；admin / cmc_lead 可逐项目编辑预算
+//「AI 财务分析」（admin / cmc_lead）：与项目 AI 分析同一套体系的组合财务分析。
 //
-// 数据：运行时 projectFinances（项目级，可持久化）+ 各任务 costBudget（自下而上）。
+// 口径：已花费 = 该项目全部任务实际花费合计（后端实时汇总，不含内部人力）；
+//       总预算 / 已承诺 / 成本结构为项目级填报。
 
-import { useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Wallet, CheckCircle2, AlertTriangle, ChevronRight } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Wallet, CheckCircle2, AlertTriangle, ChevronRight, Pencil, Sparkles, LayoutGrid, type LucideIcon } from 'lucide-react'
 import {
   projects, getProjectFinance, getProjectTasks,
   summarizeFinances, executionRate, isOverBudget,
 } from '../mock'
 import { useDataStore } from '../store/data'
+import { useAuth } from '../store/auth'
+import { can } from '../lib/permissions'
 import { Card, CardHeader, CardBody, Tag, HealthTag } from '../components/ui'
+import { FinanceEditDialog } from '../components/finance/FinanceEditDialog'
+import { FinanceAIAnalysis } from '../components/finance/FinanceAIAnalysis'
 import { cn } from '../lib/cn'
+import type { Project } from '../types'
 
 const fmt = (v: number) => `¥${Math.round(v).toLocaleString('zh-CN')}万`
 const CATS = ['人力', '设备', '原材料', '外部服务', '其他'] as const
 
 export default function Finance() {
-  const navigate = useNavigate()
-  const version = useDataStore((s) => s.version)
-
-  const data = useMemo(() => {
-    // 全部项目（含新建）→ 关联财务 + 自下而上的任务预算合计
-    const rows = projects
-      .map((p) => {
-        const f = getProjectFinance(p.id)
-        const tasks = getProjectTasks(p.id)
-        const taskBudget = tasks.reduce((a, t) => a + (t.costBudget ?? 0), 0)
-        const taskCost = tasks.reduce((a, t) => a + (t.actualCost ?? 0), 0)
-        return { p, f, taskBudget, taskCost }
-      })
-      .sort((a, b) => (b.f?.totalBudget ?? 0) - (a.f?.totalBudget ?? 0))
-
-    const summary = summarizeFinances(projects.map((p) => p.id))
-    const taskBudgetTotal = rows.reduce((a, r) => a + r.taskBudget, 0)
-    const taskCostTotal = rows.reduce((a, r) => a + r.taskCost, 0)
-    const cats = CATS
-      .map((c) => ({ cat: c, val: summary.byCategory[c] }))
-      .filter((x) => x.val > 0)
-      .sort((a, b) => b.val - a.val)
-    const overBudget = rows.filter((r) => r.f && isOverBudget(r.f))
-    return { rows, summary, taskBudgetTotal, taskCostTotal, cats, overBudget }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [version])
-
-  const { summary } = data
-  const spentPct = summary.totalBudget ? (summary.totalSpent / summary.totalBudget) * 100 : 0
-  const commitPct = summary.totalBudget ? (summary.totalCommitted / summary.totalBudget) * 100 : 0
+  const role = useAuth((s) => s.currentUser?.role)
+  const canAI = can(role, 'ai.finance')
+  const [params, setParams] = useSearchParams()
+  const tab = canAI && params.get('tab') === 'ai' ? 'ai' : 'overview'
+  const select = (next: 'overview' | 'ai') => setParams(next === 'ai' ? { tab: 'ai' } : {}, { replace: true })
 
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-6">
@@ -61,14 +43,77 @@ export default function Finance() {
           <Wallet className="w-6 h-6 text-brand-600" />财务
         </h1>
         <p className="text-sm text-ink-500 mt-1">
-          组合预算与成本中心 —— 项目级预算执行（自上而下）与 WBS 任务预算（自下而上，来自模板）。
+          组合预算与成本中心 —— 已花费 = 各项目任务实际花费合计（WBS 录入，不含内部人力）；总预算、已承诺、成本结构由系统管理员 / CMC 负责人维护。
         </p>
       </div>
+
+      {canAI && (
+        <div role="tablist" aria-label="财务视图" className="flex gap-1 border-b border-ink-300/60">
+          <TabButton icon={LayoutGrid} active={tab === 'overview'} onClick={() => select('overview')}>预算总览</TabButton>
+          <TabButton icon={Sparkles} active={tab === 'ai'} onClick={() => select('ai')}>AI 财务分析</TabButton>
+        </div>
+      )}
+      {tab === 'ai' ? <FinanceAIAnalysis /> : <FinanceOverview />}
+    </div>
+  )
+}
+
+function TabButton({ icon: Icon, active, onClick, children }: { icon: LucideIcon; active: boolean; onClick: () => void; children: string }) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={cn(
+        '-mb-px px-3 py-2 text-sm flex items-center gap-2 border-b-2 transition-colors',
+        active ? 'border-brand-600 text-brand-700 font-medium' : 'border-transparent text-ink-600 hover:text-ink-900',
+      )}
+    >
+      <Icon className="w-4 h-4" />{children}
+    </button>
+  )
+}
+
+function FinanceOverview() {
+  const navigate = useNavigate()
+  const version = useDataStore((s) => s.version)
+  const canEdit = can(useAuth((s) => s.currentUser?.role), 'finance.edit')
+  const [editing, setEditing] = useState<Project | null>(null)
+
+  const data = useMemo(() => {
+    // 全部可见项目 → 关联预算 + 任务预算合计（后端汇总优先；无预算记录时按可见任务计算）
+    const rows = projects
+      .map((p) => {
+        const f = getProjectFinance(p.id)
+        const taskBudget = f?.taskBudget ?? getProjectTasks(p.id).reduce((a, t) => a + (t.costBudget ?? 0), 0)
+        return { p, f, taskBudget }
+      })
+      .sort((a, b) => (b.f?.totalBudget ?? 0) - (a.f?.totalBudget ?? 0))
+
+    const summary = summarizeFinances(projects.map((p) => p.id))
+    const taskBudgetTotal = rows.reduce((a, r) => a + r.taskBudget, 0)
+    const cats = CATS
+      .map((c) => ({ cat: c, val: summary.byCategory[c] }))
+      .filter((x) => x.val > 0)
+      .sort((a, b) => b.val - a.val)
+    const catTotal = cats.reduce((a, x) => a + x.val, 0)
+    const overBudget = rows.filter((r) => r.f && isOverBudget(r.f))
+    return { rows, summary, taskBudgetTotal, cats, catTotal, overBudget }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [version])
+
+  const { summary } = data
+  const spentPct = summary.totalBudget ? (summary.totalSpent / summary.totalBudget) * 100 : 0
+  const commitPct = summary.totalBudget ? (summary.totalCommitted / summary.totalBudget) * 100 : 0
+
+  return (
+    <div className="space-y-6">
 
       {/* §1 KPI */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <Stat label="组合总预算" value={fmt(summary.totalBudget)} tone="blue" />
-        <Stat label="已花费" value={fmt(summary.totalSpent)} sub={`${summary.totalBudget ? Math.round(summary.totalSpent / summary.totalBudget * 100) : 0}% of 预算`} tone="indigo" />
+        <Stat label="已花费" value={fmt(summary.totalSpent)} sub={`${summary.totalBudget ? Math.round(summary.totalSpent / summary.totalBudget * 100) : 0}% of 预算 · 任务实际花费合计`} tone="indigo" />
         <Stat label="已承诺" value={fmt(summary.totalCommitted)} tone="amber" />
         <Stat label="剩余" value={fmt(summary.remaining)} tone={summary.remaining < 0 ? 'red' : 'emerald'} />
         <Stat label="执行率" value={`${summary.executionRate}%`} tone={summary.overBudgetCount > 0 ? 'red' : 'emerald'} />
@@ -102,10 +147,11 @@ export default function Finance() {
 
             {/* 成本结构 */}
             <div>
-              <div className="text-xs text-ink-500 mb-2">成本结构（按类别）</div>
+              <div className="text-xs text-ink-500 mb-2">成本结构（手工填报）</div>
+              {data.cats.length === 0 && <div className="text-xs text-ink-400">未填报</div>}
               <div className="space-y-1.5">
                 {data.cats.map(({ cat, val }) => {
-                  const pct = summary.totalSpent ? Math.round((val / summary.totalSpent) * 100) : 0
+                  const pct = data.catTotal ? Math.round((val / data.catTotal) * 100) : 0
                   return (
                     <div key={cat} className="flex items-center gap-2">
                       <span className="text-xs text-ink-700 w-16 shrink-0">{cat}</span>
@@ -146,7 +192,7 @@ export default function Finance() {
       <Card>
         <CardHeader
           title="分项目预算明细"
-          subtitle="点击行进入项目详情 · WBS 任务预算为各任务成本预算（模板 costBudget）合计"
+          subtitle={`点击行进入项目详情 · 任务预算合计为各任务成本预算之和${canEdit ? ' · 点击铅笔图标编辑项目预算' : ''}`}
         />
         <CardBody className="p-0 overflow-x-auto">
           <table className="w-full text-sm border-collapse min-w-[920px]">
@@ -158,16 +204,14 @@ export default function Finance() {
                 <th className="text-right font-medium px-3 py-2 w-[110px]">已承诺</th>
                 <th className="text-left font-medium px-3 py-2 w-[160px]">执行率</th>
                 <th className="text-right font-medium px-3 py-2 w-[110px]">剩余</th>
-                <th className="text-right font-medium px-3 py-2 w-[110px]">WBS 任务预算</th>
-                <th className="text-right font-medium px-3 py-2 w-[110px]">WBS 任务花费</th>
-                <th className="w-8" />
+                <th className="text-right font-medium px-3 py-2 w-[110px]">任务预算合计</th>
+                <th className="w-16" />
               </tr>
             </thead>
             <tbody>
-              {data.rows.map(({ p, f, taskBudget, taskCost }) => {
+              {data.rows.map(({ p, f, taskBudget }) => {
                 const over = f ? isOverBudget(f) : false
                 const rate = f ? executionRate(f) : 0
-                const taskOver = taskCost > taskBudget
                 return (
                   <tr
                     key={p.id}
@@ -198,8 +242,22 @@ export default function Finance() {
                       {f ? fmt(f.totalBudget - f.spent - f.committed) : '—'}
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums text-amber-700">{taskBudget > 0 ? fmt(taskBudget) : '—'}</td>
-                    <td className={cn('px-3 py-2.5 text-right tabular-nums', taskOver ? 'text-red-600 font-medium' : 'text-rose-600')}>{taskCost > 0 ? fmt(taskCost) : '—'}</td>
-                    <td className="px-2 text-ink-300"><ChevronRight className="w-4 h-4" /></td>
+                    <td className="px-2">
+                      <div className="flex items-center justify-end gap-1 text-ink-300">
+                        {canEdit && (
+                          <button
+                            type="button"
+                            className="p-1 rounded text-ink-500 hover:text-brand-700 hover:bg-brand-50"
+                            title={f ? '编辑项目预算' : '设置项目预算'}
+                            aria-label={`${f ? '编辑' : '设置'}「${p.name}」的项目预算`}
+                            onClick={(e) => { e.stopPropagation(); setEditing(p) }}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <ChevronRight className="w-4 h-4" />
+                      </div>
+                    </td>
                   </tr>
                 )
               })}
@@ -213,7 +271,6 @@ export default function Finance() {
                 <td className="px-3 py-2.5 text-[11px] text-ink-500">执行率 {summary.executionRate}%</td>
                 <td className="px-3 py-2.5 text-right tabular-nums">{fmt(summary.remaining)}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums text-amber-700">{fmt(data.taskBudgetTotal)}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-rose-600">{fmt(data.taskCostTotal)}</td>
                 <td />
               </tr>
             </tfoot>
@@ -223,8 +280,9 @@ export default function Finance() {
 
       <p className="text-[11px] text-ink-400 flex items-center gap-1">
         <AlertTriangle className="w-3 h-3" />
-        项目级预算（总预算/已花费/已承诺）为财务口径；WBS 任务预算/花费来自各任务（成本预算 vs 实际录入），可在「项目 → WBS」行内调整。
+        已花费按各任务在「项目 → WBS」录入的实际花费自动汇总（不含内部人力）；任务预算由项目负责人及以上在 WBS 维护，执行层只录入实际花费。
       </p>
+      {editing && <FinanceEditDialog project={editing} finance={getProjectFinance(editing.id)} onClose={() => setEditing(null)} />}
     </div>
   )
 }

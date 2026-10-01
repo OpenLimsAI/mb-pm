@@ -61,6 +61,12 @@ export default function ProjectCreate() {
   const originalTaskCount = selectedVersion ? countLeafTasks(selectedVersion.structureJson).tasks : 0
   const modified = !!draft && draftTaskCount !== originalTaskCount
 
+  // 项目总预算（万元）：默认 = 任务预算合计，与「已花费 = 任务实际花费合计」同口径；null = 用默认值
+  const [budgetDraft, setBudgetDraft] = useState<string | null>(null)
+  const suggestedBudget = Math.round(sumCost(effectiveStructure) * 100) / 100
+  const budgetValue = budgetDraft === null ? suggestedBudget : budgetDraft.trim() === '' ? NaN : Number(budgetDraft)
+  const budgetInvalid = !Number.isFinite(budgetValue) || budgetValue < 0 || budgetValue > 99_999_999
+
   // 进入第 3 步：首次或换模板时，用模板结构初始化草稿（同模板返回不丢失已编辑内容）
   const enterStep3 = () => {
     if (selectedVersion && draftVersionId !== selectedVersion.id) {
@@ -150,8 +156,8 @@ export default function ProjectCreate() {
         description,
         progress: rollup.progress,
       }
-      // 估算总预算：原液工艺开发约占全 BLA 流程预算 25%，故 ×4 近似项目总预算
-      const totalBudget = Math.round(sumCost(structure) * 4)
+      // 总预算：默认为任务预算合计（第 3 步可修改）；已花费由任务实际花费自动汇总
+      const totalBudget = Math.round(budgetValue * 100) / 100
       const finance = {
         projectId,
         totalBudget,
@@ -338,6 +344,26 @@ export default function ProjectCreate() {
               {draftTaskCount === 0 && (
                 <div className="mt-2 text-xs text-red-600">请至少保留 1 个任务再创建项目。</div>
               )}
+
+              <div className="mt-4 grid sm:grid-cols-[220px_1fr] gap-3 items-start">
+                <label className="text-sm space-y-1.5">
+                  <span className="font-medium text-ink-900">项目总预算（万元）</span>
+                  <input
+                    className={cn('input tabular-nums', budgetInvalid && 'border-red-400')}
+                    inputMode="decimal"
+                    value={budgetDraft ?? String(suggestedBudget)}
+                    onChange={(e) => setBudgetDraft(e.target.value)}
+                  />
+                  {budgetInvalid && <span className="block text-xs text-red-600">请输入 0–99,999,999 之间的金额</span>}
+                </label>
+                <p className="text-xs text-ink-500 leading-relaxed sm:mt-7">
+                  默认为任务预算合计 ¥{suggestedBudget.toLocaleString('zh-CN')}万（外包 / 耗材 / CRO 等，不含内部人力）。
+                  已花费将按任务实际花费自动汇总；创建后系统管理员或 CMC 负责人可在项目概览中调整预算与已承诺。
+                  {budgetDraft !== null && (
+                    <button type="button" className="ml-1 text-brand-700 hover:underline" onClick={() => setBudgetDraft(null)}>恢复默认</button>
+                  )}
+                </p>
+              </div>
             </div>
           )}
 
@@ -388,7 +414,7 @@ export default function ProjectCreate() {
                 <Button
                   variant="primary"
                   onClick={() => (step === 3 ? handleCreate() : step === 2 ? enterStep3() : setStep((s) => (s + 1) as Step))}
-                  disabled={(step === 1 && !step1Valid) || (step === 2 && !step2Valid) || (step === 3 && draftTaskCount === 0) || creating}
+                  disabled={(step === 1 && !step1Valid) || (step === 2 && !step2Valid) || (step === 3 && (draftTaskCount === 0 || budgetInvalid)) || creating}
                   icon={<ArrowRight className="w-4 h-4" />}
                 >
                   {step === 3 ? (creating ? '创建中…' : '确认创建') : '下一步'}

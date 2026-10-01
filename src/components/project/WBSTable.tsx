@@ -19,6 +19,8 @@ import { Card, CardBody, Avatar } from '../ui'
 import { getProjectSubs, getSubTasks, findUser, users, TODAY } from '../../mock'
 import { updateTaskProgress, type TaskProgressPatch } from '../../data/bootstrap'
 import { useDataStore } from '../../store/data'
+import { useAuth } from '../../store/auth'
+import { can } from '../../lib/permissions'
 import { getTaskSchedule, isTaskDone, scheduleToneText } from '../../lib/schedule'
 import { cn } from '../../lib/cn'
 
@@ -52,33 +54,20 @@ export function WBSTable({ project, onOpenTask, selectedTaskId }: Props) {
   const [quick, setQuick] = useState<QuickFilter>('all')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
-  const subs = useMemo(
-    () => getProjectSubs(project.id).sort((a, b) => a.sortOrder - b.sortOrder),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [project.id],
-  )
-
-  // 该项目涉及的负责人（用于筛选下拉）
-  const ownerOptions = useMemo(() => {
-    const ids = new Set<string>()
-    subs.forEach((s) => getSubTasks(s.id).forEach((t) => ids.add(t.ownerId)))
-    return users.filter((u) => ids.has(u.id))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subs])
+  // 运行时数组会原地更新；每次数据版本刷新后重新读取，避免缓存旧子项目或负责人。
+  const subs = getProjectSubs(project.id).sort((a, b) => a.sortOrder - b.sortOrder)
+  const ownerIds = new Set(subs.flatMap((s) => getSubTasks(s.id).map((t) => t.ownerId)))
+  const ownerOptions = users.filter((u) => ownerIds.has(u.id))
 
   // 可改派的负责人：在职用户，项目团队（负责人 + 成员）优先分组，便于行内改派
   const teamIds = useMemo(
     () => new Set<string>([project.ownerId, ...(project.memberIds || [])]),
     [project.ownerId, project.memberIds],
   )
-  const { team, others } = useMemo(() => {
-    const active = users.filter((u) => u.isActive !== false)
-    const byName = (a: User, b: User) => a.displayName.localeCompare(b.displayName, 'zh-Hans-CN')
-    return {
-      team: active.filter((u) => teamIds.has(u.id)).sort(byName),
-      others: active.filter((u) => !teamIds.has(u.id)).sort(byName),
-    }
-  }, [teamIds])
+  const active = users.filter((u) => u.isActive !== false)
+  const byName = (a: User, b: User) => a.displayName.localeCompare(b.displayName, 'zh-Hans-CN')
+  const team = active.filter((u) => teamIds.has(u.id)).sort(byName)
+  const others = active.filter((u) => !teamIds.has(u.id)).sort(byName)
 
   const matches = (t: Task): boolean => {
     const kw = keyword.trim().toLowerCase()
@@ -111,7 +100,8 @@ export function WBSTable({ project, onOpenTask, selectedTaskId }: Props) {
   const toggle = (id: string) =>
     setCollapsed((prev) => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
 
@@ -280,6 +270,8 @@ function WBSRow({ task, onOpenTask, selected, team, others }: {
 }) {
   const owner = findUser(task.ownerId)
   const ownerInList = team.some((u) => u.id === task.ownerId) || others.some((u) => u.id === task.ownerId)
+  // 任务预算只由项目负责人及以上维护；执行层只录入实际花费（后端同样拦截）
+  const canEditBudget = can(useAuth((s) => s.currentUser?.role), 'task.budget.edit')
   const isMilestone = task.isMilestone
   const schedule = getTaskSchedule(task, TODAY)
   const [rowState, setRowState] = useState<RowState>('idle')
@@ -449,19 +441,25 @@ function WBSRow({ task, onOpenTask, selected, team, others }: {
         )}
       </td>
 
-      {/* 预算（万元，行内可改；空=未设置） */}
+      {/* 预算（万元；项目负责人及以上行内可改，空=未设置；执行层只读） */}
       <td className="px-2 py-1.5">
         <div className="flex items-center justify-end gap-0.5">
-          <input
-            type="number" min={0} step={5}
-            value={budgetDraft}
-            placeholder="—"
-            onChange={(e) => setBudgetDraft(e.target.value)}
-            onBlur={commitBudget}
-            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
-            className="h-7 w-16 px-1 text-xs text-right rounded border border-transparent hover:border-ink-300 focus:border-brand-400 focus:bg-white focus:outline-none tabular-nums placeholder:text-ink-300"
-            title="成本预算（万元）"
-          />
+          {canEditBudget ? (
+            <input
+              type="number" min={0} step={5}
+              value={budgetDraft}
+              placeholder="—"
+              onChange={(e) => setBudgetDraft(e.target.value)}
+              onBlur={commitBudget}
+              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+              className="h-7 w-16 px-1 text-xs text-right rounded border border-transparent hover:border-ink-300 focus:border-brand-400 focus:bg-white focus:outline-none tabular-nums placeholder:text-ink-300"
+              title="成本预算（万元）"
+            />
+          ) : (
+            <span className="h-7 w-16 px-1 text-xs text-right tabular-nums text-ink-600 leading-7" title="任务预算由项目负责人及以上维护">
+              {task.costBudget ?? <span className="text-ink-300">—</span>}
+            </span>
+          )}
         </div>
       </td>
 

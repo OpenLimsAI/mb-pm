@@ -1,7 +1,7 @@
 """ProjectBaselines API —— 计划基线快照与版本对标。
 
 路由：
-    GET    /api/v1/baselines               全部基线（CTO 组合视角）
+    GET    /api/v1/baselines               当前用户可见项目的基线（admin / cmc_lead 为全部）
     POST   /api/v1/baselines               设立基线（后端按当前 DB 状态构建快照）
     DELETE /api/v1/baselines/{id}
 """
@@ -16,8 +16,15 @@ from app.api.deps import get_current_user, require_role
 from app.db.session import get_db
 from app.models import Project, ProjectBaseline, ProjectFinance, SubProject, Task, User
 from app.schemas.baseline import BaselineCreate, BaselineOut
+from app.services.scope import is_full_access, visible_project_ids_for
 
 router = APIRouter(prefix="/baselines", tags=["baselines"])
+
+
+def _ensure_project_visible(user: User, db: Session, project_id: str) -> None:
+    """project_lead 只能管理自己负责 / 参与的项目的基线。"""
+    if not is_full_access(user) and project_id not in visible_project_ids_for(user, db):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "project not visible")
 
 
 def _build_snapshot(db: Session, project: Project) -> dict:
@@ -56,7 +63,10 @@ def list_baselines(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    rows = db.query(ProjectBaseline).order_by(ProjectBaseline.created_at.desc()).all()
+    q = db.query(ProjectBaseline)
+    if not is_full_access(user):
+        q = q.filter(ProjectBaseline.project_id.in_(visible_project_ids_for(user, db)))
+    rows = q.order_by(ProjectBaseline.created_at.desc()).all()
     return [BaselineOut.model_validate(b) for b in rows]
 
 
@@ -69,6 +79,7 @@ def create_baseline(
     project = db.query(Project).filter_by(id=payload.project_id).first()
     if not project:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+    _ensure_project_visible(user, db, project.id)
 
     obj = ProjectBaseline(
         id=f"bl-{uuid4().hex[:10]}",
@@ -94,5 +105,6 @@ def delete_baseline(
     obj = db.query(ProjectBaseline).filter_by(id=baseline_id).first()
     if not obj:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "baseline not found")
+    _ensure_project_visible(user, db, obj.project_id)
     db.delete(obj)
     db.commit()

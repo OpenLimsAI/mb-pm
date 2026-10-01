@@ -1,22 +1,27 @@
 import { ArrowLeft, Calendar, FileText, User } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import type { Project } from '../../types'
 import { Card, HealthTag, Tag, Avatar } from '../ui'
 import { findUser, templates as allTemplates } from '../../mock'
 import { getProjectSummary } from '../../lib/analytics'
 import { cn } from '../../lib/cn'
+import { DeleteProjectButton } from './DeleteProjectButton'
 
 export function ProjectHeader({ project }: { project: Project }) {
+  const navigate = useNavigate()
   const owner = findUser(project.ownerId)
   const summary = getProjectSummary(project)
   const template = allTemplates.find((t) => t.id === project.templateId)
 
   return (
     <Card className="p-5">
-      {/* 返回 */}
-      <Link to="/projects" className="inline-flex items-center gap-1 text-xs text-ink-500 hover:text-ink-900 mb-3">
-        <ArrowLeft className="w-3 h-3" /> 返回项目列表
-      </Link>
+      {/* 返回 + 删除（仅系统管理员 / CMC 负责人可见） */}
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <Link to="/projects" className="inline-flex items-center gap-1 text-xs text-ink-500 hover:text-ink-900">
+          <ArrowLeft className="w-3 h-3" /> 返回项目列表
+        </Link>
+        <DeleteProjectButton project={project} onDeleted={() => navigate('/projects', { replace: true })} />
+      </div>
 
       <div className="flex items-start gap-6">
         {/* 主体信息 */}

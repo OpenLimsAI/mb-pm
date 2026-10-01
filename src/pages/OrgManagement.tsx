@@ -3,7 +3,7 @@
 // 入口：左侧导航「组织」。可新增成员、停用/启用、删除（仍负责项目/任务的成员受守卫保护，
 // 提示先停用或转移负责人）。写操作走 data/bootstrap（API：后端持久化；离线：本地 mock）。
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import {
   Users, Search, UserPlus, Power, Trash2, Loader2, AlertTriangle, X, ShieldCheck, BadgeCheck,
 } from 'lucide-react'
@@ -36,29 +36,23 @@ export default function OrgManagement() {
   const [actionError, setActionError] = useState<string | null>(null)
 
   // 引用集合：仍承担工作的成员不可硬删除
-  const referencedIds = useMemo(() => {
-    const s = new Set<string>()
-    projects.forEach((p) => { if (p.ownerId) s.add(p.ownerId) })
-    subProjects.forEach((sp) => { if (sp.ownerId) s.add(sp.ownerId) })
-    tasks.forEach((t) => { s.add(t.ownerId); t.collaboratorIds?.forEach((c) => s.add(c)) })
-    return s
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [useDataStore.getState().version])
+  // 数据版本订阅触发渲染后直接读取运行时数组，保持删除守卫和筛选结果同步。
+  const referencedIds = new Set<string>()
+  projects.forEach((p) => { if (p.ownerId) referencedIds.add(p.ownerId) })
+  subProjects.forEach((sp) => { if (sp.ownerId) referencedIds.add(sp.ownerId) })
+  tasks.forEach((t) => { referencedIds.add(t.ownerId); t.collaboratorIds?.forEach((c) => referencedIds.add(c)) })
 
-  const filtered = useMemo(() => {
-    const kw = keyword.trim().toLowerCase()
-    return users
-      .filter((u) => {
-        if (kw && !`${u.displayName} ${u.username} ${u.email}`.toLowerCase().includes(kw)) return false
-        if (roleFilter !== 'all' && u.role !== roleFilter) return false
-        if (groupFilter !== 'all' && u.specialtyGroup !== groupFilter) return false
-        if (activeFilter === 'active' && !u.isActive) return false
-        if (activeFilter === 'inactive' && u.isActive) return false
-        return true
-      })
-      .sort((a, b) => Number(b.isActive) - Number(a.isActive) || a.displayName.localeCompare(b.displayName))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [keyword, roleFilter, groupFilter, activeFilter, useDataStore.getState().version])
+  const kw = keyword.trim().toLowerCase()
+  const filtered = users
+    .filter((u) => {
+      if (kw && !`${u.displayName} ${u.username} ${u.email}`.toLowerCase().includes(kw)) return false
+      if (roleFilter !== 'all' && u.role !== roleFilter) return false
+      if (groupFilter !== 'all' && u.specialtyGroup !== groupFilter) return false
+      if (activeFilter === 'active' && !u.isActive) return false
+      if (activeFilter === 'inactive' && u.isActive) return false
+      return true
+    })
+    .sort((a, b) => Number(b.isActive) - Number(a.isActive) || a.displayName.localeCompare(b.displayName))
 
   const activeCount = users.filter((u) => u.isActive).length
 

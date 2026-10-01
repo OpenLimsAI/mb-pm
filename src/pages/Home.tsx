@@ -7,24 +7,28 @@
 //   §4 组合预算 —— 预算执行 + 成本结构 + 超支项目
 //
 // 数据：直接读 mock 运行时数组（已含用户新建项目），CTO 视角全量可见。
+//
+// 按角色分流：研发 / 生产 / QA（无管理者看板权限）首页即「我的看板」；
+// 管理者（admin / cmc_lead / project_lead）默认组合总览，可切换到「我的看板」。
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   FolderKanban, TrendingUp, Diamond, AlertTriangle, Flame, Wallet,
-  AlertOctagon, BadgeCheck, ArrowRight, CheckCircle2, ShieldAlert, Clock, Users,
+  AlertOctagon, BadgeCheck, ArrowRight, CheckCircle2, ShieldAlert, Clock, Users, LayoutDashboard, ListTodo,
 } from 'lucide-react'
 import { differenceInCalendarDays, parseISO } from 'date-fns'
 import {
   projects, tasks, subProjects, findUser, TODAY, users, calcWorkload,
   summarizeFinances, projectFinances, executionRate, isOverBudget,
 } from '../mock'
-import { roleLabels } from '../lib/permissions'
+import { can, roleLabels } from '../lib/permissions'
 import { useAuth } from '../store/auth'
 import { useDataStore } from '../store/data'
 import { analyzePortfolioRisk, type RiskItem, type QualitySourceStatus } from '../lib/risk'
 import type { Health, Project, Task } from '../types'
 import { Card, CardHeader, CardBody, Tag, Avatar, HealthTag } from '../components/ui'
+import { PersonalKanban } from '../components/dashboard/PersonalKanban'
 import { cn } from '../lib/cn'
 
 // 与 mock 数据共用同一「今日」锚点，保证状态/进度/风险判定确定且自洽。
@@ -104,27 +108,52 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version])
 
+  const [view, setView] = useState<HomeView>('portfolio')
+
+  if (!user) return null // 路由守卫保证已登录；此处仅做类型收窄
+
+  const isManager = can(user.role, 'dashboard.manager')
+  if (!isManager || view === 'mine') {
+    return (
+      <div className="p-6 max-w-[1600px] mx-auto space-y-4">
+        <div className="flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-semibold text-ink-900">我的看板</h1>
+            <p className="text-sm text-ink-500 mt-1">
+              {user.displayName}（{roleLabels[user.role]}），今日 {todayStr} —— 我负责的任务、待办与本周负荷。
+            </p>
+          </div>
+          {isManager && <ViewSwitch view={view} onChange={setView} />}
+        </div>
+        <PersonalKanban user={user} />
+      </div>
+    )
+  }
+
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-6">
       {/* 顶部欢迎条 */}
-      <div>
-        <h1 className="text-2xl font-semibold text-ink-900">项目组合总览</h1>
-        <p className="text-sm text-ink-500 mt-1">
-          {user.displayName}（{roleLabels[user.role]}），今日 {todayStr} —— 全部 {data.active.length} 个在研项目的进展与风险一屏掌控。
-        </p>
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-semibold text-ink-900">项目组合总览</h1>
+          <p className="text-sm text-ink-500 mt-1">
+            {user.displayName}（{roleLabels[user.role]}），今日 {todayStr} —— 全部 {data.active.length} 个在研项目的进展与风险一屏掌控。
+          </p>
+        </div>
+        <ViewSwitch view={view} onChange={setView} />
       </div>
 
       {/* §1 KPI */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <Kpi tone="blue" icon={<FolderKanban className="w-5 h-5" />} label="在研项目" value={data.active.length}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+        <Kpi icon={<FolderKanban className="w-5 h-5" />} label="在研项目" value={data.active.length}
              sub={`${data.greens} 绿 / ${data.yellows} 黄 / ${data.reds} 红`} />
-        <Kpi tone="indigo" icon={<TrendingUp className="w-5 h-5" />} label="组合总进度" value={`${data.avgProgress}%`}
+        <Kpi icon={<TrendingUp className="w-5 h-5" />} label="组合总进度" value={`${data.avgProgress}%`}
              sub="活跃项目平均" />
-        <Kpi tone="amber" icon={<Diamond className="w-5 h-5" />} label="待达成里程碑" value={data.milestoneCount} />
-        <Kpi tone={data.riskCount > 0 ? 'red' : 'emerald'} icon={<ShieldAlert className="w-5 h-5" />}
-             label="风险项" value={data.riskCount} sub={data.riskCount > 0 ? '需关注' : '组合健康'} pulse={data.riskCount > 4} />
-        <Kpi tone="rose" icon={<Flame className="w-5 h-5" />} label="关键路径任务" value={data.criticalCount} />
-        <Kpi tone={data.overBudget.length > 0 ? 'red' : 'emerald'} icon={<Wallet className="w-5 h-5" />}
+        <Kpi icon={<Diamond className="w-5 h-5" />} label="待达成里程碑" value={data.milestoneCount} />
+        <Kpi icon={<ShieldAlert className="w-5 h-5" />}
+             label="风险项" value={data.riskCount} sub={data.riskCount > 0 ? '需关注' : '组合健康'} />
+        <Kpi icon={<Flame className="w-5 h-5" />} label="关键路径任务" value={data.criticalCount} />
+        <Kpi icon={<Wallet className="w-5 h-5" />}
              label="预算执行率" value={`${data.finance.executionRate}%`}
              sub={data.overBudget.length > 0 ? `${data.overBudget.length} 超支` : '健康'} />
       </div>
@@ -266,27 +295,18 @@ function QualitySources({ sources }: { sources: QualitySourceStatus[] }) {
 
 // ============= KPI 卡片 =============
 
-type KpiTone = 'blue' | 'indigo' | 'amber' | 'red' | 'emerald' | 'rose'
-const kpiTones: Record<KpiTone, { bg: string; icon: string; text: string }> = {
-  blue:    { bg: 'bg-brand-50',   icon: 'bg-brand-100 text-brand-700',   text: 'text-brand-700' },
-  indigo:  { bg: 'bg-indigo-50',  icon: 'bg-indigo-100 text-indigo-700', text: 'text-indigo-700' },
-  amber:   { bg: 'bg-amber-50',   icon: 'bg-amber-100 text-amber-700',   text: 'text-amber-700' },
-  red:     { bg: 'bg-red-50',     icon: 'bg-red-100 text-red-700',       text: 'text-red-700' },
-  emerald: { bg: 'bg-emerald-50', icon: 'bg-emerald-100 text-emerald-700', text: 'text-emerald-700' },
-  rose:    { bg: 'bg-rose-50',    icon: 'bg-rose-100 text-rose-700',     text: 'text-rose-700' },
-}
-
-function Kpi({ label, value, sub, tone, icon, pulse }: {
-  label: string; value: React.ReactNode; sub?: string; tone: KpiTone; icon: React.ReactNode; pulse?: boolean
+function Kpi({ label, value, sub, icon }: {
+  label: string; value: React.ReactNode; sub?: string; icon: React.ReactNode
 }) {
-  const c = kpiTones[tone]
   return (
-    <div className={cn('card p-3.5 flex flex-col gap-2', pulse && 'animate-pulse')}>
-      <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center', c.icon)}>{icon}</div>
-      <div>
-        <div className={cn('text-2xl font-semibold leading-none', c.text)}>{value}</div>
-        <div className="text-xs text-ink-700 mt-1.5">{label}</div>
-        {sub && <div className="text-[11px] text-ink-500 mt-0.5">{sub}</div>}
+    <div className="card metric-card">
+      <div className="metric-body">
+        <div className="metric-value">{value}</div>
+        <div className="metric-note">{sub || '在研项目组合'}</div>
+      </div>
+      <div className="metric-caption">
+        <span className="font-medium">{label}</span>
+        <span className="shrink-0 text-ink-500" aria-hidden="true">{icon}</span>
       </div>
     </div>
   )
@@ -476,3 +496,29 @@ function OrgOverview({ org }: {
   )
 }
 
+type HomeView = 'portfolio' | 'mine'
+
+// 管理者首页视图切换：组合总览 ↔ 我的看板
+function ViewSwitch({ view, onChange }: { view: HomeView; onChange: (v: HomeView) => void }) {
+  const opts: { v: HomeView; label: string; icon: typeof LayoutDashboard }[] = [
+    { v: 'portfolio', label: '组合总览', icon: LayoutDashboard },
+    { v: 'mine', label: '我的看板', icon: ListTodo },
+  ]
+  return (
+    <div className="inline-flex rounded-md border border-ink-300 bg-white p-0.5">
+      {opts.map(({ v, label, icon: Icon }) => (
+        <button
+          key={v}
+          onClick={() => onChange(v)}
+          className={cn(
+            'inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors',
+            view === v ? 'bg-brand-50 text-brand-700 font-medium' : 'text-ink-700 hover:bg-ink-100'
+          )}
+        >
+          <Icon className="w-3.5 h-3.5" />
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}

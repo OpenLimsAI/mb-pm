@@ -13,7 +13,13 @@ from pathlib import Path
 
 from app.db.session import SessionLocal
 from app.models import (
+    FinanceAIAnalysis,
+    IAMIdentity,
+    IAMLogin,
+    IAMSession,
     Project,
+    ProjectAIAnalysis,
+    ProjectBaseline,
     ProjectFinance,
     ProjectMember,
     SubProject,
@@ -47,10 +53,17 @@ def seed() -> None:
         db.query(Task).delete()
         db.query(SubProject).delete()
         db.query(ProjectFinance).delete()
+        db.query(ProjectBaseline).delete()
+        db.query(ProjectAIAnalysis).delete()
         db.query(ProjectMember).delete()
         db.query(Project).delete()
         db.query(TemplateVersion).delete()
         db.query(Template).delete()
+        db.query(FinanceAIAnalysis).delete()
+        # 用户全部重建：IAM 绑定与会话一并清空（登录态失效；下次登录按用户名重新绑定）
+        db.query(IAMSession).delete()
+        db.query(IAMLogin).delete()
+        db.query(IAMIdentity).delete()
         db.query(User).delete()
         db.flush()
 

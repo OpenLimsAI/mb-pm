@@ -1,32 +1,35 @@
 // 项目预算与成本卡 —— 项目详情「概览」用。
 //
-// 两个视角并列：
-//   · 项目预算（自上而下）：ProjectFinance 的总预算 / 已花费 / 已承诺 / 执行率 / 成本结构。
-//   · WBS 任务预算（自下而上）：各任务 costBudget 之和，并按子项目分解 —— 这就是
-//     「模板里的预算」实例化到项目后的去向（DMP 模板 costBudget → 任务 costBudget）。
-// 订阅数据版本：在 WBS 行内改预算后即时刷新。
+// 口径（与后端 services/finance.py 一致）：
+//   · 项目预算：总预算 / 已承诺 / 成本结构由管理员或 CMC 负责人维护（右上角「编辑预算」）。
+//   · 已花费 = 该项目全部任务的实际花费合计（WBS 中录入，不含内部人力），自动汇总、不可手改。
+//   · WBS 任务预算：各任务成本预算之和，并按子项目分解（模板 costBudget → 任务 costBudget）。
+// 订阅数据版本：在 WBS 行内改预算 / 花费后即时刷新。
 
-import { useMemo } from 'react'
-import { Wallet, Coins, AlertTriangle } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Wallet, Coins, AlertTriangle, Pencil } from 'lucide-react'
 import type { Project } from '../../types'
-import { Card, CardHeader, CardBody, Tag } from '../ui'
+import { Button, Card, CardHeader, CardBody, Tag } from '../ui'
 import {
-  getProjectFinance, executionRate, isOverBudget,
+  FINANCE_CATEGORIES, getProjectFinance, executionRate, isOverBudget,
   getProjectSubs, getSubTasks, getProjectTasks,
 } from '../../mock'
+import { can } from '../../lib/permissions'
+import { useAuth } from '../../store/auth'
 import { useDataStore } from '../../store/data'
+import { FinanceEditDialog } from '../finance/FinanceEditDialog'
 
 const fmt = (v: number) => `¥${Math.round(v).toLocaleString('zh-CN')}万`
 
-const CATS = ['人力', '设备', '原材料', '外部服务', '其他'] as const
-
 export function ProjectBudgetCard({ project }: { project: Project }) {
-  // 订阅版本：WBS 改预算后重新汇总
+  // 订阅版本：WBS 改预算 / 花费、编辑项目预算后重新汇总
   const version = useDataStore((s) => s.version)
+  const canEdit = can(useAuth((s) => s.currentUser?.role), 'finance.edit')
+  const [editing, setEditing] = useState(false)
 
   const finance = getProjectFinance(project.id)
 
-  // 自下而上：任务预算合计 + 实际花费合计 + 按子项目分解
+  // 自下而上：任务预算合计 + 实际花费合计 + 按子项目分解（按当前用户可见的任务）
   const { taskTotal, costTotal, bySub } = useMemo(() => {
     const subs = getProjectSubs(project.id).sort((a, b) => a.sortOrder - b.sortOrder)
     const bySub = subs
@@ -38,11 +41,14 @@ export function ProjectBudgetCard({ project }: { project: Project }) {
           cost: ts.reduce((a, t) => a + (t.actualCost ?? 0), 0),
         }
       })
-      .filter((x) => x.total > 0)
+      .filter((x) => x.total > 0 || x.cost > 0)
     const projTasks = getProjectTasks(project.id)
-    const taskTotal = projTasks.reduce((a, t) => a + (t.costBudget ?? 0), 0)
-    const costTotal = projTasks.reduce((a, t) => a + (t.actualCost ?? 0), 0)
-    return { taskTotal, costTotal, bySub }
+    return {
+      // 后端汇总覆盖全部任务（执行层只看得到自己的任务），有则优先
+      taskTotal: finance?.taskBudget ?? projTasks.reduce((a, t) => a + (t.costBudget ?? 0), 0),
+      costTotal: finance?.spent ?? projTasks.reduce((a, t) => a + (t.actualCost ?? 0), 0),
+      bySub,
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id, version])
 
@@ -50,21 +56,32 @@ export function ProjectBudgetCard({ project }: { project: Project }) {
   const spentPct = finance && finance.totalBudget ? (finance.spent / finance.totalBudget) * 100 : 0
   const commitPct = finance && finance.totalBudget ? (finance.committed / finance.totalBudget) * 100 : 0
   const cats = finance
-    ? CATS.map((c) => ({ cat: c, val: finance.breakdown[c] ?? 0 })).filter((x) => x.val > 0).sort((a, b) => b.val - a.val)
+    ? FINANCE_CATEGORIES.map((c) => ({ cat: c, val: finance.breakdown?.[c] ?? 0 })).filter((x) => x.val > 0).sort((a, b) => b.val - a.val)
     : []
+  const catTotal = cats.reduce((a, x) => a + x.val, 0)
+  const allocatedPct = finance && finance.totalBudget ? Math.round((taskTotal / finance.totalBudget) * 100) : null
 
   return (
     <Card>
       <CardHeader
         title={<span className="flex items-center gap-2"><Wallet className="w-4 h-4 text-brand-600" />预算与成本</span>}
-        subtitle="项目预算执行（自上而下）· WBS 任务预算明细（自下而上）"
-        action={finance
-          ? <Tag tone={over ? 'red' : 'green'}>{over ? '超支' : `执行 ${executionRate(finance)}%`}</Tag>
-          : <Tag tone="gray">未设置项目预算</Tag>}
+        subtitle="项目预算执行（已花费 = 任务实际花费合计）· WBS 任务预算明细"
+        action={
+          <div className="flex items-center gap-2">
+            {finance
+              ? <Tag tone={over ? 'red' : 'green'}>{over ? '超支' : `执行 ${executionRate(finance)}%`}</Tag>
+              : <Tag tone="gray">未设置项目预算</Tag>}
+            {canEdit && (
+              <Button size="sm" icon={<Pencil className="w-3.5 h-3.5" />} onClick={() => setEditing(true)}>
+                {finance ? '编辑预算' : '设置预算'}
+              </Button>
+            )}
+          </div>
+        }
       />
       <CardBody>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* 1. 项目预算（自上而下） */}
+          {/* 1. 项目预算执行 */}
           <div>
             <div className="text-xs text-ink-500">项目总预算</div>
             {finance ? (
@@ -79,7 +96,7 @@ export function ProjectBudgetCard({ project }: { project: Project }) {
                   <div className="h-full bg-amber-400" style={{ width: `${Math.min(100 - Math.min(100, spentPct), commitPct)}%` }} title="已承诺" />
                 </div>
                 <div className="flex items-center gap-3 mt-2 text-[11px] text-ink-500 flex-wrap">
-                  <span className="flex items-center gap-1"><i className="w-2 h-2 rounded-sm bg-brand-600 inline-block" />已花费 {fmt(finance.spent)}</span>
+                  <span className="flex items-center gap-1" title="该项目全部任务实际花费的合计，自动汇总"><i className="w-2 h-2 rounded-sm bg-brand-600 inline-block" />已花费 {fmt(finance.spent)}</span>
                   <span className="flex items-center gap-1"><i className="w-2 h-2 rounded-sm bg-amber-400 inline-block" />已承诺 {fmt(finance.committed)}</span>
                   <span className="flex items-center gap-1"><i className="w-2 h-2 rounded-sm bg-emerald-400 inline-block" />剩余 {fmt(finance.totalBudget - finance.spent - finance.committed)}</span>
                 </div>
@@ -88,21 +105,22 @@ export function ProjectBudgetCard({ project }: { project: Project }) {
                     <AlertTriangle className="w-3 h-3" /> 已花费+已承诺超出总预算
                   </div>
                 )}
+                {finance.notes && <div className="mt-2 text-[11px] text-ink-500 line-clamp-2" title={finance.notes}>备注：{finance.notes}</div>}
               </>
             ) : (
               <div className="mt-2 text-xs text-ink-400 leading-relaxed">
-                尚未设置项目级预算。<br />新建项目时会按模板预算估算并写入；示例项目的预算见首页「组合预算」。
+                尚未设置项目预算。{canEdit ? <>点击右上角「设置预算」填写总预算与已承诺。</> : <>请联系系统管理员或 CMC 负责人设置。</>}
               </div>
             )}
           </div>
 
-          {/* 2. 成本结构 */}
+          {/* 2. 成本结构（手工填报） */}
           <div>
-            <div className="text-xs text-ink-500 mb-2">成本结构（按类别）</div>
+            <div className="text-xs text-ink-500 mb-2">成本结构（手工填报）</div>
             {cats.length > 0 ? (
               <div className="space-y-1.5">
                 {cats.map(({ cat, val }) => {
-                  const pct = finance && finance.spent ? Math.round((val / finance.spent) * 100) : 0
+                  const pct = catTotal ? Math.round((val / catTotal) * 100) : 0
                   return (
                     <div key={cat} className="flex items-center gap-2">
                       <span className="text-xs text-ink-700 w-16 shrink-0">{cat}</span>
@@ -115,14 +133,14 @@ export function ProjectBudgetCard({ project }: { project: Project }) {
                 })}
               </div>
             ) : (
-              <div className="text-xs text-ink-400">—</div>
+              <div className="text-xs text-ink-400">未填报</div>
             )}
           </div>
 
-          {/* 3. WBS 任务预算 / 花费（自下而上） */}
+          {/* 3. WBS 任务预算 / 实际花费（自下而上） */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-ink-500 flex items-center gap-1"><Coins className="w-3.5 h-3.5 text-amber-500" />WBS 任务预算 / 花费</span>
+              <span className="text-xs text-ink-500 flex items-center gap-1"><Coins className="w-3.5 h-3.5 text-amber-500" />任务预算 / 实际花费</span>
               <span className="text-sm">
                 <span className="font-semibold text-ink-900">{fmt(taskTotal)}</span>
                 <span className="text-ink-400"> / </span>
@@ -130,7 +148,8 @@ export function ProjectBudgetCard({ project }: { project: Project }) {
               </span>
             </div>
             <div className="text-[11px] text-ink-400 mb-2">
-              花费占预算 <b className={costTotal > taskTotal ? 'text-red-600' : 'text-ink-600'}>{taskTotal ? Math.round(costTotal / taskTotal * 100) : 0}%</b>
+              花费占任务预算 <b className={costTotal > taskTotal ? 'text-red-600' : 'text-ink-600'}>{taskTotal ? Math.round(costTotal / taskTotal * 100) : 0}%</b>
+              {allocatedPct !== null && <> · 任务预算占总预算 <b className="text-ink-600">{allocatedPct}%</b></>}
             </div>
             {bySub.length > 0 ? (
               <div className="space-y-1.5">
@@ -148,7 +167,7 @@ export function ProjectBudgetCard({ project }: { project: Project }) {
                     </div>
                   )
                 })}
-                <div className="text-[11px] text-ink-400 pt-1">预算源自模板 costBudget · 花费为实际录入，均可在 WBS 行内调整</div>
+                <div className="text-[11px] text-ink-400 pt-1">任务预算由项目负责人及以上在 WBS 维护；实际花费由任务负责人在 WBS 录入</div>
               </div>
             ) : (
               <div className="text-xs text-ink-400">任务暂无预算明细</div>
@@ -156,6 +175,7 @@ export function ProjectBudgetCard({ project }: { project: Project }) {
           </div>
         </div>
       </CardBody>
+      {editing && <FinanceEditDialog project={project} finance={finance} onClose={() => setEditing(false)} />}
     </Card>
   )
 }

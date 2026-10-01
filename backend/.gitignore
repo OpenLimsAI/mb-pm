@@ -34,3 +34,6 @@ postgres-data/
 
 # 日志
 *.log
+
+# AI 设置（含 API Key），仅存本机
+.local/

@@ -16,6 +16,9 @@ COPY index.html vite.config.ts tailwind.config.js postcss.config.js ./
 COPY tsconfig.json tsconfig.app.json tsconfig.node.json ./
 COPY src ./src
 COPY public ./public
+# npm prebuild 生成版本更新 HTML；仅引入说明内容与生成器。
+COPY scripts/build-release-notes.mjs ./scripts/build-release-notes.mjs
+COPY docs/releases/notes.json docs/releases/style.css ./docs/releases/
 
 # 同源部署：前端调用后端相对路径 /api/v1，并启用真实 API（非 mock）
 ENV VITE_USE_API=true \

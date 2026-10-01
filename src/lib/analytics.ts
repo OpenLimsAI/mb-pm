@@ -6,8 +6,8 @@ import {
 import type { Project, Task, Health } from '../types'
 import type { Scope } from './scope'
 
-// 与 mock 数据共用同一「今日」锚点（2026-05-10）：KPI/趋势/延迟/里程碑等派生
-// 不再用真实 new Date()，口径与 risk.ts、schedule.ts、后端 rollup.py 保持一致。
+// 与全局「今日」（mock/tasks.ts 的 TODAY，本机当前日期）一致：KPI/趋势/延迟/里程碑等派生
+// 统一用它而不是各处各自 new Date()，口径与 risk.ts、schedule.ts、后端 rollup.py 保持一致。
 const today = TODAY
 
 // ===== 工具：按 scope 过滤项目/任务 =====
