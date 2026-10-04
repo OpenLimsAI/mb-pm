@@ -1,0 +1,97 @@
+.mb-login { min-height: 100svh; background: #f4f7fa; color: #22384b; display: flex; flex-direction: column; }
+.mb-login-header { min-height: 94px; padding: 14px max(28px, calc((100vw - 1280px) / 2)); display: flex; justify-content: space-between; align-items: center; gap: 24px; background: #fff; border-bottom: 1px solid #e2e9ef; }
+.mb-login-brand { display: flex; align-items: center; gap: 14px; text-decoration: none; color: inherit; }
+.mb-login-brand img { width: 60px; height: 60px; object-fit: contain; background: #fff; }
+.mb-login-brand-name { display: block; font-weight: 700; font-size: 21px; letter-spacing: .06em; line-height: 1.4; }
+.mb-login-brand-caption { display: block; font-size: 12px; color: #6b7f90; letter-spacing: .08em; margin-top: 3px; }
+.mb-login-header-note { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #687e90; white-space: nowrap; }
+.mb-login-main { flex: 1; width: min(1280px, calc(100% - 56px)); margin: 42px auto; display: grid; grid-template-columns: 1.12fr 1fr; gap: 0; background: #fff; border: 1px solid #dfe7ee; border-radius: 20px; overflow: hidden; box-shadow: 0 18px 56px rgb(35 72 111 / .055); }
+.mb-login-intro { position: relative; overflow: hidden; background: rgb(35, 72, 111); color: #fff; display: flex; align-items: center; padding: clamp(36px, 5vw, 76px); min-height: 590px; }
+.mb-login-intro-content { position: relative; z-index: 1; }
+.mb-login-eyebrow { display: flex; gap: 10px; align-items: center; font-size: 10px; font-weight: 600; letter-spacing: .22em; color: #cad9e8; }
+.mb-login-eyebrow > span { display: block; height: 2px; width: 24px; background: #55b8c5; }
+.mb-login-intro h1 { font-size: clamp(32px, 3.3vw, 47px); line-height: 1.45; letter-spacing: .025em; font-weight: 650; margin: 26px 0 18px; }
+.mb-login-intro-description { font-size: 15px; line-height: 1.95; color: #cad9e8; }
+.mb-login-app-preview { display: grid; gap: 24px; margin-top: 42px; }
+.mb-login-preview-item { display: flex; align-items: center; gap: 16px; }
+.mb-login-preview-icon { width: 47px; height: 47px; border: 1px solid rgb(255 255 255 / .16); border-radius: 12px; display: flex; justify-content: center; align-items: center; color: #bfe3e9; background: rgb(255 255 255 / .055); flex-shrink: 0; }
+.mb-login-preview-item h2 { font-size: 15px; font-weight: 600; margin-bottom: 5px; }
+.mb-login-preview-item p { font-size: 12px; color: #c0d0e0; line-height: 1.7; }
+.mb-login-intro-footnote { display: flex; gap: 8px; align-items: center; margin-top: 52px; color: #b9cbdd; font-size: 11px; }
+.mb-login-intro-footnote > span { width: 5px; height: 5px; border-radius: 50%; background: #61c0ca; }
+.mb-login-orbit { position: absolute; border: 1px solid rgb(255 255 255 / .06); border-radius: 50%; width: 470px; height: 470px; pointer-events: none; }
+.mb-login-orbit-one { right: -380px; top: -100px; }
+.mb-login-orbit-two { right: -335px; bottom: -220px; width: 620px; height: 620px; }
+.mb-login-panel { display: flex; flex-direction: column; justify-content: center; padding: 48px clamp(30px, 4.5vw, 70px); }
+.mb-login-card-mark { width: 54px; height: 54px; display: flex; justify-content: center; align-items: center; border-radius: 14px; background: #edf4f8; color: rgb(35, 72, 111); margin-bottom: 28px; }
+.mb-login-card-eyebrow { font-size: 12px; color: #738695; margin-bottom: 10px; }
+.mb-login-card h2 { font-size: clamp(22px, 2vw, 28px); font-weight: 650; letter-spacing: -.025em; line-height: 1.5; }
+.mb-login-card-description { margin-top: 14px; font-size: 14px; line-height: 1.9; color: #718393; }
+.mb-login-identity { display: flex; gap: 12px; align-items: center; margin-top: 32px; padding: 17px 18px; border-radius: 10px; background: #f6f8fa; border: 1px solid #e6edf2; color: #43657e; }
+.mb-login-identity > svg { flex-shrink: 0; }
+.mb-login-identity strong { display: block; font-size: 13px; font-weight: 600; color: #34516a; }
+.mb-login-identity span { display: block; margin-top: 4px; font-size: 11px; color: #788b9b; }
+.mb-login-submit { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; border: 0; border-radius: 10px; padding: 17px 18px; min-height: 55px; margin-top: 22px; background: rgb(35, 72, 111); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; transition: background .18s ease, box-shadow .18s ease; }
+.mb-login-submit:hover:not(:disabled) { background: #1c3d60; box-shadow: 0 5px 14px rgb(35 72 111 / .15); }
+.mb-login-submit:disabled { opacity: .64; cursor: wait; }
+.mb-login-preview-link { display: flex; justify-content: center; align-items: center; gap: 7px; margin-top: 16px; padding: 9px; border: 1px solid #dce6ee; border-radius: 8px; color: #23486f; font-size: 13px; }
+.mb-login-preview-link:hover { background: #f2f6f8; }
+.mb-login-switch { display: flex; justify-content: center; align-items: center; gap: 6px; margin-top: 14px; min-height: 36px; width: 100%; padding: 7px; color: #46647c; background: transparent; border: 0; border-radius: 7px; font-size: 13px; cursor: pointer; }
+.mb-login-switch:hover { background: #f2f6f8; }
+.mb-login-switch:disabled { opacity: .5; cursor: wait; }
+.mb-login-error { margin-top: 18px; padding: 12px 14px; border: 1px solid #f0d3d2; background: #fdf5f4; border-radius: 8px; color: #973f3b; font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
+.mb-login-management { padding-top: 23px; font-size: 12px; color: #738695; text-align: center; line-height: 1.8; }
+.mb-login-management a { color: #23486f; text-decoration: underline; text-underline-offset: 4px; font-weight: 600; }
+.mb-login-management a:hover { color: #087b9c; }
+.mb-login-help { text-align: center; font-size: 11px; line-height: 1.8; color: #788b9b; margin-top: 36px; padding-top: 22px; border-top: 1px solid #e9eef3; }
+.mb-login-footer { width: min(1280px, calc(100% - 56px)); margin: 0 auto 22px; display: flex; justify-content: space-between; gap: 12px; font-size: 10px; color: #8292a0; }
+.mb-login :where(a, button):focus-visible { outline: 3px solid #087b9c; outline-offset: 4px; }
+.mb-login-spinner { animation: mb-login-spin 1s linear infinite; }
+@keyframes mb-login-spin { to { transform: rotate(360deg); } }
+
+@media (min-width: 1440px) {
+  .mb-login-main { flex: 0 1 auto; margin-top: auto; margin-bottom: auto; min-height: 620px; }
+  .mb-login-footer { padding-top: 24px; }
+}
+@media (max-width: 900px) {
+  .mb-login-main { grid-template-columns: 1fr 1fr; margin-top: 28px; margin-bottom: 28px; }
+  .mb-login-intro { padding: 34px; min-height: 560px; }
+  .mb-login-intro h1 { font-size: 33px; }
+  .mb-login-intro-description { font-size: 13px; }
+  .mb-login-panel { padding: 34px 28px; }
+  .mb-login-card h2 { font-size: 22px; }
+}
+@media (max-width: 680px) {
+  .mb-login-header { min-height: 80px; padding: 12px 22px; }
+  .mb-login-brand { gap: 10px; }
+  .mb-login-brand img { width: 48px; height: 48px; }
+  .mb-login-brand-name { font-size: 18px; }
+  .mb-login-brand-caption { font-size: 10px; }
+  .mb-login-header-note { display: none; }
+  .mb-login-main { width: calc(100% - 32px); grid-template-columns: 1fr; margin: 20px auto; border-radius: 15px; }
+  .mb-login-intro { min-height: auto; padding: 30px 28px; }
+  .mb-login-intro h1 { font-size: 29px; margin: 16px 0 10px; line-height: 1.4; }
+  .mb-login-intro h1 br { display: none; }
+  .mb-login-intro-description { font-size: 12px; line-height: 1.8; }
+  .mb-login-app-preview { display: flex; flex-wrap: wrap; gap: 20px 26px; margin-top: 24px; }
+  .mb-login-preview-item { gap: 10px; }
+  .mb-login-preview-icon { width: 36px; height: 36px; border-radius: 8px; }
+  .mb-login-preview-icon > svg { width: 19px; height: 19px; }
+  .mb-login-preview-item h2 { font-size: 12px; margin-bottom: 0; }
+  .mb-login-preview-item p, .mb-login-intro-footnote { display: none; }
+  .mb-login-panel { padding: 30px 28px; }
+  .mb-login-card-mark { display: none; }
+  .mb-login-card-description { font-size: 13px; }
+  .mb-login-identity { margin-top: 24px; }
+  .mb-login-help { margin-top: 24px; }
+  .mb-login-footer { width: calc(100% - 44px); margin-bottom: 18px; }
+}
+@media (max-width: 370px) {
+  .mb-login-intro, .mb-login-panel { padding: 26px 21px; }
+  .mb-login-intro h1 { font-size: 25px; }
+  .mb-login-card h2 { font-size: 21px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mb-login-submit { transition: none; }
+  .mb-login-spinner { animation: none; }
+}

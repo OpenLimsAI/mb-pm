@@ -1,9 +1,10 @@
-# Apply after configuring the two hostnames and refreshing the live data snapshot.
+# www 门户发布前先配置独立 IAM 应用；日常发版保留客户现有业务数据。
 services:
   app:
     environment:
       PMS_PUBLIC_URL: https://pm.openlims.ai
-      APP_CORS_ORIGINS: https://pm.openlims.ai
+      APP_CORS_ORIGINS: https://pm.openlims.ai,https://www.openlims.ai
+      PORTAL_PUBLIC_URL: ${PORTAL_PUBLIC_URL:-https://www.openlims.ai}
       CASDOOR_ENDPOINT: https://iam.openlims.ai
       IAM_COOKIE_SECURE: "true"
     # OAuth callback URLs contain short-lived credentials; do not write request URLs.

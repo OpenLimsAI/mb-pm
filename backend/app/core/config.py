@@ -67,6 +67,12 @@ class Settings(BaseSettings):
     IAM_SESSION_SECONDS: int = 3600
     IAM_COOKIE_SECURE: bool = False  # HTTPS 部署必须设为 true
 
+    # 独立员工门户。留空只兼容本地 / 同域过渡模式；生产 www 必须配置独立 IAM 应用。
+    PORTAL_PUBLIC_URL: str = ""
+    PORTAL_CLIENT_ID: str = ""
+    PORTAL_CLIENT_SECRET: str = ""
+    PORTAL_JWKS_URL: str = ""
+
     @property
     def casdoor_issuer(self) -> str:
         return self.CASDOOR_ENDPOINT.rstrip("/")
@@ -90,6 +96,24 @@ class Settings(BaseSettings):
     @property
     def iam_callback_url(self) -> str:
         return f"{self.pms_origin}/api/v1/auth/callback"
+
+    @property
+    def portal_origin(self) -> str:
+        return (self.PORTAL_PUBLIC_URL or self.PMS_PUBLIC_URL).rstrip("/")
+
+    @property
+    def portal_client_id(self) -> str:
+        return self.PORTAL_CLIENT_ID or self.CASDOOR_CLIENT_ID
+
+    @property
+    def portal_client_secret(self) -> str:
+        return self.PORTAL_CLIENT_SECRET or self.CASDOOR_CLIENT_SECRET
+
+    @property
+    def portal_callback_url(self) -> str:
+        if self.PORTAL_PUBLIC_URL:
+            return f"{self.portal_origin}/api/v1/portal/callback"
+        return self.iam_callback_url
 
 
 settings = Settings()

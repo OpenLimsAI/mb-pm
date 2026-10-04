@@ -9,6 +9,7 @@ from app.models.audit_log import AuditLog  # noqa: F401
 from app.models.baseline import ProjectBaseline  # noqa: F401
 from app.models.finance import ProjectFinance  # noqa: F401
 from app.models.iam import IAMIdentity, IAMLogin, IAMSession  # noqa: F401
+from app.models.portal import PortalLogin, PortalSession  # noqa: F401
 from app.models.project import Project, ProjectMember  # noqa: F401
 from app.models.task import SubProject, Task, TaskDependency  # noqa: F401
 from app.models.template import Template, TemplateVersion  # noqa: F401

@@ -1,5 +1,73 @@
 # Release notes
 
+## 2026-10-04 · 文档结构规范与运行架构核对
+
+- 根 README 按项目简介、快速启动、架构、功能概览、配置与权限、测试、部署、更新记录链接八个章节重整，详细内容迁入 `docs/`。
+- 新增功能、架构、配置与权限、本地开发四份说明；新增 `AGENTS.md` 固定后续文档维护规则。
+- 只读核对客户服务器的 10 个容器、四个域名路由、三个数据库、知识库文件挂载及 IAM 内部代理；保留真实用户登录和跨应用 SSO 待验收说明。
+- 当前容器清单中未见旧 `mb-pm-app`，更正部署交接中的旧运行状态；历史域名与数据迁移情况仍需单独核验。
+- 两个运行中的 Caddy 实际版本均为 2.11.3，但引用仍为 `caddy:2-alpine`；本次仅记录，不修改服务器镜像或配置。
+
+## 2026-10-04 · 迈博药业独立员工门户（已部署，真实登录待验收）
+
+- `www.openlims.ai` 已发布为门户主入口；新迈博品牌登录页和工作台采用企业标识、RGB(35,72,111) 深蓝，支持手机。
+- 补齐我的账号 `/account`、公开使用帮助 `/help`、固定应用跳转 `/launch/pm` / `/launch/kb`，共 4 个用户页面 + 1 类跳转页。
+- 工作台提供 PM / KB 两张卡，服务端核对准入，未开通显示原因；门户不加载项目数据，不创建业务用户或自动赋权。
+- 按域名选择界面：www 为门户，pm 保留业务首页 `/`、兼容 `/dashboard` 与原深链接；PM 顶栏返回 www 工作台。
+- 生产门户使用独立 IAM 客户端 / audience、`/api/v1/portal/callback` 和退出 Origin；未配置完整独立客户端时拒绝登录。同域本地模式兼容既有回调。
+- Portal / PM 使用独立登录 / 会话表和 Host-only Cookie；进入应用建立该应用自身会话，URL 不传身份令牌。退出工作台结束门户会话并请求 IAM 退出，PM / KB 已有会话须分别结束。
+- 前端按需加载项目页面；TypeScript / Vite 构建与变更文件 ESLint 通过，门户与 IAM 的 80 项测试及完整后端 149 项回归通过；域名模式、固定目标和深链接安全检查通过。
+- 使用完整镜像 `mb-pm:portal-20261003T194612Z` 发布前后端及新增门户表，仅重建 `app`，保留原卷和 `APP_SECRET`；前一镜像为 `mb-pm:knowledge-link-20261003T090717Z`。源码快照包含 204 个文件及 `source-state.json`，PM / IAM 数据库和原运行配置均已备份。
+- 已配置独立 `admin/maibo-portal` IAM 应用及 www Tunnel 路由；www DNS 从停放页改为代理隧道 CNAME，仅修改 www。15 项隔离候选检查通过，公网品牌登录页已视觉确认可用。
+- **真实用户授权码换取令牌、登录后工作台及 PM / KB 跨应用 SSO 尚未验收**。发布详情与剩余验收见 [门户上线记录](deploy/parallel-test/releases/20261004-maibo-portal.md)。
+
+## 2026-10-03 · 项目菜单切换知识库新域名
+
+- 「相关系统 → 知识库」链接改为 `https://kb.openlims.ai`，保留新标签页打开方式。
+- 同步「版本更新」及独立 HTML 说明，记录入口调整；知识库自身的登录和权限验收单独处理。
+- 已部署至 `https://pm.openlims.ai`，镜像为 `mb-pm:knowledge-link-20261003T090717Z`；仅更新 PM 前端静态文件，候选 8 项及线上内网 9 项检查通过，服务 healthy。公网浏览器确认新说明及实际脚本引用；详见 [上线记录](deploy/parallel-test/releases/20261003-knowledge-link.md)。
+
+## 2026-10-03 · 知识库新域名与 IAM 接入（路由已切换，完整验收待完成）
+
+- 准备独立知识库 IAM 网关，目标为允许 `mabpharm` 业务组织中可正常登录的启用账号阅读共享知识库，不要求项目角色；保留原知识库数据和服务。
+- 准备安全会话、服务端 DIKW 令牌代理、退出和账号停用检查，解决用户因未填令牌持续显示“连接中”的准入问题；新版业务流程尚未验收。
+- 项目导航源码改为 `https://kb.openlims.ai`，知识库默认打开论文界面；同步版本说明。
+- Cloudflare DNS 已发布，并按用户指定将路由从初始 `kb-gateway:8000` 改为 `http://dikw-caddy:80`；PM / IAM 两条路由未改。浏览器确认新入口跳转到原生知识库 IAM 登录页。
+- 当前正式知识库为前端 v0.11.0 / 核心 v0.6.8；截至 2026-10-04，原生网页为 healthy，`dikw-kb` IAM 回调已为 `https://kb.openlims.ai/web/auth/callback`。业务账号阅读权限及真实登录仍待验收；PM 菜单已随本日「知识库新入口」发布改为新域名。
+- 初始独立网关 7 项测试通过，但不再承接当前新域名；旧准备方案不能视为原生新版的验收结果。历史配置和剩余业务验收见 [原生知识库迁移交接](deploy/knowledge-native/README.md)，当前状态以 [门户上线记录](deploy/parallel-test/releases/20261004-maibo-portal.md) 为准。
+
+## 2026-10-02 · 论文知识库入口修正
+
+- 「相关系统 → 知识库」改为直接打开 https://maibo-dikw.i-am-holo.top/#mb-web，保留新标签页及 Cloudflare Access 验证。
+- 核对客户服务器的 `src/main.tsx` 与正在提供的前端脚本，确认 `#mb-web` 加载专门的「论文知识库」界面；同一网站还提供原有 DIKW 工作台。
+- 同步追加「版本更新」记录和独立 HTML 版本说明。
+- 已部署至 https://pm.openlims.ai，镜像为 `mb-pm:knowledge-mbweb-20261002T155133Z`。候选镜像 7 项检查及公网 10 项检查通过，知识库相关 6 个容器保持运行且未重建。
+- 发布与回滚信息见 [论文知识库入口修正上线记录](deploy/parallel-test/releases/20261002-knowledge-mbweb.md)。
+
+## 2026-10-02 · 相关系统与知识库入口
+
+- 在「版本更新」下方新增可折叠的「相关系统」菜单，二级链接为「知识库」。
+- 「知识库」在新标签页打开 https://maibo-dikw.i-am-holo.top，沿用现有 Cloudflare Access 验证。
+- 已核对客户知识库的部署配置、前端来源、Caddy 路由、运行容器和 Cloudflare Tunnel 域名；网关首页返回 200，页面标题为 OpenDIKW。
+- 同步追加「版本更新」记录和独立 HTML 版本说明。
+- 已部署至 https://pm.openlims.ai，镜像为 `mb-pm:related-systems-20261002T145304Z`。候选镜像 7 项检查、公网 10 项检查通过；知识库相关 6 个容器保持运行且未重建。
+- 发布与回滚信息见 [相关系统与知识库入口上线记录](deploy/parallel-test/releases/20261002-related-systems.md)。
+
+## 2026-10-02 · IAM 登录页链接修正
+
+- 登录页底部「IAM 平台」直接链接到 https://iam.openlims.ai/login，在新标签页打开 IAM 登录页。
+- 同步追加「版本更新」记录和独立 HTML 版本说明。
+- 已部署至 https://pm.openlims.ai，镜像为 `mb-pm:iam-login-link-20261002T143414Z`。候选镜像 6 项检查及公网 9 项检查通过，浏览器已确认链接地址和实际跳转。
+- 发布与回滚信息见 [IAM 登录页链接修正上线记录](deploy/parallel-test/releases/20261002-iam-login-link.md)。
+
+## 2026-10-02 · 登录页 IAM 平台入口
+
+- 登录页提示改为「所有用户信息在 IAM 平台管理」，统一使用大写 IAM。
+- 「IAM 平台」改为链接，在新标签页打开 https://iam.openlims.ai。
+- 同步追加「版本更新」记录和独立 HTML 版本说明。
+- 已部署至 https://pm.openlims.ai，镜像为 `mb-pm:iam-platform-link-20261002T115012Z`；仅更新前端静态文件，后端与数据库沿用现有版本。
+- 独立候选镜像 6 项检查通过；公网浏览器确认大写文案、链接及新标签页跳转。发布与回滚信息见 [IAM 平台入口上线记录](deploy/parallel-test/releases/20261002-iam-platform-link.md)。
+
 ## 2026-10-01 · 移除本系统自助注册
 
 - 登录页移除「还没有账号？注册新账号」，替换为「所有用户信息在iam平台管理」。

@@ -144,8 +144,24 @@ def callback(
     error: str = "",
     db: Session = Depends(get_db),
 ):
+    # 过渡门户复用已登记的回调，只按匹配的独立 state Cookie 分派；
+    # 门户 handler 消费 portal_logins，不会读写 PM 登录状态或放宽 PM 准入。
+    from app.api.v1.portal import PORTAL_LOGIN_COOKIE, handle_callback
+
+    portal_state = request.cookies.get(PORTAL_LOGIN_COOKIE, "")
+    if (
+        not settings.PORTAL_PUBLIC_URL
+        and state
+        and portal_state
+        and secrets.compare_digest(state.encode(), portal_state.encode())
+    ):
+        return handle_callback(request, code, state, error, db)
     cookie_state = request.cookies.get(LOGIN_COOKIE, "")
-    if not state or not cookie_state or not secrets.compare_digest(state, cookie_state):
+    if (
+        not state
+        or not cookie_state
+        or not secrets.compare_digest(state.encode(), cookie_state.encode())
+    ):
         return login_error("state")
     # 先原子消费 state，再换 code（防重放 / 重复回调）。
     transaction = db.execute(
@@ -212,6 +228,12 @@ def callback(
 @router.post("/logout")
 def logout(request: Request, db: Session = Depends(get_db)):
     require_same_origin(request)
+    from app.api.v1.portal import (
+        PORTAL_LOGIN_COOKIE,
+        PORTAL_SESSION_COOKIE,
+        clear_portal_state,
+    )
+
     session_id = request.cookies.get(SESSION_COOKIE, "")
     session = db.get(IAMSession, digest(session_id)) if session_id else None
     params = {
@@ -224,10 +246,13 @@ def logout(request: Request, db: Session = Depends(get_db)):
         except (InvalidToken, ValueError, KeyError):
             pass
         db.delete(session)
-        db.commit()
+    clear_portal_state(request, db)
+    db.commit()
     response = RedirectResponse(settings.casdoor_issuer + "/api/logout?" + urlencode(params), 303)
     response.delete_cookie(SESSION_COOKIE, path="/")
     response.delete_cookie(LOGIN_COOKIE, path="/")
+    response.delete_cookie(PORTAL_SESSION_COOKIE, path="/")
+    response.delete_cookie(PORTAL_LOGIN_COOKIE, path="/")
     return no_cache(response)
 
 

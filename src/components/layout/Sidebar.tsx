@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, FolderKanban, ListChecks, GanttChartSquare, Gauge, Wallet, Users, ChevronDown,
-  Settings2, BookOpen, type LucideIcon,
+  Settings2, BookOpen, Network, Library, type LucideIcon,
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { can, type PermKey } from '../../lib/permissions'
@@ -14,12 +14,14 @@ interface NavItem {
   icon: LucideIcon
   end?: boolean
   perms?: PermKey[]   // 满足其一才显示（与 App 路由守卫一致）
+  groupOnly?: boolean // 仅展开子菜单，to 用作折叠偏好的键
+  external?: boolean
   children?: NavItem[]
 }
 
 // 左侧主导航。模板管理由「项目」页右上角入口进入；任务 / 甘特图 / 人员负荷 收在「项目」下，可折叠。
 const navItems: NavItem[] = [
-  { to: '/',          label: '首页',   icon: LayoutDashboard, end: true },
+  { to: '/dashboard', label: '首页',   icon: LayoutDashboard, end: true },
   {
     to: '/projects',  label: '项目',   icon: FolderKanban,
     children: [
@@ -32,6 +34,12 @@ const navItems: NavItem[] = [
   { to: '/org',       label: '组织',   icon: Users },
   { to: '/settings',  label: '设置',   icon: Settings2 },
   { to: '/release-notes', label: '版本更新', icon: BookOpen },
+  {
+    to: '/related-systems', label: '相关系统', icon: Network, groupOnly: true,
+    children: [
+      { to: 'https://kb.openlims.ai', label: '知识库', icon: Library, external: true },
+    ],
+  },
 ]
 
 // 记住用户收起的分组（仅本浏览器的界面偏好；读写失败时按默认全部展开）
@@ -97,6 +105,20 @@ export function Sidebar() {
           const groupId = `nav-group${it.to.replace(/\//g, '-')}`
           return (
             <div key={it.to}>
+              {it.groupOnly ? (
+                <button
+                  type="button"
+                  onClick={() => toggle(it.to)}
+                  aria-expanded={open}
+                  aria-controls={groupId}
+                  title={it.label}
+                  className="app-nav-link w-full flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-ink-700 hover:bg-brand-50/60 transition-colors focus-visible:outline focus-visible:outline-brand-500"
+                >
+                  <it.icon className="w-4 h-4 shrink-0" />
+                  <span className="app-nav-label">{it.label}</span>
+                  <ChevronDown className={cn('app-nav-toggle ml-auto w-4 h-4 shrink-0 transition-transform', !open && '-rotate-90')} />
+                </button>
+              ) : (
               <div className="flex items-center gap-0.5">
                 <NavItemLink item={it} className="flex-1" highlight={!open && childActive} />
                 <button
@@ -111,6 +133,7 @@ export function Sidebar() {
                   <ChevronDown className={cn('w-4 h-4 transition-transform', !open && '-rotate-90')} />
                 </button>
               </div>
+              )}
               <div id={groupId} hidden={!open} className="app-nav-children mt-1 ml-5 pl-2 border-l border-ink-300/60 space-y-1">
                 {children.map((c) => <NavItemLink key={c.to} item={c} child />)}
               </div>
@@ -131,25 +154,43 @@ export function Sidebar() {
 function NavItemLink({
   item, child, className, highlight,
 }: { item: NavItem; child?: boolean; className?: string; highlight?: boolean }) {
+  const linkClassName = (active = false) => cn(
+    'app-nav-link flex items-center gap-2.5 rounded-md transition-colors',
+    child ? 'px-2.5 py-1.5 text-[13px]' : 'px-3 py-2 text-sm',
+    active || highlight
+      ? 'app-nav-active bg-brand-50 text-brand-800 font-semibold'
+      : 'text-ink-700 hover:bg-brand-50/60',
+    className,
+  )
+  const content = (
+    <>
+      <item.icon className={cn('shrink-0', child ? 'w-3.5 h-3.5' : 'w-4 h-4')} />
+      <span className="app-nav-label">{item.label}</span>
+    </>
+  )
+
+  if (item.external) return (
+    <a
+      href={item.to}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={item.label}
+      aria-label={item.label}
+      className={linkClassName()}
+    >
+      {content}
+    </a>
+  )
+
   return (
     <NavLink
       to={item.to}
       end={item.end}
       title={item.label}
       aria-label={item.label}
-      className={({ isActive }) =>
-        cn(
-          'app-nav-link flex items-center gap-2.5 rounded-md transition-colors',
-          child ? 'px-2.5 py-1.5 text-[13px]' : 'px-3 py-2 text-sm',
-          isActive || highlight
-            ? 'app-nav-active bg-brand-50 text-brand-800 font-semibold'
-            : 'text-ink-700 hover:bg-brand-50/60',
-          className,
-        )
-      }
+      className={({ isActive }) => linkClassName(isActive)}
     >
-      <item.icon className={cn('shrink-0', child ? 'w-3.5 h-3.5' : 'w-4 h-4')} />
-      <span className="app-nav-label">{item.label}</span>
+      {content}
     </NavLink>
   )
 }

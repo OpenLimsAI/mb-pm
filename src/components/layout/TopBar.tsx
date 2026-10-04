@@ -1,9 +1,11 @@
 import { Link } from 'react-router-dom'
-import { Search, LogOut } from 'lucide-react'
+import { Search, LogOut, Grid2X2 } from 'lucide-react'
 import { useAuth } from '../../store/auth'
 import { useDataStore } from '../../store/data'
 import { roleLabels } from '../../lib/permissions'
 import { Avatar } from '../ui/Avatar'
+import { USE_API } from '../../api/client'
+import { workspaceUrl } from '../../lib/site'
 
 export function TopBar() {
   const user = useAuth((s) => s.currentUser)
@@ -25,6 +27,15 @@ export function TopBar() {
       </div>
 
       <div className="flex-1" />
+
+      <a
+        href={import.meta.env.DEV && !USE_API ? '/?preview=1' : workspaceUrl}
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm text-blue-100 hover:text-white hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-200/50"
+        title="返回应用工作台"
+      >
+        <Grid2X2 className="w-4 h-4" />
+        <span className="hidden sm:inline">应用工作台</span>
+      </a>
 
       {/* 当前登录身份（角色取自 IAM）；点击进入「设置 › 我的账号」 */}
       {user && (
