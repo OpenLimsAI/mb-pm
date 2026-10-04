@@ -9,6 +9,11 @@ services:
       IAM_COOKIE_SECURE: "true"
     # OAuth callback URLs contain short-lived credentials; do not write request URLs.
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
+    # 共享入口网络：Tunnel 经 edge 访问各栈的门面服务，其他栈不再接入 internal。
+    networks: [internal, edge]
+
+  casdoor:
+    networks: [internal, edge]
 
   tunnel:
     image: cloudflare/cloudflared@sha256:6b599ca3e974349ead3286d178da61d291961182ec3fe9c505e1dd02c8ac31b0
@@ -17,9 +22,17 @@ services:
     command: ["tunnel", "--no-autoupdate", "run", "--token-file", "/run/tunnel-token"]
     volumes:
       - ./tunnel-token:/run/tunnel-token:ro
-    networks: [internal]
+    # 过渡期同时接 internal；各栈门面都迁到 edge 后可只保留 edge。
+    networks: [internal, edge]
     depends_on:
       app:
         condition: service_healthy
       casdoor:
         condition: service_started
+
+networks:
+  # 主机级共享网络，不归任何栈所有：首次部署前 `docker network create edge`。
+  # 只放各栈的门面服务（app、casdoor、知识库 dikw-caddy 等），数据库不接入。
+  edge:
+    external: true
+    name: edge
