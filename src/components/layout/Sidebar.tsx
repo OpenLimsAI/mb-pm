@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { can, type PermKey } from '../../lib/permissions'
+import { knowledgeLaunchUrl } from '../../lib/site'
 import { useAuth } from '../../store/auth'
 
 interface NavItem {
@@ -37,7 +38,7 @@ const navItems: NavItem[] = [
   {
     to: '/related-systems', label: '相关系统', icon: Network, groupOnly: true,
     children: [
-      { to: 'https://kb.openlims.ai', label: '知识库', icon: Library, external: true },
+      { to: knowledgeLaunchUrl, label: '知识库', icon: Library, external: true },
     ],
   },
 ]

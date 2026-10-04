@@ -146,6 +146,22 @@
   ],
   "releases": [
     {
+      "id": "kb-mbweb-default-20261004",
+      "date": "2026-10-04",
+      "version": "知识库入口调整",
+      "title": "知识库入口默认打开论文知识库",
+      "summary": "从工作台或项目系统进入知识库时，直接打开论文知识库界面。",
+      "changes": [
+        {
+          "type": "调整",
+          "items": [
+            "www 工作台的“知识库”和项目系统的“相关系统 → 知识库”改为打开 https://kb.openlims.ai/#mb-web（论文知识库）。",
+            "未登录时先完成 IAM 登录，随后自动回到论文知识库；知识库管理工作台仍可通过 https://kb.openlims.ai 打开。"
+          ]
+        }
+      ]
+    },
+    {
       "id": "maibo-workspace-20261004",
       "date": "2026-10-04",
       "version": "迈博员工门户",

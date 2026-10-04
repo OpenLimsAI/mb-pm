@@ -2,6 +2,9 @@
 export const portalPublicUrl = 'https://www.openlims.ai'
 export const projectPublicUrl = 'https://pm.openlims.ai'
 export const knowledgePublicUrl = 'https://kb.openlims.ai'
+// 知识库入口默认打开论文知识库（MB-Web）；管理工作台仍在 knowledgePublicUrl 根地址。
+// 未登录时知识库登录会保留 #mb-web，登录后回到论文知识库。
+export const knowledgeLaunchUrl = `${knowledgePublicUrl}/#mb-web`
 export const iamLoginUrl = 'https://iam.openlims.ai/login'
 
 type SiteMode = 'portal' | 'pm' | 'combined'
