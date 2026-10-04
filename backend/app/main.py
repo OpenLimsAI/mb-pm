@@ -19,6 +19,7 @@ from app.api.v1 import (
     auth,
     baselines,
     finances,
+    portal,
     projects,
     sub_projects,
     task_dependencies,
@@ -161,6 +162,7 @@ def health():
 # —— v1 路由 —— #
 API_PREFIX = "/api/v1"
 app.include_router(auth.router, prefix=API_PREFIX)
+app.include_router(portal.router, prefix=API_PREFIX)
 app.include_router(account.router, prefix=API_PREFIX)
 app.include_router(users.router, prefix=API_PREFIX)
 app.include_router(projects.router, prefix=API_PREFIX)

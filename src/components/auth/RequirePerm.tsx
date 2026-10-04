@@ -48,7 +48,7 @@ export function RequirePerm({ perms, mode = 'any', children }: Props) {
             <Button variant="secondary" icon={<ArrowLeft className="w-4 h-4" />} onClick={() => window.history.back()}>
               返回上一页
             </Button>
-            <Button variant="primary" onClick={() => navigate('/')}>回到首页</Button>
+            <Button variant="primary" onClick={() => navigate('/dashboard')}>回到首页</Button>
           </div>
         </CardBody>
       </Card>

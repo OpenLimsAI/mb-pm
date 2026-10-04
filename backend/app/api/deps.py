@@ -22,9 +22,9 @@ from app.db.session import get_db
 from app.models import IAMSession, User
 
 
-def require_same_origin(request: Request) -> None:
+def require_same_origin(request: Request, *, origin: str | None = None) -> None:
     """cookie 认证的写操作要求精确的可信 Origin（含端口；仅靠 SameSite 挡不住同站其他端口）。"""
-    parsed = urlsplit(settings.pms_origin)
+    parsed = urlsplit(origin or settings.pms_origin)
     expected = f"{parsed.scheme}://{parsed.netloc}"
     if request.headers.get("origin") != expected:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "请求来源验证失败，请从系统入口重新操作")

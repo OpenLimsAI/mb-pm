@@ -1,44 +1,57 @@
-import { useEffect } from 'react'
-import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
-import { AlertTriangle, Beaker, Loader2, LogOut, RotateCw } from 'lucide-react'
+import { lazy, Suspense, useEffect } from 'react'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Login from './pages/Login'
-import Home from './pages/Home'
-import Projects from './pages/Projects'
-import ProjectDetail from './pages/ProjectDetail'
-import ProjectCreate from './pages/ProjectCreate'
-import Templates from './pages/Templates'
-import TemplateDetail from './pages/TemplateDetail'
-import TemplateEditor from './pages/TemplateEditor'
-import TemplatePreview from './pages/TemplatePreview'
-import Finance from './pages/Finance'
-import OrgManagement from './pages/OrgManagement'
-import Tasks from './pages/Tasks'
-import GanttPage from './pages/Gantt'
-import Workload from './pages/Workload'
-import Settings from './pages/Settings'
-import ReleaseNotes from './pages/ReleaseNotes'
-import { AppLayout } from './components/layout/AppLayout'
+import { WorkspacePage } from './pages/Workspace'
+import PortalGate from './components/portal/PortalGate'
+import { siteMode, workspaceUrl } from './lib/site'
 import { RequirePerm } from './components/auth/RequirePerm'
-import { Button } from './components/ui'
-import { bootstrap, watchIdentity } from './data/bootstrap'
-import { useAuth } from './store/auth'
-import { useDataStore } from './store/data'
+import { BootSplash } from './components/auth/AuthStatus'
 
-// CTO Lite：首页（组合总览 / 我的看板）/ 项目 / 任务 / 甘特图 / 人员负荷 / 模板 / 财务 / 组织 / 设置（我的账号 / AI）。
-//
-// 路由结构（鉴权门）：
-//   /login       —— 始终可渲染：跳转 mb-casd IAM 登录（授权码 + PKCE 由后端完成）。
-//   /register    —— 兼容旧链接，回到登录页；账号统一在 IAM 平台开通。
-//   其余所有路由  —— 经 <ReadyGate>：未登录跳 /login；身份不可用显示原因；已登录才拉数据并渲染。
+// 工作台首屏不下载项目页面和全量业务数据引导。
+const ReadyGate = lazy(() => import('./components/auth/ProjectReadyGate'))
+const AppLayout = lazy(() => import('./components/layout/AppLayout').then((module) => ({ default: module.AppLayout })))
+const Home = lazy(() => import('./pages/Home'))
+const Projects = lazy(() => import('./pages/Projects'))
+const ProjectDetail = lazy(() => import('./pages/ProjectDetail'))
+const ProjectCreate = lazy(() => import('./pages/ProjectCreate'))
+const Templates = lazy(() => import('./pages/Templates'))
+const TemplateDetail = lazy(() => import('./pages/TemplateDetail'))
+const TemplateEditor = lazy(() => import('./pages/TemplateEditor'))
+const TemplatePreview = lazy(() => import('./pages/TemplatePreview'))
+const Finance = lazy(() => import('./pages/Finance'))
+const OrgManagement = lazy(() => import('./pages/OrgManagement'))
+const Tasks = lazy(() => import('./pages/Tasks'))
+const GanttPage = lazy(() => import('./pages/Gantt'))
+const Workload = lazy(() => import('./pages/Workload'))
+const Settings = lazy(() => import('./pages/Settings'))
+const ReleaseNotes = lazy(() => import('./pages/ReleaseNotes'))
+const PortalAccount = lazy(() => import('./pages/PortalAccount'))
+const PortalHelp = lazy(() => import('./pages/PortalHelp'))
+const PortalLaunch = lazy(() => import('./pages/PortalLaunch'))
+
+// www 域名只开放门户页面；pm 保留业务路由与独立鉴权；本地 combined 同时预览两者。
 export default function App() {
   return (
     <BrowserRouter>
+      <RouteTitle />
+      <Suspense fallback={<BootSplash message="正在打开应用 …" />}>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Navigate to="/login" replace />} />
-        <Route element={<ReadyGate />}>
+        {siteMode !== 'pm' && <>
+          <Route path="/help" element={<PortalHelp />} />
+          <Route path="/workspace" element={<Navigate to="/" replace />} />
+          <Route element={<PortalGate />}>
+            <Route path="/" element={<WorkspacePage />} />
+            <Route path="/account" element={<PortalAccount />} />
+            <Route path="/launch/:appId" element={<PortalLaunch />} />
+          </Route>
+        </>}
+        {siteMode === 'pm' && <Route path="/workspace" element={<ExternalWorkspace />} />}
+        {siteMode !== 'portal' && <Route element={<ReadyGate />}>
           <Route element={<AppLayout />}>
-            <Route path="/"                      element={<Home />} />
+            {siteMode === 'pm' && <Route path="/" element={<Home />} />}
+            <Route path="/dashboard"             element={<Home />} />
             <Route path="/projects"              element={<Projects />} />
             <Route path="/projects/new"          element={<ProjectCreate />} />
             <Route path="/projects/:id"          element={<ProjectDetail />} />
@@ -58,64 +71,24 @@ export default function App() {
             <Route path="/settings"              element={<Settings />} />
             <Route path="/release-notes"         element={<ReleaseNotes />} />
           </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
+        </Route>}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
   )
 }
 
-// 鉴权 + 数据就绪门。
-function ReadyGate() {
-  const ready = useDataStore((s) => s.ready)
-  const status = useAuth((s) => s.status)
-  const error = useAuth((s) => s.error)
-  const location = useLocation()
-
+function RouteTitle() {
+  const { pathname } = useLocation()
   useEffect(() => {
-    void bootstrap()
-    return watchIdentity()
-  }, [])
-
-  if (status === 'anonymous') {
-    return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />
-  }
-  if (status === 'error') return <IdentityProblem message={error} />
-  if (!ready) return <BootSplash />
-  return <Outlet />
+    const portal = siteMode === 'portal' || (siteMode === 'combined' && (['/', '/login', '/workspace', '/account', '/help'].includes(pathname) || pathname.startsWith('/launch/')))
+    document.title = portal ? '迈博药业 · 员工应用门户' : 'CMC-PMS · 项目管理'
+  }, [pathname])
+  return null
 }
 
-function BootSplash() {
-  return (
-    <div className="h-full flex flex-col items-center justify-center gap-4 text-ink-500">
-      <div className="w-12 h-12 rounded-xl bg-brand-600 flex items-center justify-center text-white">
-        <Beaker className="w-7 h-7" />
-      </div>
-      <div className="flex items-center gap-2 text-sm">
-        <Loader2 className="w-4 h-4 animate-spin" /> 正在加载 CMC-PMS 数据 …
-      </div>
-    </div>
-  )
-}
-
-// 已连上后端但身份不可用（账号被停用 / 角色不合规 / IAM 暂不可用）：说明原因，可重试或切换账号。
-function IdentityProblem({ message }: { message: string | null }) {
-  const logout = useAuth((s) => s.logout)
-  return (
-    <div className="h-full flex items-center justify-center p-8">
-      <div className="card p-6 w-full max-w-md">
-        <div className="flex items-center gap-2 text-amber-600 mb-3">
-          <AlertTriangle className="w-5 h-5" />
-          <h1 className="text-base font-semibold text-ink-900">无法确认登录身份</h1>
-        </div>
-        <p role="alert" className="text-sm text-ink-700">{message || '身份验证失败，请稍后重试。'}</p>
-        <div className="mt-5 flex justify-end gap-2">
-          <Button icon={<LogOut className="w-4 h-4" />} onClick={logout}>切换账号</Button>
-          <Button variant="primary" icon={<RotateCw className="w-4 h-4" />} onClick={() => window.location.reload()}>
-            重试
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
+function ExternalWorkspace() {
+  useEffect(() => { window.location.replace(workspaceUrl) }, [])
+  return <BootSplash message="正在打开应用工作台 …" />
 }

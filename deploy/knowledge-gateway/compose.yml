@@ -1,0 +1,33 @@
+services:
+  kb-gateway:
+    image: ${KB_IMAGE:?Set KB_IMAGE to a tested release}
+    restart: unless-stopped
+    read_only: true
+    user: "10001:10001"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    ports: ["127.0.0.1:18083:8000"]
+    environment:
+      KB_CONFIG_FILE: /run/secrets/config.json
+      KB_SESSION_DB: /data/auth.sqlite
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - ./config.private.json:/run/secrets/config.json:ro
+      - ./auth-data:/data
+    tmpfs: [/tmp]
+    networks:
+      pm:
+        aliases: [kb-gateway]
+      knowledge: {}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 20s
+      timeout: 6s
+      retries: 3
+networks:
+  pm:
+    external: true
+    name: mb-pm-v2_internal
+  knowledge:
+    external: true
+    name: dikw_dikw_net

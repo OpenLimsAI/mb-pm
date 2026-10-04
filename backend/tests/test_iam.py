@@ -15,7 +15,7 @@ from app.core import security
 from app.core.config import settings
 from app.db.session import get_db
 from app.main import app
-from app.models import IAMIdentity, IAMLogin, IAMSession, User
+from app.models import IAMIdentity, IAMLogin, IAMSession, PortalLogin, PortalSession, User
 
 
 @pytest.fixture
@@ -23,7 +23,7 @@ def fixture(token_factory):
     engine = create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )
-    for model in [User, IAMIdentity, IAMSession, IAMLogin]:
+    for model in [User, IAMIdentity, IAMSession, IAMLogin, PortalLogin, PortalSession]:
         model.__table__.create(engine)
     db = Session(engine)
     for role in security.ROLES:

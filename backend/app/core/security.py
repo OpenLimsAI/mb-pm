@@ -47,8 +47,8 @@ def unseal(value: str) -> dict:
     return json.loads(cipher().decrypt(value.encode()))
 
 
-def signing_key(kid: str) -> dict:
-    url = settings.casdoor_jwks_url
+def signing_key(kid: str, *, jwks_url: str | None = None) -> dict:
+    url = jwks_url or settings.casdoor_jwks_url
     with _jwks_lock:
         now = time.monotonic()
         cached = _jwks_cache.get(url)
@@ -81,7 +81,13 @@ def signing_key(kid: str) -> dict:
         return matches[0]
 
 
-def decode_access_token(token: str, *, access_token: str | None = None) -> dict:
+def decode_access_token(
+    token: str,
+    *,
+    access_token: str | None = None,
+    audience: str | None = None,
+    jwks_url: str | None = None,
+) -> dict:
     if not token or len(token) > 32768:
         raise HTTPException(401, "无效的 IAM 令牌")
     try:
@@ -90,9 +96,9 @@ def decode_access_token(token: str, *, access_token: str | None = None) -> dict:
             raise JWTError("unsupported signing algorithm")
         claims = jwt.decode(
             token,
-            signing_key(header["kid"]),
+            signing_key(header["kid"], jwks_url=jwks_url),
             algorithms=["RS256"],
-            audience=settings.CASDOOR_CLIENT_ID,
+            audience=audience or settings.CASDOOR_CLIENT_ID,
             issuer=settings.casdoor_issuer,
             access_token=access_token,
             options={
