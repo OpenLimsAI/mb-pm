@@ -4,7 +4,7 @@ import { ArrowRight, Loader2, LockKeyhole } from 'lucide-react'
 import PortalLayout from '../components/portal/PortalLayout'
 import { usePortalContext } from '../components/portal/context'
 import { usePortal } from '../store/portal'
-import { knowledgePublicUrl, projectApplicationUrl } from '../lib/site'
+import { knowledgeLaunchUrl, projectApplicationUrl } from '../lib/site'
 
 export default function PortalLaunch() {
   const { appId } = useParams()
@@ -29,7 +29,7 @@ export default function PortalLaunch() {
         setProblem(access?.reason || '尚未开通此应用，请联系管理员。')
       } else {
         // 固定应用地址，不接收任意外部 URL，也不通过 URL 携带身份令牌。
-        window.location.replace(appId === 'pm' ? projectApplicationUrl(returnTo) : knowledgePublicUrl)
+        window.location.replace(appId === 'pm' ? projectApplicationUrl(returnTo) : knowledgeLaunchUrl)
       }
     })
     return () => { cancelled = true }

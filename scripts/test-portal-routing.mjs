@@ -33,6 +33,8 @@ assert.equal(pm.workspaceUrl, 'https://www.openlims.ai')
 assert.equal(portal.projectApplicationUrl(), 'https://pm.openlims.ai/api/v1/auth/login?return_to=%2Fdashboard')
 assert.equal(local.projectApplicationUrl(), 'http://127.0.0.1:5176/api/v1/auth/login?return_to=%2Fdashboard')
 assert.equal(portal.knowledgePublicUrl, 'https://kb.openlims.ai')
+// 知识库入口默认打开论文知识库（MB-Web），工作台仍在根地址。
+assert.equal(portal.knowledgeLaunchUrl, 'https://kb.openlims.ai/#mb-web')
 const deep = '/projects/project-123?tab=tasks#task-1'
 assert.equal(new URL(portal.projectApplicationUrl(deep)).searchParams.get('return_to'), deep)
 assert.equal(portal.safeReturnPath('/launch/kb'), '/launch/kb')
