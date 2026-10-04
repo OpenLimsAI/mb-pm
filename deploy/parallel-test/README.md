@@ -54,6 +54,15 @@ Cloudflare 账户 `1ca5e2203de3b88e6e786c15149a94ee` 的域名已处于活动状
 
 仅新入口就绪前，不应停止旧服务或将现有网站指向仅能通过 SSH 隧道访问的 IAM。
 
+### 共享入口网络 `edge`
+
+同一台服务器上还运行着知识库（`kb.openlims.ai`，Tunnel 服务目标 `http://dikw-caddy:80`）和 iam-proxy 等其他栈。为了不让这些栈接入本栈的 `internal` 网络（`pms-db`、`iam-db` 都在 `internal` 上），Tunnel 改为经主机级共享网络 `edge` 访问各栈的门面服务：
+
+- `edge` 不归任何栈所有，首次部署前创建一次：`docker network create edge`。
+- `compose.production.yml` 让 `app`、`casdoor`、`tunnel` 加入 `edge`。服务名不变，Cloudflare 路由（`app:8000`、`casdoor:8000`、`dikw-caddy:80`）无需改动。
+- 只有门面服务加入 `edge`，数据库不接入。过渡期 `tunnel` 同时接 `internal` 和 `edge`。
+- **发版前先 `git pull`**：用不含 `edge` 的旧 compose 部署，会让知识库入口和 iam-proxy 失去到 Tunnel / Casdoor 的路径。
+
 ## 脚本
 
 - `setup.py init <tag>`：一次性初始化独立测试栈；拒绝覆盖已有 `.env`。
