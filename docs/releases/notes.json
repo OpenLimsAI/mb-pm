@@ -146,6 +146,22 @@
   ],
   "releases": [
     {
+      "id": "kb-mbweb-root-20261006",
+      "date": "2026-10-06",
+      "version": "知识库入口调整",
+      "title": "知识库入口改为论文知识库首页",
+      "summary": "论文知识库已独立部署在 https://kb.openlims.ai，入口地址不再需要 #mb-web。",
+      "changes": [
+        {
+          "type": "调整",
+          "items": [
+            "www 工作台的“知识库”和项目系统的“相关系统 → 知识库”改为打开 https://kb.openlims.ai/（论文知识库首页）。",
+            "原有的 https://kb.openlims.ai/#mb-web 链接仍可正常打开论文知识库，已收藏的地址无需修改。"
+          ]
+        }
+      ]
+    },
+    {
       "id": "kb-mbweb-default-20261004",
       "date": "2026-10-04",
       "version": "知识库入口调整",
