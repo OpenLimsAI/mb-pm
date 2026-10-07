@@ -59,7 +59,9 @@ PM 回调为 `https://pm.openlims.ai/api/v1/auth/callback`，登出回跳为 `ht
 
 门户与 PM 使用独立登录 / 会话表和 Host-only Cookie，不共享 `.openlims.ai` Cookie，不在导航 URL 携带令牌。
 退出工作台销毁当前门户会话并请求 IAM 退出；PM / KB 已有业务会话需要在各应用内分别退出。
-一次登录后跨应用免输密码还依赖 IAM 会话复用设置，不能仅根据门户登录成功判断 SSO 已通过。
+一次登录后跨应用免输密码，依赖 IAM 应用的会话复用设置。2026-10-08 起，`maibo-portal`、`mp-pm`、`dikw-kb`、`dikw-web` 都已打开 `enableSigninSession` 和 `enableAutoSignin`，`cookieExpireInHours` 为 168：登录时勾选「下次自动登录」，IAM 会话保持 7 天，不勾选保持 24 小时（mb-casd ADR-0004）。
+新增 IAM 应用时同样打开这两个开关；关掉 `enableSigninSession` 后，从该应用登录不再保留 IAM 会话，其他应用又要单独输密码。
+开了自动登录后，换账号前要先退出工作台或 PM，清掉 IAM 会话。
 真实用户登录和跨应用 SSO 的验收状态以部署记录为准。
 
 本地 `PORTAL_PUBLIC_URL` 留空时兼容同域客户端及 PM 回调；真实访问 URL、回调和 Cookie origin 必须一致。
