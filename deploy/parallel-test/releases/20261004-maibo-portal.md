@@ -1,6 +1,6 @@
 # 迈博药业员工门户上线记录
 
-日期：2026-10-04（Asia/Taipei）。门户已部署；真实用户登录、工作台及跨应用 SSO 验收待完成。
+日期：2026-10-04（Asia/Taipei）。门户已部署；真实用户登录、工作台及跨应用 SSO 验收待完成。2026-10-08 补记：跨应用 SSO 已开启，测试账号验收通过，见下文「补记：跨应用 SSO」。
 
 ## 发布内容
 
@@ -36,6 +36,19 @@
 - **待完成：** 客户业务账号真实授权码换取令牌、回到 www 工作台、身份/准入/账号页、PM 和 KB 的单点登录及实际内容、KB-only 账号限制、手机登录后布局、退出及权限不足提示。当前没有浏览器 IAM 会话，未读取服务器账号密码文件，也未更改用户密码。
 
 服务器机器记录：上述源码目录中的 `candidate-validation.json`、`deployment-summary.json`、`public-validation.json`。代码未因本次部署自动提交 GitHub。
+
+### 补记：跨应用 SSO（2026-10-08，Asia/Taipei）
+
+- 问题：在 www、PM、KB 中每打开一个应用，都要再输一次密码。
+- 原因：IAM 的 4 个应用都没开 `enableSigninSession`。Casdoor 3.100 在这种情况下，授权码登录后不保留 IAM 会话。
+- 改动（07:25，只改 IAM，没有重建 `app`）：`maibo-portal`、`mp-pm`、`dikw-kb`、`dikw-web` 都打开 `enableSigninSession`、`enableAutoSignin`，`cookieExpireInHours` 设为 168。改前快照在服务器 `private-config-backups/20261007T232541Z-sso-session/`。原因、影响和约束见 OpenLimsAI/mb-casd#12（ADR-0004）。
+- 验收（Chrome，测试账号 `hele.hl`，PM `admin` + `kb_editor`）：
+  1. 在 KB 输一次密码。
+  2. 打开 www，点「使用迈博账号登录」，直接进入工作台，PM、KB 两张卡片都可用。
+  3. 打开 IAM 控制台，直接进入应用列表。
+  4. 打开 `https://pm.openlims.ai/api/v1/auth/login`，重新授权后直接进入 PM。
+- Casdoor 为 `maibo-portal`、`mp-pm` 签发了新 token，说明是完整的授权流程。
+- 仍待完成：客户业务账号、账号页、权限不足提示、`/launch/*` 跳转、KB-only 账号限制、手机布局、退出检查。
 
 ## 后续发版与回滚
 
