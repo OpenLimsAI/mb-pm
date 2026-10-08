@@ -1,0 +1,23 @@
+{
+  "deployed": true,
+  "image": "dikw-mbweb:translation-20261008T012722Z",
+  "image_id": "sha256:471753ef3bfba3936a4a06852dfa3cb330f1634cd756a03e02d41239779577d1",
+  "previous_image": "dikw-mbweb:maibo-20261008T004840Z",
+  "checks": [
+    "healthz 200",
+    "anonymous papers denied (401)",
+    "original IAM client, callback and PKCE retained",
+    "static assets remain protected; CSS, JS and logo match manifest",
+    "updated BFF bundle matches manifest",
+    "persistent translation endpoint remains authenticated (401)",
+    "administration synthesis remains forbidden (403)",
+    "persistent SQLite schema, permissions and integrity verified"
+  ],
+  "other_containers_unchanged": true,
+  "runtime_env_unchanged": true,
+  "mounts_unchanged": true,
+  "backend_updated": true,
+  "dependencies_retained": true,
+  "translation_database": "/data/mbweb/translations.sqlite",
+  "health": "healthy"
+}

@@ -1,0 +1,3407 @@
+diff --git a/README.md b/README.md
+index c6061a6..2f00bf6 100644
+--- a/README.md
++++ b/README.md
+@@ -2,7 +2,9 @@
+ 
+ Private MB paper research application: paper library, original/bilingual reader,
+ paper-context questions, local notes and
+-explicit Wisdom publication.
++explicit Wisdom publication. Bilingual reading starts only when the user clicks
++“开始翻译”; completed Chinese is stored in the server database and can be explicitly
++regenerated with “重新翻译”.
+ The administration workbench remains in public [dikw-web](https://github.com/OpenDIKW/dikw-web).
+ Application source is private and UNLICENSED. The three shared packages are public MIT.
+ 
+@@ -65,7 +67,8 @@ when available; do not infer image acceptance from package publication alone.
+ - [Browser data migration](docs/migration.md)
+ - [Source and test provenance](docs/provenance.md)
+ - [Verification evidence and pending acceptance](docs/verification/2026-10-03-extraction.md)
+-
++- [Maibo customer appearance and deployment](docs/verification/2026-10-08-maibo-brand.md)
++- [Persistent Chinese translations](docs/verification/2026-10-08-persistent-translation.md)
+ 
+ ## Paper Q&A
+ 
+diff --git a/docs/deployment.md b/docs/deployment.md
+index ce25edd..20c86a8 100644
+--- a/docs/deployment.md
++++ b/docs/deployment.md
+@@ -7,6 +7,40 @@ The standalone entry always enforces production mode. Missing OIDC or the stable
+ Core ID fails startup even when NODE_ENV is absent or set to development.
+ Local development is provided separately by the Vite entry.
+ 
++## Persistent paper translations
++
++The customer translation extension requires both the frontend `dist/` and BFF
++`dist-server/` builds. Build with `npm run build`, then use the authenticated
++`npm start` runtime; the Vite development server alone does not provide the new
++persistent translation endpoints.
++
++Opening bilingual mode reads saved Chinese only. “开始翻译” explicitly starts a
++server task; “重新翻译” replaces a previous result only after all blocks succeed.
++Upload no longer pre-translates automatically. Failed/cancelled jobs keep the
++previous completed translation. Browser navigation does not cancel a server job;
++server restart cancels unfinished jobs but retains completed records.
++
++`DIKW_AGENT_SESSIONS_DIR/translations.sqlite` stores completed Chinese; persist the
++existing runtime directory volume. The customer deployment uses
++`/data/mbweb/translations.sqlite` inside `dikw-mbweb-data`. Cache keys include IAM
++issuer, stable Core ID, paper path, target language and format version; the source
++SHA-256 must still match. Readers authorized for this shared base reuse the same
++saved paper translation across browsers. Existing browser translation caches are
++not automatically imported. Original sources remain in Core.
++
++GET/POST `/web/papers/translation` and the job polling/cancel routes reuse the BFF
++session validation. POST also requires the configured public Origin. Only a job's
++initiator can cancel it. Database permissions are 0600 and writes are atomic;
++back up SQLite with its online backup API instead of copying a live WAL database.
++Do not publish databases or runtime credentials with source. No new provider key,
++IAM role, cookie or dependency version is introduced.
++
++Acceptance: first open must show “开始翻译” without a model request; generate once,
++reopen and restart the runtime to confirm stored Chinese; explicitly regenerate,
++then test failure/cancellation retains the previous complete result. Also verify
++anonymous endpoints are denied and a different reader can reuse a completed
++translation without generating another one.
++
+ ## Configuration
+ 
+ Required: DIKW_WEB_AUTH_MODE=oidc, DIKW_WEB_PUBLIC_URL, DIKW_WEB_CORE_ID,
+diff --git a/docs/verification/2026-10-08-maibo-brand.md b/docs/verification/2026-10-08-maibo-brand.md
+new file mode 100644
+index 0000000..ccde3e5
+--- /dev/null
++++ b/docs/verification/2026-10-08-maibo-brand.md
+@@ -0,0 +1,32 @@
++# 2026-10-08 Maibo customer appearance
++
++Customer-only frontend patch based on `v0.1.10` / `05a2568fee7db8be7776f5c511a19a6af2fcbf7f`.
++No upstream dependency upgrade, BFF change, data migration or IAM configuration change.
++
++- Match the PM application: Maibo logo, exact `rgb(35, 72, 111)` header, white sidebar,
++  grey workspace, teal controls, subdued borders and cards.
++- Preserve paper reading, scientific Markdown, questions, notes, theme toggle and logout.
++- Add fixed links to `https://pm.openlims.ai/dashboard` and `https://www.openlims.ai/`.
++- Keep mobile library / reader / question controls; adjust the narrow breakpoint for
++  the new sidebar. At 390×844, no horizontal page overflow was observed.
++
++Validation: lint, build, formatting, bundle budget and boundary gates passed;
++33 unit-test files / 203 tests passed. This did not run the full coverage/e2e command.
++Browser layout checks used clearly labelled synthetic local data, not customer papers.
++
++Deployed to `https://kb.openlims.ai/` as `dikw-mbweb:maibo-20261008T004840Z` by deriving
++the existing 0.1.10 image and replacing only `/app/dist`. The server bundle hash,
++runtime environment values, mounts and other ten running container IDs were unchanged.
++Production health is healthy; `/healthz` returns 200, anonymous paper API and static
++assets remain protected (401), and original OIDC client/callback/S256 remain active.
++
++Release input, hashes and deployment evidence are retained on the customer server at
++`/home/prometheus/dikw/brand-releases/maibo-20261008T004840Z/`. Protected original
++configuration is in `/home/prometheus/dikw/brand-backups/maibo-20261008T004840Z/`.
++The PM repository contains the recovery patch, publisher and detailed Chinese handover
++under `deploy/knowledge-brand/` and `deploy/parallel-test/releases/20261008-knowledge-brand.md`.
++
++The first production switch automatically rolled back because list ordering of unchanged
++Docker environment entries differed. Semantic key/value comparison was restored and a
++fresh release/backup tag passed before the final switch. Real authenticated customer UI,
++upload, Q&A and note mutation acceptance remain pending; no customer data was written.
+diff --git a/docs/verification/2026-10-08-persistent-translation.md b/docs/verification/2026-10-08-persistent-translation.md
+new file mode 100644
+index 0000000..c35e903
+--- /dev/null
++++ b/docs/verification/2026-10-08-persistent-translation.md
+@@ -0,0 +1,27 @@
++# 2026-10-08 Persistent Chinese translations
++
++Customer extension on `v0.1.10` / `05a2568fee7db8be7776f5c511a19a6af2fcbf7f`,
++retaining the Maibo appearance patch and exact shared-package 0.1.4 cohort.
++
++- Opening bilingual mode only checks saved state; “开始翻译” explicitly submits.
++- The BFF reads the authoritative paper through the existing authenticated Core
++  proxy, validates the source hash, then saves only complete Chinese to SQLite.
++- Repeat visits, other authorized readers and runtime restarts reuse saved Chinese.
++- “重新翻译” generates a fresh result. Failure/cancellation leaves old Chinese intact.
++- Source changes require a new translation; browser navigation does not cancel
++  server work. In-flight jobs are not resumed after a runtime restart.
++- Upload indexing no longer starts an automatic translation.
++- Both frontend and BFF must be deployed. See [runtime details](../deployment.md#persistent-paper-translations).
++
++Validation: 37 test files / 215 tests passed, plus lint, types, production builds,
++format, bundle budget and boundary gate. The new tests cover explicit submission,
++reuse, source changes, partial/failure/cancel behavior, ownership, Origin and role
++checks, and a real shared BFF restart reusing SQLite with exactly one fake-model
++call. These tests use isolated synthetic source/auth/provider fixtures; they do
++not read customer papers, call a paid model or alter IAM. Full coverage/e2e was
++not executed. Browser layout checks also use clearly labelled synthetic data.
++
++Production deployment and remaining real-account acceptance are recorded separately
++in the PM handover repository under
++`deploy/parallel-test/releases/20261008-persistent-translation.md`; local test
++success alone is not a claim of customer data/provider acceptance.
+diff --git a/index.html b/index.html
+index b86f04a..1be8a91 100644
+--- a/index.html
++++ b/index.html
+@@ -3,7 +3,9 @@
+   <head>
+     <meta charset="UTF-8" />
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+-    <title>论文知识库</title>
++    <meta name="theme-color" content="#23486f" />
++    <link rel="icon" type="image/png" href="/brand/maibo-pharma-logo.png" />
++    <title>迈博药业 · 论文知识库</title>
+   </head>
+   <body>
+     <div id="root"></div>
+diff --git a/public/brand/maibo-pharma-logo.png b/public/brand/maibo-pharma-logo.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..0d5e23511c21e9213308731d5b2ff5d07d788883
+GIT binary patch
+literal 33033
+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
+R^gRrijD(_it*CLx{{Uc~yqo|4
+
+literal 0
+HcmV?d00001
+
+diff --git a/server/paper-translation.ts b/server/paper-translation.ts
+new file mode 100644
+index 0000000..88018d4
+--- /dev/null
++++ b/server/paper-translation.ts
+@@ -0,0 +1,277 @@
++import { createHash, randomUUID } from "node:crypto";
++import type { IncomingMessage, ServerResponse } from "node:http";
++import type { WebRuntime } from "@opendikw/web-server/runtime";
++import { translateBlocks } from "@opendikw/web-client/translate";
++import { isEnglishBody } from "@opendikw/web-client/document";
++import {
++  translationSource,
++  type SavedTranslation,
++  type TranslationJob,
++} from "../src/models/translation.js";
++import { runtimeFetch } from "./runtime-request.js";
++import { TranslationStore } from "./translation-store.js";
++
++const ROOT = "/web/papers/translation";
++interface Job {
++  id: string;
++  owner: string;
++  path: string;
++  hash: string;
++  status: TranslationJob["status"];
++  done: number;
++  total: number;
++  partial: { i: number; tr: string }[];
++  saved?: SavedTranslation;
++  error?: string;
++  controller: AbortController;
++  work?: Promise<void>;
++  finishedAt?: number;
++}
++class HttpError extends Error {
++  constructor(
++    readonly status: number,
++    message: string,
++  ) {
++    super(message);
++  }
++}
++
++function json(res: ServerResponse, status: number, body: unknown) {
++  res.statusCode = status;
++  res.setHeader("Content-Type", "application/json; charset=utf-8");
++  res.setHeader("Cache-Control", "private, no-store");
++  res.end(JSON.stringify(body));
++}
++function paperPath(value: unknown): string {
++  if (
++    typeof value !== "string" ||
++    value.length > 2048 ||
++    !value.startsWith("sources/") ||
++    !value.endsWith(".md") ||
++    value.split("/").some((part) => !part || part === "." || part === "..") ||
++    value.includes("\\") ||
++    [...value].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)
++  )
++    throw new HttpError(400, "论文路径无效");
++  return value;
++}
++async function bodyOf(req: IncomingMessage): Promise<Record<string, unknown>> {
++  const chunks: Buffer[] = [];
++  let size = 0;
++  for await (const chunk of req) {
++    size += chunk.length;
++    if (size > 8192) throw new HttpError(413, "请求过大");
++    chunks.push(Buffer.from(chunk));
++  }
++  try {
++    const value: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
++    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error();
++    return value as Record<string, unknown>;
++  } catch {
++    throw new HttpError(400, "请求格式无效");
++  }
++}
++
++export function createPaperTranslationService({
++  runtime,
++  store,
++  issuer,
++  coreId,
++  publicUrl,
++  translate = translateBlocks,
++  pollIntervalMs = 1200,
++}: {
++  runtime: WebRuntime;
++  store: TranslationStore;
++  issuer: string;
++  coreId: string;
++  publicUrl: string;
++  translate?: typeof translateBlocks;
++  pollIntervalMs?: number;
++}) {
++  const scope = createHash("sha256")
++    .update(JSON.stringify([issuer, coreId]))
++    .digest("hex");
++  const jobs = new Map<string, Job>();
++  let closed = false;
++  const serialize = (job: Job, sub: string): TranslationJob => ({
++    jobId: job.id,
++    status: job.status,
++    canCancel: job.owner === sub,
++    done: job.done,
++    total: job.total,
++    partial: job.partial,
++    saved: job.saved,
++    error: job.error,
++  });
++  const pageSource = async (fetcher: typeof fetch, path: string) => {
++    const encoded = path.split("/").map(encodeURIComponent).join("/");
++    const response = await fetcher(`/v1/base/pages/${encoded}`);
++    if (!response.ok)
++      throw new HttpError(
++        response.status,
++        response.status === 404 ? "论文不存在" : "无法读取论文，请检查登录状态或权限",
++      );
++    const page = (await response.json()) as { body?: unknown };
++    if (typeof page.body !== "string" || Buffer.byteLength(page.body) > 4 * 1024 * 1024)
++      throw new HttpError(413, "论文内容无效或过大");
++    const source = translationSource(page.body);
++    if (!isEnglishBody(source.body)) throw new HttpError(400, "此功能适用于英文论文");
++    return source;
++  };
++
++  async function generate(job: Job, fetcher: typeof fetch, blocks: string[]) {
++    try {
++      const result = await translate(blocks, {
++        targetLang: "zh",
++        refresh: true,
++        fetch: fetcher,
++        signal: job.controller.signal,
++        pollIntervalMs,
++        onProgress: (event) => {
++          if (job.status !== "running" || event.phase !== "partial") return;
++          job.partial = event.blocks;
++          job.done = event.blocks.length;
++        },
++      });
++      job.controller.signal.throwIfAborted();
++      if (
++        result.length !== blocks.length ||
++        result.some((text) => typeof text !== "string" || !text.trim())
++      )
++        throw new HttpError(502, "翻译结果不完整，请重新翻译");
++      const current = await pageSource(fetcher, job.path);
++      job.controller.signal.throwIfAborted();
++      if (current.hash !== job.hash) throw new HttpError(409, "原文已更新，请刷新论文后重新翻译");
++      const saved = {
++        sourceHash: job.hash,
++        translations: result,
++        savedAt: new Date().toISOString(),
++      };
++      store.put(scope, job.path, saved);
++      job.saved = saved;
++      job.status = "succeeded";
++      job.done = blocks.length;
++      job.partial = [];
++    } catch (error) {
++      job.status = job.controller.signal.aborted ? "cancelled" : "failed";
++      job.error =
++        error instanceof HttpError
++          ? error.message
++          : "翻译或保存失败，请稍后重试；已保存译文不会被覆盖";
++      job.partial = [];
++    } finally {
++      job.finishedAt = Date.now();
++    }
++  }
++
++  return {
++    matches(raw: string) {
++      return raw.split("?")[0] === ROOT || raw.split("?")[0].startsWith(ROOT + "/");
++    },
++    async handler(req: IncomingMessage, res: ServerResponse) {
++      try {
++        if (closed) throw new HttpError(503, "服务正在关闭");
++        const url = new URL(req.url ?? "/", "http://localhost");
++        const method = req.method ?? "GET";
++        if (method !== "GET" && method !== "POST") throw new HttpError(405, "不支持此操作");
++        // The extension reuses /auth/me's complete session validation/renewal,
++        // then enforces the same viewer/editor and strict write-Origin policy.
++        const fetcher = runtimeFetch(runtime, req.headers);
++        const auth = await fetcher("/web/auth/me");
++        const cookies = auth.headers.getSetCookie();
++        if (cookies.length) res.setHeader("Set-Cookie", cookies);
++        if (!auth.ok) throw new HttpError(auth.status, "请重新登录");
++        const principal = (await auth.json()) as {
++          role?: string;
++          user?: { sub?: string };
++          issuer?: string;
++          coreId?: string;
++        };
++        if (
++          !principal.user?.sub ||
++          !["viewer", "editor"].includes(principal.role ?? "") ||
++          principal.issuer !== issuer ||
++          principal.coreId !== coreId
++        )
++          throw new HttpError(403, "无知识库访问权限");
++        const sub = principal.user.sub;
++        if (method === "POST" && req.headers.origin !== publicUrl)
++          throw new HttpError(403, "请求来源无效");
++        const jobRoute = /^\/web\/papers\/translation\/jobs\/([a-f0-9-]{36})(\/cancel)?$/.exec(
++          url.pathname,
++        );
++        if (jobRoute) {
++          const job = jobs.get(jobRoute[1]);
++          if (!job) throw new HttpError(404, "翻译任务已结束，请重新打开中英对照");
++          if (jobRoute[2] && method === "POST") {
++            if (job.owner !== sub) throw new HttpError(403, "仅发起人可取消翻译");
++            if (job.status === "running") job.controller.abort();
++            await job.work;
++          } else if (jobRoute[2] || method !== "GET") throw new HttpError(405, "不支持此操作");
++          return json(res, 200, serialize(job, sub));
++        }
++        if (url.pathname !== ROOT) throw new HttpError(404, "接口不存在");
++        const input = method === "GET" ? Object.fromEntries(url.searchParams) : await bodyOf(req);
++        const path = paperPath(input.path);
++        const source = await pageSource(fetcher, path);
++        if (input.sourceHash !== source.hash)
++          throw new HttpError(409, "原文已更新，请刷新论文后重试");
++        const previous = store.get(scope, path);
++        const saved =
++          previous?.sourceHash === source.hash &&
++          previous.translations.length === source.blocks.length
++            ? previous
++            : null;
++        // Sweep bounded terminal metadata; persistent successful records do not expire.
++        for (const [id, job] of jobs)
++          if (job.finishedAt && job.finishedAt < Date.now() - 3600000) jobs.delete(id);
++        const pending = [...jobs.values()].find(
++          (job) => job.path === path && job.hash === source.hash && job.status === "running",
++        );
++        if (method === "GET" || pending || (saved && input.refresh !== true))
++          return json(res, 200, {
++            saved,
++            outdated: !!previous && !saved,
++            job: pending ? serialize(pending, sub) : null,
++          });
++        if (input.refresh != null && typeof input.refresh !== "boolean")
++          throw new HttpError(400, "刷新参数无效");
++        if (!source.blocks.length || source.blocks.length > 2000)
++          throw new HttpError(413, "论文段落数量超出翻译范围");
++        if (
++          [...jobs.values()].filter((job) => job.status === "running").length >= 8 ||
++          jobs.size >= 128
++        )
++          throw new HttpError(503, "翻译任务较多，请稍后重试");
++        const job: Job = {
++          id: randomUUID(),
++          owner: sub,
++          path,
++          hash: source.hash,
++          status: "running",
++          done: 0,
++          total: source.blocks.length,
++          partial: [],
++          controller: new AbortController(),
++        };
++        jobs.set(job.id, job);
++        // Detached from the browser: leaving the page does not discard a completed translation.
++        job.work = generate(job, fetcher, source.blocks);
++        return json(res, 202, { saved, outdated: !!previous && !saved, job: serialize(job, sub) });
++      } catch (error) {
++        json(res, error instanceof HttpError ? error.status : 500, {
++          error: {
++            message: error instanceof HttpError ? error.message : "读取或保存译文失败，请稍后重试",
++          },
++        });
++      }
++    },
++    async close() {
++      closed = true;
++      for (const job of jobs.values()) if (job.status === "running") job.controller.abort();
++      await Promise.allSettled([...jobs.values()].map((job) => job.work));
++      store.close();
++    },
++  };
++}
+diff --git a/server/runtime-request.ts b/server/runtime-request.ts
+new file mode 100644
+index 0000000..32d8e79
+--- /dev/null
++++ b/server/runtime-request.ts
+@@ -0,0 +1,102 @@
++import { IncomingMessage, type ServerResponse, type OutgoingHttpHeaders } from "node:http";
++import { Socket } from "node:net";
++import { Writable } from "node:stream";
++import type { WebRuntime } from "@opendikw/web-server/runtime";
++
++/** A real Writable so Core's streaming pipeline completes, destroys and emits
++ * close normally. Only capture public ServerResponse methods the BFF uses.
++ */
++class CapturedResponse extends Writable {
++  statusCode = 200;
++  headersSent = false;
++  readonly chunks: Buffer[] = [];
++  private readonly headers: OutgoingHttpHeaders = {};
++  private size = 0;
++  setHeader(name: string, value: string | number | readonly string[]) {
++    this.headers[name.toLowerCase()] = Array.isArray(value)
++      ? [...value]
++      : (value as string | number);
++    return this;
++  }
++  getHeader(name: string) {
++    return this.headers[name.toLowerCase()];
++  }
++  getHeaders() {
++    return { ...this.headers };
++  }
++  removeHeader(name: string) {
++    delete this.headers[name.toLowerCase()];
++  }
++  hasHeader(name: string) {
++    return name.toLowerCase() in this.headers;
++  }
++  flushHeaders() {
++    this.headersSent = true;
++  }
++  writeHead(status: number, headers?: OutgoingHttpHeaders) {
++    this.statusCode = status;
++    for (const [key, value] of Object.entries(headers ?? {}))
++      if (value != null) this.setHeader(key, value);
++    this.flushHeaders();
++    return this;
++  }
++  override _write(chunk: Buffer, _encoding: BufferEncoding, done: (error?: Error | null) => void) {
++    this.size += chunk.length;
++    if (this.size > 8 * 1024 * 1024) return done(new Error("BFF response exceeds document limit"));
++    this.chunks.push(Buffer.from(chunk));
++    done();
++  }
++}
++
++/** Call public BFF routes in-process, retaining their OIDC/role/origin gates.
++ * No private package API, loopback listener, credentials or auth-table access.
++ */
++export function runtimeFetch(
++  runtime: WebRuntime,
++  headers: IncomingMessage["headers"],
++): typeof fetch {
++  return async (input, init) => {
++    const path = String(input);
++    if (!path.startsWith("/") || path.startsWith("//"))
++      throw new Error("relative BFF path required");
++    const req = new IncomingMessage(new Socket());
++    req.url = path;
++    req.method = init?.method ?? "GET";
++    req.headers = {
++      cookie: headers.cookie,
++      origin: headers.origin,
++      host: headers.host,
++      "content-type": "application/json",
++      accept: "application/json",
++    };
++    if (init?.body != null && typeof init.body !== "string") throw new Error("JSON body required");
++    req.push(init?.body ?? null);
++    if (init?.body != null) req.push(null);
++    req.complete = true;
++    const res = new CapturedResponse();
++    const signal = init?.signal;
++    signal?.throwIfAborted();
++    return new Promise<Response>((resolve, reject) => {
++      const abort = () => res.destroy(new DOMException("Aborted", "AbortError"));
++      signal?.addEventListener("abort", abort, { once: true });
++      res.once("error", reject);
++      res.once("close", () => {
++        signal?.removeEventListener("abort", abort);
++        req.destroy();
++      });
++      res.once("finish", () => {
++        const responseHeaders = new Headers();
++        for (const [key, value] of Object.entries(res.getHeaders())) {
++          if (Array.isArray(value))
++            value.forEach((item) => responseHeaders.append(key, String(item)));
++          else if (value != null) responseHeaders.set(key, String(value));
++        }
++        const body = [204, 205, 304].includes(res.statusCode) ? null : Buffer.concat(res.chunks);
++        resolve(new Response(body, { status: res.statusCode, headers: responseHeaders }));
++      });
++      void runtime
++        .handler(req, res as unknown as ServerResponse)
++        .catch((error) => res.destroy(error));
++    });
++  };
++}
+diff --git a/server/runtime.ts b/server/runtime.ts
+index 7eac705..5c02a9d 100644
+--- a/server/runtime.ts
++++ b/server/runtime.ts
+@@ -1,18 +1,63 @@
+ import { createWebRuntime } from "@opendikw/web-server/runtime";
+ import { rejectFullBaseAnalysis } from "./capabilities.js";
++import { resolve, join } from "node:path";
++import { readFile } from "node:fs/promises";
++import { createPaperTranslationService } from "./paper-translation.js";
++import { TranslationStore } from "./translation-store.js";
+ 
+ export async function createStandaloneRuntime(
+   env: Record<string, string | undefined> = process.env,
+ ) {
++  // Match the shared runtime's dotenv precedence, including direct npm start.
++  const fileEnv: Record<string, string> = {};
++  try {
++    for (const raw of (await readFile(".env.local", "utf8")).split(/\r?\n/)) {
++      const line = raw.trim();
++      if (!line || line.startsWith("#")) continue;
++      const separator = line.indexOf("=");
++      if (separator < 0) continue;
++      let value = line.slice(separator + 1).trim();
++      if (
++        (value.startsWith('"') && value.endsWith('"')) ||
++        (value.startsWith("'") && value.endsWith("'"))
++      )
++        value = value.slice(1, -1);
++      fileEnv[line.slice(0, separator).trim()] = value;
++    }
++  } catch (error) {
++    if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
++  }
++  env = { ...fileEnv, ...env };
+   const runtime = await createWebRuntime({
+     appId: "dikw-mbweb",
+     profile: "mbweb",
+     env: { ...env, NODE_ENV: "production" },
+   });
++  let translation: ReturnType<typeof createPaperTranslationService>;
++  let store: TranslationStore | undefined;
++  try {
++    translation = createPaperTranslationService({
++      runtime,
++      store: (store = new TranslationStore(
++        join(resolve(env.DIKW_AGENT_SESSIONS_DIR || ".agent-sessions"), "translations.sqlite"),
++      )),
++      issuer: env.DIKW_WEB_OIDC_ISSUER?.trim() || "",
++      coreId: env.DIKW_WEB_CORE_ID?.trim() || "",
++      publicUrl: new URL(env.DIKW_WEB_PUBLIC_URL || "http://localhost").origin,
++    });
++  } catch (error) {
++    store?.close();
++    await runtime.close();
++    throw error;
++  }
+   return {
+     async handler(...args: Parameters<typeof runtime.handler>) {
+-      if (!rejectFullBaseAnalysis(...args)) await runtime.handler(...args);
++      if (translation.matches(args[0].url ?? "/")) await translation.handler(...args);
++      else if (!rejectFullBaseAnalysis(...args)) await runtime.handler(...args);
++    },
++    async close() {
++      await translation.close();
++      await runtime.close();
+     },
+-    close: () => runtime.close(),
+   };
+ }
+diff --git a/server/translation-store.ts b/server/translation-store.ts
+new file mode 100644
+index 0000000..888dc7d
+--- /dev/null
++++ b/server/translation-store.ts
+@@ -0,0 +1,52 @@
++import { chmodSync, mkdirSync } from "node:fs";
++import { dirname } from "node:path";
++import { DatabaseSync } from "node:sqlite";
++import type { SavedTranslation } from "../src/models/translation.js";
++
++export class TranslationStore {
++  private readonly db: DatabaseSync;
++  constructor(path: string) {
++    if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
++    this.db = new DatabaseSync(path);
++    if (path !== ":memory:") chmodSync(path, 0o600);
++    this.db.exec(`
++      PRAGMA journal_mode = WAL;
++      PRAGMA busy_timeout = 5000;
++      CREATE TABLE IF NOT EXISTS paper_translations (
++        scope TEXT NOT NULL, paper_path TEXT NOT NULL, source_hash TEXT NOT NULL,
++        language TEXT NOT NULL, version INTEGER NOT NULL, translations TEXT NOT NULL,
++        saved_at TEXT NOT NULL, PRIMARY KEY(scope, paper_path, language, version)
++      );
++    `);
++  }
++
++  get(scope: string, path: string): SavedTranslation | null {
++    const row = this.db
++      .prepare(
++        "SELECT source_hash, translations, saved_at FROM paper_translations WHERE scope=? AND paper_path=? AND language='zh' AND version=1",
++      )
++      .get(scope, path);
++    if (!row) return null;
++    return {
++      sourceHash: String(row.source_hash),
++      translations: JSON.parse(String(row.translations)) as string[],
++      savedAt: String(row.saved_at),
++    };
++  }
++
++  put(scope: string, path: string, value: SavedTranslation): void {
++    this.db
++      .prepare(
++        `
++      INSERT INTO paper_translations VALUES (?, ?, ?, 'zh', 1, ?, ?)
++      ON CONFLICT(scope, paper_path, language, version) DO UPDATE SET
++        source_hash=excluded.source_hash, translations=excluded.translations, saved_at=excluded.saved_at
++    `,
++      )
++      .run(scope, path, value.sourceHash, JSON.stringify(value.translations), value.savedAt);
++  }
++
++  close(): void {
++    this.db.close();
++  }
++}
+diff --git a/src/App.tsx b/src/App.tsx
+index eb2abfb..1fce331 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -1,22 +1,19 @@
+ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+ import {
+-  BookText,
+   Bookmark,
+   Check,
+   Contrast,
+   File,
+   Files,
++  FolderKanban,
++  Grid2X2,
+   LogOut,
+   MessageSquareText,
+ } from "lucide-react";
+ import { DikwClient, normalizeBaseUrl } from "@opendikw/web-client/core";
+ import { AgentClient } from "@opendikw/web-client/agent";
+ import { useAuth, useCanEdit } from "@opendikw/web-ui/auth";
+-import {
+-  fetchTranslateEnabled,
+-  tryOpenDefaultTranslateCache,
+-  type TranslateCache,
+-} from "@opendikw/web-client/translate";
++import { fetchTranslateEnabled } from "@opendikw/web-client/translate";
+ import { ResearchWorkspace } from "./features/research/ResearchWorkspace";
+ import { NotesView } from "./features/notes/NotesView";
+ import { defaultServerUrl, loadConnection, type MbConnection } from "./config/connection";
+@@ -26,6 +23,7 @@ import { archiveNoteInWisdom, writeNoteToWisdom } from "./features/notes/wisdom-
+ import { loadLocalNotes } from "./config/notes";
+ import { storageNamespace } from "./config/storage";
+ import "./styles/mb.css";
++import "./styles/maibo.css";
+ 
+ import type { MbNote, NoteKind } from "./models/note";
+ import type { CurrentPaper } from "./models/paper";
+@@ -170,7 +168,6 @@ function IdentityApplication({
+   );
+ 
+   const [translatorEnabled, setTranslatorEnabled] = useState(false);
+-  const [translateCache, setTranslateCache] = useState<TranslateCache | null>(null);
+ 
+   const currentPaperRef = useRef<CurrentPaper | null>(null);
+ 
+@@ -190,17 +187,12 @@ function IdentityApplication({
+       localStorage.setItem(notesKey, JSON.stringify(notes));
+   }, [notes, notesKey, notesReadOnly]);
+ 
+-  // probe sidecar translator once (gates 中英对照)
++  // Probe generation availability; saved Chinese remains readable without the model.
+   useEffect(() => {
+     let cancelled = false;
+     void fetchTranslateEnabled().then((enabled) => {
+       if (cancelled) return;
+       setTranslatorEnabled(enabled);
+-      if (enabled) {
+-        void tryOpenDefaultTranslateCache({ namespace }).then((cache) => {
+-          if (!cancelled) setTranslateCache(cache);
+-        });
+-      }
+     });
+     return () => {
+       cancelled = true;
+@@ -485,15 +477,20 @@ function IdentityApplication({
+ 
+   return (
+     <div className={`mb-app${selectionPending ? " mb-selecting" : ""}`}>
+-      <header className="mb-top">
+-        <div className="mb-lgroup">
+-          <div className="mb-brand">
+-            <BookText size={20} aria-hidden="true" />
+-            论文知识库
++      <aside className="mb-sidebar">
++        <div className="mb-company-brand">
++          <img src="/brand/maibo-pharma-logo.png" alt="迈博药业" width={48} height={48} />
++          <div className="mb-company-copy">
++            <strong>论文知识库</strong>
++            <span>知识共享 · 研究协同</span>
+           </div>
++        </div>
++        <nav className="mb-side-nav" aria-label="主导航">
++          <p className="mb-nav-caption">工作空间</p>
+           <div className="mb-seg" role="group" aria-label="视图">
+             <button
+               type="button"
++              title="论文研究"
+               aria-pressed={view === "research"}
+               className={view === "research" ? "on" : ""}
+               onClick={() => {
+@@ -501,11 +498,12 @@ function IdentityApplication({
+                 window.location.hash = "research";
+               }}
+             >
+-              <Files size={15} aria-hidden="true" />
+-              论文研究
++              <Files size={18} aria-hidden="true" />
++              <span className="mb-nav-label">论文研究</span>
+             </button>
+             <button
+               type="button"
++              title="我的笔记"
+               aria-pressed={view === "notes"}
+               className={view === "notes" ? "on" : ""}
+               onClick={() => {
+@@ -513,100 +511,136 @@ function IdentityApplication({
+                 window.location.hash = "notes";
+               }}
+             >
+-              <Bookmark size={15} aria-hidden="true" />
+-              我的笔记
++              <Bookmark size={18} aria-hidden="true" />
++              <span className="mb-nav-label">我的笔记</span>
+               {notes.length ? <span className="mb-badge">{notes.length}</span> : null}
+             </button>
+           </div>
+-        </div>
+-        <div className="mb-rgroup">
+-          <span className="mb-user" title={username}>
+-            {username}
+-          </span>
+-          {auth.enabled ? (
+-            <form method="post" action="/web/auth/logout">
+-              <button className="mb-iconbtn" type="submit" aria-label="退出登录" title="退出登录">
+-                <LogOut size={18} aria-hidden="true" />
+-              </button>
+-            </form>
+-          ) : null}
+-          <button
+-            className="mb-iconbtn"
+-            type="button"
+-            aria-label="切换主题"
+-            title="切换深/浅色"
+-            onClick={toggleTheme}
++          <p className="mb-nav-caption mb-related-caption">相关系统</p>
++          <a
++            href="https://pm.openlims.ai/dashboard"
++            target="_blank"
++            rel="noopener noreferrer"
++            title="项目管理"
++            aria-label="项目管理"
+           >
+-            <Contrast size={18} aria-hidden="true" />
+-          </button>
+-        </div>
+-      </header>
+-
+-      {notesReadOnly ? (
+-        <div className="mb-bi-status err" role="status">
+-          本地笔记暂不可写，原始数据已保留。可继续阅读论文。
++            <FolderKanban size={18} aria-hidden="true" />
++            <span className="mb-nav-label">项目管理</span>
++          </a>
++          <a href="https://www.openlims.ai/" title="应用工作台" aria-label="应用工作台">
++            <Grid2X2 size={18} aria-hidden="true" />
++            <span className="mb-nav-label">应用工作台</span>
++          </a>
++        </nav>
++        <div className="mb-sidebar-footer">
++          <span>迈博药业</span>
++          <span>知识共享 · 协同研究</span>
+         </div>
+-      ) : null}
++      </aside>
++      <div className="mb-workspace">
++        <header className="mb-top">
++          <span className="mb-workspace-name">知识库工作空间</span>
++          <div className="mb-rgroup">
++            <a className="mb-portal-link" href="https://www.openlims.ai/" title="返回应用工作台">
++              <Grid2X2 size={17} aria-hidden="true" />
++              <span className="mb-action-label">应用工作台</span>
++            </a>
++            <div className="mb-account">
++              <span className="mb-avatar" aria-hidden="true">
++                {username.slice(0, 1).toUpperCase()}
++              </span>
++              <div className="mb-account-copy">
++                <span className="mb-user" title={username}>
++                  {username}
++                </span>
++                <span className="mb-account-role">{canEdit ? "编辑权限" : "阅读权限"}</span>
++              </div>
++            </div>
++            <button
++              className="mb-iconbtn"
++              type="button"
++              aria-label="切换主题"
++              title="切换深/浅色"
++              onClick={toggleTheme}
++            >
++              <Contrast size={18} aria-hidden="true" />
++            </button>
++            {auth.enabled ? (
++              <form method="post" action="/web/auth/logout">
++                <button className="mb-iconbtn" type="submit" aria-label="退出登录" title="退出登录">
++                  <LogOut size={17} aria-hidden="true" />
++                  <span className="mb-action-label">退出登录</span>
++                </button>
++              </form>
++            ) : null}
++          </div>
++        </header>
+ 
+-      {pendingArchives.length > 0 ? (
+-        <div className="mb-bi-status err" role="status" aria-live="polite">
+-          {pendingArchives.length} 条已删除笔记等待归档；记录已保留，可稍后重试。
+-          <button
+-            className="mb-btn"
+-            type="button"
+-            disabled={!canEdit || notesReadOnly}
+-            onClick={() => pendingArchives.forEach(archiveNote)}
+-          >
+-            重试归档
+-          </button>
+-        </div>
+-      ) : null}
++        {notesReadOnly ? (
++          <div className="mb-bi-status err" role="status">
++            本地笔记暂不可写，原始数据已保留。可继续阅读论文。
++          </div>
++        ) : null}
+ 
+-      <main className="mb-main">
+-        <section
+-          style={{
+-            display: view === "research" ? "flex" : "none",
+-            flex: 1,
+-            minHeight: 0,
+-          }}
+-        >
+-          <ResearchWorkspace
+-            namespace={namespace}
+-            theme={theme.resolved}
+-            client={client}
+-            agentClient={agentClient}
+-            assetBaseUrl={clientBaseUrl}
+-            assetToken={token}
+-            translatorEnabled={translatorEnabled}
+-            translateCache={translateCache}
+-            onCurrentPaperChange={(p) => {
+-              currentPaperRef.current = p;
++        {pendingArchives.length > 0 ? (
++          <div className="mb-bi-status err" role="status" aria-live="polite">
++            {pendingArchives.length} 条已删除笔记等待归档；记录已保留，可稍后重试。
++            <button
++              className="mb-btn"
++              type="button"
++              disabled={!canEdit || notesReadOnly}
++              onClick={() => pendingArchives.forEach(archiveNote)}
++            >
++              重试归档
++            </button>
++          </div>
++        ) : null}
++
++        <main className="mb-main">
++          <section
++            style={{
++              display: view === "research" ? "flex" : "none",
++              flex: 1,
++              minHeight: 0,
+             }}
+-            onSaveAnswer={notesReadOnly ? undefined : saveAnswerNote}
+-          />
+-        </section>
+-        <section
+-          style={{
+-            display: view === "notes" ? "flex" : "none",
+-            flex: 1,
+-            minHeight: 0,
+-          }}
+-        >
+-          {notesReadOnly ? (
+-            <div className="mb-notes-damaged" role="alert">
+-              <h1>笔记数据损坏</h1>
+-              <p>原始数据已保留。请先备份并修复当前账户的浏览器笔记数据，再重新加载。</p>
+-            </div>
+-          ) : (
+-            <NotesView
+-              notes={notes}
+-              setNotes={setNotes}
+-              onSyncNote={syncNote}
+-              onArchiveNote={archiveNote}
++          >
++            <ResearchWorkspace
++              namespace={namespace}
++              theme={theme.resolved}
++              client={client}
++              agentClient={agentClient}
++              assetBaseUrl={clientBaseUrl}
++              assetToken={token}
++              translatorEnabled={translatorEnabled}
++              onCurrentPaperChange={(p) => {
++                currentPaperRef.current = p;
++              }}
++              onSaveAnswer={notesReadOnly ? undefined : saveAnswerNote}
+             />
+-          )}
+-        </section>
+-      </main>
++          </section>
++          <section
++            style={{
++              display: view === "notes" ? "flex" : "none",
++              flex: 1,
++              minHeight: 0,
++            }}
++          >
++            {notesReadOnly ? (
++              <div className="mb-notes-damaged" role="alert">
++                <h1>笔记数据损坏</h1>
++                <p>原始数据已保留。请先备份并修复当前账户的浏览器笔记数据，再重新加载。</p>
++              </div>
++            ) : (
++              <NotesView
++                notes={notes}
++                setNotes={setNotes}
++                onSyncNote={syncNote}
++                onArchiveNote={archiveNote}
++              />
++            )}
++          </section>
++        </main>
++      </div>
+ 
+       {chip.show ? (
+         <button
+diff --git a/src/features/research/PaperReader.translation.test.tsx b/src/features/research/PaperReader.translation.test.tsx
+new file mode 100644
+index 0000000..6f9c09f
+--- /dev/null
++++ b/src/features/research/PaperReader.translation.test.tsx
+@@ -0,0 +1,93 @@
++import { fireEvent, render, screen, waitFor } from "@testing-library/react";
++import { expect, it, vi } from "vitest";
++import { AuthContext } from "@opendikw/web-ui/auth";
++import { PaperReader } from "./PaperReader";
++import { createMockClient } from "../../test/mockClient";
++import { translationSource } from "../../models/translation";
++
++const body = "# Study\n\nAn English scientific paper.";
++const saved = {
++  sourceHash: translationSource(body).hash,
++  translations: ["# 中文研究", "中文论文内容。"],
++  savedAt: "2026-10-08T00:00:00Z",
++};
++function mount() {
++  const client = createMockClient();
++  client.get.mockResolvedValue({ body, path: "sources/paper.md", assets: [], title: "Study" });
++  const view = render(
++    <AuthContext.Provider value={{ enabled: true, role: "viewer", user: { sub: "reader" } }}>
++      <PaperReader
++        theme="light"
++        paper={{ path: "sources/paper.md", title: "Study" }}
++        client={client}
++        assetBaseUrl=""
++        assetToken=""
++        translatorEnabled
++        leftCollapsed={false}
++        rightCollapsed={false}
++        onToggleLeft={() => {}}
++        onToggleRight={() => {}}
++        onUpload={() => {}}
++      />
++    </AuthContext.Provider>,
++  );
++  return view;
++}
++it("requires explicit start, then reads saved Chinese on reopening without another POST", async () => {
++  let stored: typeof saved | null = null;
++  const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
++    if (init?.method === "POST") stored = saved;
++    return new Response(JSON.stringify({ saved: stored, job: null, outdated: false }), {
++      headers: { "Content-Type": "application/json" },
++    });
++  });
++  vi.stubGlobal("fetch", fetcher);
++  let view = mount();
++  fireEvent.click(await screen.findByRole("tab", { name: "中英对照" }));
++  expect(await screen.findByRole("button", { name: "开始翻译" })).toBeEnabled();
++  expect(fetcher.mock.calls.every((call) => call[1]?.method !== "POST")).toBe(true);
++  fireEvent.click(screen.getByRole("button", { name: "开始翻译" }));
++  expect(await screen.findByText("中文论文内容。")).toBeVisible();
++  expect(screen.getByRole("button", { name: "重新翻译" })).toBeEnabled();
++  expect(fetcher.mock.calls.filter((call) => call[1]?.method === "POST")).toHaveLength(1);
++  view.unmount();
++  view = mount();
++  fireEvent.click(await screen.findByRole("tab", { name: "中英对照" }));
++  expect(await screen.findByText("中文论文内容。")).toBeVisible();
++  expect(screen.getByText("已保存")).toBeVisible();
++  expect(fetcher.mock.calls.filter((call) => call[1]?.method === "POST")).toHaveLength(1);
++  view.unmount();
++});
++
++it("keeps saved Chinese when an explicit retranslation fails", async () => {
++  const fetcher = vi.fn(
++    async (_input: RequestInfo | URL, init?: RequestInit) =>
++      new Response(
++        JSON.stringify(
++          init?.method === "POST"
++            ? { error: { message: "翻译服务暂不可用" } }
++            : { saved, job: null, outdated: false },
++        ),
++        {
++          status: init?.method === "POST" ? 503 : 200,
++          headers: { "Content-Type": "application/json" },
++        },
++      ),
++  );
++  vi.stubGlobal("fetch", fetcher);
++  mount();
++  fireEvent.click(await screen.findByRole("tab", { name: "中英对照" }));
++  expect(await screen.findByText("中文论文内容。")).toBeVisible();
++  fireEvent.click(screen.getByRole("button", { name: "重新翻译" }));
++  expect(await screen.findByText(/继续显示已保存译文/)).toBeVisible();
++  expect(screen.getByText("中文论文内容。")).toBeVisible();
++  await waitFor(() =>
++    expect(fetcher.mock.calls.filter((call) => call[1]?.method === "POST")).toHaveLength(1),
++  );
++  const post = fetcher.mock.calls.find((call) => call[1]?.method === "POST");
++  expect(JSON.parse(String(post![1]!.body))).toMatchObject({
++    path: "sources/paper.md",
++    refresh: true,
++    sourceHash: saved.sourceHash,
++  });
++});
+diff --git a/src/features/research/PaperReader.tsx b/src/features/research/PaperReader.tsx
+index 486a9ad..09d0d25 100644
+--- a/src/features/research/PaperReader.tsx
++++ b/src/features/research/PaperReader.tsx
+@@ -17,8 +17,7 @@ import {
+   type MarkdownContext,
+ } from "@opendikw/web-ui/reader";
+ import type { BilingualBlock } from "@opendikw/web-ui/reader";
+-import { useBilingualReader } from "@opendikw/web-ui/hooks";
+-import type { TranslateCache } from "@opendikw/web-client/translate";
++import { useStoredTranslation } from "./useStoredTranslation";
+ import { isEnglishBody } from "@opendikw/web-client/document";
+ import { parseMarkdownDocument } from "@opendikw/web-client/document";
+ import { basename } from "@opendikw/web-client/document";
+@@ -32,7 +31,6 @@ interface Props {
+   assetBaseUrl: string;
+   assetToken: string;
+   translatorEnabled: boolean;
+-  translateCache: TranslateCache | null;
+   leftCollapsed: boolean;
+   rightCollapsed: boolean;
+   onToggleLeft: () => void;
+@@ -51,7 +49,6 @@ export function PaperReader({
+   assetBaseUrl,
+   assetToken,
+   translatorEnabled,
+-  translateCache,
+   leftCollapsed,
+   rightCollapsed,
+   onToggleLeft,
+@@ -94,12 +91,12 @@ export function PaperReader({
+     [page],
+   );
+   const isEnglish = useMemo(() => isEnglishBody(readerBody), [readerBody]);
+-  const bilingual = useBilingualReader({
+-    body: readerBody,
++  const bilingual = useStoredTranslation({
++    body: page?.body ?? "",
+     enabled: translatorEnabled,
+-    cache: translateCache,
++    path: loading ? null : path,
+   });
+-  const canBilingual = translatorEnabled && isEnglish;
++  const canBilingual = isEnglish;
+   const ctx: MarkdownContext = useMemo(
+     () => ({ assets: page?.assets ?? [], assetBaseUrl, assetToken }),
+     [page?.assets, assetBaseUrl, assetToken],
+@@ -151,7 +148,7 @@ export function PaperReader({
+                 className={bilingual.active ? "on" : ""}
+                 onClick={selectBi}
+                 disabled={!canBilingual}
+-                title={canBilingual ? "中英对照" : "需要英文论文且已配置翻译服务"}
++                title={canBilingual ? "中英对照" : "需要英文论文"}
+               >
+                 中英对照
+               </button>
+@@ -205,10 +202,17 @@ export function PaperReader({
+               <>
+                 <BilingualStatus
+                   translating={bilingual.translating}
+-                  cached={bilingual.cached}
+-                  hasError={!!bilingual.error}
++                  checking={bilingual.checking}
++                  savedAt={bilingual.saved?.savedAt ?? null}
++                  error={bilingual.error}
++                  outdated={bilingual.outdated}
++                  translatorEnabled={translatorEnabled}
++                  progress={bilingual.job ? `${bilingual.job.done}/${bilingual.job.total}` : ""}
++                  canCancel={bilingual.job?.canCancel ?? false}
++                  onStart={bilingual.start}
+                   onRetranslate={bilingual.forceRetranslate}
+                   onCancel={bilingual.cancel}
++                  onRetryLookup={bilingual.retryLookup}
+                 />
+                 <BilingualPaper
+                   key={theme}
+@@ -239,24 +243,38 @@ export function PaperReader({
+ 
+ function BilingualStatus({
+   translating,
+-  cached,
+-  hasError,
++  checking,
++  savedAt,
++  error,
++  outdated,
++  translatorEnabled,
++  progress,
++  canCancel,
++  onStart,
+   onRetranslate,
+   onCancel,
++  onRetryLookup,
+ }: {
+   translating: boolean;
+-  cached: boolean;
+-  hasError: boolean;
++  checking: boolean;
++  savedAt: string | null;
++  error: string | null;
++  outdated: boolean;
++  translatorEnabled: boolean;
++  progress: string;
++  canCancel: boolean;
++  onStart: () => void;
+   onRetranslate: () => void;
+   onCancel: () => void;
++  onRetryLookup: () => void;
+ }) {
+-  if (hasError) {
++  if (checking) {
+     return (
+-      <div className="mb-bi-status err" role="status" aria-live="polite">
+-        <span className="left">翻译失败</span>
+-        <button type="button" onClick={onRetranslate}>
+-          重试
+-        </button>
++      <div className="mb-bi-status" role="status" aria-live="polite">
++        <span className="left">
++          <Loader2 className="mb-spin" size={14} aria-hidden="true" />
++          正在读取译文…
++        </span>
+       </div>
+     );
+   }
+@@ -265,22 +283,46 @@ function BilingualStatus({
+       <div className="mb-bi-status" role="status" aria-live="polite">
+         <span className="left">
+           <Loader2 className="mb-spin" size={14} aria-hidden="true" />
+-          翻译中…
++          {savedAt ? "正在重新翻译，完成后替换已保存译文" : "翻译中…"} {progress}
+         </span>
+-        <button type="button" onClick={onCancel}>
+-          取消
+-        </button>
++        {canCancel ? (
++          <button type="button" onClick={onCancel}>
++            取消
++          </button>
++        ) : (
++          <span>其他用户正在翻译</span>
++        )}
+       </div>
+     );
+   }
+   return (
+-    <div className="mb-bi-status" role="status" aria-live="polite">
++    <div className={`mb-bi-status${error ? " err" : ""}`} role="status" aria-live="polite">
+       <span className="left">
+-        中英对照
+-        {cached ? <span className="mb-chip-cached">缓存</span> : null}
++        {error
++          ? `${error}${savedAt ? "；继续显示已保存译文" : ""}`
++          : savedAt
++            ? "中文译文已保存，下次打开直接读取"
++            : outdated
++              ? "原文已更新，请重新翻译"
++              : "尚未生成中文译文，点击开始翻译"}
++        {savedAt ? (
++          <span className="mb-chip-cached" title={new Date(savedAt).toLocaleString("zh-CN")}>
++            已保存
++          </span>
++        ) : null}
++        {!translatorEnabled ? <span>翻译服务暂不可用</span> : null}
+       </span>
+-      <button type="button" onClick={onRetranslate}>
+-        再翻译一次
++      {error && !savedAt ? (
++        <button type="button" onClick={onRetryLookup}>
++          重新读取
++        </button>
++      ) : null}
++      <button
++        type="button"
++        onClick={savedAt || outdated ? onRetranslate : onStart}
++        disabled={!translatorEnabled}
++      >
++        {savedAt || outdated ? "重新翻译" : "开始翻译"}
+       </button>
+     </div>
+   );
+diff --git a/src/features/research/ResearchWorkspace.test.tsx b/src/features/research/ResearchWorkspace.test.tsx
+index a57a40a..ae3ee1b 100644
+--- a/src/features/research/ResearchWorkspace.test.tsx
++++ b/src/features/research/ResearchWorkspace.test.tsx
+@@ -64,7 +64,6 @@ function mountWorkspace(answer: string, auth: AuthState = { enabled: false }) {
+         assetBaseUrl=""
+         assetToken=""
+         translatorEnabled={false}
+-        translateCache={null}
+         onCurrentPaperChange={() => {}}
+       />
+     </AuthContext.Provider>,
+@@ -132,7 +131,7 @@ describe("ResearchWorkspace — Q&A panel collapse", () => {
+ describe("ResearchWorkspace — narrow viewport panel switcher", () => {
+   afterEach(() => vi.unstubAllGlobals());
+ 
+-  it("offers a tab bar below 900px so the library and Q&A stay reachable", async () => {
++  it("offers a tab bar below 1100px so the library and Q&A stay reachable", async () => {
+     vi.stubGlobal("matchMedia", (query: string) => ({
+       matches: true,
+       media: query,
+diff --git a/src/features/research/ResearchWorkspace.tsx b/src/features/research/ResearchWorkspace.tsx
+index 5effbfc..ead363f 100644
+--- a/src/features/research/ResearchWorkspace.tsx
++++ b/src/features/research/ResearchWorkspace.tsx
+@@ -3,7 +3,6 @@ import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerE
+ import { PanelLeftOpen, PanelRightOpen } from "lucide-react";
+ import type { DikwClient } from "@opendikw/web-client/core";
+ import type { AgentClient } from "@opendikw/web-client/agent";
+-import type { TranslateCache } from "@opendikw/web-client/translate";
+ import type { ResolvedTheme } from "@opendikw/web-ui/theme";
+ import {
+   MINERU_EXTENSIONS,
+@@ -26,7 +25,6 @@ interface Props {
+   assetBaseUrl: string;
+   assetToken: string;
+   translatorEnabled: boolean;
+-  translateCache: TranslateCache | null;
+   onCurrentPaperChange: (paper: CurrentPaper | null) => void;
+   /** Save a whole Q&A answer to 我的笔记 (and mirror to the Wisdom layer). */
+   onSaveAnswer?: (text: string, paper: CurrentPaper | null) => void;
+@@ -68,7 +66,6 @@ export function ResearchWorkspace({
+   assetBaseUrl,
+   assetToken,
+   translatorEnabled,
+-  translateCache,
+   onCurrentPaperChange,
+   onSaveAnswer,
+ }: Props) {
+@@ -90,17 +87,17 @@ export function ResearchWorkspace({
+   const [dragging, setDragging] = useState<"left" | "right" | null>(null);
+   const dragRef = useRef<{ side: "left" | "right"; startX: number; startW: number } | null>(null);
+ 
+-  // Narrow viewports can't fit three side-by-side panels; below 900px a single
++  // Narrow viewports can't fit three side-by-side panels; below 1100px a single
+   // panel fills the width and a tab bar switches between them, so the library
+   // (paper picker) and Q&A stay reachable instead of being display:none'd away
+   // — the #MB-Web link is a cold-open, phone-shared entry point. matchMedia is
+   // absent in jsdom, so this defaults to the desktop three-pane layout.
+   const [isNarrow, setIsNarrow] = useState(
+-    () => window.matchMedia?.("(max-width: 900px)").matches ?? false,
++    () => window.matchMedia?.("(max-width: 1100px)").matches ?? false,
+   );
+   const [mobilePanel, setMobilePanel] = useState<"lib" | "reader" | "qa">("lib");
+   useEffect(() => {
+-    const mq = window.matchMedia?.("(max-width: 900px)");
++    const mq = window.matchMedia?.("(max-width: 1100px)");
+     if (!mq) return undefined;
+     const sync = () => setIsNarrow(mq.matches);
+     sync();
+@@ -162,7 +159,6 @@ export function ResearchWorkspace({
+         const res = await uploadPaper(client, file, {
+           signal,
+           cache: needsConvert ? cache : null,
+-          translateCache,
+           onProgress: (p) =>
+             !signal.aborted &&
+             setUploads((u) =>
+@@ -210,7 +206,7 @@ export function ResearchWorkspace({
+         );
+       }
+     },
+-    [client, selectPaper, translateCache, namespace],
++    [client, selectPaper, namespace],
+   );
+ 
+   const retryUpload = useCallback(
+@@ -359,7 +355,6 @@ export function ResearchWorkspace({
+         assetBaseUrl={assetBaseUrl}
+         assetToken={assetToken}
+         translatorEnabled={translatorEnabled}
+-        translateCache={translateCache}
+         leftCollapsed={leftCollapsed}
+         rightCollapsed={rightCollapsed}
+         onToggleLeft={() => setLeftCollapsed((v) => !v)}
+diff --git a/src/features/research/runtime-request.test.ts b/src/features/research/runtime-request.test.ts
+new file mode 100644
+index 0000000..fef25f3
+--- /dev/null
++++ b/src/features/research/runtime-request.test.ts
+@@ -0,0 +1,49 @@
++// @vitest-environment node
++import { Readable } from "node:stream";
++import { pipeline } from "node:stream/promises";
++import { expect, it, vi } from "vitest";
++import type { WebRuntime } from "@opendikw/web-server/runtime";
++import { runtimeFetch } from "../../../server/runtime-request";
++
++it("captures BFF streamed pages and completes/cleans the pipeline with the original auth headers", async () => {
++  const close = vi.fn();
++  const handler = vi.fn<WebRuntime["handler"]>(async (req, res) => {
++    expect(req.headers.cookie).toBe("opaque-test-session");
++    expect(req.headers.origin).toBe("https://kb.example");
++    res.setHeader("Content-Type", "application/json");
++    res.setHeader("Set-Cookie", ["renewed=fixture; HttpOnly", "second=fixture; HttpOnly"]);
++    res.on("close", close);
++    res.flushHeaders();
++    await pipeline(Readable.from([Buffer.from('{"body":"'), Buffer.from('English page"}')]), res);
++  });
++  const response = await runtimeFetch(
++    { handler, async close() {} },
++    { cookie: "opaque-test-session", origin: "https://kb.example" },
++  )("/v1/base/pages/sources/paper.md");
++  expect(await response.json()).toEqual({ body: "English page" });
++  await vi.waitFor(() => expect(close).toHaveBeenCalledOnce());
++  expect(response.headers.getSetCookie()).toHaveLength(2);
++});
++
++it("feeds translation JSON to the shared submit route without losing or ending its body", async () => {
++  const handler = vi.fn<WebRuntime["handler"]>(async (req, res) => {
++    const chunks: Buffer[] = [];
++    for await (const chunk of req) chunks.push(chunk);
++    expect(req.method).toBe("POST");
++    expect(JSON.parse(Buffer.concat(chunks).toString())).toEqual({
++      blocks: ["English"],
++      targetLang: "zh",
++    });
++    res.statusCode = 202;
++    res.end('{"jobId":"fixture"}');
++  });
++  const response = await runtimeFetch(
++    { handler, async close() {} },
++    { origin: "https://kb.example" },
++  )("/web/translate/submit", {
++    method: "POST",
++    body: JSON.stringify({ blocks: ["English"], targetLang: "zh" }),
++  });
++  expect(response.status).toBe(202);
++  expect(await response.json()).toEqual({ jobId: "fixture" });
++});
+diff --git a/src/features/research/translation-runtime.test.ts b/src/features/research/translation-runtime.test.ts
+new file mode 100644
+index 0000000..9d8919d
+--- /dev/null
++++ b/src/features/research/translation-runtime.test.ts
+@@ -0,0 +1,165 @@
++// @vitest-environment node
++import { createServer } from "node:http";
++import { mkdtempSync, rmSync } from "node:fs";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { expect, it, vi } from "vitest";
++import { createStandaloneRuntime } from "../../../server/runtime";
++import { runtimeFetch } from "../../../server/runtime-request";
++import {
++  translationSource,
++  type TranslationLookup,
++  type TranslationJob,
++} from "../../models/translation";
++
++it("runs the real authenticated BFF, saves a complete model job, and reuses it after runtime restart", async () => {
++  const directory = mkdtempSync(join(tmpdir(), "mb-translation-runtime-"));
++  const secret = "synthetic-local-fixture-secret-of-32-plus-chars";
++  const body =
++    "# Scientific Study\n\nThis is a synthetic English research paper used only for tests.";
++  let modelCalls = 0;
++  const upstream = createServer(async (req, res) => {
++    if (req.url === "/v1/base/pages/sources/paper.md") {
++      expect(req.headers.authorization).toBe("Bearer synthetic-core-token");
++      res.setHeader("Content-Type", "application/json");
++      return res.end(JSON.stringify({ body, path: "sources/paper.md" }));
++    }
++    if (req.url !== "/v1/messages") {
++      res.statusCode = 404;
++      res.end();
++      return;
++    }
++    modelCalls++;
++    const chunks: Buffer[] = [];
++    for await (const chunk of req) chunks.push(chunk);
++    const request = JSON.parse(Buffer.concat(chunks).toString());
++    const separator = "<<<<<DIKW_BLOCK_BREAK>>>>>";
++    const text = request.messages[0].content
++      .split(separator)
++      .map((_block: string, i: number) => (i === 0 ? "# 中文研究" : "用于测试的中文论文内容。"))
++      .join(`\n\n${separator}\n\n`);
++    res.setHeader("Content-Type", "text/event-stream");
++    const event = (type: string, data: unknown) =>
++      res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
++    event("message_start", {
++      type: "message_start",
++      message: {
++        id: "fixture",
++        type: "message",
++        role: "assistant",
++        model: "fixture",
++        content: [],
++        stop_reason: null,
++        stop_sequence: null,
++        usage: { input_tokens: 1, output_tokens: 0 },
++      },
++    });
++    event("content_block_start", {
++      type: "content_block_start",
++      index: 0,
++      content_block: { type: "text", text: "" },
++    });
++    event("content_block_delta", {
++      type: "content_block_delta",
++      index: 0,
++      delta: { type: "text_delta", text },
++    });
++    event("content_block_stop", { type: "content_block_stop", index: 0 });
++    event("message_delta", {
++      type: "message_delta",
++      delta: { stop_reason: "end_turn", stop_sequence: null },
++      usage: { output_tokens: 1 },
++    });
++    event("message_stop", { type: "message_stop" });
++    res.end();
++  });
++  await new Promise<void>((resolve) => upstream.listen(0, "127.0.0.1", resolve));
++  const address = upstream.address();
++  if (!address || typeof address === "string") throw new Error("fixture listener missing");
++  const upstreamUrl = `http://127.0.0.1:${address.port}`;
++  // Test-only trusted session in a disposable DB; no IAM or customer credential is used.
++  const module = await import(
++    new URL("../auth/sessionStore.js", import.meta.resolve("@opendikw/web-server/runtime")).href
++  );
++  const sessions = new module.AuthSessionStore({ path: join(directory, "auth.sqlite"), secret });
++  const cookie =
++    "dikw_mbweb_session=" +
++    sessions.create({ sub: "synthetic-viewer", role: "viewer", idToken: "synthetic" }, 3600);
++  const noRoleCookie =
++    "dikw_mbweb_session=" +
++    sessions.create({ sub: "synthetic-no-role", role: null, idToken: "synthetic" }, 3600);
++  sessions.close();
++  const env = {
++    DIKW_WEB_AUTH_MODE: "oidc",
++    DIKW_WEB_CORE_ID: "fixture-core",
++    DIKW_WEB_PUBLIC_URL: "https://kb.example",
++    DIKW_WEB_OIDC_ISSUER: "https://iam.example",
++    DIKW_WEB_OIDC_CLIENT_ID: "fixture-client",
++    DIKW_WEB_OIDC_CLIENT_SECRET: "fixture-client-secret",
++    DIKW_WEB_SESSION_SECRET: secret,
++    DIKW_WEB_ROLE_VIEWER: "kb_viewer",
++    DIKW_WEB_ROLE_EDITOR: "kb_editor",
++    DIKW_CORE_URL: upstreamUrl,
++    DIKW_SERVER_TOKEN: "synthetic-core-token",
++    DIKW_AGENT_SESSIONS_DIR: directory,
++    DIKW_AGENT_API_KEY: "synthetic-model-key",
++    DIKW_AGENT_BASE_URL: upstreamUrl,
++    DIKW_AGENT_MODEL: "fixture-model",
++    DIKW_AGENT_API: "anthropic-messages",
++  };
++  let runtime: Awaited<ReturnType<typeof createStandaloneRuntime>> | undefined;
++  try {
++    runtime = await createStandaloneRuntime(env);
++    const path = "/web/papers/translation";
++    const query =
++      "?" +
++      new URLSearchParams({ path: "sources/paper.md", sourceHash: translationSource(body).hash });
++    expect((await runtimeFetch(runtime, {})(path + query)).status).toBe(401);
++    expect((await runtimeFetch(runtime, { cookie: noRoleCookie })(path + query)).status).toBe(403);
++    expect(
++      (
++        await runtimeFetch(runtime, { cookie, origin: "https://wrong.example" })(path, {
++          method: "POST",
++          body: "{}",
++        })
++      ).status,
++    ).toBe(403);
++    const request = runtimeFetch(runtime, { cookie, origin: "https://kb.example" });
++    expect(((await (await request(path + query)).json()) as TranslationLookup).saved).toBeNull();
++    expect(modelCalls).toBe(0);
++    const started = (await (
++      await request(path, {
++        method: "POST",
++        body: JSON.stringify({
++          path: "sources/paper.md",
++          sourceHash: translationSource(body).hash,
++        }),
++      })
++    ).json()) as TranslationLookup;
++    let result: TranslationJob | undefined;
++    await vi.waitFor(
++      async () => {
++        result = (await (
++          await request(`${path}/jobs/${started.job!.jobId}`)
++        ).json()) as TranslationJob;
++        expect(result.status).toBe("succeeded");
++      },
++      { timeout: 5000 },
++    );
++    expect(result!.saved!.translations).toEqual(["# 中文研究", "用于测试的中文论文内容。"]);
++    expect(modelCalls).toBe(1);
++    await runtime.close();
++    runtime = undefined;
++    runtime = await createStandaloneRuntime(env);
++    const reopened = (await (
++      await runtimeFetch(runtime, { cookie })(path + query)
++    ).json()) as TranslationLookup;
++    expect(reopened.saved).toEqual(result!.saved);
++    expect(modelCalls).toBe(1);
++  } finally {
++    await runtime?.close();
++    upstream.closeAllConnections();
++    await new Promise<void>((resolve) => upstream.close(() => resolve()));
++    rmSync(directory, { recursive: true, force: true });
++  }
++}, 15000);
+diff --git a/src/features/research/translation-server.test.ts b/src/features/research/translation-server.test.ts
+new file mode 100644
+index 0000000..369b903
+--- /dev/null
++++ b/src/features/research/translation-server.test.ts
+@@ -0,0 +1,257 @@
++// @vitest-environment node
++import { mkdtempSync, rmSync } from "node:fs";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { createServer } from "node:http";
++import type { WebRuntime } from "@opendikw/web-server/runtime";
++import type { TranslateOptions } from "@opendikw/web-client/translate";
++import { afterEach, expect, it, vi } from "vitest";
++import { TranslationStore } from "../../../server/translation-store";
++import { createPaperTranslationService } from "../../../server/paper-translation";
++import {
++  translationSource,
++  type TranslationLookup,
++  type TranslationJob,
++} from "../../models/translation";
++
++const original = "# Scientific Study\n\nAn English paper with consistent source material.";
++const cleanups: (() => Promise<void> | void)[] = [];
++afterEach(async () => {
++  for (const close of cleanups.splice(0).reverse()) await close();
++});
++
++async function fixture() {
++  let body = original;
++  const translate = vi.fn(async (blocks: string[], _options?: TranslateOptions) =>
++    blocks.map((_text, i) => `中文段落 ${i}`),
++  );
++  const store = new TranslationStore(":memory:");
++  const runtime: WebRuntime = {
++    async handler(req, res) {
++      res.setHeader("Content-Type", "application/json");
++      if (req.url === "/web/auth/me") {
++        const sub = req.headers.cookie;
++        res.setHeader("Set-Cookie", "renewed-session=fixture; HttpOnly");
++        if (!sub) {
++          res.statusCode = 401;
++          res.end("{}");
++          return;
++        }
++        res.end(
++          JSON.stringify({
++            user: { sub },
++            role: sub === "no-role" ? null : "viewer",
++            issuer: "https://iam.example",
++            coreId: "core",
++          }),
++        );
++      } else if (req.url === "/v1/base/pages/sources/paper.md") res.end(JSON.stringify({ body }));
++      else {
++        res.statusCode = 404;
++        res.end("{}");
++      }
++    },
++    async close() {},
++  };
++  const service = createPaperTranslationService({
++    runtime,
++    store,
++    issuer: "https://iam.example",
++    coreId: "core",
++    publicUrl: "https://kb.example",
++    translate,
++  });
++  const server = createServer((req, res) => {
++    void service.handler(req, res);
++  });
++  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
++  const address = server.address();
++  if (!address || typeof address === "string") throw new Error("missing test listener");
++  const base = `http://127.0.0.1:${address.port}/web/papers/translation`;
++  cleanups.push(async () => {
++    await service.close();
++    server.closeAllConnections();
++    await new Promise<void>((resolve) => server.close(() => resolve()));
++  });
++  const request = (
++    suffix = "",
++    init: RequestInit = {},
++    sub = "viewer-a",
++    origin = "https://kb.example",
++  ) =>
++    fetch(base + suffix, {
++      ...init,
++      headers: { cookie: sub, origin, "Content-Type": "application/json", ...init.headers },
++    });
++  const query = () =>
++    "?" +
++    new URLSearchParams({ path: "sources/paper.md", sourceHash: translationSource(body).hash });
++  const start = (refresh = false, sub?: string) =>
++    request(
++      "",
++      {
++        method: "POST",
++        body: JSON.stringify({
++          path: "sources/paper.md",
++          sourceHash: translationSource(body).hash,
++          refresh,
++        }),
++      },
++      sub,
++    );
++  const terminal = async (jobId: string) => {
++    let result: TranslationJob | undefined;
++    await vi.waitFor(async () => {
++      result = (await (await request(`/jobs/${jobId}`)).json()) as TranslationJob;
++      expect(result.status).not.toBe("running");
++    });
++    return result!;
++  };
++  return {
++    store,
++    translate,
++    request,
++    query,
++    start,
++    terminal,
++    setBody: (next: string) => {
++      body = next;
++    },
++  };
++}
++
++it("reads an empty record without generating, then shares one complete saved translation", async () => {
++  const f = await fixture();
++  const lookup = await f.request(f.query());
++  expect(lookup.status).toBe(200);
++  expect(await lookup.json()).toMatchObject({ saved: null, job: null });
++  expect(f.translate).not.toHaveBeenCalled();
++  const started = await f.start();
++  expect(started.status).toBe(202);
++  const result = (await started.json()) as TranslationLookup;
++  expect((await f.terminal(result.job!.jobId)).status).toBe("succeeded");
++  const otherUser = (await (
++    await f.request(f.query(), {}, "viewer-b")
++  ).json()) as TranslationLookup;
++  expect(otherUser.saved?.translations).toEqual(["中文段落 0", "中文段落 1"]);
++  expect(otherUser.saved?.sourceHash).toBe(translationSource(original).hash);
++  expect((await f.start()).status).toBe(200);
++  expect(f.translate).toHaveBeenCalledTimes(1);
++});
++
++it("persists complete records across closing and reopening the SQLite database", () => {
++  const directory = mkdtempSync(join(tmpdir(), "mb-translation-"));
++  cleanups.push(() => rmSync(directory, { recursive: true, force: true }));
++  const path = join(directory, "translations.sqlite");
++  const value = { sourceHash: "hash", savedAt: "2026-10-08T00:00:00Z", translations: ["中文译文"] };
++  const first = new TranslationStore(path);
++  first.put("scope", "sources/paper.md", value);
++  first.close();
++  const reopened = new TranslationStore(path);
++  try {
++    expect(reopened.get("scope", "sources/paper.md")).toEqual(value);
++    expect(reopened.get("another-core", "sources/paper.md")).toBeNull();
++  } finally {
++    reopened.close();
++  }
++});
++
++it("retranslates only on explicit refresh and preserves the old result on failure", async () => {
++  const f = await fixture();
++  const first = (await (await f.start()).json()) as TranslationLookup;
++  await f.terminal(first.job!.jobId);
++  const saved = ((await (await f.request(f.query())).json()) as TranslationLookup).saved;
++  f.translate.mockRejectedValueOnce(new Error("provider failure with private diagnostic"));
++  const second = (await (await f.start(true)).json()) as TranslationLookup;
++  expect(second.saved).toEqual(saved);
++  const failed = await f.terminal(second.job!.jobId);
++  expect(failed.status).toBe("failed");
++  expect(failed.error).not.toContain("private diagnostic");
++  expect(((await (await f.request(f.query())).json()) as TranslationLookup).saved).toEqual(saved);
++  f.translate.mockResolvedValueOnce(["新版中文 1", "新版中文 2"]);
++  const third = (await (await f.start(true)).json()) as TranslationLookup;
++  expect((await f.terminal(third.job!.jobId)).saved?.translations).toEqual([
++    "新版中文 1",
++    "新版中文 2",
++  ]);
++});
++
++it("detects updated source without automatically starting translation or serving stale Chinese", async () => {
++  const f = await fixture();
++  const first = (await (await f.start()).json()) as TranslationLookup;
++  await f.terminal(first.job!.jobId);
++  f.setBody(original + "\n\nNew conclusions.");
++  expect(await (await f.request(f.query())).json()).toMatchObject({
++    saved: null,
++    outdated: true,
++    job: null,
++  });
++  expect(f.translate).toHaveBeenCalledTimes(1);
++  const stale =
++    "?" +
++    new URLSearchParams({ path: "sources/paper.md", sourceHash: translationSource(original).hash });
++  expect((await f.request(stale)).status).toBe(409);
++});
++
++it("rejects incomplete translations and source changes during generation without saving", async () => {
++  const f = await fixture();
++  f.translate.mockResolvedValueOnce([""]);
++  let result = (await (await f.start()).json()) as TranslationLookup;
++  expect((await f.terminal(result.job!.jobId)).status).toBe("failed");
++  expect(((await (await f.request(f.query())).json()) as TranslationLookup).saved).toBeNull();
++  f.translate.mockImplementationOnce(async (blocks) => {
++    f.setBody(original + "\n\nChanged during generation.");
++    return blocks.map(() => "中文");
++  });
++  result = (await (await f.start()).json()) as TranslationLookup;
++  expect((await f.terminal(result.job!.jobId)).error).toMatch(/原文已更新/);
++  expect(((await (await f.request(f.query())).json()) as TranslationLookup).saved).toBeNull();
++});
++
++it("coalesces concurrent readers and restricts cancellation to the initiating user", async () => {
++  const f = await fixture();
++  f.translate.mockImplementationOnce(
++    (_blocks, options) =>
++      new Promise<string[]>((_resolve, reject) => {
++        options!.signal!.addEventListener(
++          "abort",
++          () => reject(new DOMException("Aborted", "AbortError")),
++          { once: true },
++        );
++      }),
++  );
++  const a = (await (await f.start()).json()) as TranslationLookup;
++  const b = (await (await f.start(false, "viewer-b")).json()) as TranslationLookup;
++  expect(b.job?.jobId).toBe(a.job?.jobId);
++  expect(b.job?.canCancel).toBe(false);
++  expect(f.translate).toHaveBeenCalledTimes(1);
++  expect(
++    (await f.request(`/jobs/${a.job!.jobId}/cancel`, { method: "POST" }, "viewer-b")).status,
++  ).toBe(403);
++  expect(
++    (
++      (await (
++        await f.request(`/jobs/${a.job!.jobId}/cancel`, { method: "POST" })
++      ).json()) as TranslationJob
++    ).status,
++  ).toBe("cancelled");
++  expect(((await (await f.request(f.query())).json()) as TranslationLookup).saved).toBeNull();
++});
++
++it("keeps new endpoints authenticated, role checked and protected from cross-origin writes", async () => {
++  const f = await fixture();
++  expect((await f.request(f.query(), {}, "")).status).toBe(401);
++  expect((await f.request(f.query(), {}, "no-role")).status).toBe(403);
++  expect(
++    (await f.request("", { method: "POST", body: "{}" }, "viewer-a", "https://evil.example"))
++      .status,
++  ).toBe(403);
++  expect(
++    (await f.request("?" + new URLSearchParams({ path: "sources/../private.md", sourceHash: "x" })))
++      .status,
++  ).toBe(400);
++  const response = await f.request(f.query());
++  expect(response.headers.get("Cache-Control")).toBe("private, no-store");
++  expect(response.headers.getSetCookie()).toEqual(["renewed-session=fixture; HttpOnly"]);
++  expect(f.translate).not.toHaveBeenCalled();
++});
+diff --git a/src/features/research/upload-indexing.test.tsx b/src/features/research/upload-indexing.test.tsx
+index c8aeb05..67e81d3 100644
+--- a/src/features/research/upload-indexing.test.tsx
++++ b/src/features/research/upload-indexing.test.tsx
+@@ -34,7 +34,6 @@ it("retains a committed paper's indexing error without a re-upload action or suc
+         assetBaseUrl=""
+         assetToken=""
+         translatorEnabled={false}
+-        translateCache={null}
+         onCurrentPaperChange={onPaper}
+       />
+     </AuthContext.Provider>,
+diff --git a/src/features/research/upload-lifetime.test.tsx b/src/features/research/upload-lifetime.test.tsx
+index d268be8..9e4116d 100644
+--- a/src/features/research/upload-lifetime.test.tsx
++++ b/src/features/research/upload-lifetime.test.tsx
+@@ -29,7 +29,6 @@ function mount() {
+       assetBaseUrl=""
+       assetToken=""
+       translatorEnabled={false}
+-      translateCache={null}
+       onCurrentPaperChange={changed}
+     />,
+   );
+diff --git a/src/features/research/upload-recovery.test.tsx b/src/features/research/upload-recovery.test.tsx
+index 205da93..516967f 100644
+--- a/src/features/research/upload-recovery.test.tsx
++++ b/src/features/research/upload-recovery.test.tsx
+@@ -52,7 +52,6 @@ function mount() {
+         assetBaseUrl=""
+         assetToken=""
+         translatorEnabled={false}
+-        translateCache={null}
+         onCurrentPaperChange={changed}
+       />
+     </AuthContext.Provider>,
+diff --git a/src/features/research/upload.ts b/src/features/research/upload.ts
+index f4949e6..52e04df 100644
+--- a/src/features/research/upload.ts
++++ b/src/features/research/upload.ts
+@@ -13,11 +13,9 @@ import {
+   type ConvertCache,
+ } from "@opendikw/web-client/convert";
+ import { buildImportBundle, lowerExt, type SkippedFile } from "@opendikw/web-client/import";
+-import { getMarkdownTitle, parseMarkdownDocument } from "@opendikw/web-client/document";
+-import { splitMarkdownBlocks } from "@opendikw/web-client/document";
+-import { isEnglishBody } from "@opendikw/web-client/document";
+-import { translateBlocks, type TranslateCache } from "@opendikw/web-client/translate";
+-import type { PageReadResult, RejectedPackage } from "@opendikw/web-client/types";
++import { getMarkdownTitle } from "@opendikw/web-client/document";
++import type { TranslateCache } from "@opendikw/web-client/translate";
++import type { RejectedPackage } from "@opendikw/web-client/types";
+ 
+ export type UploadStage = "converting" | "uploading" | "indexing" | "translating" | "done";
+ 
+@@ -70,18 +68,13 @@ export const STAGE_LABEL: Record<UploadStage, string> = {
+ 
+ export interface UploadOptions {
+   cache?: ConvertCache | null;
+-  /** When provided, English papers are translated to Chinese at import and the
+-   *  result is written to this cache, so the reader's 中英对照 opens instantly
+-   *  instead of translating on first view. Null → skip (translate on demand). */
++  /** Legacy caller compatibility only. Uploads never start translation;
++   * users explicitly start it from the reader and results persist server-side. */
+   translateCache?: TranslateCache | null;
+   signal?: AbortSignal;
+   onProgress?: (p: UploadProgress) => void;
+ }
+ 
+-function encodePath(path: string): string {
+-  return path.split("/").map(encodeURIComponent).join("/");
+-}
+-
+ export async function uploadPaper(
+   client: DikwClient,
+   file: File,
+@@ -168,52 +161,11 @@ export async function uploadPaper(
+     throw new PaperIndexError(error instanceof Error ? error.message : String(error));
+   }
+ 
+-  // English papers: translate now (best-effort) so 中英对照 opens instantly later.
+-  await maybePretranslate(client, sourcePath, opts);
+   signal?.throwIfAborted();
+   emit("done");
+   return result;
+ }
+ 
+-/** Pre-warm the bilingual translation cache for an English source so the reader's
+- *  中英对照 is a cache hit. Replicates the reader's exact block split so the cache
+- *  key matches. Best-effort — failures fall back to on-demand translation. */
+-async function maybePretranslate(
+-  client: DikwClient,
+-  sourcePath: string | null,
+-  opts: UploadOptions,
+-): Promise<void> {
+-  const cache = opts.translateCache;
+-  if (!cache || !sourcePath) return;
+-  try {
+-    const page = await client.get<PageReadResult>(`/v1/base/pages/${encodePath(sourcePath)}`, {
+-      signal: opts.signal,
+-    });
+-    const body = parseMarkdownDocument(page.body, { stripDuplicateTitle: false }).body;
+-    if (!isEnglishBody(body)) return;
+-    const textBlocks = splitMarkdownBlocks(body)
+-      .filter((b) => b.kind === "text")
+-      .map((b) => b.md);
+-    if (!textBlocks.length) return;
+-    const total = textBlocks.length;
+-    opts.onProgress?.({ stage: "translating", pct: STAGE_PCT.translating });
+-    await translateBlocks(textBlocks, {
+-      targetLang: "zh",
+-      cache,
+-      signal: opts.signal,
+-      onProgress: (e) => {
+-        if (e.phase === "partial") {
+-          const pct = Math.min(99, 82 + Math.round((e.blocks.length / total) * 17));
+-          opts.onProgress?.({ stage: "translating", pct });
+-        }
+-      },
+-    });
+-  } catch {
+-    // Best-effort: a network/quota failure here just means the reader translates
+-    // on demand. Don't fail an otherwise-successful import.
+-  }
+-}
+-
+ const NETWORK_MSG = "无法连接服务：请确认 dikw-core 与本应用 (dev server) 都在运行。";
+ 
+ function isNetworkFailure(msg: string): boolean {
+diff --git a/src/features/research/useStoredTranslation.ts b/src/features/research/useStoredTranslation.ts
+new file mode 100644
+index 0000000..b767772
+--- /dev/null
++++ b/src/features/research/useStoredTranslation.ts
+@@ -0,0 +1,194 @@
++import { useCallback, useEffect, useMemo, useRef, useState } from "react";
++import { splitMarkdownBlocks } from "@opendikw/web-client/document";
++import type { BilingualBlock } from "@opendikw/web-ui/reader";
++import {
++  translationSource,
++  type SavedTranslation,
++  type TranslationJob,
++  type TranslationLookup,
++} from "../../models/translation";
++
++const ROOT = "/web/papers/translation";
++interface State {
++  saved: SavedTranslation | null;
++  job: TranslationJob | null;
++  checking: boolean;
++  error: string | null;
++  outdated: boolean;
++}
++const empty = (): State => ({
++  saved: null,
++  job: null,
++  checking: false,
++  error: null,
++  outdated: false,
++});
++
++async function jsonRequest<T>(path: string, init: RequestInit): Promise<T> {
++  const response = await fetch(path, { ...init, credentials: "same-origin" });
++  const data = await response.json();
++  if (!response.ok) throw new Error(data?.error?.message || "无法读取译文，请稍后重试");
++  return data as T;
++}
++function delay(signal: AbortSignal) {
++  return new Promise<void>((resolve, reject) => {
++    const abort = () => {
++      clearTimeout(timer);
++      reject(new DOMException("Aborted", "AbortError"));
++    };
++    const timer = setTimeout(() => {
++      signal.removeEventListener("abort", abort);
++      resolve();
++    }, 1200);
++    signal.addEventListener("abort", abort, { once: true });
++  });
++}
++
++export function useStoredTranslation({
++  body,
++  path,
++  enabled,
++}: {
++  body: string;
++  path: string | null;
++  enabled: boolean;
++}) {
++  const [active, setActive] = useState(false);
++  const [state, setState] = useState<State>(empty);
++  const source = useMemo(() => translationSource(body), [body]);
++  const parts = useMemo(() => splitMarkdownBlocks(source.body), [source.body]);
++  const requestRef = useRef<AbortController | null>(null);
++  const busyRef = useRef(false);
++  const identity = path + ":" + source.hash;
++  const identityRef = useRef(identity);
++  identityRef.current = identity;
++
++  useEffect(() => {
++    setActive(false);
++    setState(empty());
++    busyRef.current = false;
++    requestRef.current?.abort();
++    return () => requestRef.current?.abort();
++  }, [identity]);
++
++  const applyJob = useCallback((job: TranslationJob) => {
++    setState((previous) => ({
++      ...previous,
++      job,
++      checking: false,
++      saved: job.saved ?? previous.saved,
++      error: job.status === "failed" ? job.error || "翻译失败，请重试" : null,
++    }));
++  }, []);
++  const poll = useCallback(
++    async (job: TranslationJob, signal: AbortSignal) => {
++      let current = job;
++      while (current.status === "running") {
++        await delay(signal);
++        current = await jsonRequest<TranslationJob>(
++          `${ROOT}/jobs/${encodeURIComponent(current.jobId)}`,
++          { signal },
++        );
++        signal.throwIfAborted();
++        applyJob(current);
++      }
++    },
++    [applyJob],
++  );
++
++  const run = useCallback(
++    async (generate = false, refresh = false) => {
++      if (!path || busyRef.current || (generate && !enabled)) return;
++      busyRef.current = true;
++      requestRef.current?.abort();
++      const controller = new AbortController();
++      requestRef.current = controller;
++      const requestIdentity = identity;
++      setState((previous) => ({ ...previous, checking: true, error: null }));
++      try {
++        const query = new URLSearchParams({ path, sourceHash: source.hash });
++        const result = await jsonRequest<TranslationLookup>(generate ? ROOT : `${ROOT}?${query}`, {
++          signal: controller.signal,
++          ...(generate
++            ? {
++                method: "POST",
++                headers: { "Content-Type": "application/json" },
++                body: JSON.stringify({ path, sourceHash: source.hash, refresh }),
++              }
++            : {}),
++        });
++        controller.signal.throwIfAborted();
++        if (identityRef.current !== requestIdentity) return;
++        setState({ ...result, checking: false, error: null });
++        if (result.job) await poll(result.job, controller.signal);
++      } catch (error) {
++        if (!controller.signal.aborted && identityRef.current === requestIdentity)
++          setState((previous) => ({
++            ...previous,
++            checking: false,
++            error: error instanceof Error ? error.message : "翻译服务不可用",
++          }));
++      } finally {
++        if (requestRef.current === controller) busyRef.current = false;
++      }
++    },
++    [path, identity, source.hash, enabled, poll],
++  );
++
++  const cancel = useCallback(async () => {
++    const job = state.job;
++    if (!job?.canCancel || job.status !== "running") return;
++    requestRef.current?.abort();
++    busyRef.current = false;
++    const requestIdentity = identity;
++    try {
++      const next = await jsonRequest<TranslationJob>(`${ROOT}/jobs/${job.jobId}/cancel`, {
++        method: "POST",
++      });
++      if (identityRef.current === requestIdentity) applyJob(next);
++    } catch (error) {
++      if (identityRef.current === requestIdentity)
++        setState((previous) => ({
++          ...previous,
++          checking: false,
++          error: error instanceof Error ? error.message : "取消失败",
++        }));
++    }
++  }, [state.job, identity, applyJob]);
++
++  const toggle = useCallback(() => {
++    if (active) {
++      setActive(false);
++      return;
++    }
++    setActive(true);
++    // Opening the mode only reads persisted state, never starts an LLM job.
++    if (!state.saved && !state.job && !state.checking) void run();
++  }, [active, state.saved, state.job, state.checking, run]);
++
++  const blocks = useMemo<BilingualBlock[]>(() => {
++    const partial = new Map(state.job?.partial?.map((block) => [block.i, block.tr]));
++    let index = 0;
++    return parts.map((block) => {
++      if (block.kind === "special") return { kind: "special", source: block.md };
++      const i = index++;
++      return {
++        kind: "text",
++        source: block.md,
++        translation: state.saved?.translations[i] ?? partial.get(i),
++      };
++    });
++  }, [parts, state.saved, state.job]);
++
++  return {
++    active,
++    ...state,
++    blocks,
++    translating: state.job?.status === "running" && !state.error,
++    toggle,
++    start: () => void run(true, false),
++    forceRetranslate: () => void run(true, true),
++    cancel: () => void cancel(),
++    retryLookup: () => void run(),
++  };
++}
+diff --git a/src/models/translation.ts b/src/models/translation.ts
+new file mode 100644
+index 0000000..4a27e8d
+--- /dev/null
++++ b/src/models/translation.ts
+@@ -0,0 +1,37 @@
++import { sha256 } from "@noble/hashes/sha2.js";
++import { bytesToHex } from "@noble/hashes/utils.js";
++import { parseMarkdownDocument, splitMarkdownBlocks } from "@opendikw/web-client/document";
++
++export function translationSource(body: string) {
++  const readerBody = parseMarkdownDocument(body, { stripDuplicateTitle: false }).body;
++  return {
++    body: readerBody,
++    hash: bytesToHex(sha256(new TextEncoder().encode(readerBody))),
++    blocks: splitMarkdownBlocks(readerBody)
++      .filter((block) => block.kind === "text")
++      .map((block) => block.md),
++  };
++}
++
++export interface SavedTranslation {
++  sourceHash: string;
++  translations: string[];
++  savedAt: string;
++}
++
++export interface TranslationJob {
++  jobId: string;
++  status: "running" | "succeeded" | "failed" | "cancelled";
++  canCancel: boolean;
++  done: number;
++  total: number;
++  partial?: { i: number; tr: string }[];
++  saved?: SavedTranslation;
++  error?: string;
++}
++
++export interface TranslationLookup {
++  saved: SavedTranslation | null;
++  job: TranslationJob | null;
++  outdated: boolean;
++}
+diff --git a/src/styles/maibo.css b/src/styles/maibo.css
+new file mode 100644
+index 0000000..e116c05
+--- /dev/null
++++ b/src/styles/maibo.css
+@@ -0,0 +1,499 @@
++/* Customer branding: shared with CMC-PMS. Reader fonts and text selection stay intact. */
++.mb-app {
++  --mb-header: rgb(35, 72, 111);
++  --bg: #edf1f3;
++  --surface: #ffffff;
++  --surface-2: #f6f9fa;
++  --line: #cfdbdf;
++  --line-strong: #adbec6;
++  --text: #263e4a;
++  --muted: #536c78;
++  --faint: #586f7b;
++  --accent: #087b9c;
++  --accent-soft: #eef9fc;
++  --accent-strong: #11617e;
++  --reader-bg: var(--surface);
++  --reader-text: var(--text);
++  --reader-muted: var(--muted);
++  --reader-heading: var(--text);
++  --reader-link: var(--accent-strong);
++  --reader-code-bg: #193c50;
++  --reader-border: var(--line);
++  --reader-quote-bg: var(--accent-soft);
++  --reader-table-bg: var(--surface-2);
++  --acfg: #ffffff;
++  --hover-bp: #f1f8fa;
++  --radius: 8px;
++  --font-ui:
++    "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
++    sans-serif;
++  --type-body-size: 14px;
++  --type-body-sm-size: 13px;
++  --type-label-size: 12px;
++  display: grid;
++  grid-template-columns: 224px minmax(0, 1fr);
++  height: 100dvh;
++}
++
++html[data-theme="dark"] .mb-app {
++  --bg: #101f2b;
++  --surface: #192d3c;
++  --surface-2: #213a4b;
++  --line: #365364;
++  --line-strong: #557385;
++  --text: #e6eef3;
++  --muted: #b0c4d0;
++  --faint: #a7bdca;
++  --accent: #42bdd6;
++  --accent-soft: #203f50;
++  --accent-strong: #9bddec;
++  --acfg: #102d3d;
++  --hover-bp: #213e4c;
++}
++
++.mb-app :where(a, button, input, textarea, [tabindex]):focus-visible {
++  outline: 2px solid var(--ac);
++  outline-offset: 3px;
++}
++
++.mb-sidebar {
++  min-width: 0;
++  min-height: 0;
++  display: flex;
++  flex-direction: column;
++  background: var(--surface);
++  border-right: 1px solid var(--border);
++}
++
++.mb-company-brand {
++  display: flex;
++  align-items: center;
++  gap: 10px;
++  height: 64px;
++  flex: 0 0 64px;
++  padding: 0 16px;
++  background: var(--mb-header);
++  color: #ffffff;
++}
++
++.mb-company-brand img {
++  width: 48px;
++  height: 48px;
++  object-fit: contain;
++  background: #ffffff;
++  border-radius: 4px;
++  flex-shrink: 0;
++}
++
++.mb-company-copy {
++  display: flex;
++  flex-direction: column;
++  gap: 5px;
++  min-width: 0;
++}
++
++.mb-company-copy strong {
++  font-size: 16px;
++  font-weight: 600;
++  white-space: nowrap;
++}
++
++.mb-company-copy > span {
++  font-size: 10px;
++  color: #dbeafe;
++  white-space: nowrap;
++}
++
++.mb-side-nav {
++  flex: 1;
++  overflow-y: auto;
++  padding: 20px 12px;
++}
++
++.mb-nav-caption {
++  margin: 0 0 12px;
++  padding: 0 12px;
++  font-size: 10px;
++  font-weight: 500;
++  letter-spacing: 0.12em;
++  color: var(--faint);
++}
++
++.mb-related-caption {
++  padding-top: 22px;
++  margin-top: 18px;
++  border-top: 1px solid var(--border);
++}
++
++.mb-side-nav .mb-seg {
++  display: flex;
++  flex-direction: column;
++  gap: 4px;
++  border: 0;
++  border-radius: 0;
++  overflow: visible;
++}
++
++.mb-side-nav .mb-seg button,
++.mb-side-nav > a {
++  position: relative;
++  display: flex;
++  align-items: center;
++  gap: 10px;
++  width: 100%;
++  min-height: 40px;
++  padding: 10px 12px;
++  font-size: 14px;
++  line-height: 20px;
++  border: 0;
++  border-radius: 6px;
++  background: transparent;
++  color: var(--muted);
++  text-decoration: none;
++  cursor: pointer;
++  transition: background 0.15s;
++}
++
++.mb-side-nav > a {
++  margin-bottom: 4px;
++}
++
++.mb-side-nav svg {
++  flex-shrink: 0;
++}
++
++.mb-side-nav .mb-seg button:hover,
++.mb-side-nav > a:hover {
++  background: var(--acb);
++  color: var(--act);
++}
++
++.mb-side-nav .mb-seg button.on {
++  background: var(--acb);
++  color: var(--act);
++  font-weight: 600;
++}
++
++.mb-side-nav .mb-seg button.on::before {
++  content: "";
++  position: absolute;
++  left: 0;
++  top: 10px;
++  bottom: 10px;
++  width: 3px;
++  border-radius: 2px;
++  background: #78bf43;
++}
++
++.mb-side-nav .mb-badge {
++  margin-left: auto;
++}
++
++.mb-sidebar-footer {
++  display: flex;
++  flex-direction: column;
++  gap: 5px;
++  padding: 16px 20px;
++  border-top: 1px solid var(--border);
++  color: var(--faint);
++  font-size: 11px;
++  line-height: 1.5;
++}
++
++.mb-workspace {
++  display: flex;
++  flex-direction: column;
++  min-width: 0;
++  min-height: 0;
++}
++
++.mb-app .mb-top {
++  display: flex;
++  height: 64px;
++  flex: 0 0 64px;
++  padding: 0 24px;
++  gap: 16px;
++  background: var(--mb-header);
++  border: 0;
++  color: #ffffff;
++  box-shadow: 0 2px 6px rgb(16 60 88 / 12%);
++}
++
++.mb-workspace-name {
++  font-size: 14px;
++  font-weight: 500;
++  white-space: nowrap;
++}
++
++.mb-app .mb-rgroup {
++  margin-left: auto;
++  gap: 12px;
++  color: #dbeafe;
++}
++
++.mb-portal-link,
++.mb-app .mb-rgroup .mb-iconbtn {
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
++  gap: 6px;
++  min-height: 36px;
++  min-width: 36px;
++  padding: 7px 9px;
++  color: #dbeafe;
++  border-radius: 6px;
++  font-size: 13px;
++  text-decoration: none;
++}
++
++.mb-portal-link:hover,
++.mb-app .mb-rgroup .mb-iconbtn:hover {
++  background: rgb(255 255 255 / 10%);
++  color: #ffffff;
++}
++
++.mb-app .mb-top :where(a, button):focus-visible {
++  outline-color: #afe2ed;
++}
++
++.mb-account {
++  display: flex;
++  align-items: center;
++  gap: 9px;
++  min-width: 0;
++}
++
++.mb-avatar {
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
++  width: 32px;
++  height: 32px;
++  flex-shrink: 0;
++  border-radius: 50%;
++  border: 1px solid rgb(255 255 255 / 25%);
++  background: rgb(255 255 255 / 13%);
++  color: #ffffff;
++  font-size: 13px;
++  font-weight: 600;
++}
++
++.mb-account-copy {
++  display: flex;
++  flex-direction: column;
++  gap: 3px;
++}
++
++.mb-app .mb-user {
++  color: #ffffff;
++  font-size: 13px;
++  font-weight: 500;
++}
++
++.mb-account-role {
++  color: #dbeafe;
++  font-size: 10px;
++}
++
++.mb-app .mb-main {
++  margin: 20px;
++  min-width: 0;
++  background: var(--surface);
++  border: 1px solid var(--border);
++  border-radius: 8px;
++  box-shadow: 0 2px 8px rgb(21 77 112 / 5%);
++  overflow: hidden;
++}
++
++.mb-app .mb-lib,
++.mb-app .mb-qa {
++  background: var(--surface);
++}
++
++.mb-app .mb-lib-head {
++  color: var(--muted);
++  font-size: 13px;
++  font-weight: 600;
++  padding-bottom: 12px;
++  border-bottom: 1px solid var(--border);
++}
++
++.mb-app .mb-paper {
++  border-color: var(--border);
++  box-shadow: 0 1px 3px rgb(21 77 112 / 3%);
++}
++
++.mb-app .mb-paper.on {
++  border-color: var(--ac);
++}
++
++.mb-app .mb-reader {
++  background: var(--surface);
++}
++
++.mb-app .mb-up {
++  background: var(--ac);
++  color: var(--acfg);
++  border-color: var(--ac);
++  min-height: 38px;
++}
++
++.mb-app .mb-up:hover {
++  filter: brightness(0.95);
++}
++
++.mb-app .mb-btn {
++  border-width: 1px;
++}
++
++@media (max-width: 1100px) {
++  .mb-app {
++    grid-template-columns: 64px minmax(0, 1fr);
++  }
++
++  .mb-company-brand {
++    padding: 0;
++    justify-content: center;
++  }
++
++  .mb-company-copy,
++  .mb-nav-caption,
++  .mb-nav-label,
++  .mb-sidebar-footer,
++  .mb-side-nav .mb-badge {
++    display: none;
++  }
++
++  .mb-side-nav {
++    padding: 16px 8px;
++  }
++
++  .mb-side-nav .mb-seg button,
++  .mb-side-nav > a {
++    justify-content: center;
++    min-height: 44px;
++    padding: 10px;
++  }
++
++  .mb-side-nav > a:first-of-type {
++    margin-top: 24px;
++  }
++
++  .mb-app .mb-main {
++    margin: 16px;
++  }
++
++  .mb-app .mb-top {
++    padding: 0 16px;
++  }
++
++  .mb-workspace-name {
++    font-size: 12px;
++  }
++}
++
++@media (max-width: 600px) {
++  .mb-app .mb-top {
++    padding: 0 8px;
++    gap: 4px;
++  }
++
++  .mb-workspace-name,
++  .mb-account-role,
++  .mb-avatar,
++  .mb-action-label {
++    display: none;
++  }
++
++  .mb-app .mb-rgroup {
++    gap: 2px;
++    width: 100%;
++    justify-content: flex-end;
++  }
++
++  .mb-app .mb-rgroup .mb-iconbtn,
++  .mb-portal-link {
++    min-width: 40px;
++    min-height: 44px;
++  }
++
++  .mb-account {
++    margin: 0 auto 0 4px;
++  }
++
++  .mb-app .mb-user {
++    max-width: 8ch;
++  }
++
++  .mb-app .mb-main {
++    margin: 10px;
++  }
++
++  .mb-app .mb-reader {
++    padding: 18px 14px;
++  }
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .mb-side-nav .mb-seg button,
++  .mb-side-nav > a {
++    transition: none;
++  }
++}
++.mb-bi-status {
++  flex-wrap: wrap;
++}
++.mb-bi-status .left {
++  flex: 1 1 240px;
++  flex-wrap: wrap;
++  min-width: 0;
++}
++.mb-bi-status button {
++  flex-shrink: 0;
++  padding: 7px 12px;
++  border: 1px solid var(--border);
++  border-radius: 6px;
++  background: var(--surface);
++}
++.mb-bi-status button:last-child {
++  color: white;
++  border-color: var(--ac);
++  background: var(--ac);
++}
++.mb-bi-status button:disabled {
++  opacity: 0.5;
++  cursor: not-allowed;
++}
++
++/* Keep translation columns within the reader, including empty cached states. */
++.mb-research,
++.mb-reader-in,
++.mb-cols.bi > div {
++  min-width: 0;
++}
++.mb-cols.bi {
++  grid-template-columns: repeat(2, minmax(0, 1fr));
++}
++.mb-cols.bi .mb-bp {
++  overflow-wrap: anywhere;
++}
++@media (max-width: 600px) {
++  .mb-cols.bi {
++    grid-template-columns: minmax(0, 1fr);
++    gap: 12px;
++  }
++  .mb-cols.bi .mb-lab {
++    display: none;
++  }
++  .mb-cols.bi .mb-bp:not(.mb-special)::before {
++    content: "中文";
++    display: block;
++    margin-bottom: 6px;
++    color: var(--faint);
++    font-family: var(--sans);
++    font-size: 11px;
++  }
++  .mb-cols.bi .mb-bp.en::before {
++    content: "EN · 原文";
++  }
++}
+diff --git a/src/styles/mb.css b/src/styles/mb.css
+index 8df84f4..b4e0322 100644
+--- a/src/styles/mb.css
++++ b/src/styles/mb.css
+@@ -1385,7 +1385,7 @@ body.mb-col-resizing * {
+ }
+ 
+ /* Mobile panel switcher: a top tab bar picks which single panel fills the
+-   width (论文库 / 阅读 / 知识问答). Only rendered ≤900px — desktop keeps the
++   width (论文库 / 阅读 / 知识问答). Only rendered ≤1100px — desktop keeps the
+    three-pane grid. Mirrors the .mb-seg vocabulary. */
+ .mb-mobile-tabs {
+   display: flex;
+@@ -1410,7 +1410,7 @@ body.mb-col-resizing * {
+   color: var(--act);
+ }
+ 
+-@media (max-width: 900px) {
++@media (max-width: 1100px) {
+   /* Stack as a flex column: tab bar (auto height) over the one active panel. */
+   .mb-research {
+     display: flex !important;
