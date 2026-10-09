@@ -6,6 +6,7 @@
 源码基线为 `v0.1.10` / `05a2568fee7db8be7776f5c511a19a6af2fcbf7f`。
 `customer.patch` 包含此前企业样式及本次翻译功能，不能叠加到已经应用样式补丁的目录。
 当前本地工作目录为 `integrations/dikw-mbweb-customer`（在 PM 仓库外）。
+源码归档见 [知识库 PR #18](https://github.com/OpenDIKW/dikw-mbweb/pull/18)。恢复补丁同时包含 CI 静态测试夹具修正，服务运行代码与本次部署版本一致。
 
 - 切换“中英对照”只查已保存译文；没有译文时点击“开始翻译”。
 - 完整中文保存在服务器 SQLite，其他有阅读权限的用户 / 浏览器也可复用。

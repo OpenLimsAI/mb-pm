@@ -1,3 +1,22 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 6ca6fe6..70dca17 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,14 @@
+ # Changelog
+ 
++## 2026-10-08 — Maibo appearance and persistent Chinese translations
++
++- Align the KB with the PM application: Maibo logo, RGB(35,72,111) header, white sidebar, subdued controls, workspace links and responsive reader.
++- Opening bilingual mode only reads saved state. Add explicit “开始翻译” and “重新翻译” actions; upload no longer pre-translates.
++- Persist complete Chinese to server SQLite in the existing runtime volume, validate the source hash and reuse results across authorized readers and restarts.
++- Keep the old complete result when regeneration fails or is cancelled; retain authenticated BFF, Origin and job-owner checks.
++- Deploy frontend and BFF to the customer KB as `dikw-mbweb:translation-20261008T012722Z`, retaining shared package 0.1.4, runtime configuration, data mounts and all other services.
++- See [appearance evidence](docs/verification/2026-10-08-maibo-brand.md), [translation evidence](docs/verification/2026-10-08-persistent-translation.md) and [deployment / acceptance](docs/deployment.md#persistent-paper-translations). Customer paper/model acceptance is tracked separately from synthetic tests.
++
+ ## 0.1.7 (2026-10-06)
+ 
+ - Keep upload conversion/import/indexing separate from explicit editor full-base analysis.
 diff --git a/README.md b/README.md
 index c6061a6..2f00bf6 100644
 --- a/README.md
@@ -108,7 +127,7 @@ index 0000000..ccde3e5
 +upload, Q&A and note mutation acceptance remain pending; no customer data was written.
 diff --git a/docs/verification/2026-10-08-persistent-translation.md b/docs/verification/2026-10-08-persistent-translation.md
 new file mode 100644
-index 0000000..c35e903
+index 0000000..4e524c2
 --- /dev/null
 +++ b/docs/verification/2026-10-08-persistent-translation.md
 @@ -0,0 +1,27 @@
@@ -128,12 +147,12 @@ index 0000000..c35e903
 +- Both frontend and BFF must be deployed. See [runtime details](../deployment.md#persistent-paper-translations).
 +
 +Validation: 37 test files / 215 tests passed, plus lint, types, production builds,
-+format, bundle budget and boundary gate. The new tests cover explicit submission,
++format, bundle budget and boundary gate. Local coverage passed: statements 72.46%,
++branches 66.05%, functions 73.19%, lines 74.92%. The new tests cover explicit submission,
 +reuse, source changes, partial/failure/cancel behavior, ownership, Origin and role
 +checks, and a real shared BFF restart reusing SQLite with exactly one fake-model
 +call. These tests use isolated synthetic source/auth/provider fixtures; they do
-+not read customer papers, call a paid model or alter IAM. Full coverage/e2e was
-+not executed. Browser layout checks also use clearly labelled synthetic data.
++not read customer papers, call a paid model or alter IAM. Local browser e2e was not executed; GitHub CI runs the required full verify gate. Browser layout checks also use clearly labelled synthetic data.
 +
 +Production deployment and remaining real-account acceptance are recorded separately
 +in the PM handover repository under
@@ -2074,13 +2093,13 @@ index 0000000..fef25f3
 +});
 diff --git a/src/features/research/translation-runtime.test.ts b/src/features/research/translation-runtime.test.ts
 new file mode 100644
-index 0000000..9d8919d
+index 0000000..78e656e
 --- /dev/null
 +++ b/src/features/research/translation-runtime.test.ts
-@@ -0,0 +1,165 @@
+@@ -0,0 +1,176 @@
 +// @vitest-environment node
 +import { createServer } from "node:http";
-+import { mkdtempSync, rmSync } from "node:fs";
++import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 +import { tmpdir } from "node:os";
 +import { join } from "node:path";
 +import { expect, it, vi } from "vitest";
@@ -2094,6 +2113,13 @@ index 0000000..9d8919d
 +
 +it("runs the real authenticated BFF, saves a complete model job, and reuses it after runtime restart", async () => {
 +  const directory = mkdtempSync(join(tmpdir(), "mb-translation-runtime-"));
++  // CI runs tests before the application build; the runtime needs its own static fixture.
++  const staticDirectory = join(directory, "static");
++  mkdirSync(staticDirectory);
++  writeFileSync(
++    join(staticDirectory, "index.html"),
++    "<!doctype html><title>Runtime fixture</title>",
++  );
 +  const secret = "synthetic-local-fixture-secret-of-32-plus-chars";
 +  const body =
 +    "# Scientific Study\n\nThis is a synthetic English research paper used only for tests.";
@@ -2171,6 +2197,7 @@ index 0000000..9d8919d
 +  sessions.close();
 +  const env = {
 +    DIKW_WEB_AUTH_MODE: "oidc",
++    DIKW_WEB_STATIC_DIR: staticDirectory,
 +    DIKW_WEB_CORE_ID: "fixture-core",
 +    DIKW_WEB_PUBLIC_URL: "https://kb.example",
 +    DIKW_WEB_OIDC_ISSUER: "https://iam.example",
@@ -2205,6 +2232,9 @@ index 0000000..9d8919d
 +      ).status,
 +    ).toBe(403);
 +    const request = runtimeFetch(runtime, { cookie, origin: "https://kb.example" });
++    const staticPage = await request("/");
++    expect(staticPage.status).toBe(200);
++    expect(await staticPage.text()).toContain("Runtime fixture");
 +    expect(((await (await request(path + query)).json()) as TranslationLookup).saved).toBeNull();
 +    expect(modelCalls).toBe(0);
 +    const started = (await (

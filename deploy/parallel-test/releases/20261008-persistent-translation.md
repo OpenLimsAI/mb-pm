@@ -58,3 +58,10 @@ docker compose -f docker-compose.yml up -d --no-deps dikw-mbweb
 
 源码恢复、存储、后续发布详见 [维护说明](../../knowledge-translation/README.md)。
 PM 仓库更新 HTML 已生成，本次没有重建 PM 来发布该说明。
+
+## GitHub 源码归档补充（2026-10-09）
+
+知识库源码提交至 [私有 KB PR #18](https://github.com/OpenDIKW/dikw-mbweb/pull/18)，发布 / 维护记录提交至 [PM PR #19](https://github.com/OpenLimsAI/mb-pm/pull/19)。
+本地覆盖率检查通过：statements 72.46%、branches 66.05%、functions 73.19%、lines 74.92%。
+CI 发现新集成测试依赖先前构建的 `dist/index.html`，已改成独立临时静态文件并保留断言；恢复补丁同步更新。此修正只涉及测试，不改变已部署服务代码，无需重复上线。
+CI 与合并结果以对应 PR 为准，未改检查门槛或工作流。
