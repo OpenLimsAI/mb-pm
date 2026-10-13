@@ -130,18 +130,34 @@ export function deleteSubProject(root: TemplateNode, subId: string): TemplateNod
 
 // ============= 任务操作 =============
 
-export function addTask(root: TemplateNode, subId: string, f: TaskFields): TemplateNode {
+/** 新增任务；index 为插入位置（缺省接在末尾）。 */
+export function addTask(root: TemplateNode, subId: string, f: TaskFields, index?: number): TemplateNode {
   const next = cloneTree(root)
   const sub = next.children?.find((s) => s.id === subId)
   if (!sub) return next
   if (!sub.children) sub.children = []
-  sub.children.push({
+  sub.children.splice(index ?? sub.children.length, 0, {
     id: uid('custom'),
     taskCode: nextTaskCode(sub),
     module: sub.module,
     stage: sub.stage,
     ...fieldsToNode(f),
   } as TemplateNode)
+  return next
+}
+
+/** 移动任务到某子项目的 toIndex（按移动前的位置计）；可跨子项目，前置引用按编号保持不变。 */
+export function moveTask(root: TemplateNode, taskId: string, toSubId: string, toIndex: number): TemplateNode {
+  const next = cloneTree(root)
+  const from = next.children?.find((s) => s.children?.some((t) => t.id === taskId))
+  const to = next.children?.find((s) => s.id === toSubId)
+  if (!from?.children || !to) return root
+  const fromIndex = from.children.findIndex((t) => t.id === taskId)
+  const index = from === to && fromIndex < toIndex ? toIndex - 1 : toIndex
+  if (from === to && index === fromIndex) return root
+  const [moving] = from.children.splice(fromIndex, 1)
+  if (!to.children) to.children = []
+  to.children.splice(index, 0, moving)
   return next
 }
 

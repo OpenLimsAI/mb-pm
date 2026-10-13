@@ -6,6 +6,7 @@
 import type { Module, Stage, TaskStatus } from '../types'
 import type { StructureSaveRequest, StructureSnapshot } from '../api/structure'
 import { detectCycle } from './dependency-utils'
+import { byWbsOrder } from './taskOrder'
 
 export interface DraftTask {
   key: string
@@ -82,7 +83,7 @@ export function fromSnapshot(snap: StructureSnapshot): ProjectDraft {
         stage: s.stage as Stage,
         tasks: snap.tasks
           .filter((t) => t.subProjectId === s.id)
-          .sort((a, b) => a.code.localeCompare(b.code))
+          .sort(byWbsOrder)
           .map((t) => ({
             key: t.id,
             id: t.id,
@@ -214,7 +215,8 @@ export function nextTaskCode(draft: ProjectDraft, subKey: string): string {
   return `${prefix}${String(n).padStart(width, '0')}`
 }
 
-export function addTask(draft: ProjectDraft, subKey: string, input: TaskInput): ProjectDraft {
+/** 新增任务；index 为插入位置（缺省接在末尾）。保存时按列表位置写入手动顺序。 */
+export function addTask(draft: ProjectDraft, subKey: string, input: TaskInput, index?: number): ProjectDraft {
   const task: DraftTask = {
     key: newKey('t'),
     id: null,
@@ -224,7 +226,21 @@ export function addTask(draft: ProjectDraft, subKey: string, input: TaskInput): 
     progress: 0,
     lockedReason: null,
   }
-  return { ...draft, subs: draft.subs.map((s) => (s.key === subKey ? { ...s, tasks: [...s.tasks, task] } : s)) }
+  return { ...draft, subs: draft.subs.map((s) => (s.key === subKey ? { ...s, tasks: insertAt(s.tasks, task, index) } : s)) }
+}
+
+const insertAt = <T,>(list: T[], item: T, index = list.length) => [...list.slice(0, index), item, ...list.slice(index)]
+
+/** 移动任务到某子项目的 toIndex（按移动前的位置计）；可跨子项目。 */
+export function moveTask(draft: ProjectDraft, key: string, toSubKey: string, toIndex: number): ProjectDraft {
+  const from = draft.subs.find((s) => s.tasks.some((t) => t.key === key))
+  const moving = from?.tasks.find((t) => t.key === key)
+  if (!from || !moving || !draft.subs.some((s) => s.key === toSubKey)) return draft
+  const fromIndex = from.tasks.indexOf(moving)
+  const index = from.key === toSubKey && fromIndex < toIndex ? toIndex - 1 : toIndex
+  if (from.key === toSubKey && index === fromIndex) return draft
+  const subs = draft.subs.map((s) => (s.key === from.key ? { ...s, tasks: s.tasks.filter((t) => t.key !== key) } : s))
+  return { ...draft, subs: subs.map((s) => (s.key === toSubKey ? { ...s, tasks: insertAt(s.tasks, moving, index) } : s)) }
 }
 
 export function updateTask(draft: ProjectDraft, key: string, input: TaskInput): ProjectDraft {

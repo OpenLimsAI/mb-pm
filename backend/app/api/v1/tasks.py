@@ -31,6 +31,7 @@ from app.services.scope import (
     visible_project_ids_for,
     visible_task_ids_for,
 )
+from app.services.task_order import next_sort_order
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -126,6 +127,8 @@ def create_task(
     if sub.project_id not in visible_project_ids_for(user, db):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "sub_project not visible")
 
+    if payload.sort_order is None:
+        payload.sort_order = next_sort_order(db, sub.id)
     obj = Task(**payload.model_dump())
     db.add(obj)
     # 新增任务（含里程碑）后，重算所属子项目/项目进度，保持汇总一致。

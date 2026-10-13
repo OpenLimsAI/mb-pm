@@ -15,16 +15,17 @@ import { useDataStore } from '../store/data'
 import { saveTemplateStructure } from '../data/bootstrap'
 import {
   cloneTree, countStructure, nextVersionNumber, allTaskCodes, nodeToFields,
-  addSubProject, updateSubProject, deleteSubProject, addTask, updateTask, deleteTask,
+  addSubProject, updateSubProject, deleteSubProject, addTask, updateTask, deleteTask, moveTask,
   type TaskFields, type TaskCodeRef,
 } from '../lib/templateStructure'
 import {
-  AddSubButton, AddSubForm, EditorDrawer, PredecessorPicker, SaveBar, StructureCounts, SubCard, TaskRow,
+  AddSubButton, AddSubForm, EditorDrawer, InsertHint, PredecessorPicker, SaveBar, StructureCounts, SubCard, TaskRow,
 } from '../components/structure/StructureEditorKit'
 import { cn } from '../lib/cn'
 
+// 新建：index 为插入位置，siblings 为所在子项目的任务（插入位置说明用）
 type TaskEditorState =
-  | { mode: 'create'; subId: string }
+  | { mode: 'create'; subId: string; index?: number; siblings?: TemplateNode[] }
   | { mode: 'edit'; subId: string; taskId: string; task: TemplateNode }
 
 export default function TemplateEditor() {
@@ -122,8 +123,9 @@ function TemplateEditorForm({ template, version }: { template: Template; version
               onChange={(f) => setDraft((d) => (d ? updateSubProject(d, sub.id, f) : d))}
               onDelete={() => setDraft((d) => (d ? deleteSubProject(d, sub.id) : d))}
               onAddTask={() => setTaskEditor({ mode: 'create', subId: sub.id })}
+              onDropAtEnd={(id) => setDraft((d) => (d ? moveTask(d, id, sub.id, tasks.length) : d))}
             >
-              {tasks.map((t) => (
+              {tasks.map((t, i) => (
                 <TaskRow
                   key={t.id}
                   code={t.taskCode}
@@ -135,6 +137,15 @@ function TemplateEditorForm({ template, version }: { template: Template; version
                   predecessorCodes={(t.predecessors ?? []).map((p) => p.taskCode)}
                   onEdit={() => setTaskEditor({ mode: 'edit', subId: sub.id, taskId: t.id, task: t })}
                   onDelete={() => setDraft((d) => (d ? deleteTask(d, t.id) : d))}
+                  onInsertBefore={() => setTaskEditor({ mode: 'create', subId: sub.id, index: i, siblings: tasks })}
+                  dnd={{
+                    id: t.id,
+                    onDrop: (id, where) => setDraft((d) => (d ? moveTask(d, id, sub.id, where === 'before' ? i : i + 1) : d)),
+                    onMove: (delta) => {
+                      const to = delta < 0 ? i - 1 : i + 2
+                      if (to >= 0 && to <= tasks.length) setDraft((d) => (d ? moveTask(d, t.id, sub.id, to) : d))
+                    },
+                  }}
                 />
               ))}
             </SubCard>
@@ -160,7 +171,7 @@ function TemplateEditorForm({ template, version }: { template: Template; version
       {/* 任务编辑抽屉 */}
       {taskEditor && (
         <TaskEditDrawer
-          key={taskEditor.mode === 'edit' ? taskEditor.taskId : 'create'}
+          key={taskEditor.mode === 'edit' ? taskEditor.taskId : `create-${taskEditor.subId}-${taskEditor.index ?? 'end'}`}
           state={taskEditor}
           allCodes={codes}
           onClose={() => setTaskEditor(null)}
@@ -168,7 +179,7 @@ function TemplateEditorForm({ template, version }: { template: Template; version
             setDraft((d) => {
               if (!d) return d
               return taskEditor.mode === 'create'
-                ? addTask(d, taskEditor.subId, fields)
+                ? addTask(d, taskEditor.subId, fields, taskEditor.index)
                 : updateTask(d, taskEditor.taskId, fields)
             })
             setTaskEditor(null)
@@ -213,9 +224,10 @@ function TaskEditDrawer({ state, allCodes, onClose, onSubmit }: {
       submitLabel={editing ? '保存' : '添加任务'}
       submitDisabled={!valid}
     >
+      {state.mode === 'create' && state.index !== undefined && <InsertHint sub={state.siblings ?? []} index={state.index} />}
       <label className="block">
         <span className="text-[11px] text-ink-500">任务名称 <span className="text-red-500">*</span></span>
-        <input className={cn('input mt-1', !valid && 'border-red-300')} value={f.name} onChange={(e) => set({ name: e.target.value })} placeholder="如：宿主细胞蛋白(HCP)方法开发" />
+        <input autoFocus className={cn('input mt-1', !valid && 'border-red-300')} value={f.name} onChange={(e) => set({ name: e.target.value })} placeholder="如：宿主细胞蛋白(HCP)方法开发" />
       </label>
 
       <label className="flex items-center gap-2 text-sm text-ink-700">

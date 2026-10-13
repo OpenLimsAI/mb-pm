@@ -158,7 +158,11 @@ export function instantiateTemplate(
     return 0
   }
 
+  // 子项目内的手动顺序沿用模板中的先后
+  const orderInSub = new Map<number, number>()
   allLeaves.forEach(({ leaf, subProjectIdx }) => {
+    const sortOrder = (orderInSub.get(subProjectIdx) ?? 0) + 1
+    orderInSub.set(subProjectIdx, sortOrder)
     const dates = taskDates[leaf.taskCode!] || { start: projectStart, end: projectStart }
     const status = statusFor(dates.start, dates.end, !!leaf.isMilestone)
     const sp = template.children![subProjectIdx]
@@ -180,6 +184,7 @@ export function instantiateTemplate(
       progress: prog,
       isMilestone: !!leaf.isMilestone,
       isCriticalPath: !!leaf.isCriticalPath,
+      sortOrder,
       notes: [
         leaf.description ? `描述：${leaf.description}` : null,
         leaf.ctdSection ? `CTD：${leaf.ctdSection}` : null,

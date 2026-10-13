@@ -346,7 +346,8 @@ def project_context(db: Session, project: Project) -> tuple[dict, dict]:
         **source,
         "project": row_data(project),
         "sub_projects": [row_data(s) for s in subs],
-        "tasks": [row_data(t) for t in tasks],
+        # 手动顺序只影响显示，不计入分析与报告过期判断（升级补号不让已有报告失效）
+        "tasks": [row_data(t, exclude=("sort_order",)) for t in tasks],
         "dependencies": [row_data(d) for d in deps],
         "members": [
             {"id": u.id, "name": u.display_name, "weekly_available_hours": u.weekly_available_hours}

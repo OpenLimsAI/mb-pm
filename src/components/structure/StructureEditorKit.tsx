@@ -1,16 +1,59 @@
 // 结构编辑器的公共界面 —— 模板结构编辑与项目「编辑模式」共用，保证两处增删改的用法完全一致：
-//   子项目卡片（名称 / 模块 / 阶段 / 删除）→ 任务行（悬停出现编辑、删除）→ 「添加任务 / 里程碑」，
-//   右侧抽屉表单，底部固定的「变更说明 · 取消 · 保存」条。
+//   子项目卡片（名称 / 模块 / 阶段 / 删除）→ 任务行（悬停出现拖动手柄、上沿「＋」插入、编辑、删除）
+//   →「添加任务 / 里程碑」，右侧抽屉表单，底部固定的「变更说明 · 取消 · 保存」条。
+// 任务行可拖动调整顺序（也可跨子项目；选中手柄后可用 ↑ ↓ 键移动）。
 // 只负责展示与交互；草稿数据与保存逻辑由各自页面提供。
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type DragEvent, type ReactNode } from 'react'
 import {
-  AlertTriangle, ChevronDown, ChevronRight, Diamond, ListChecks, Loader2, PencilLine, Plus, Save, Trash2, X,
+  AlertTriangle, ChevronDown, ChevronRight, Diamond, GripVertical, ListChecks, Loader2, PencilLine, Plus, Save, Trash2, X,
 } from 'lucide-react'
 import { Button, Card, Tag } from '../ui'
 import { modules, stages } from '../../mock'
 import type { Module, Stage } from '../../types'
 import { cn } from '../../lib/cn'
+
+// ============= 拖动排序 =============
+
+const DND_TYPE = 'application/x-mbpm-structure-task'
+const carriesTask = (e: DragEvent) => Array.from(e.dataTransfer.types).includes(DND_TYPE)
+/** 指针在行的上半部 → 放在本行之前，下半部 → 之后 */
+const dropSide = (e: DragEvent<HTMLElement>) => {
+  const r = e.currentTarget.getBoundingClientRect()
+  return e.clientY < r.top + r.height / 2 ? 'before' : 'after'
+}
+
+/** 任务行的拖动排序：id 为被拖动时携带的标识；onDrop 收到被拖任务与放在本行之前 / 之后；onMove 用于键盘 ↑ ↓。 */
+export interface RowDnd {
+  id: string
+  onDrop: (draggedId: string, where: 'before' | 'after') => void
+  onMove?: (delta: -1 | 1) => void
+}
+
+/** 放置区（子项目末尾）：拖到这里即移到该子项目最后。 */
+function useDropZone(onDrop?: (draggedId: string) => void) {
+  const [over, setOver] = useState(false)
+  if (!onDrop) return { over: false, handlers: {} }
+  return {
+    over,
+    handlers: {
+      onDragOver: (e: DragEvent) => {
+        if (!carriesTask(e)) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        setOver(true)
+      },
+      onDragLeave: () => setOver(false),
+      onDrop: (e: DragEvent) => {
+        const id = e.dataTransfer.getData(DND_TYPE)
+        setOver(false)
+        if (!id) return
+        e.preventDefault()
+        onDrop(id)
+      },
+    },
+  }
+}
 
 export interface SubFieldsValue {
   name: string
@@ -21,7 +64,7 @@ export interface SubFieldsValue {
 // ============= 子项目卡片 =============
 
 export function SubCard({
-  value, taskCount, onChange, onDelete, deleteBlockedReason, onAddTask, children,
+  value, taskCount, onChange, onDelete, deleteBlockedReason, onAddTask, onDropAtEnd, children,
 }: {
   value: SubFieldsValue
   taskCount: number
@@ -30,10 +73,13 @@ export function SubCard({
   /** 不能删除时的原因（如：含已开始的任务）；有值时删除按钮置灰 */
   deleteBlockedReason?: string | null
   onAddTask: () => void
+  /** 任务拖到本子项目末尾（含空子项目） */
+  onDropAtEnd?: (draggedId: string) => void
   children: ReactNode
 }) {
   const [open, setOpen] = useState(true)
   const [confirmDel, setConfirmDel] = useState(false)
+  const drop = useDropZone(onDropAtEnd)
 
   return (
     <Card className="overflow-visible">
@@ -90,7 +136,8 @@ export function SubCard({
         <ul className="divide-y divide-ink-200/60">
           {children}
           {taskCount === 0 && <li className="px-3 py-2.5 text-xs text-ink-400 italic">暂无任务，点击下方「添加任务」</li>}
-          <li className="px-2 py-1.5">
+          <li className={cn('px-2 py-1.5 relative', drop.over && 'bg-brand-50/60')} {...drop.handlers}>
+            {drop.over && <span className="pointer-events-none absolute left-2 right-2 -top-px h-0.5 rounded bg-brand-500" />}
             <button onClick={onAddTask} className="inline-flex items-center gap-1 text-xs text-brand-600 hover:bg-brand-50 px-2 py-1 rounded">
               <Plus className="w-3.5 h-3.5" /> 添加任务 / 里程碑
             </button>
@@ -105,7 +152,7 @@ export function SubCard({
 
 export function TaskRow({
   code, name, isMilestone, tag, durationDays, effort, predecessorCodes, onEdit, onDelete,
-  deleteBlockedReason, warning, extra, codeClassName = 'w-16',
+  deleteBlockedReason, warning, extra, codeClassName = 'w-16', onInsertBefore, dnd,
 }: {
   code?: string
   name: string
@@ -123,9 +170,68 @@ export function TaskRow({
   /** 额外信息（如项目任务的当前状态） */
   extra?: ReactNode
   codeClassName?: string
+  /** 在本行之前插入（悬停时行上沿出现「＋」） */
+  onInsertBefore?: () => void
+  /** 拖动调整顺序 */
+  dnd?: RowDnd
 }) {
+  const [dropAt, setDropAt] = useState<'before' | 'after' | null>(null)
+  const gutter = !!(onInsertBefore || dnd)
   return (
-    <li className="flex items-center gap-2 px-3 py-1.5 group hover:bg-ink-100/40">
+    <li
+      className={cn('relative flex items-center gap-2 pr-3 py-1.5 group hover:bg-ink-100/40', gutter ? 'pl-7' : 'pl-3')}
+      onDragOver={dnd ? (e) => {
+        if (!carriesTask(e)) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        setDropAt(dropSide(e))
+      } : undefined}
+      onDragLeave={dnd ? (e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropAt(null) } : undefined}
+      onDrop={dnd ? (e) => {
+        const id = e.dataTransfer.getData(DND_TYPE)
+        setDropAt(null)
+        if (!id) return
+        e.preventDefault()
+        if (id !== dnd.id) dnd.onDrop(id, dropSide(e))
+      } : undefined}
+    >
+      {dropAt && <span className={cn('pointer-events-none absolute left-2 right-2 h-0.5 rounded bg-brand-500', dropAt === 'before' ? '-top-px' : '-bottom-px')} />}
+      {onInsertBefore && (
+        <button
+          type="button"
+          onClick={onInsertBefore}
+          className="absolute left-1.5 -top-2 z-10 w-4 h-4 rounded-full border border-brand-400 bg-white text-brand-600 flex items-center justify-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-brand-600 hover:text-white transition-opacity"
+          title="在此插入任务 / 里程碑"
+          aria-label={`在「${name}」之前插入任务`}
+        >
+          <Plus className="w-3 h-3" />
+        </button>
+      )}
+      {dnd && (
+        <button
+          type="button"
+          draggable
+          data-drag-handle={dnd.id}
+          onDragStart={(e) => {
+            e.dataTransfer.setData(DND_TYPE, dnd.id)
+            e.dataTransfer.effectAllowed = 'move'
+            const row = e.currentTarget.closest('li')
+            if (row) e.dataTransfer.setDragImage(row, 16, 12)
+          }}
+          onKeyDown={dnd.onMove ? (e) => {
+            if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+            e.preventDefault()
+            dnd.onMove!(e.key === 'ArrowUp' ? -1 : 1)
+            // 移动后行会重新排列，焦点留在原手柄上，便于连续移动
+            requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-drag-handle="${CSS.escape(dnd.id)}"]`)?.focus())
+          } : undefined}
+          className="absolute left-1 top-1/2 -translate-y-1/2 p-0.5 rounded text-ink-400 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-ink-700"
+          title="拖动调整顺序（选中后可用 ↑ ↓ 键移动）"
+          aria-label={`拖动「${name}」调整顺序`}
+        >
+          <GripVertical className="w-3.5 h-3.5" />
+        </button>
+      )}
       {isMilestone
         ? <Diamond className="w-3.5 h-3.5 text-amber-600 shrink-0" />
         : <span className="text-[9px] font-mono px-1 rounded bg-emerald-100 text-emerald-800 shrink-0">L3</span>}
@@ -301,6 +407,18 @@ export function EditorDrawer({ title, code, onClose, onSubmit, submitLabel, subm
   )
 }
 
+/** 插入位置说明：「插入在 A 与 B 之间」 */
+export function InsertHint({ sub, index, dated }: { sub: { name: string }[]; index: number; dated?: boolean }) {
+  const before = sub[index - 1]
+  const after = sub[index]
+  return (
+    <p className="text-xs rounded-md bg-brand-50 text-brand-800 p-2.5">
+      {before && after ? <>插入在「{before.name}」与「{after.name}」之间</> : after ? <>插入在「{after.name}」之前（最前面）</> : <>添加在末尾</>}
+      {before && dated ? '，开始日期默认接在上一个任务之后。' : '。'}
+    </p>
+  )
+}
+
 // ============= 前置依赖选择 =============
 
 export interface PredecessorCandidate {
@@ -317,7 +435,7 @@ export function PredecessorPicker({ candidates, selected, onToggle }: {
   selected: string[]
   onToggle: (id: string) => void
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   return (
     <div>
       <button type="button" onClick={() => setOpen((v) => !v)} className="w-full flex items-center gap-1.5 text-[11px] text-ink-500 uppercase tracking-wider">

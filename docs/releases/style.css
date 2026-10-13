@@ -118,6 +118,23 @@ tbody tr:hover { background: #edf8fb; }
 .boundary { margin-top: 20px; border: 1px solid #ecdcb8; border-left: 3px solid #f5b64c; background: #fffbf3; border-radius: 6px; padding: 22px 26px; }
 .boundary h3 { font-size: 14px; color: #79581e; margin-bottom: 12px; }
 .boundary ul { font-size: 12px; color: #706349; }
+.hero-meta a.pill:hover { background: #dff2f7; }
+.more-link { color: var(--cyan); font-weight: 600; }
+.more-link:hover { text-decoration: underline; }
+.latest-card { background: white; border: 1px solid #79c7d9; border-radius: 8px; padding: 24px 28px 26px; box-shadow: inset 0 3px 0 #08b4d1, 0 2px 8px #154d700b; }
+.latest-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.latest-meta .release-version { display: inline; margin-top: 0; font-size: 11px; font-weight: 600; }
+.latest-card h3 { font-size: 19px; font-weight: 650; color: var(--navy); margin-top: 10px; }
+.latest-summary { font-size: 13px; color: var(--muted); margin-top: 8px; max-width: 860px; }
+.latest-card .change-group { grid-template-columns: 56px 1fr; }
+.latest-card .change-group ul { color: var(--ink); font-size: 13px; }
+.recent-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+.recent-card { display: flex; flex-direction: column; gap: 6px; padding: 16px 18px; background: white; border: 1px solid var(--line); border-radius: 8px; }
+.recent-card:hover { border-color: #79c7d9; }
+.recent-card:hover b { color: var(--cyan); }
+.recent-meta { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.recent-card b { font-size: 13px; font-weight: 650; line-height: 1.6; }
+.recent-summary { font-size: 12px; color: var(--muted); line-height: 1.7; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .release-list { border: 1px solid var(--line); border-radius: 8px; background: white; overflow: hidden; }
 .release { border-bottom: 1px solid var(--line); padding: 0 24px; }
 .release:last-child { border-bottom: 0; }
@@ -140,6 +157,7 @@ tbody tr:hover { background: #edf8fb; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
 @media (max-width: 1040px) {
   .feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .recent-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 760px) {
   .topbar { padding: 12px 20px; }
@@ -163,6 +181,8 @@ tbody tr:hover { background: #edf8fb; }
   .release-date { width: 90px; font-size: 11px; }
   .release-title { font-size: 14px; }
   .release-body { margin-left: 0; }
+  .latest-card { padding: 20px 18px 22px; }
+  .latest-card .change-group { grid-template-columns: 1fr; gap: 4px; }
   .page-footer { flex-direction: column; gap: 4px; }
   th, td { padding: 14px; }
   .boundary { padding: 20px; }
@@ -189,7 +209,7 @@ tbody tr:hover { background: #edf8fb; }
   .hero-meta { margin: 12px 0 0; }
   .section { padding-top: 24px; }
   .feature-grid { grid-template-columns: repeat(2, 1fr); }
-  .feature, .role-card, .boundary { break-inside: avoid; box-shadow: none; }
+  .feature, .role-card, .boundary, .latest-card, .recent-card { break-inside: avoid; box-shadow: none; }
   .feature { background: white; }
   .major-badge { background: white; color: #154d70; border: 1px solid #154d70; }
   .table-wrap { overflow: visible; }

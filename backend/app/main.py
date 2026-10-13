@@ -64,6 +64,7 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("tasks", "cost_budget", "NUMERIC(12,2)"),
     ("tasks", "actual_cost", "NUMERIC(12,2)"),
     ("project_ai_analyses", "prompt", "TEXT NOT NULL DEFAULT ''"),
+    ("tasks", "sort_order", "INTEGER"),
 )
 
 
@@ -103,6 +104,19 @@ def _ensure_schema() -> None:
 
 
 @asynccontextmanager
+def _backfill_task_order() -> None:
+    """任务手动顺序：为升级前的老数据 / 种子数据补齐顺序号（沿用原显示顺序，幂等）。"""
+    from app.services.task_order import backfill_all
+
+    db = SessionLocal()
+    try:
+        if count := backfill_all(db):
+            db.commit()
+            logger.info("已为 %d 个子项目的任务补充顺序号", count)
+    finally:
+        db.close()
+
+
 async def lifespan(_: FastAPI):
     # 建表（SQLite 首次运行即创建文件）
     Base.metadata.create_all(bind=engine)
@@ -123,6 +137,8 @@ async def lifespan(_: FastAPI):
             seed()
         else:
             logger.info("数据库已有数据 → 跳过种子")
+    # 任务手动顺序：老数据 / 种子补齐顺序号（幂等）
+    _backfill_task_order()
     yield
 
 
@@ -177,11 +193,48 @@ app.include_router(baselines.router, prefix=API_PREFIX)
 app.include_router(ai.router, prefix=API_PREFIX)
 
 
+# 页面与文件名不带哈希的静态文件（index.html、release-notes.html 等）：每次向服务器确认是否有新版本，
+# 发版后浏览器不会再按启发式缓存继续显示旧页面；/assets 下由 Vite 生成、文件名带内容哈希，可长期缓存。
+_REVALIDATE = {"Cache-Control": "no-cache"}
+_IMMUTABLE = "public, max-age=31536000, immutable"
+
+
+class _HashedAssets(StaticFiles):
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        if response.status_code == 200:
+            response.headers["Cache-Control"] = _IMMUTABLE
+        return response
+
+
+def mount_spa(target: FastAPI, static_root: Path) -> None:
+    """同源托管前端产物：/assets 长期缓存；其余路径命中真实文件则返回，否则回退 index.html。"""
+    assets = static_root / "assets"
+    if assets.is_dir():
+        target.mount("/assets", _HashedAssets(directory=assets), name="assets")
+
+    @target.get("/{full_path:path}", include_in_schema=False)
+    def spa_fallback(full_path: str):
+        # API / 文档保持 JSON 404，不被 SPA 兜底吞掉
+        if full_path.startswith(("api/", "api", "docs", "redoc", "openapi.json", "health")):
+            raise HTTPException(status_code=404, detail="Not Found")
+        # 命中真实静态文件（favicon.svg 等）则直接返回，否则回退 index.html 交给前端路由。
+        # 先把请求路径解析为绝对路径并校验其仍位于静态根目录内，阻止 ../ 目录遍历
+        # 读取静态目录之外的任意文件（如 /etc/passwd）。
+        try:
+            candidate = (static_root / full_path).resolve()
+        except (OSError, RuntimeError, ValueError):
+            return FileResponse(static_root / "index.html", headers=_REVALIDATE)
+        if full_path and candidate.is_file() and static_root in candidate.parents:
+            return FileResponse(candidate, headers=_REVALIDATE)
+        return FileResponse(static_root / "index.html", headers=_REVALIDATE)
+
+
 @app.get("/", include_in_schema=False)
 def root():
     # 托管前端时根路径返回 SPA；纯 API 模式返回服务元信息。
     if _HAS_SPA:
-        return FileResponse(_STATIC / "index.html")
+        return FileResponse(_STATIC / "index.html", headers=_REVALIDATE)
     return {
         "name": "CMC-PMS Backend (CTO Lite)",
         "version": "0.1.0",
@@ -194,24 +247,5 @@ def root():
 # 因此具体路由优先匹配，剩余路径才落到 SPA。
 if _HAS_SPA:
     _static_root = _STATIC.resolve()
-    _assets = _static_root / "assets"
-    if _assets.is_dir():
-        app.mount("/assets", StaticFiles(directory=_assets), name="assets")
-
-    @app.get("/{full_path:path}", include_in_schema=False)
-    def spa_fallback(full_path: str):
-        # API / 文档保持 JSON 404，不被 SPA 兜底吞掉
-        if full_path.startswith(("api/", "api", "docs", "redoc", "openapi.json", "health")):
-            raise HTTPException(status_code=404, detail="Not Found")
-        # 命中真实静态文件（favicon.svg 等）则直接返回，否则回退 index.html 交给前端路由。
-        # 先把请求路径解析为绝对路径并校验其仍位于静态根目录内，阻止 ../ 目录遍历
-        # 读取静态目录之外的任意文件（如 /etc/passwd）。
-        try:
-            candidate = (_static_root / full_path).resolve()
-        except (OSError, RuntimeError, ValueError):
-            return FileResponse(_static_root / "index.html")
-        if full_path and candidate.is_file() and _static_root in candidate.parents:
-            return FileResponse(candidate)
-        return FileResponse(_static_root / "index.html")
-
+    mount_spa(app, _static_root)
     logger.info("前端 SPA 已挂载 ← %s", _static_root)

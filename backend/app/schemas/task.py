@@ -63,6 +63,8 @@ class TaskBase(BaseModel):
     is_critical_path: bool = False
     notes: str | None = None
     tags: list[str] | None = None
+    # 子项目内的手动顺序；创建时不填则接在末尾（子项目尚未排序时保持空值，按日期排列）
+    sort_order: int | None = None
 
 
 class TaskCreate(TaskBase):

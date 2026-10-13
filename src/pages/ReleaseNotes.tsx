@@ -4,7 +4,7 @@ export default function ReleaseNotes() {
   return (
     <iframe
       title="CMC-PMS 版本更新"
-      src="/release-notes.html"
+      src={`/release-notes.html?v=${__APP_BUILD__}`}
       className="block w-full h-full min-h-[400px] border-0"
     />
   )

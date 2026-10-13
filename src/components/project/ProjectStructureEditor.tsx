@@ -14,12 +14,15 @@ import { getStructure, saveStructure, type StructureSaveResult } from '../../api
 import { refreshAllData } from '../../data/bootstrap'
 import { useDataStore } from '../../store/data'
 import {
-  AddSubButton, AddSubForm, EditorDrawer, PredecessorPicker, SaveBar, StructureCounts, SubCard, TaskRow,
+  AddSubButton, AddSubForm, EditorDrawer, InsertHint, PredecessorPicker, SaveBar, StructureCounts, SubCard, TaskRow,
 } from '../structure/StructureEditorKit'
 import * as S from '../../lib/projectStructure'
 import { cn } from '../../lib/cn'
 
-type EditorState = { mode: 'create'; subKey: string } | { mode: 'edit'; subKey: string; task: S.DraftTask }
+// 新建：index 为插入位置；after 为「在两个任务之间插入」时的上一个任务（开始日期默认接在它之后，不带前置）
+type EditorState =
+  | { mode: 'create'; subKey: string; index?: number; after?: S.DraftTask }
+  | { mode: 'edit'; subKey: string; task: S.DraftTask }
 
 function errorText(error: unknown): { status?: number; text: string } {
   if (axios.isAxiosError(error)) {
@@ -43,6 +46,7 @@ function savedMessage(r: StructureSaveResult): string {
     r.updatedTasks && `修改 ${r.updatedTasks} 个任务`,
     r.deletedTasks && `删除 ${r.deletedTasks} 个任务`,
     (r.addedDependencies || r.removedDependencies) && `依赖 +${r.addedDependencies} / −${r.removedDependencies}`,
+    r.reordered && '调整了任务顺序',
   ].filter(Boolean)
   return parts.length ? `项目结构已保存：${parts.join('、')}。` : '项目结构已保存。'
 }
@@ -207,8 +211,9 @@ export function ProjectStructureEditor({ project, onExit }: { project: Project; 
             onDelete={() => setDraft((d) => (d ? S.deleteSub(d, sub.key) : d))}
             deleteBlockedReason={S.subDeleteBlocked(sub)}
             onAddTask={() => setEditor({ mode: 'create', subKey: sub.key })}
+            onDropAtEnd={(id) => setDraft((d) => (d ? S.moveTask(d, id, sub.key, sub.tasks.length) : d))}
           >
-            {sub.tasks.map((t) => (
+            {sub.tasks.map((t, i) => (
               <TaskRow
                 key={t.key}
                 code={t.code}
@@ -224,6 +229,15 @@ export function ProjectStructureEditor({ project, onExit }: { project: Project; 
                 codeClassName="w-28"
                 onEdit={() => setEditor({ mode: 'edit', subKey: sub.key, task: t })}
                 onDelete={() => setDraft((d) => (d ? S.deleteTask(d, t.key) : d))}
+                onInsertBefore={() => setEditor({ mode: 'create', subKey: sub.key, index: i, after: sub.tasks[i - 1] })}
+                dnd={{
+                  id: t.key,
+                  onDrop: (id, where) => setDraft((d) => (d ? S.moveTask(d, id, sub.key, where === 'before' ? i : i + 1) : d)),
+                  onMove: (delta) => {
+                    const to = delta < 0 ? i - 1 : i + 2
+                    if (to >= 0 && to <= sub.tasks.length) setDraft((d) => (d ? S.moveTask(d, t.key, sub.key, to) : d))
+                  },
+                }}
               />
             ))}
           </SubCard>
@@ -249,7 +263,7 @@ export function ProjectStructureEditor({ project, onExit }: { project: Project; 
 
       {editor && (
         <ProjectTaskDrawer
-          key={editor.mode === 'edit' ? editor.task.key : `create-${editor.subKey}`}
+          key={editor.mode === 'edit' ? editor.task.key : `create-${editor.subKey}-${editor.index ?? 'end'}`}
           draft={draft}
           state={editor}
           project={project}
@@ -257,7 +271,7 @@ export function ProjectStructureEditor({ project, onExit }: { project: Project; 
           onSubmit={(input) => {
             setDraft((d) => {
               if (!d) return d
-              return editor.mode === 'create' ? S.addTask(d, editor.subKey, input) : S.updateTask(d, editor.task.key, input)
+              return editor.mode === 'create' ? S.addTask(d, editor.subKey, input, editor.index) : S.updateTask(d, editor.task.key, input)
             })
             setEditor(null)
           }}
@@ -285,7 +299,11 @@ function ProjectTaskDrawer({ draft, state, project, onClose, onSubmit }: {
 }) {
   const editing = state.mode === 'edit' ? state.task : null
   const today = TODAY.toISOString().slice(0, 10)
-  const defaultStart = draft.projectStart > today ? draft.projectStart : today
+  // 在两个任务之间插入：开始日期默认接在上一个任务结束之后；前置依赖不预设
+  const after = state.mode === 'create' ? state.after : undefined
+  const defaultStart = after
+    ? (after.isMilestone ? after.plannedStart : after.plannedEnd)
+    : draft.projectStart > today ? draft.projectStart : today
   const [f, setF] = useState<S.TaskInput>(() => editing
     ? {
         name: editing.name, isMilestone: editing.isMilestone, ownerId: editing.ownerId,
@@ -330,6 +348,9 @@ function ProjectTaskDrawer({ draft, state, project, onClose, onSubmit }: {
       submitLabel={editing ? '保存' : '添加任务'}
       submitDisabled={!valid}
     >
+      {state.mode === 'create' && state.index !== undefined && (
+        <InsertHint dated sub={draft.subs.find((x) => x.key === state.subKey)?.tasks ?? []} index={state.index} />
+      )}
       {editing && editing.status !== '未开始' && (
         <p className="text-xs rounded-md bg-ink-100/70 text-ink-700 p-2.5 flex gap-1.5">
           <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />

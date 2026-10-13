@@ -121,6 +121,7 @@ def test_save_adds_updates_deletes_in_one_go(client, auth_headers, project_facto
         "deleted_tasks": 1,
         "added_dependencies": 2,
         "removed_dependencies": 1,  # T-2 删除时连带删掉 T-1 → T-2
+        "reordered": False,
     }
     assert out["version"] != snap["version"]
     codes = {t["code"]: t for t in out["tasks"]}

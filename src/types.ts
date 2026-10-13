@@ -97,6 +97,8 @@ export interface Task {
   isCriticalPath: boolean
   notes?: string
   tags?: string[]
+  /** 子项目内的手动顺序（WBS 树 / 表格 / 甘特与编辑模式按它排列，见 lib/taskOrder.ts） */
+  sortOrder?: number | null
 }
 
 export interface TaskDependency {

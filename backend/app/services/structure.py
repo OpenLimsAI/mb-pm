@@ -21,6 +21,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models import AuditLog, Project, SubProject, Task, TaskDependency, User
+from app.models.task import TASK_WBS_ORDER
 from app.schemas.structure import StructureSaveIn
 from app.services.rollup import recompute_project, recompute_subproject
 
@@ -38,7 +39,7 @@ def _load(db: Session, project_id: str):
     )
     sub_ids = [s.id for s in subs]
     tasks = (
-        db.query(Task).filter(Task.sub_project_id.in_(sub_ids)).order_by(Task.code, Task.id).all()
+        db.query(Task).filter(Task.sub_project_id.in_(sub_ids)).order_by(*TASK_WBS_ORDER).all()
         if sub_ids
         else []
     )
@@ -75,6 +76,7 @@ def structure_version(subs, tasks, deps) -> str:
                 _num(t.estimated_effort),
                 _num(t.cost_budget),
                 t.notes or "",
+                t.sort_order,
             ]
             for t in tasks
         ),
@@ -132,6 +134,7 @@ def structure_snapshot(db: Session, project: Project) -> dict:
                 "progress": t.progress,
                 "actual_cost": None if t.actual_cost is None else float(t.actual_cost),
                 "locked_reason": delete_block_reason(t),
+                "sort_order": t.sort_order,
             }
             for t in tasks
         ],
@@ -310,9 +313,28 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
         db.delete(task)
     db.flush()
 
+    # 任务顺序：按提交列表中的位置（子项目内从 1 开始）。某子项目的任务和先后都没变时保留原顺序号，
+    # 原样保存不改数据、不让他人的编辑版本失效。已有任务的先后或所属子项目变化才算「调整顺序」。
+    stored_ids: dict[str, list[str]] = defaultdict(list)
+    for t in tasks:  # _load 已按 WBS 顺序排列
+        if t.id in seen_tasks:
+            stored_ids[t.sub_project_id].append(t.id)
+    renumber: set[str] = set()
+    reordered = False
+    for sub in body.sub_projects:
+        ids = [task.id for task in sub.tasks]
+        stored = stored_ids.get(sub.id, []) if sub.id else []
+        if sub.id is None or None in ids or ids != stored:
+            renumber.add(sub.key)
+        existing = [i for i in ids if i is not None]
+        if existing != [i for i in stored if i in set(existing)]:
+            reordered = True
+
     key_to_task: dict[str, str] = {}
     created_tasks = updated_tasks = 0
+    position: dict[str, int] = defaultdict(int)
     for sub_key, task in payload_tasks:
+        position[sub_key] += 1
         values = {
             "sub_project_id": key_to_sub[sub_key],
             "code": task.code,
@@ -333,6 +355,8 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
             changed = any(getattr(obj, k) != v for k, v in values.items())
             for k, v in values.items():
                 setattr(obj, k, v)
+            if sub_key in renumber:
+                obj.sort_order = position[sub_key]
             updated_tasks += changed
         else:
             obj = Task(
@@ -341,6 +365,7 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
                 priority="中",
                 progress=0,
                 is_critical_path=False,
+                sort_order=position[sub_key],
                 **values,
             )
             db.add(obj)
@@ -418,6 +443,7 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
         "deleted_tasks": len(removed_tasks),
         "added_dependencies": len(desired - kept),
         "removed_dependencies": removed_deps + cascaded_deps,
+        "reordered": reordered,
     }
     db.add(
         AuditLog(

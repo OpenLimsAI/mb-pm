@@ -148,9 +148,13 @@ def import_project(
             s.id = f"sp-{uuid4().hex[:10]}"
         db.add(SubProject(**s.model_dump()))
     db.flush()
+    order: dict[str, int] = {}  # 子项目内顺序：未提供时按提交顺序（即模板中的顺序）
     for t in payload.tasks:
         if not t.id:
             t.id = f"tk-{uuid4().hex[:10]}"
+        if t.sort_order is None:
+            t.sort_order = order.get(t.sub_project_id, 0) + 1
+        order[t.sub_project_id] = max(order.get(t.sub_project_id, 0), t.sort_order)
         db.add(Task(**t.model_dump()))
     db.flush()
     for d in payload.dependencies:

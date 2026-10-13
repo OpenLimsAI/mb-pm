@@ -27,6 +27,7 @@ from app.models import (
     TaskDependency,
     User,
 )
+from app.models.task import TASK_WBS_ORDER
 from app.schemas.project import ProjectCopyIn
 from app.services.rollup import recompute_project
 
@@ -105,7 +106,7 @@ def copy_project(db: Session, source: Project, body: ProjectCopyIn, actor: User)
 
     task_ids: dict[str, str] = {}
     tasks = db.scalars(
-        select(Task).where(Task.sub_project_id.in_(list(sub_ids))).order_by(Task.code, Task.id)
+        select(Task).where(Task.sub_project_id.in_(list(sub_ids))).order_by(*TASK_WBS_ORDER)
     ).all()
     for task in tasks:
         task_ids[task.id] = f"tk-{uuid4().hex[:10]}"
@@ -129,6 +130,7 @@ def copy_project(db: Session, source: Project, body: ProjectCopyIn, actor: User)
                 is_critical_path=task.is_critical_path,
                 notes=task.notes,
                 tags=list(task.tags) if task.tags else None,
+                sort_order=task.sort_order,
             )
         )
     db.flush()

@@ -81,6 +81,9 @@ class Task(Base, TimestampMixin):
 
     notes: Mapped[str | None] = mapped_column(Text)
     tags: Mapped[list[str] | None] = mapped_column(JSON)
+    # 子项目内的手动顺序（WBS 树 / 表格 / 甘特、编辑模式都按它排列）；
+    # 空值表示尚未排序，排在有顺序号的任务之后，按计划开始、编号排列（见 TASK_WBS_ORDER）
+    sort_order: Mapped[int | None] = mapped_column(Integer)
 
     sub_project = relationship("SubProject", back_populates="tasks")
     owner = relationship("User", back_populates="owned_tasks", foreign_keys=[owner_id])
@@ -113,3 +116,13 @@ class TaskDependency(Base):
 
     predecessor = relationship("Task", back_populates="successors", foreign_keys=[predecessor_id])
     successor = relationship("Task", back_populates="predecessors", foreign_keys=[successor_id])
+
+
+# 子项目内任务的显示顺序（与前端 src/lib/taskOrder.ts 一致）
+TASK_WBS_ORDER = (
+    Task.sort_order.is_(None),
+    Task.sort_order,
+    Task.planned_start,
+    Task.code,
+    Task.id,
+)

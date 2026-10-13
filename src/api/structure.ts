@@ -23,6 +23,8 @@ export interface StructureSnapshot {
     actualCost: number | null
     /** 不能删除的原因：已开始 / 已录实际花费 */
     lockedReason: string | null
+    /** 子项目内的手动顺序（老数据可能为空） */
+    sortOrder: number | null
   }[]
   dependencies: { id: string; predecessorId: string; successorId: string; type: string; lagDays: number }[]
 }
@@ -68,6 +70,8 @@ export interface StructureSaveResult {
   deletedTasks: number
   addedDependencies: number
   removedDependencies: number
+  /** 已有任务的先后或所属子项目有调整 */
+  reordered: boolean
 }
 
 export async function saveStructure(
