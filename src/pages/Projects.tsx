@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { LayoutGrid, Rows3, GitBranch, Plus, Database, Server, FileText } from 'lucide-react'
+import { LayoutGrid, Rows3, GitBranch, Plus, Database, Server, FileText, Copy } from 'lucide-react'
 import { useAuth } from '../store/auth'
 import { can } from '../lib/permissions'
 import { projects } from '../mock'
@@ -11,6 +11,7 @@ import { initialFilters, type FilterState } from '../lib/projectFilters'
 import { ProjectCard } from '../components/projects/ProjectCard'
 import { ProjectTable } from '../components/projects/ProjectTable'
 import { PortfolioMatrix } from '../components/projects/PortfolioMatrix'
+import { CopyProjectDialog } from '../components/projects/CopyProjectDialog'
 import { cn } from '../lib/cn'
 
 type View = 'cards' | 'table' | 'matrix'
@@ -20,6 +21,7 @@ export default function Projects() {
   const navigate = useNavigate()
   const [filters, setFilters] = useState<FilterState>(initialFilters)
   const [view, setView] = useState<View>('cards')
+  const [copying, setCopying] = useState(false)
   // 统一从运行时数据层读取（已由 bootstrap 从后端填充）；订阅版本号以在创建/编辑后刷新
   const version = useDataStore((s) => s.version)
   const mode = useDataStore((s) => s.mode)
@@ -61,6 +63,17 @@ export default function Projects() {
           <Button variant="secondary" icon={<FileText className="w-4 h-4" />} onClick={() => navigate('/templates')}>
             模板管理
           </Button>
+          {can(role, 'project.create') && total > 0 && (
+            <Button
+              variant="secondary"
+              icon={<Copy className="w-4 h-4" />}
+              disabled={mode !== 'api'}
+              title={mode === 'api' ? '选一个已有项目，生成结构与计划相同的新项目' : '离线演示模式不支持复制项目'}
+              onClick={() => setCopying(true)}
+            >
+              复制项目
+            </Button>
+          )}
           {can(role, 'project.create') && (
             <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => navigate('/projects/new')}>
               创建项目
@@ -91,6 +104,8 @@ export default function Projects() {
       ) : (
         <PortfolioMatrix projects={filtered} />
       )}
+
+      {copying && <CopyProjectDialog onClose={() => setCopying(false)} />}
     </div>
   )
 }

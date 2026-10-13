@@ -21,6 +21,7 @@ from app.api.v1 import (
     finances,
     portal,
     projects,
+    structure,
     sub_projects,
     task_dependencies,
     tasks,
@@ -166,6 +167,7 @@ app.include_router(portal.router, prefix=API_PREFIX)
 app.include_router(account.router, prefix=API_PREFIX)
 app.include_router(users.router, prefix=API_PREFIX)
 app.include_router(projects.router, prefix=API_PREFIX)
+app.include_router(structure.router, prefix=API_PREFIX)
 app.include_router(sub_projects.router, prefix=API_PREFIX)
 app.include_router(tasks.router, prefix=API_PREFIX)
 app.include_router(task_dependencies.router, prefix=API_PREFIX)

@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schemas.finance import ProjectFinanceBase
 from app.schemas.task import SubProjectCreate, TaskCreate, TaskDependencyCreate
@@ -53,6 +53,25 @@ class ProjectImportRequest(BaseModel):
     tasks: list[TaskCreate] = Field(default_factory=list)
     dependencies: list[TaskDependencyCreate] = Field(default_factory=list)
     finance: ProjectFinanceBase | None = None
+
+
+class ProjectCopyIn(BaseModel):
+    """复制项目：以已有项目为蓝本新建（结构与计划照搬，执行数据重置）。"""
+
+    code: str = Field(min_length=1, max_length=40)
+    name: str = Field(min_length=1, max_length=200)
+    owner_id: str | None = Field(default=None, max_length=64, description="缺省沿用原项目负责人")
+    planned_start: date | None = Field(
+        default=None, description="新项目计划开始；与原项目不同则全部计划日期按同样天数平移"
+    )
+
+    @field_validator("code", "name")
+    @classmethod
+    def _text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("不能为空")
+        return value
 
 
 class ProjectOut(ProjectBase):

@@ -6,6 +6,7 @@
     GET    /api/v1/projects/{id}             详情
     PATCH  /api/v1/projects/{id}             部分更新（owner 或 admin / cmc_lead）
     DELETE /api/v1/projects/{id}             删除（admin / cmc_lead，含子项目/任务/依赖/团队/财务/基线）
+    POST   /api/v1/projects/{id}/copy        复制为新项目（admin / cmc_lead；结构与计划照搬，执行数据重置）
     PUT    /api/v1/projects/{id}/members     全量替换团队成员
 """
 
@@ -31,11 +32,13 @@ from app.models import (
 )
 from app.schemas.common import Page, PageMeta
 from app.schemas.project import (
+    ProjectCopyIn,
     ProjectCreate,
     ProjectImportRequest,
     ProjectOut,
     ProjectUpdate,
 )
+from app.services.project_copy import copy_project
 from app.services.rollup import live_health
 from app.services.scope import visible_project_ids_for
 
@@ -163,6 +166,23 @@ def import_project(
 
     db.commit()
     db.refresh(project)
+    return _out([project], db)[0]
+
+
+@router.post("/{project_id}/copy", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
+def copy_project_endpoint(
+    project_id: str,
+    payload: ProjectCopyIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin", "cmc_lead")),
+):
+    """以已有项目为蓝本新建项目（规则见 services/project_copy.py）。权限与新建项目一致。"""
+    source = (
+        db.query(Project).options(selectinload(Project.members)).filter_by(id=project_id).first()
+    )
+    if not source:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "要复制的项目不存在")
+    project = copy_project(db, source, payload, user)
     return _out([project], db)[0]
 
 
