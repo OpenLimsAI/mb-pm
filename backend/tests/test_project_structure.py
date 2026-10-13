@@ -285,3 +285,58 @@ def test_untouched_milestone_keeps_its_effort(client, auth_headers, project_fact
     assert res.json()["result"]["updated_tasks"] == 1
     with SessionLocal() as db:
         assert float(db.get(Task, f"{pid}-t1").estimated_effort) == 4
+
+
+def test_noop_save_keeps_sort_order_and_version(client, auth_headers, project_factory):
+    """排序号从 1 开始等旧数据：原样保存不能重排（否则版本变化，打断他人编辑）；新子项目接在最后。"""
+    pid = project_factory("t-admin")
+    with SessionLocal() as db:
+        db.get(SubProject, f"{pid}-sp").sort_order = 5
+        db.add(
+            SubProject(
+                id=f"{pid}-sp2",
+                name="第二个",
+                project_id=pid,
+                stage="IND",
+                module="DSP",
+                status="未开始",
+                sort_order=7,
+            )
+        )
+        db.commit()
+    snap = client.get(url(pid), headers=auth_headers).json()
+    res = client.put(url(pid), json=payload_from(snap), headers=auth_headers)
+    assert res.status_code == 200, res.text
+    assert res.json()["version"] == snap["version"]
+    body = payload_from(res.json())
+    body["sub_projects"].append(
+        {"key": "k-new", "name": "新增", "module": "DP", "stage": "IND", "tasks": []}
+    )
+    res = client.put(url(pid), json=body, headers=auth_headers)
+    assert res.status_code == 200, res.text
+    assert [(s["name"], s["sort_order"]) for s in res.json()["sub_projects"]] == [
+        ("测试子项目", 5),
+        ("第二个", 7),
+        ("新增", 8),
+    ]
+
+
+def test_rollup_only_recomputed_when_tasks_added_or_removed(client, auth_headers, project_factory):
+    pid = project_factory("t-admin")
+    set_task(f"{pid}-t1", progress=40, status="进行中")
+    with SessionLocal() as db:
+        db.get(SubProject, f"{pid}-sp").progress = 77  # 已存的汇总值
+        db.commit()
+    snap = client.get(url(pid), headers=auth_headers).json()
+    body = payload_from(snap)
+    body["sub_projects"][0]["tasks"][1]["name"] = "只改名称"
+    assert client.put(url(pid), json=body, headers=auth_headers).status_code == 200
+    with SessionLocal() as db:
+        assert db.get(SubProject, f"{pid}-sp").progress == 77  # 只改名称不动进度
+    body = payload_from(client.get(url(pid), headers=auth_headers).json())
+    body["sub_projects"][0]["tasks"].append(
+        new_task("k-3", "T-3", "t-admin", "2026-07-01", "2026-07-02")
+    )
+    assert client.put(url(pid), json=body, headers=auth_headers).status_code == 200
+    with SessionLocal() as db:
+        assert db.get(SubProject, f"{pid}-sp").progress == 13  # (40 + 0 + 0) / 3，新增任务后重算

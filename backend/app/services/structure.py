@@ -255,13 +255,27 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
     removed_subs = [s for s in subs if s.id not in seen_subs]
 
     # —— 写入 —— #
+    # 子项目顺序：已有子项目的相对顺序没变、新子项目都排在末尾时，保留原排序号（新的接在最大值之后），
+    # 否则按提交顺序重新编号。原样保存不能改动排序号，否则会让他人正在编辑的版本无谓失效。
+    existing_order = [sub.id for sub in body.sub_projects if sub.id is not None]
+    keep_order = existing_order == [
+        s.id
+        for s in sorted((sub_by_id[i] for i in existing_order), key=lambda s: (s.sort_order, s.id))
+    ] and all(sub.id is None for sub in body.sub_projects[len(existing_order) :])
+    next_order = max((s.sort_order or 0 for s in subs), default=0) + 1
     key_to_sub: dict[str, str] = {}
     created_subs = 0
     for order, sub in enumerate(body.sub_projects):
         if sub.id is not None:
             obj = sub_by_id[sub.id]
-            obj.name, obj.module, obj.stage, obj.sort_order = sub.name, sub.module, sub.stage, order
+            obj.name, obj.module, obj.stage = sub.name, sub.module, sub.stage
+            if not keep_order:
+                obj.sort_order = order
         else:
+            if keep_order:
+                sort_order, next_order = next_order, next_order + 1
+            else:
+                sort_order = order
             obj = SubProject(
                 id=f"sp-{uuid4().hex[:10]}",
                 project_id=project.id,
@@ -270,7 +284,7 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
                 stage=sub.stage,
                 status="未开始",
                 progress=0,
-                sort_order=order,
+                sort_order=sort_order,
             )
             db.add(obj)
             created_subs += 1
@@ -290,6 +304,8 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
         if removed_task_ids
         else 0
     )
+    # 任务有增减或移动的子项目，保存后重算其进度
+    touched_subs = {t.sub_project_id for t in removed_tasks}
     for task in removed_tasks:
         db.delete(task)
     db.flush()
@@ -312,6 +328,8 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
         }
         if task.id is not None:
             obj = task_by_id[task.id]
+            if obj.sub_project_id != values["sub_project_id"]:
+                touched_subs.update((obj.sub_project_id, values["sub_project_id"]))
             changed = any(getattr(obj, k) != v for k, v in values.items())
             for k, v in values.items():
                 setattr(obj, k, v)
@@ -327,6 +345,7 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
             )
             db.add(obj)
             created_tasks += 1
+            touched_subs.add(values["sub_project_id"])
         key_to_task[task.key] = obj.id
     db.flush()
 
@@ -378,16 +397,18 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
         )
     db.flush()
 
-    # 汇总：子项目 / 项目进度（没有任务的子项目归零）
-    for sub in db.query(SubProject).filter_by(project_id=project.id).all():
-        if db.query(Task.id).filter_by(sub_project_id=sub.id).first():
-            recompute_subproject(db, sub.id)
+    # 汇总：只重算任务有增减 / 移动的子项目及项目（没有任务的子项目归零）；
+    # 原样保存或只改名称、日期等时不动已有进度
+    if touched_subs:
+        for sub in db.query(SubProject).filter(SubProject.id.in_(touched_subs)).all():
+            if db.query(Task.id).filter_by(sub_project_id=sub.id).first():
+                recompute_subproject(db, sub.id)
+            else:
+                sub.progress, sub.status = 0, "未开始"
+        if remaining_ids:
+            recompute_project(db, project.id)
         else:
-            sub.progress, sub.status = 0, "未开始"
-    if remaining_ids:
-        recompute_project(db, project.id)
-    else:
-        db.get(Project, project.id).progress = 0
+            db.get(Project, project.id).progress = 0
 
     result = {
         "created_sub_projects": created_subs,
