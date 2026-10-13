@@ -1,0 +1,41 @@
+# IP 直连应急入口（compose.direct.yml 的 direct-proxy）。自签名证书，仅开放 8443 / 18443。
+{
+	admin off
+	auto_https disable_redirects
+	skip_install_trust
+	# 浏览器按 IP 访问时不带 SNI，用它挑选证书
+	default_sni 36.154.190.9
+	# 叶子证书有效期不能超过中间证书；拉长有效期，避免证书频繁更换导致浏览器反复提示
+	pki {
+		ca local {
+			intermediate_lifetime 400d
+		}
+	}
+	servers {
+		protocols h1 h2
+	}
+}
+
+# 项目管理：应用把浏览器引到签发方 https://iam.openlims.ai（走隧道，不可用）→ 改写为本入口的 IAM 端口
+https://36.154.190.9:8443 {
+	tls {
+		issuer internal {
+			lifetime 180d
+		}
+	}
+	reverse_proxy app-direct:8000 {
+		header_down Location "^https://iam\.openlims\.ai" "https://36.154.190.9:18443"
+	}
+}
+
+# IAM 登录页（Casdoor）
+https://36.154.190.9:18443 {
+	tls {
+		issuer internal {
+			lifetime 180d
+		}
+	}
+	reverse_proxy casdoor:8000 {
+		header_down Location "^https://iam\.openlims\.ai" "https://36.154.190.9:18443"
+	}
+}
