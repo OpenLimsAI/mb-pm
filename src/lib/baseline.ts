@@ -5,6 +5,7 @@
 
 import { differenceInCalendarDays, parseISO } from 'date-fns'
 import type { BaselineSnapshot, Project, Task } from '../types'
+import { getProjectSpan } from '../mock'
 
 export type MilestoneDriftStatus = 'on' | 'slip' | 'ahead' | 'added' | 'removed'
 
@@ -92,8 +93,8 @@ export function compareBaseline(
 
   return {
     baselineProjectEnd: snapshot.projectPlannedEnd,
-    currentProjectEnd: project.plannedEnd,
-    projectEndSlipDays: daysBetween(project.plannedEnd, snapshot.projectPlannedEnd),
+    currentProjectEnd: getProjectSpan(project).end,
+    projectEndSlipDays: daysBetween(getProjectSpan(project).end, snapshot.projectPlannedEnd),
     baselineBudget: snapshot.totalBudget,
     currentBudget,
     budgetDelta: currentBudget - snapshot.totalBudget,

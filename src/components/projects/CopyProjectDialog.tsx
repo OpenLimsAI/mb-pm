@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlertTriangle, Copy, Diamond, Info, Loader2, X } from 'lucide-react'
 import { Button, Tag } from '../ui'
-import { projects, subProjects, taskDependencies, tasks, users } from '../../mock'
+import { getProjectSpan, projects, subProjects, taskDependencies, tasks, users } from '../../mock'
 import { copyProject } from '../../api/projects'
 import { asAPIError } from '../../api/client'
 import { refreshAllData } from '../../data/bootstrap'
@@ -31,7 +31,7 @@ export function CopyProjectDialog({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState(only ? `${only.name}（副本）` : '')
   const [nameTouched, setNameTouched] = useState(false)
   const [ownerId, setOwnerId] = useState(() => defaultOwner(only))
-  const [plannedStart, setPlannedStart] = useState(only?.plannedStart ?? '')
+  const [plannedStart, setPlannedStart] = useState(only ? getProjectSpan(only).start : '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -69,7 +69,7 @@ export function CopyProjectDialog({ onClose }: { onClose: () => void }) {
     if (!next) return
     if (!nameTouched) setName(`${next.name}（副本）`)
     setOwnerId(defaultOwner(next))
-    setPlannedStart(next.plannedStart)
+    setPlannedStart(getProjectSpan(next).start)
   }
 
   const codeText = code.trim()
@@ -77,7 +77,9 @@ export function CopyProjectDialog({ onClose }: { onClose: () => void }) {
   const codeError = codeText.length > 40 ? '最多 40 个字符'
     : projects.some((p) => p.code === codeText) ? '项目编号已存在，请换一个' : null
   const nameError = nameText.length > 200 ? '最多 200 个字符' : null
-  const shift = source && isDate(plannedStart) ? shiftDays(source.plannedStart, plannedStart) : 0
+  // 项目起止按任务实时计算（与页首一致），新的计划开始相对它平移
+  const span = source ? getProjectSpan(source) : null
+  const shift = span && isDate(plannedStart) ? shiftDays(span.start, plannedStart) : 0
   const canSubmit = !!source && !!codeText && !!nameText && !codeError && !nameError && !!ownerId && isDate(plannedStart)
 
   const submit = async () => {
@@ -135,7 +137,7 @@ export function CopyProjectDialog({ onClose }: { onClose: () => void }) {
                 <span className="inline-flex items-center gap-1"><Diamond className="w-3 h-3 text-amber-600" />{stats.milestones} 里程碑</span>
                 <span>{stats.dependencies} 条依赖</span>
                 <span>团队 {stats.members} 人</span>
-                <span className="tabular-nums">计划 {source.plannedStart} ~ {source.plannedEnd}</span>
+                <span className="tabular-nums">计划 {span?.start} ~ {span?.end}</span>
               </div>
             )}
           </label>

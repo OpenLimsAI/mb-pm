@@ -4,12 +4,13 @@
 // 只改结构；状态、进度、实际日期与实际花费仍在任务详情或「表格录入」里填写。
 // 已开始或已录实际花费的任务不能删除；改日期不自动顺延后续任务，与前置冲突时行内提示。
 
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, Info, Loader2, PencilLine, Plus, RotateCcw } from 'lucide-react'
 import axios from 'axios'
 import type { Project, User } from '../../types'
 import { Button, Card, CardBody, EmptyState, StatusTag } from '../ui'
-import { TODAY, users } from '../../mock'
+import { TODAY, projects, users } from '../../mock'
+import { useAuth } from '../../store/auth'
 import { getStructure, saveStructure, type StructureSaveResult } from '../../api/structure'
 import { refreshAllData } from '../../data/bootstrap'
 import { useDataStore } from '../../store/data'
@@ -46,7 +47,8 @@ function savedMessage(r: StructureSaveResult): string {
     r.updatedTasks && `修改 ${r.updatedTasks} 个任务`,
     r.deletedTasks && `删除 ${r.deletedTasks} 个任务`,
     (r.addedDependencies || r.removedDependencies) && `依赖 +${r.addedDependencies} / −${r.removedDependencies}`,
-    r.reordered && '调整了任务顺序',
+    r.reordered && '调整了顺序',
+    r.projectUpdated && '修改了项目编号 / 名称',
   ].filter(Boolean)
   return parts.length ? `项目结构已保存：${parts.join('、')}。` : '项目结构已保存。'
 }
@@ -61,7 +63,12 @@ export function ProjectStructureEditor({ project, onExit }: { project: Project; 
   const [loadError, setLoadError] = useState('')
   const [reload, setReload] = useState(0)
   const [editor, setEditor] = useState<EditorState | null>(null)
-  const [addingSub, setAddingSub] = useState(false)
+  // 正在添加子项目：插入位置（null = 未在添加）
+  const [addingSubAt, setAddingSubAt] = useState<number | null>(null)
+  const currentUser = useAuth((s) => s.currentUser)
+  // 项目编号 / 名称：权限与「修改项目信息」一致
+  const canEditInfo = currentUser?.role === 'admin' || currentUser?.role === 'cmc_lead' || currentUser?.id === project.ownerId
+  const takenCodes = useMemo(() => new Set(projects.filter((p) => p.id !== project.id).map((p) => p.code)), [project.id])
   const [summary, setSummary] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -109,7 +116,7 @@ export function ProjectStructureEditor({ project, onExit }: { project: Project; 
 
   const conflicts = useMemo(() => (draft ? S.dateConflicts(draft) : new Map<string, string>()), [draft])
   const userById = useMemo(() => new Map(users.map((u) => [u.id, u])), [])
-  const codeOf = useMemo(() => new Map(draft ? S.allTasks(draft).map(({ task }) => [task.key, task.code]) : []), [draft])
+  const codeOf = useMemo(() => new Map(draft ? S.allTasks(draft).map(({ task }) => [task.key, S.effectiveCode(draft, task.code)]) : []), [draft])
 
   const cancel = () => {
     if (dirty && !window.confirm(DISCARD)) return
@@ -118,7 +125,7 @@ export function ProjectStructureEditor({ project, onExit }: { project: Project; 
 
   const save = async () => {
     if (!draft) return
-    const problem = S.draftProblem(draft)
+    const problem = S.draftProblem(draft) ?? (takenCodes.has(draft.project.code.trim()) ? '项目编号已存在，请换一个' : null)
     if (problem) { setSaveError(problem); return }
     setSaving(true)
     setSaveError('')
@@ -169,6 +176,9 @@ export function ProjectStructureEditor({ project, onExit }: { project: Project; 
   }
 
   const counts = S.counts(draft)
+  const addSubForm = (index: number) => (
+    <Card><CardBody><AddSubForm requireModuleStage onCancel={() => setAddingSubAt(null)} onSubmit={(f) => { setDraft((d) => (d ? S.addSub(d, f, index) : d)); setAddingSubAt(null) }} /></CardBody></Card>
+  )
   return (
     <div className="pb-24">
       <div className="flex items-start justify-between gap-4 mb-4">
@@ -192,19 +202,28 @@ export function ProjectStructureEditor({ project, onExit }: { project: Project; 
       )}
 
       <div className="space-y-3">
-        {draft.subs.length === 0 && !addingSub && (
+        <ProjectInfoRow
+          draft={draft}
+          canEdit={canEditInfo}
+          takenCodes={takenCodes}
+          onChange={(patch) => setDraft((d) => (d ? S.updateProjectInfo(d, patch) : d))}
+          onRecode={(v) => setDraft((d) => (d ? S.setRecodeTasks(d, v) : d))}
+        />
+
+        {draft.subs.length === 0 && addingSubAt === null && (
           <Card>
             <EmptyState
               title="还没有子项目"
               description="项目由「子项目（Lv2）→ 任务（Lv3）」组成。先添加一个子项目，再往里加任务。"
-              action={<Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => setAddingSub(true)}>添加子项目</Button>}
+              action={<Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => setAddingSubAt(0)}>添加子项目</Button>}
             />
           </Card>
         )}
 
-        {draft.subs.map((sub) => (
+        {draft.subs.map((sub, si) => (
+          <Fragment key={sub.key}>
+          {addingSubAt === si && addSubForm(si)}
           <SubCard
-            key={sub.key}
             value={{ name: sub.name, module: sub.module, stage: sub.stage }}
             taskCount={sub.tasks.length}
             onChange={(f) => setDraft((d) => (d ? S.updateSub(d, sub.key, f) : d))}
@@ -212,11 +231,20 @@ export function ProjectStructureEditor({ project, onExit }: { project: Project; 
             deleteBlockedReason={S.subDeleteBlocked(sub)}
             onAddTask={() => setEditor({ mode: 'create', subKey: sub.key })}
             onDropAtEnd={(id) => setDraft((d) => (d ? S.moveTask(d, id, sub.key, sub.tasks.length) : d))}
+            onInsertBefore={() => setAddingSubAt(si)}
+            dnd={{
+              id: sub.key,
+              onDrop: (id, where) => setDraft((d) => (d ? S.moveSub(d, id, where === 'before' ? si : si + 1) : d)),
+              onMove: (delta) => {
+                const to = delta < 0 ? si - 1 : si + 2
+                if (to >= 0 && to <= draft.subs.length) setDraft((d) => (d ? S.moveSub(d, sub.key, to) : d))
+              },
+            }}
           >
             {sub.tasks.map((t, i) => (
               <TaskRow
                 key={t.key}
-                code={t.code}
+                code={S.effectiveCode(draft, t.code)}
                 name={t.name}
                 isMilestone={t.isMilestone}
                 tag={userById.get(t.ownerId)?.displayName ?? null}
@@ -241,11 +269,12 @@ export function ProjectStructureEditor({ project, onExit }: { project: Project; 
               />
             ))}
           </SubCard>
+          </Fragment>
         ))}
 
-        {addingSub ? (
-          <Card><CardBody><AddSubForm requireModuleStage onCancel={() => setAddingSub(false)} onSubmit={(f) => { setDraft((d) => (d ? S.addSub(d, f) : d)); setAddingSub(false) }} /></CardBody></Card>
-        ) : draft.subs.length > 0 && <AddSubButton onClick={() => setAddingSub(true)} />}
+        {addingSubAt !== null && addingSubAt >= draft.subs.length
+          ? addSubForm(draft.subs.length)
+          : draft.subs.length > 0 && <AddSubButton onClick={() => setAddingSubAt(draft.subs.length)} />}
       </div>
 
       <SaveBar
@@ -336,7 +365,7 @@ function ProjectTaskDrawer({ draft, state, project, onClose, onSubmit }: {
   return (
     <EditorDrawer
       title={editing ? '编辑任务' : '新建任务'}
-      code={editing?.code ?? S.nextTaskCode(draft, state.subKey)}
+      code={S.effectiveCode(draft, editing?.code ?? S.nextTaskCode(draft, state.subKey))}
       onClose={onClose}
       onSubmit={() => onSubmit({
         ...f,
@@ -419,5 +448,64 @@ function ProjectTaskDrawer({ draft, state, project, onClose, onSubmit }: {
 
       <PredecessorPicker candidates={candidates} selected={f.predecessors} onToggle={toggle} />
     </EditorDrawer>
+  )
+}
+
+// ============= 项目本身（Lv1）：编号与名称 =============
+
+const INLINE_INPUT = 'text-sm bg-transparent border border-transparent hover:border-ink-300 focus:border-brand-400 focus:bg-white rounded px-1.5 py-0.5 focus:outline-none disabled:hover:border-transparent disabled:cursor-not-allowed'
+
+function ProjectInfoRow({ draft, canEdit, takenCodes, onChange, onRecode }: {
+  draft: S.ProjectDraft
+  canEdit: boolean
+  takenCodes: Set<string>
+  onChange: (patch: Partial<S.ProjectDraft['project']>) => void
+  onRecode: (v: boolean) => void
+}) {
+  const codeText = draft.project.code.trim()
+  const codeError = !codeText ? '请填写项目编号' : codeText.length > 40 ? '项目编号最多 40 个字符' : takenCodes.has(codeText) ? '项目编号已存在，请换一个' : null
+  const nameError = !draft.project.name.trim() ? '请填写项目名称' : null
+  const prefixed = S.allTasks(draft).filter(({ task }) => task.code.startsWith(`${draft.projectCode}-`)).length
+  const showRecode = S.projectCodeChanged(draft) && prefixed > 0 && !codeError
+  return (
+    <Card className="overflow-visible">
+      <div
+        className="px-3 py-2 bg-brand-50/70 flex items-center gap-2 flex-wrap"
+        title={canEdit ? undefined : '只有项目负责人或系统管理员 / CMC 负责人可以修改项目编号和名称'}
+      >
+        <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-brand-100 text-brand-800 shrink-0">Lv1</span>
+        <input
+          aria-label="项目编号"
+          className={cn(INLINE_INPUT, 'font-mono w-44', codeError && 'border-red-400')}
+          value={draft.project.code}
+          disabled={!canEdit}
+          maxLength={60}
+          onChange={(e) => onChange({ code: e.target.value })}
+          placeholder="项目编号"
+        />
+        <input
+          aria-label="项目名称"
+          className={cn(INLINE_INPUT, 'font-semibold flex-1 min-w-[240px]', nameError && 'border-red-400')}
+          value={draft.project.name}
+          disabled={!canEdit}
+          maxLength={220}
+          onChange={(e) => onChange({ name: e.target.value })}
+          placeholder="项目名称"
+        />
+        {!canEdit && <span className="text-[11px] text-ink-400 shrink-0">仅项目负责人 / 管理员可改</span>}
+      </div>
+      {(codeError || nameError || showRecode) && (
+        <div className="px-3 py-1.5 text-xs flex items-center gap-4 flex-wrap border-t border-brand-100">
+          {codeError && <span className="text-red-600">{codeError}</span>}
+          {nameError && <span className="text-red-600">{nameError}</span>}
+          {showRecode && (
+            <label className="inline-flex items-center gap-1.5 text-ink-700">
+              <input type="checkbox" className="accent-brand-600" checked={draft.recodeTasks} onChange={(e) => onRecode(e.target.checked)} />
+              {prefixed} 个任务编号随之更新（{draft.projectCode}-… → {codeText}-…）
+            </label>
+          )}
+        </div>
+      )}
+    </Card>
   )
 }

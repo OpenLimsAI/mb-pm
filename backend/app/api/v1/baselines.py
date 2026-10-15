@@ -16,6 +16,7 @@ from app.api.deps import get_current_user, require_role
 from app.db.session import get_db
 from app.models import Project, ProjectBaseline, ProjectFinance, SubProject, Task, User
 from app.schemas.baseline import BaselineCreate, BaselineOut
+from app.services.rollup import live_span
 from app.services.scope import is_full_access, visible_project_ids_for
 
 router = APIRouter(prefix="/baselines", tags=["baselines"])
@@ -47,9 +48,10 @@ def _build_snapshot(db: Session, project: Project) -> dict:
     ]
     milestones.sort(key=lambda m: m["plannedEnd"])
 
+    start, end = live_span(db, [project])[project.id]  # 与页首一致：按任务实时派生
     return {
-        "projectPlannedStart": project.planned_start.isoformat(),
-        "projectPlannedEnd": project.planned_end.isoformat(),
+        "projectPlannedStart": start.isoformat(),
+        "projectPlannedEnd": end.isoformat(),
         "progress": project.progress,
         "totalBudget": float(fin.total_budget) if fin else 0.0,
         "taskCount": len(tasks),

@@ -39,17 +39,24 @@ from app.schemas.project import (
     ProjectUpdate,
 )
 from app.services.project_copy import copy_project
-from app.services.rollup import live_health
+from app.services.rollup import live_health, live_span
 from app.services.scope import visible_project_ids_for
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 def _out(projects: list[Project], db: Session) -> list[ProjectOut]:
-    """构造响应；health 按当天实时派生（services/rollup.live_health），不依赖已存值。"""
+    """构造响应；health 按当天实时派生，计划起止按任务实时派生（services/rollup），不依赖已存值。"""
     health = live_health(db, projects)
+    span = live_span(db, projects)
     return [
-        ProjectOut.from_orm_with_members(p).model_copy(update={"health": health[p.id]})
+        ProjectOut.from_orm_with_members(p).model_copy(
+            update={
+                "health": health[p.id],
+                "planned_start": span[p.id][0],
+                "planned_end": span[p.id][1],
+            }
+        )
         for p in projects
     ]
 

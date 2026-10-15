@@ -73,7 +73,8 @@ def test_copy_keeps_structure_and_resets_execution(
     assert new_id != pid and out["code"] == code and out["name"] == "复制的项目"
     assert out["owner_id"] == lead and out["member_ids"] == [member]
     assert out["status"] == "活跃" and out["progress"] == 0
-    assert (out["planned_start"], out["planned_end"]) == ("2026-01-01", "2026-12-31")
+    # 项目起止按任务实时派生（任务 2026-01-01 → 2026-06-30），不是已存的 12-31
+    assert (out["planned_start"], out["planned_end"]) == ("2026-01-01", "2026-06-30")
     assert project_rows(new_id) == {
         "project": 1,
         "members": 1,
@@ -120,12 +121,12 @@ def test_copy_shifts_all_planned_dates(client, auth_headers, project_factory):
     )
     assert res.status_code == 201, res.text
     out = res.json()
-    # 2026-01-01 → 2026-03-01：整体平移 59 天
-    assert (out["planned_start"], out["planned_end"]) == ("2026-03-01", "2027-02-28")
+    # 原项目起止按任务派生为 2026-01-01 → 06-30；新开始 2026-03-01：整体平移 59 天
+    assert (out["planned_start"], out["planned_end"]) == ("2026-03-01", "2026-08-28")
     for t in tasks_of(out["id"]).values():
         assert (t.planned_start, t.planned_end) == (date(2026, 3, 1), date(2026, 8, 28))
     with SessionLocal() as db:
-        assert db.get(ProjectFinance, out["id"]).fiscal_year == "2026-2027"
+        assert db.get(ProjectFinance, out["id"]).fiscal_year == "2026-2026"
     assert client.delete(f"/api/v1/projects/{out['id']}", headers=auth_headers).status_code == 204
 
 

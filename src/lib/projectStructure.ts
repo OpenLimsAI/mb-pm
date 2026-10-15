@@ -37,7 +37,13 @@ export interface DraftSub {
 
 export interface ProjectDraft {
   version: string
+  /** 进入编辑模式时的项目编号（新任务编号按它生成，保存时再换成新编号） */
   projectCode: string
+  projectName: string
+  /** 项目本身（Lv1）：编辑中的编号与名称 */
+  project: { code: string; name: string }
+  /** 改了项目编号时，以原编号开头的任务编号一起换成新编号 */
+  recodeTasks: boolean
   projectStart: string
   ownerId: string
   subs: DraftSub[]
@@ -71,6 +77,9 @@ export function fromSnapshot(snap: StructureSnapshot): ProjectDraft {
   return {
     version: snap.version,
     projectCode: snap.project.code,
+    projectName: snap.project.name,
+    project: { code: snap.project.code, name: snap.project.name },
+    recodeTasks: true,
     projectStart: snap.project.plannedStart,
     ownerId: snap.project.ownerId,
     subs: [...snap.subProjects]
@@ -106,10 +115,29 @@ export function fromSnapshot(snap: StructureSnapshot): ProjectDraft {
   }
 }
 
+const TASK_CODE_MAX = 50
+
+/** 任务编号的实际取值：改了项目编号且勾选随之更新时，把原编号前缀换成新编号（换后超长则保留原编号）。 */
+export function effectiveCode(draft: ProjectDraft, code: string): string {
+  const next = draft.project.code.trim()
+  if (!draft.recodeTasks || !next || next === draft.projectCode || !code.startsWith(`${draft.projectCode}-`)) return code
+  const recoded = next + code.slice(draft.projectCode.length)
+  return recoded.length <= TASK_CODE_MAX ? recoded : code
+}
+
+export const projectCodeChanged = (draft: ProjectDraft) => draft.project.code.trim() !== draft.projectCode
+
+export function updateProjectInfo(draft: ProjectDraft, patch: Partial<ProjectDraft['project']>): ProjectDraft {
+  return { ...draft, project: { ...draft.project, ...patch } }
+}
+
+export const setRecodeTasks = (draft: ProjectDraft, recodeTasks: boolean): ProjectDraft => ({ ...draft, recodeTasks })
+
 export function toSaveRequest(draft: ProjectDraft, summary: string): StructureSaveRequest {
   return {
     version: draft.version,
     summary: summary.trim() || undefined,
+    project: { code: draft.project.code.trim(), name: draft.project.name.trim() },
     subProjects: draft.subs.map((s) => ({
       id: s.id,
       key: s.key,
@@ -119,7 +147,7 @@ export function toSaveRequest(draft: ProjectDraft, summary: string): StructureSa
       tasks: s.tasks.map((t) => ({
         id: t.id,
         key: t.key,
-        code: t.code,
+        code: effectiveCode(draft, t.code),
         name: t.name.trim(),
         isMilestone: t.isMilestone,
         ownerId: t.ownerId,
@@ -148,6 +176,11 @@ export function counts(draft: ProjectDraft) {
 
 /** 保存前的必填检查；返回第一条问题，没有则为 null。 */
 export function draftProblem(draft: ProjectDraft): string | null {
+  const code = draft.project.code.trim()
+  const name = draft.project.name.trim()
+  if (!code || !name) return '请填写项目编号和项目名称'
+  if (code.length > 40) return '项目编号最多 40 个字符'
+  if (name.length > 200) return '项目名称最多 200 个字符'
   for (const s of draft.subs) {
     if (!s.name.trim()) return '有子项目没有填写名称'
     if (!s.module || !s.stage) return `子项目「${s.name}」需要选择模块和阶段`
@@ -157,11 +190,25 @@ export function draftProblem(draft: ProjectDraft): string | null {
 
 // ============= 子项目 =============
 
+const insertAt = <T,>(list: T[], item: T, index = list.length) => [...list.slice(0, index), item, ...list.slice(index)]
+
 let seq = 0
 const newKey = (prefix: string) => `new-${prefix}-${Date.now().toString(36)}-${(seq++).toString(36)}`
 
-export function addSub(draft: ProjectDraft, f: { name: string; module?: Module; stage?: Stage }): ProjectDraft {
-  return { ...draft, subs: [...draft.subs, { key: newKey('sp'), id: null, name: f.name, module: f.module, stage: f.stage, tasks: [] }] }
+/** 新增子项目；index 为插入位置（缺省接在末尾）。保存时按列表位置写入顺序。 */
+export function addSub(draft: ProjectDraft, f: { name: string; module?: Module; stage?: Stage }, index?: number): ProjectDraft {
+  const sub: DraftSub = { key: newKey('sp'), id: null, name: f.name, module: f.module, stage: f.stage, tasks: [] }
+  return { ...draft, subs: insertAt(draft.subs, sub, index) }
+}
+
+/** 移动子项目到 toIndex（按移动前的位置计），其下任务一起移动。 */
+export function moveSub(draft: ProjectDraft, key: string, toIndex: number): ProjectDraft {
+  const fromIndex = draft.subs.findIndex((s) => s.key === key)
+  if (fromIndex < 0) return draft
+  const index = fromIndex < toIndex ? toIndex - 1 : toIndex
+  if (index === fromIndex) return draft
+  const moving = draft.subs[fromIndex]
+  return { ...draft, subs: insertAt(draft.subs.filter((s) => s.key !== key), moving, index) }
 }
 
 export function updateSub(draft: ProjectDraft, key: string, f: { name: string; module?: Module; stage?: Stage }): ProjectDraft {
@@ -229,7 +276,6 @@ export function addTask(draft: ProjectDraft, subKey: string, input: TaskInput, i
   return { ...draft, subs: draft.subs.map((s) => (s.key === subKey ? { ...s, tasks: insertAt(s.tasks, task, index) } : s)) }
 }
 
-const insertAt = <T,>(list: T[], item: T, index = list.length) => [...list.slice(0, index), item, ...list.slice(index)]
 
 /** 移动任务到某子项目的 toIndex（按移动前的位置计）；可跨子项目。 */
 export function moveTask(draft: ProjectDraft, key: string, toSubKey: string, toIndex: number): ProjectDraft {

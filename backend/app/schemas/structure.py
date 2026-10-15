@@ -51,8 +51,22 @@ class StructureSubIn(BaseModel):
         return _text(value)
 
 
+class StructureProjectIn(BaseModel):
+    """项目本身（Lv1）：编号与名称。"""
+
+    code: str = Field(min_length=1, max_length=40)
+    name: str = Field(min_length=1, max_length=200)
+
+    @field_validator("code", "name")
+    @classmethod
+    def _required_text(cls, value: str) -> str:
+        return _text(value)
+
+
 class StructureSaveIn(BaseModel):
     # 进入编辑模式时读到的结构版本；保存时与当前库比对，防止覆盖他人的修改
     version: str = Field(min_length=64, max_length=64)
     summary: str | None = Field(default=None, max_length=200)
+    # 缺省表示不改项目编号 / 名称
+    project: StructureProjectIn | None = None
     sub_projects: list[StructureSubIn] = Field(max_length=200)

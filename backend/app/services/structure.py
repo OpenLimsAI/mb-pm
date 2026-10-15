@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 from app.models import AuditLog, Project, SubProject, Task, TaskDependency, User
 from app.models.task import TASK_WBS_ORDER
 from app.schemas.structure import StructureSaveIn
-from app.services.rollup import recompute_project, recompute_subproject
+from app.services.rollup import live_span, recompute_project, recompute_subproject
 
 
 def _num(value) -> str | None:
@@ -59,9 +59,10 @@ def _load(db: Session, project_id: str):
     return subs, tasks, deps
 
 
-def structure_version(subs, tasks, deps) -> str:
+def structure_version(project, subs, tasks, deps) -> str:
     """结构指纹：只含编辑模式可改的字段（进度等日常录入不会让编辑中的草稿失效）。"""
     data = {
+        "project": [project.code, project.name],
         "subs": sorted([s.id, s.name, s.module, s.stage, s.sort_order] for s in subs),
         "tasks": sorted(
             [
@@ -96,14 +97,16 @@ def delete_block_reason(task: Task) -> str | None:
 
 def structure_snapshot(db: Session, project: Project) -> dict:
     subs, tasks, deps = _load(db, project.id)
+    start, end = live_span(db, [project])[project.id]
     return {
-        "version": structure_version(subs, tasks, deps),
+        "version": structure_version(project, subs, tasks, deps),
         "project": {
             "id": project.id,
             "code": project.code,
+            "name": project.name,
             "owner_id": project.owner_id,
-            "planned_start": project.planned_start.isoformat(),
-            "planned_end": project.planned_end.isoformat(),
+            "planned_start": start.isoformat(),
+            "planned_end": end.isoformat(),
         },
         "sub_projects": [
             {
@@ -184,7 +187,7 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
     # 串行化同一项目的并发保存（PostgreSQL 行锁；SQLite 忽略）
     db.query(Project).filter_by(id=project.id).with_for_update().first()
     subs, tasks, deps = _load(db, project.id)
-    if structure_version(subs, tasks, deps) != body.version:
+    if structure_version(project, subs, tasks, deps) != body.version:
         raise HTTPException(
             status.HTTP_409_CONFLICT, "项目结构已被他人修改，请重新载入后再编辑（本次修改未保存）"
         )
@@ -257,14 +260,41 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
         )
     removed_subs = [s for s in subs if s.id not in seen_subs]
 
+    # 项目本身（Lv1）：编号与名称，权限与「修改项目信息」一致（系统管理员 / CMC 负责人 / 项目负责人）
+    project_before = {"code": project.code, "name": project.name}
+    project_updated = bool(body.project) and (body.project.code, body.project.name) != (
+        project.code,
+        project.name,
+    )
+    if project_updated:
+        if actor.role not in ("admin", "cmc_lead") and project.owner_id != actor.id:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                "只有项目负责人或系统管理员 / CMC 负责人可以修改项目编号和名称",
+            )
+        taken = (
+            db.query(Project.id)
+            .filter(Project.code == body.project.code, Project.id != project.id)
+            .first()
+        )
+        if taken:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT, f"项目编号 {body.project.code} 已存在，请换一个编号"
+            )
+
     # —— 写入 —— #
+    if project_updated:
+        project.code, project.name = body.project.code, body.project.name
     # 子项目顺序：已有子项目的相对顺序没变、新子项目都排在末尾时，保留原排序号（新的接在最大值之后），
     # 否则按提交顺序重新编号。原样保存不能改动排序号，否则会让他人正在编辑的版本无谓失效。
     existing_order = [sub.id for sub in body.sub_projects if sub.id is not None]
-    keep_order = existing_order == [
+    subs_reordered = existing_order != [
         s.id
         for s in sorted((sub_by_id[i] for i in existing_order), key=lambda s: (s.sort_order, s.id))
-    ] and all(sub.id is None for sub in body.sub_projects[len(existing_order) :])
+    ]
+    keep_order = not subs_reordered and all(
+        sub.id is None for sub in body.sub_projects[len(existing_order) :]
+    )
     next_order = max((s.sort_order or 0 for s in subs), default=0) + 1
     key_to_sub: dict[str, str] = {}
     created_subs = 0
@@ -320,7 +350,7 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
         if t.id in seen_tasks:
             stored_ids[t.sub_project_id].append(t.id)
     renumber: set[str] = set()
-    reordered = False
+    reordered = subs_reordered  # 子项目或任务的先后有调整
     for sub in body.sub_projects:
         ids = [task.id for task in sub.tasks]
         stored = stored_ids.get(sub.id, []) if sub.id else []
@@ -444,6 +474,7 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
         "added_dependencies": len(desired - kept),
         "removed_dependencies": removed_deps + cascaded_deps,
         "reordered": reordered,
+        "project_updated": project_updated,
     }
     db.add(
         AuditLog(
@@ -458,6 +489,14 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
                     "summary": (body.summary or "").strip(),
                     **result,
                     "deleted_task_codes": [t.code for t in removed_tasks],
+                    **(
+                        {
+                            "project_before": project_before,
+                            "project_after": body.project.model_dump(),
+                        }
+                        if project_updated
+                        else {}
+                    ),
                 },
                 ensure_ascii=False,
             ),

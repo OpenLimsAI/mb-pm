@@ -4,7 +4,7 @@
 // 纯结构操作走 lib/templateStructure（不可变更新）；保存走 data/bootstrap.saveTemplateStructure（API + 离线 mock）。
 // 界面与项目「编辑模式」共用 components/structure/StructureEditorKit，两处用法一致。
 
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Plus, Diamond, PencilLine } from 'lucide-react'
 import { Card, CardBody, Button, Tag, EmptyState } from '../components/ui'
@@ -15,7 +15,7 @@ import { useDataStore } from '../store/data'
 import { saveTemplateStructure } from '../data/bootstrap'
 import {
   cloneTree, countStructure, nextVersionNumber, allTaskCodes, nodeToFields,
-  addSubProject, updateSubProject, deleteSubProject, addTask, updateTask, deleteTask, moveTask,
+  addSubProject, updateSubProject, deleteSubProject, moveSubProject, addTask, updateTask, deleteTask, moveTask,
   type TaskFields, type TaskCodeRef,
 } from '../lib/templateStructure'
 import {
@@ -50,7 +50,8 @@ function TemplateEditorForm({ template, version }: { template: Template; version
   const mode = useDataStore((s) => s.mode)
   const [draft, setDraft] = useState<TemplateNode>(() => cloneTree(version.structureJson))
   const [taskEditor, setTaskEditor] = useState<TaskEditorState | null>(null)
-  const [addingSub, setAddingSub] = useState(false)
+  // 正在添加子项目：插入位置（null = 未在添加）
+  const [addingSubAt, setAddingSubAt] = useState<number | null>(null)
   const [summary, setSummary] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -59,6 +60,9 @@ function TemplateEditorForm({ template, version }: { template: Template; version
   const counts = countStructure(draft)
 
   const subs = draft.children ?? []
+  const addSubForm = (index: number) => (
+    <Card><CardBody><AddSubForm onCancel={() => setAddingSubAt(null)} onSubmit={(f) => { setDraft((d) => (d ? addSubProject(d, f, index) : d)); setAddingSubAt(null) }} /></CardBody></Card>
+  )
   const nextVer = nextVersionNumber(template.currentVersion)
 
   const save = async () => {
@@ -103,27 +107,37 @@ function TemplateEditorForm({ template, version }: { template: Template; version
 
       {/* 子项目列表 */}
       <div className="space-y-3">
-        {subs.length === 0 && !addingSub && (
+        {subs.length === 0 && addingSubAt === null && (
           <Card>
             <EmptyState
               title="还没有子项目"
               description="模板由「子项目（Lv2）→ 任务（Lv3）」组成。先添加一个子项目，再往里加任务。"
-              action={<Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => setAddingSub(true)}>添加子项目</Button>}
+              action={<Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => setAddingSubAt(0)}>添加子项目</Button>}
             />
           </Card>
         )}
 
-        {subs.map((sub) => {
+        {subs.map((sub, si) => {
           const tasks = sub.children ?? []
           return (
+            <Fragment key={sub.id}>
+            {addingSubAt === si && addSubForm(si)}
             <SubCard
-              key={sub.id}
               value={{ name: sub.name, module: sub.module, stage: sub.stage }}
               taskCount={tasks.length}
               onChange={(f) => setDraft((d) => (d ? updateSubProject(d, sub.id, f) : d))}
               onDelete={() => setDraft((d) => (d ? deleteSubProject(d, sub.id) : d))}
               onAddTask={() => setTaskEditor({ mode: 'create', subId: sub.id })}
               onDropAtEnd={(id) => setDraft((d) => (d ? moveTask(d, id, sub.id, tasks.length) : d))}
+              onInsertBefore={() => setAddingSubAt(si)}
+              dnd={{
+                id: sub.id,
+                onDrop: (id, where) => setDraft((d) => (d ? moveSubProject(d, id, where === 'before' ? si : si + 1) : d)),
+                onMove: (delta) => {
+                  const to = delta < 0 ? si - 1 : si + 2
+                  if (to >= 0 && to <= subs.length) setDraft((d) => (d ? moveSubProject(d, sub.id, to) : d))
+                },
+              }}
             >
               {tasks.map((t, i) => (
                 <TaskRow
@@ -149,12 +163,13 @@ function TemplateEditorForm({ template, version }: { template: Template; version
                 />
               ))}
             </SubCard>
+            </Fragment>
           )
         })}
 
-        {addingSub ? (
-          <Card><CardBody><AddSubForm onCancel={() => setAddingSub(false)} onSubmit={(f) => { setDraft((d) => (d ? addSubProject(d, f) : d)); setAddingSub(false) }} /></CardBody></Card>
-        ) : subs.length > 0 && <AddSubButton onClick={() => setAddingSub(true)} />}
+        {addingSubAt !== null && addingSubAt >= subs.length
+          ? addSubForm(subs.length)
+          : subs.length > 0 && <AddSubButton onClick={() => setAddingSubAt(subs.length)} />}
       </div>
 
       {/* 固定底部保存条 */}

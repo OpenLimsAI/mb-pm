@@ -5,7 +5,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Coins, Loader2, Save, Wallet, X } from 'lucide-react'
 import type { Project } from '../../types'
 import { Button, Field } from '../ui'
-import { FINANCE_CATEGORIES, getProjectTasks, type ProjectFinance } from '../../mock'
+import { FINANCE_CATEGORIES, getProjectSpan, getProjectTasks, type ProjectFinance } from '../../mock'
 import { updateProjectFinanceEntry } from '../../data/bootstrap'
 import { asAPIError } from '../../api/client'
 
@@ -19,7 +19,7 @@ function toDraft(finance: ProjectFinance | undefined, suggested: number, project
   return {
     totalBudget: finance ? String(finance.totalBudget) : suggested ? String(suggested) : '',
     committed: text(finance?.committed),
-    fiscalYear: finance?.fiscalYear ?? `${project.plannedStart.slice(0, 4)}-${project.plannedEnd.slice(0, 4)}`,
+    fiscalYear: finance?.fiscalYear ?? `${getProjectSpan(project).start.slice(0, 4)}-${getProjectSpan(project).end.slice(0, 4)}`,
     notes: finance?.notes ?? '',
     breakdown: Object.fromEntries(FINANCE_CATEGORIES.map((c) => [c, text(finance?.breakdown?.[c])])),
   }

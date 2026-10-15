@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { Project } from '../../types'
 import { Table, THead, TR, TH, TD, EmptyRow, HealthTag, Tag, Avatar, Card } from '../ui'
-import { findUser } from '../../mock'
+import { findUser, getProjectSpan } from '../../mock'
 import { getProjectSummary } from '../../lib/analytics'
 import { cn } from '../../lib/cn'
 
@@ -76,7 +76,7 @@ export function ProjectTable({ projects }: { projects: Project[] }) {
                   <TD>
                     <Tag tone={p.status === '活跃' ? 'green' : 'gray'}>{p.status}</Tag>
                   </TD>
-                  <TD className="text-xs text-ink-500">{p.plannedEnd}</TD>
+                  <TD className="text-xs text-ink-500">{getProjectSpan(p).end}</TD>
                 </TR>
               )
             })

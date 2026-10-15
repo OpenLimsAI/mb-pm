@@ -9,7 +9,7 @@
 
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import Project, SubProject, Task
@@ -70,6 +70,23 @@ def live_health(db: Session, projects: list[Project]) -> dict[str, str]:
         p.id: _derive_health(tasks_by_project[p.id]) if p.id in tasks_by_project else p.health
         for p in projects
     }
+
+
+def live_span(db: Session, projects: list[Project]) -> dict[str, tuple[date, date]]:
+    """按任务实时派生各项目的计划起止：最早的计划开始 → 最晚的计划结束（一次查询，不写库）。
+
+    任务改了日期、增删了任务，项目起止随之变化；没有任务的项目沿用已存的计划起止。
+    """
+    if not projects:
+        return {}
+    rows = db.execute(
+        select(SubProject.project_id, func.min(Task.planned_start), func.max(Task.planned_end))
+        .join(Task, Task.sub_project_id == SubProject.id)
+        .where(SubProject.project_id.in_([p.id for p in projects]))
+        .group_by(SubProject.project_id)
+    ).all()
+    spans = {pid: (start, end) for pid, start, end in rows}
+    return {p.id: spans.get(p.id, (p.planned_start, p.planned_end)) for p in projects}
 
 
 def recompute_subproject(db: Session, sub_id: str) -> None:

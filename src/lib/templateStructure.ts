@@ -101,10 +101,23 @@ export function nodeToFields(t: TemplateNode): TaskFields {
 
 // ============= 子项目操作 =============
 
-export function addSubProject(root: TemplateNode, f: SubFields): TemplateNode {
+/** 移动子项目到 toIndex（按移动前的位置计），其下任务一起移动。 */
+export function moveSubProject(root: TemplateNode, subId: string, toIndex: number): TemplateNode {
+  const subs = root.children ?? []
+  const fromIndex = subs.findIndex((s) => s.id === subId)
+  if (fromIndex < 0) return root
+  const index = fromIndex < toIndex ? toIndex - 1 : toIndex
+  if (index === fromIndex) return root
+  const next = cloneTree(root)
+  const [moving] = next.children!.splice(fromIndex, 1)
+  next.children!.splice(index, 0, moving)
+  return next
+}
+
+export function addSubProject(root: TemplateNode, f: SubFields, index?: number): TemplateNode {
   const next = cloneTree(root)
   if (!next.children) next.children = []
-  next.children.push({ id: uid('sub'), name: f.name.trim() || '新子项目', module: f.module, stage: f.stage, children: [] })
+  next.children.splice(index ?? next.children.length, 0, { id: uid('sub'), name: f.name.trim() || '新子项目', module: f.module, stage: f.stage, children: [] })
   return next
 }
 

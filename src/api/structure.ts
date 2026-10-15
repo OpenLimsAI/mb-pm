@@ -4,7 +4,8 @@ import type { TaskStatus } from '../types'
 
 export interface StructureSnapshot {
   version: string
-  project: { id: string; code: string; ownerId: string; plannedStart: string; plannedEnd: string }
+  /** plannedStart / plannedEnd 按任务实时派生 */
+  project: { id: string; code: string; name: string; ownerId: string; plannedStart: string; plannedEnd: string }
   subProjects: { id: string; name: string; module: string; stage: string; sortOrder: number; status: TaskStatus; progress: number }[]
   tasks: {
     id: string
@@ -32,6 +33,8 @@ export interface StructureSnapshot {
 export interface StructureSaveRequest {
   version: string
   summary?: string
+  /** 项目本身（Lv1）的编号与名称 */
+  project?: { code: string; name: string }
   subProjects: {
     id: string | null
     key: string
@@ -70,8 +73,10 @@ export interface StructureSaveResult {
   deletedTasks: number
   addedDependencies: number
   removedDependencies: number
-  /** 已有任务的先后或所属子项目有调整 */
+  /** 子项目或任务的先后（或任务所属子项目）有调整 */
   reordered: boolean
+  /** 改了项目编号 / 名称 */
+  projectUpdated: boolean
 }
 
 export async function saveStructure(

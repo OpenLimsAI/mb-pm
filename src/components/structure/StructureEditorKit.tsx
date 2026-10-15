@@ -1,7 +1,8 @@
 // 结构编辑器的公共界面 —— 模板结构编辑与项目「编辑模式」共用，保证两处增删改的用法完全一致：
 //   子项目卡片（名称 / 模块 / 阶段 / 删除）→ 任务行（悬停出现拖动手柄、上沿「＋」插入、编辑、删除）
 //   →「添加任务 / 里程碑」，右侧抽屉表单，底部固定的「变更说明 · 取消 · 保存」条。
-// 任务行可拖动调整顺序（也可跨子项目；选中手柄后可用 ↑ ↓ 键移动）。
+// 任务行与子项目卡片都可插入（上沿「＋」）和拖动调整顺序（任务可跨子项目；子项目连同其任务一起移动；
+// 选中手柄后可用 ↑ ↓ 键移动）。
 // 只负责展示与交互；草稿数据与保存逻辑由各自页面提供。
 
 import { useEffect, useState, type DragEvent, type ReactNode } from 'react'
@@ -16,7 +17,9 @@ import { cn } from '../../lib/cn'
 // ============= 拖动排序 =============
 
 const DND_TYPE = 'application/x-mbpm-structure-task'
+const SUB_DND_TYPE = 'application/x-mbpm-structure-sub'
 const carriesTask = (e: DragEvent) => Array.from(e.dataTransfer.types).includes(DND_TYPE)
+const carriesSub = (e: DragEvent) => Array.from(e.dataTransfer.types).includes(SUB_DND_TYPE)
 /** 指针在行的上半部 → 放在本行之前，下半部 → 之后 */
 const dropSide = (e: DragEvent<HTMLElement>) => {
   const r = e.currentTarget.getBoundingClientRect()
@@ -64,7 +67,7 @@ export interface SubFieldsValue {
 // ============= 子项目卡片 =============
 
 export function SubCard({
-  value, taskCount, onChange, onDelete, deleteBlockedReason, onAddTask, onDropAtEnd, children,
+  value, taskCount, onChange, onDelete, deleteBlockedReason, onAddTask, onDropAtEnd, onInsertBefore, dnd, children,
 }: {
   value: SubFieldsValue
   taskCount: number
@@ -75,16 +78,75 @@ export function SubCard({
   onAddTask: () => void
   /** 任务拖到本子项目末尾（含空子项目） */
   onDropAtEnd?: (draggedId: string) => void
+  /** 在本子项目之前插入新子项目（悬停头部时上沿出现「＋ 子项目」） */
+  onInsertBefore?: () => void
+  /** 拖动调整子项目顺序（其下任务一起移动） */
+  dnd?: RowDnd
   children: ReactNode
 }) {
   const [open, setOpen] = useState(true)
   const [confirmDel, setConfirmDel] = useState(false)
+  const [dropAt, setDropAt] = useState<'before' | 'after' | null>(null)
   const drop = useDropZone(onDropAtEnd)
 
   return (
-    <Card className="overflow-visible">
+    <Card
+      data-sub-card=""
+      className="overflow-visible relative"
+      onDragOver={dnd ? (e) => {
+        if (!carriesSub(e)) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        setDropAt(dropSide(e))
+      } : undefined}
+      onDragLeave={dnd ? (e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropAt(null) } : undefined}
+      onDrop={dnd ? (e) => {
+        if (!carriesSub(e)) return
+        const id = e.dataTransfer.getData(SUB_DND_TYPE)
+        setDropAt(null)
+        if (!id) return
+        e.preventDefault()
+        if (id !== dnd.id) dnd.onDrop(id, dropSide(e))
+      } : undefined}
+    >
+      {dropAt && <span className={cn('pointer-events-none absolute left-0 right-0 h-1 rounded bg-brand-500 z-10', dropAt === 'before' ? '-top-2' : '-bottom-2')} />}
       {/* 头部：可编辑名称 / 模块 / 阶段 */}
-      <div className="px-3 py-2 bg-purple-50/70 border-b border-purple-200/60 flex items-center gap-2 flex-wrap">
+      <div className="relative group/subhead px-3 py-2 bg-purple-50/70 border-b border-purple-200/60 flex items-center gap-2 flex-wrap">
+        {onInsertBefore && (
+          <button
+            type="button"
+            onClick={onInsertBefore}
+            className="absolute left-8 -top-3 z-10 h-5 px-1.5 rounded-full border border-purple-300 bg-white text-purple-700 text-[10px] inline-flex items-center gap-0.5 opacity-0 group-hover/subhead:opacity-100 focus-visible:opacity-100 hover:bg-purple-600 hover:text-white transition-opacity"
+            title="在此插入子项目"
+            aria-label={`在「${value.name}」之前插入子项目`}
+          >
+            <Plus className="w-3 h-3" /> 子项目
+          </button>
+        )}
+        {dnd && (
+          <button
+            type="button"
+            draggable
+            data-sub-drag-handle={dnd.id}
+            onDragStart={(e) => {
+              e.dataTransfer.setData(SUB_DND_TYPE, dnd.id)
+              e.dataTransfer.effectAllowed = 'move'
+              const card = e.currentTarget.closest('[data-sub-card]')
+              if (card) e.dataTransfer.setDragImage(card, 24, 16)
+            }}
+            onKeyDown={dnd.onMove ? (e) => {
+              if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+              e.preventDefault()
+              dnd.onMove!(e.key === 'ArrowUp' ? -1 : 1)
+              requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-sub-drag-handle="${CSS.escape(dnd.id)}"]`)?.focus())
+            } : undefined}
+            className="-ml-1 p-0.5 rounded text-ink-400 cursor-grab active:cursor-grabbing opacity-40 group-hover/subhead:opacity-100 focus-visible:opacity-100 hover:text-ink-700 shrink-0"
+            title="拖动调整子项目顺序，其下任务一起移动（选中后可用 ↑ ↓ 键移动）"
+            aria-label={`拖动「${value.name}」调整顺序`}
+          >
+            <GripVertical className="w-3.5 h-3.5" />
+          </button>
+        )}
         <button onClick={() => setOpen((v) => !v)} className="text-ink-500 shrink-0" aria-label={open ? '收起' : '展开'}>
           {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
         </button>

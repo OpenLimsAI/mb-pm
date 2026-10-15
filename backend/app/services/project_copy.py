@@ -29,7 +29,7 @@ from app.models import (
 )
 from app.models.task import TASK_WBS_ORDER
 from app.schemas.project import ProjectCopyIn
-from app.services.rollup import recompute_project
+from app.services.rollup import live_span, recompute_project
 
 _TASK_CODE_MAX = 50  # Task.code 列宽
 
@@ -56,7 +56,9 @@ def copy_project(db: Session, source: Project, body: ProjectCopyIn, actor: User)
     def assignee(user_id: str) -> str:
         return user_id if user_id in active else owner_id
 
-    offset = (body.planned_start - source.planned_start) if body.planned_start else timedelta(0)
+    # 原项目的计划起止按任务实时派生（与页面显示一致），新的计划开始相对它平移
+    source_start, source_end = live_span(db, [source])[source.id]
+    offset = (body.planned_start - source_start) if body.planned_start else timedelta(0)
 
     project = Project(
         id=f"p-{uuid4().hex[:12]}",
@@ -69,8 +71,8 @@ def copy_project(db: Session, source: Project, body: ProjectCopyIn, actor: User)
         status="活跃",
         health="green",
         progress=0,
-        planned_start=source.planned_start + offset,
-        planned_end=source.planned_end + offset,
+        planned_start=source_start + offset,
+        planned_end=source_end + offset,
         template_id=source.template_id,
         template_version=source.template_version,
         description=source.description,

@@ -2,7 +2,7 @@ import { ArrowLeft, Calendar, FileText, User } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { Project } from '../../types'
 import { Card, HealthTag, Tag, Avatar } from '../ui'
-import { findUser, templates as allTemplates } from '../../mock'
+import { findUser, getProjectSpan, templates as allTemplates } from '../../mock'
 import { getProjectSummary } from '../../lib/analytics'
 import { cn } from '../../lib/cn'
 import { DeleteProjectButton } from './DeleteProjectButton'
@@ -59,7 +59,7 @@ export function ProjectHeader({ project }: { project: Project }) {
             )}
             <div className="flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5" />
-              <span>{project.plannedStart} → {project.plannedEnd}</span>
+              <span title="按任务计划实时计算：最早开始 → 最晚结束">{getProjectSpan(project).start} → {getProjectSpan(project).end}</span>
             </div>
           </div>
         </div>

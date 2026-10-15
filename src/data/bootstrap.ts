@@ -26,7 +26,7 @@ import { useDataStore } from '../store/data'
 import { hydrateCreatedIntoMock, useProjectsStore, type ProjectBundle } from '../store/projects'
 import { deriveRollup } from '../lib/instantiate'
 import { diffPredecessors } from '../lib/dependency-utils'
-import { TODAY } from '../mock'
+import { TODAY, getProjectSpan } from '../mock'
 import type { BaselineSnapshot, Priority, ProductType, Project, ProjectBaseline, Role, SpecialtyGroup, SubProject, Task, TaskDependency, TaskStatus, Template, TemplateNode, TemplateVersion, User } from '../types'
 
 function replaceArray<T>(target: T[], items: T[]): void {
@@ -602,9 +602,10 @@ function buildSnapshotFromRuntime(projectId: string): BaselineSnapshot {
       isCriticalPath: t.isCriticalPath,
     }))
     .sort((a, b) => a.plannedEnd.localeCompare(b.plannedEnd))
+  const span = proj ? getProjectSpan(proj) : null  // 与后端一致：按任务实时派生
   return {
-    projectPlannedStart: proj?.plannedStart ?? '',
-    projectPlannedEnd: proj?.plannedEnd ?? '',
+    projectPlannedStart: span?.start ?? '',
+    projectPlannedEnd: span?.end ?? '',
     progress: proj?.progress ?? 0,
     totalBudget: fin?.totalBudget ?? 0,
     taskCount: projTasks.length,

@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { Calendar, Diamond, Flame } from 'lucide-react'
 import type { Project } from '../../types'
 import { Card, HealthTag, Tag, Avatar } from '../ui'
-import { findUser } from '../../mock'
+import { findUser, getProjectSpan } from '../../mock'
 import { getProjectSummary } from '../../lib/analytics'
 import { cn } from '../../lib/cn'
 
@@ -108,9 +108,9 @@ export function ProjectCard({ project }: { project: Project }) {
                 {s.criticalPathCount}
               </span>
             )}
-            <span className="flex items-center gap-1" title="计划时间">
+            <span className="flex items-center gap-1" title="计划结束（按任务计划实时计算）">
               <Calendar className="w-3 h-3" />
-              {project.plannedEnd}
+              {getProjectSpan(project).end}
             </span>
           </div>
         </div>
