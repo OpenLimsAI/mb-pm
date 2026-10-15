@@ -6,6 +6,7 @@
     GET    /api/v1/projects/{id}             详情
     PATCH  /api/v1/projects/{id}             部分更新（owner 或 admin / cmc_lead）
     DELETE /api/v1/projects/{id}             删除（admin / cmc_lead，含子项目/任务/依赖/团队/财务/基线）
+    POST   /api/v1/projects/{id}/copy        复制为新项目（admin / cmc_lead；结构与计划照搬，执行数据重置）
     PUT    /api/v1/projects/{id}/members     全量替换团队成员
 """
 
@@ -31,22 +32,31 @@ from app.models import (
 )
 from app.schemas.common import Page, PageMeta
 from app.schemas.project import (
+    ProjectCopyIn,
     ProjectCreate,
     ProjectImportRequest,
     ProjectOut,
     ProjectUpdate,
 )
-from app.services.rollup import live_health
+from app.services.project_copy import copy_project
+from app.services.rollup import live_health, live_span
 from app.services.scope import visible_project_ids_for
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 def _out(projects: list[Project], db: Session) -> list[ProjectOut]:
-    """构造响应；health 按当天实时派生（services/rollup.live_health），不依赖已存值。"""
+    """构造响应；health 按当天实时派生，计划起止按任务实时派生（services/rollup），不依赖已存值。"""
     health = live_health(db, projects)
+    span = live_span(db, projects)
     return [
-        ProjectOut.from_orm_with_members(p).model_copy(update={"health": health[p.id]})
+        ProjectOut.from_orm_with_members(p).model_copy(
+            update={
+                "health": health[p.id],
+                "planned_start": span[p.id][0],
+                "planned_end": span[p.id][1],
+            }
+        )
         for p in projects
     ]
 
@@ -145,9 +155,13 @@ def import_project(
             s.id = f"sp-{uuid4().hex[:10]}"
         db.add(SubProject(**s.model_dump()))
     db.flush()
+    order: dict[str, int] = {}  # 子项目内顺序：未提供时按提交顺序（即模板中的顺序）
     for t in payload.tasks:
         if not t.id:
             t.id = f"tk-{uuid4().hex[:10]}"
+        if t.sort_order is None:
+            t.sort_order = order.get(t.sub_project_id, 0) + 1
+        order[t.sub_project_id] = max(order.get(t.sub_project_id, 0), t.sort_order)
         db.add(Task(**t.model_dump()))
     db.flush()
     for d in payload.dependencies:
@@ -163,6 +177,23 @@ def import_project(
 
     db.commit()
     db.refresh(project)
+    return _out([project], db)[0]
+
+
+@router.post("/{project_id}/copy", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
+def copy_project_endpoint(
+    project_id: str,
+    payload: ProjectCopyIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin", "cmc_lead")),
+):
+    """以已有项目为蓝本新建项目（规则见 services/project_copy.py）。权限与新建项目一致。"""
+    source = (
+        db.query(Project).options(selectinload(Project.members)).filter_by(id=project_id).first()
+    )
+    if not source:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "要复制的项目不存在")
+    project = copy_project(db, source, payload, user)
     return _out([project], db)[0]
 
 

@@ -19,7 +19,9 @@ services:
     image: cloudflare/cloudflared@sha256:6b599ca3e974349ead3286d178da61d291961182ec3fe9c505e1dd02c8ac31b0
     restart: unless-stopped
     user: "1000:1000"
-    command: ["tunnel", "--no-autoupdate", "run", "--token-file", "/run/tunnel-token"]
+    # 只走 TCP（HTTP/2，端口 7844）：服务器在国内，到 Cloudflare 的 UDP（QUIC）在晚高峰会被整段阻断，
+    # 默认 auto 每次断线都先空等 QUIC 超时再回落，拉长中断时间（2026-10-13 事故）。
+    command: ["tunnel", "--no-autoupdate", "--protocol", "http2", "run", "--token-file", "/run/tunnel-token"]
     volumes:
       - ./tunnel-token:/run/tunnel-token:ro
     # 过渡期同时接 internal；各栈门面都迁到 edge 后可只保留 edge。

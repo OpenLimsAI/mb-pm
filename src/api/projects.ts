@@ -35,6 +35,21 @@ export interface ProjectsListParams {
   keyword?: string
 }
 
+/** 复制项目：以已有项目为蓝本新建（结构与计划照搬，执行数据重置；规则见后端 services/project_copy.py）。 */
+export interface ProjectCopyRequest {
+  code: string
+  name: string
+  /** 缺省沿用原项目负责人 */
+  ownerId?: string
+  /** 新的计划开始；与原项目不同则全部计划日期按同样天数平移 */
+  plannedStart?: string
+}
+
+export async function copyProject(sourceId: string, payload: ProjectCopyRequest): Promise<ProjectDTO> {
+  const { data } = await api.post<ProjectDTO>(`/projects/${encodeURIComponent(sourceId)}/copy`, payload)
+  return data
+}
+
 export async function listProjects(params: ProjectsListParams = {}): Promise<Page<ProjectDTO>> {
   const { data } = await api.get<Page<ProjectDTO>>('/projects', { params })
   return data

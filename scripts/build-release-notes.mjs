@@ -6,6 +6,7 @@ const notes = JSON.parse(await readFile(new URL('docs/releases/notes.json', root
 const css = await readFile(new URL('docs/releases/style.css', root), 'utf8')
 const escape = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 const list = (items) => `<ul>${items.map((item) => `<li>${escape(item)}</li>`).join('')}</ul>`
+const changeGroups = (r) => r.changes.map((group) => `<div class="change-group"><h3>${escape(group.type)}</h3>${list(group.items)}</div>`).join('')
 const ids = new Set()
 let previousDate = '9999-12-31'
 for (const release of notes.releases) {
@@ -14,6 +15,19 @@ for (const release of notes.releases) {
   ids.add(release.id)
   previousDate = release.date
 }
+// 页首「最近更新」：最新一条完整展示，其后几条列摘要（每次追加记录即自动出现在最上面）
+const [latest, ...earlier] = notes.releases
+const recent = earlier.slice(0, 3)
+const latestSection = `<section id="latest" class="section" aria-labelledby="latest-title">
+  <div class="section-heading"><div><p class="eyebrow">LATEST UPDATES</p><h2 id="latest-title">最近更新</h2></div><p><a class="more-link" href="#releases">全部 ${notes.releases.length} 条更新记录 →</a></p></div>
+  <article class="latest-card" aria-labelledby="latest-card-title">
+    <div class="latest-meta"><time datetime="${escape(latest.date)}">${escape(latest.date)}</time><span class="release-version">${escape(latest.version)}</span><span class="latest">本次更新</span></div>
+    <h3 id="latest-card-title">${escape(latest.title)}</h3>
+    <p class="latest-summary">${escape(latest.summary)}</p>
+    ${changeGroups(latest)}
+  </article>
+  ${recent.length ? `<div class="recent-grid">${recent.map((r) => `<a class="recent-card" href="#${escape(r.id)}"><span class="recent-meta"><time datetime="${escape(r.date)}">${escape(r.date)}</time> · ${escape(r.version)}</span><b>${escape(r.title)}</b><span class="recent-summary">${escape(r.summary)}</span></a>`).join('')}</div>` : ''}
+</section>`
 const html = `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -31,10 +45,11 @@ const html = `<!doctype html>
   <div class="eyebrow">WHAT’S NEW <span></span> ${escape(notes.edition)}</div>
   <h1 id="page-title">${escape(notes.title)}</h1>
   <p class="lead">${escape(notes.intro)}</p>
-  <div class="hero-meta"><span class="pill">功能说明 · ${escape(notes.releases[0].date)}</span><span>面向管理者与项目执行团队</span></div>
+  <div class="hero-meta"><a class="pill" href="#latest">最近更新 · ${escape(latest.date)} · ${escape(latest.version)}</a><span>面向管理者与项目执行团队</span></div>
   <div class="hero-bottom"><a href="#features"><b>01</b> AI 分析 <span aria-hidden="true">↗</span></a><a href="#comparison"><b>02</b> 团队协作 <span aria-hidden="true">↗</span></a><a href="#getting-started"><b>03</b> 统一身份 <span aria-hidden="true">↗</span></a></div>
 </section>
-<nav class="contents" aria-label="说明章节"><a href="#features">新功能亮点</a><a href="#comparison">旧新版本对照</a><a href="#getting-started">按角色上手</a><a href="#releases">Release notes <span>${notes.releases.length}</span></a></nav>
+<nav class="contents" aria-label="说明章节"><a href="#latest">最近更新</a><a href="#features">新功能亮点</a><a href="#comparison">旧新版本对照</a><a href="#getting-started">按角色上手</a><a href="#releases">Release notes <span>${notes.releases.length}</span></a></nav>
+${latestSection}
 <section id="features" class="section" aria-labelledby="features-title">
   <div class="section-heading"><div><p class="eyebrow">FEATURE HIGHLIGHTS</p><h2 id="features-title">这次升级，带来了什么</h2></div><p>找到入口，了解用途，再开始使用。</p></div>
   <div class="feature-grid">${notes.features.map((f) => `<article class="feature${f.highlight ? ' feature-major' : ''}"><div class="feature-top"><span class="feature-number">${escape(f.number)}</span><div class="feature-badges"><span class="tag">${escape(f.tag)}</span>${f.highlight ? `<span class="major-badge">${escape(f.highlight)}</span>` : ''}</div></div><h3>${escape(f.title)}</h3><p>${escape(f.description)}</p><footer><div><span class="label">在哪里</span>${escape(f.entry)}</div><div><span class="label">谁能用</span>${escape(f.audience)}</div></footer></article>`).join('')}</div>
@@ -52,7 +67,7 @@ const html = `<!doctype html>
 <section id="releases" class="section" aria-labelledby="releases-title">
   <div class="section-heading"><div><p class="eyebrow">RELEASE NOTES</p><h2 id="releases-title">每一次变化，都有记录</h2></div><p>按时间倒序 · 展开查看详情</p></div>
   <p class="section-note">以下名称用于区分功能阶段。历史日期依据代码提交记录整理，不等同于客户环境的上线日期。</p>
-  <div class="release-list">${notes.releases.map((r, i) => `<details class="release" id="${escape(r.id)}"${i < 2 ? ' open' : ''}><summary><span class="release-date"><time datetime="${escape(r.date)}">${escape(r.date)}</time><span class="release-version">${escape(r.version)}</span></span><span class="release-title">${escape(r.title)}${i === 0 ? '<span class="latest">本次更新</span>' : ''}</span><span class="expand" aria-hidden="true">+</span></summary><div class="release-body"><p>${escape(r.summary)}</p>${r.changes.map((group) => `<div class="change-group"><h3>${escape(group.type)}</h3>${list(group.items)}</div>`).join('')}</div></details>`).join('')}</div>
+  <div class="release-list">${notes.releases.map((r, i) => `<details class="release" id="${escape(r.id)}"><summary><span class="release-date"><time datetime="${escape(r.date)}">${escape(r.date)}</time><span class="release-version">${escape(r.version)}</span></span><span class="release-title">${escape(r.title)}${i === 0 ? '<span class="latest">本次更新</span>' : ''}</span><span class="expand" aria-hidden="true">+</span></summary><div class="release-body"><p>${escape(r.summary)}</p>${changeGroups(r)}</div></details>`).join('')}</div>
 </section>
 <footer class="page-footer"><span>${escape(notes.product)} · ${escape(notes.title)}</span><span>功能随版本持续完善，权限以实际账号为准。</span></footer>
 </main>

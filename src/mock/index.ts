@@ -12,6 +12,7 @@ export * from './baselines'
 import { users } from './users'
 import { projects } from './projects'
 import { subProjects, tasks, TODAY } from './tasks'
+import { byWbsOrder } from '../lib/taskOrder'
 
 // 工具函数
 export const findUser = (id: string) => users.find((u) => u.id === id)
@@ -20,7 +21,20 @@ export const findSubProject = (id: string) => subProjects.find((s) => s.id === i
 export const findTask = (id: string) => tasks.find((t) => t.id === id)
 
 export const getProjectSubs = (projectId: string) => subProjects.filter((s) => s.projectId === projectId)
-export const getSubTasks = (subId: string) => tasks.filter((t) => t.subProjectId === subId)
+/** 子项目下的任务，按 WBS 显示顺序（手动顺序）排列 */
+export const getSubTasks = (subId: string) => tasks.filter((t) => t.subProjectId === subId).sort(byWbsOrder)
+/**
+ * 项目计划起止：按任务实时计算（最早的计划开始 → 最晚的计划结束），任务怎么调就怎么变；
+ * 没有任务时沿用项目已存的计划起止。与后端 services/rollup.live_span 同一规则。
+ */
+export const getProjectSpan = (p: { id: string; plannedStart: string; plannedEnd: string }) => {
+  const ts = getProjectTasks(p.id)
+  if (!ts.length) return { start: p.plannedStart, end: p.plannedEnd }
+  return {
+    start: ts.reduce((m, t) => (t.plannedStart < m ? t.plannedStart : m), ts[0].plannedStart),
+    end: ts.reduce((m, t) => (t.plannedEnd > m ? t.plannedEnd : m), ts[0].plannedEnd),
+  }
+}
 export const getProjectTasks = (projectId: string) => {
   const subIds = subProjects.filter((s) => s.projectId === projectId).map((s) => s.id)
   return tasks.filter((t) => subIds.includes(t.subProjectId))

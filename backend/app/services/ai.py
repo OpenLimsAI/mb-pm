@@ -40,7 +40,7 @@ from app.models import (
 )
 from app.schemas.ai import AISettingsInput, ProviderConfig
 from app.services.finance import finance_view, task_cost_totals
-from app.services.rollup import live_health
+from app.services.rollup import live_health, live_span
 
 DEFAULTS = {
     "deepseek": {"base_url": "https://api.deepseek.com", "model": "deepseek-v4-pro"},
@@ -342,11 +342,15 @@ def project_context(db: Session, project: Project) -> tuple[dict, dict]:
         "overdue_count": len(overdue),
         "budget_unit": "万元人民币",
     }
+    span = live_span(db, [project])[project.id]
     context = {
         **source,
-        "project": row_data(project),
+        # 计划起止按任务实时派生，与页面显示一致（已存值可能早已过时）
+        "project": row_data(project)
+        | dict(zip(("planned_start", "planned_end"), map(str, span), strict=True)),
         "sub_projects": [row_data(s) for s in subs],
-        "tasks": [row_data(t) for t in tasks],
+        # 手动顺序只影响显示，不计入分析与报告过期判断（升级补号不让已有报告失效）
+        "tasks": [row_data(t, exclude=("sort_order",)) for t in tasks],
         "dependencies": [row_data(d) for d in deps],
         "members": [
             {"id": u.id, "name": u.display_name, "weekly_available_hours": u.weekly_available_hours}

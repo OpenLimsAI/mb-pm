@@ -4,6 +4,22 @@
 
 以下为初次并行部署的历史记录；其中「待发布」步骤描述当时状态，当前公网入口已可访问，旧站最终数据迁移和其余账号开通仍须另行核验。
 
+## IP 直连应急入口（2026-10-13 起）
+
+服务器在国内，到 Cloudflare 的线路晚高峰会严重丢包，隧道离线时 `*.openlims.ai` 全部返回 530。
+2026-10-13 21:57–22:35 发生过一次：到 Cloudflare 边缘节点丢包 75–100%，UDP（QUIC）完全不通。
+处理：
+
+- 隧道连接器改为只走 TCP（`compose.production.yml` 中 `--protocol http2`），断线后不再空等 QUIC 超时。
+- 新增 IP 直连入口 `compose.direct.yml`，隧道不可用时用户可直接访问：
+  - 项目管理 `https://36.154.190.9:8443`，IAM 登录 `https://36.154.190.9:18443`（80 / 443 入站被封，这两个端口可达）。
+  - Caddy 内置 CA 的自签名证书（IP 证书，180 天，自动续期）：浏览器首次访问提示不安全，点「高级 → 继续访问」。
+  - 与域名入口共用同一数据库和 IAM；token 签发方仍是 `https://iam.openlims.ai`，应用发往签发方的跳转由 `direct/Caddyfile` 改写到 `:18443`，不改代码。
+  - IAM 应用 `mp-pm` 已登记直连回调 / 登出地址（`direct_entry.py register`，原列表备份在 `private-config-backups/`）。
+  - 核对：`python3 direct_entry.py check`（不用账号）；`python3 direct_entry.py login <用户名>`（用 `ACCOUNTS.private.txt` 的初始密码试一次）。
+  - 停用：`docker compose -f compose.yml -f compose.production.yml -f compose.direct.yml rm -sf app-direct direct-proxy`，再 `python3 direct_entry.py unregister`。
+  - 只覆盖项目管理；知识库、员工门户仍只走隧道。日常发版带上三个 compose 文件，否则 `--remove-orphans` 会删掉直连容器。
+
 ## 已部署
 
 - 服务器：`prometheus@36.154.190.9:13568`

@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { ChevronDown, ChevronRight, FolderTree, Diamond, Plus, MoreHorizontal, Flame } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { ChevronDown, ChevronRight, FolderTree, Diamond, Flame } from 'lucide-react'
 import type { Project, SubProject, Task } from '../../types'
 import { Card, CardHeader, CardBody, Tag, StatusTag, Avatar } from '../ui'
 import { findUser, getProjectSubs, getSubTasks } from '../../mock'
@@ -11,9 +11,11 @@ interface Props {
   selectedTaskId?: string
   highlightCriticalPath?: boolean
   criticalPathIds?: Set<string>
+  /** 卡片右上角操作（如「编辑模式」）；增删改结构统一在编辑模式中进行 */
+  action?: ReactNode
 }
 
-export function WBSTree({ project, onSelectTask, selectedTaskId, highlightCriticalPath, criticalPathIds }: Props) {
+export function WBSTree({ project, onSelectTask, selectedTaskId, highlightCriticalPath, criticalPathIds, action }: Props) {
   const subs = getProjectSubs(project.id).sort((a, b) => a.sortOrder - b.sortOrder)
   const owner = findUser(project.ownerId)
 
@@ -27,6 +29,7 @@ export function WBSTree({ project, onSelectTask, selectedTaskId, highlightCritic
           </span>
         }
         subtitle={`项目（Lv1）→ 子项目（Lv2，${subs.length}）→ 任务（Lv3）· 系统不允许 Lv3 下创建子节点`}
+        action={action}
       />
       <CardBody className="p-0">
         {/* Level 1：项目 */}
@@ -70,7 +73,7 @@ function SubProjectNode({ sub, onSelectTask, selectedTaskId, highlightCriticalPa
   return (
     <li>
       <div
-        className="px-4 py-2 flex items-center gap-2 hover:bg-ink-100/40 cursor-pointer group"
+        className="px-4 py-2 flex items-center gap-2 hover:bg-ink-100/40 cursor-pointer"
         onClick={() => setOpen((v) => !v)}
       >
         <button className="text-ink-500">
@@ -85,13 +88,6 @@ function SubProjectNode({ sub, onSelectTask, selectedTaskId, highlightCriticalPa
           {owner && <Avatar user={owner} size="sm" />}
           <span className="text-xs text-ink-500">{tasks.length} 任务</span>
           <ProgressMini value={sub.progress} />
-          <button
-            onClick={(e) => e.stopPropagation()}
-            className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-ink-100 transition-opacity"
-            title="创建任务（Lv3）"
-          >
-            <Plus className="w-3.5 h-3.5 text-ink-700" />
-          </button>
         </div>
       </div>
 
@@ -131,7 +127,7 @@ function TaskNode({
     <li>
       <div
         className={cn(
-          'flex items-center gap-2 py-1.5 px-2 rounded-md cursor-pointer group',
+          'flex items-center gap-2 py-1.5 px-2 rounded-md cursor-pointer',
           selected ? 'bg-brand-50 border border-brand-300' : 'hover:bg-white border border-transparent',
           highlightCriticalPath && isCritical && !selected && 'ring-1 ring-red-200'
         )}
@@ -153,13 +149,6 @@ function TaskNode({
         <StatusTag status={task.status} />
         {!task.isMilestone && <span className="text-[11px] text-ink-500 shrink-0">{task.estimatedEffort}d</span>}
         {owner && <Avatar user={owner} size="sm" />}
-        <button
-          onClick={(e) => e.stopPropagation()}
-          className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-ink-100 transition-opacity"
-          title="任务操作"
-        >
-          <MoreHorizontal className="w-3 h-3 text-ink-500" />
-        </button>
       </div>
     </li>
   )
