@@ -4,7 +4,13 @@ export const projectPublicUrl = 'https://pm.openlims.ai'
 export const knowledgePublicUrl = 'https://kb.openlims.ai'
 // 论文知识库（dikw-mbweb）自 2026-10-06 起独立部署在 knowledgePublicUrl 根地址，入口不再需要 #mb-web；
 // 旧链接 /#mb-web 仍会打开论文知识库。管理工作台不经此域名访问。
-export const knowledgeLaunchUrl = `${knowledgePublicUrl}/`
+const localDevelopment = import.meta.env.DEV && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
+const configuredKnowledgePort = Number(import.meta.env.VITE_KNOWLEDGE_PORT || 4322)
+const knowledgeDevelopmentPort = Number.isInteger(configuredKnowledgePort) && configuredKnowledgePort > 0 && configuredKnowledgePort <= 65535
+  ? configuredKnowledgePort : 4322
+const knowledgeDevelopmentUrl = new URL(window.location.origin)
+knowledgeDevelopmentUrl.port = String(knowledgeDevelopmentPort)
+export const knowledgeLaunchUrl = localDevelopment ? `${knowledgeDevelopmentUrl.origin}/` : `${knowledgePublicUrl}/`
 
 type SiteMode = 'portal' | 'pm' | 'combined'
 const configuredMode = import.meta.env.VITE_APP_MODE

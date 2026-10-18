@@ -18,6 +18,7 @@ VITE_USE_API=false npm run dev
 打开 `http://localhost:5175/login`，点击「界面预览」；项目管理演示入口为 `/dashboard`。
 此模式不验证登录、不连接客户数据库。真实运行需 Python 3.11、后端及可访问的 IAM，
 配置和启动步骤见 [本地开发与测试](docs/development.md)。
+本地工作台的知识库入口默认进入同一主机的 4322 端口，需另行启动知识库前端。
 
 ## 架构
 
