@@ -1,6 +1,6 @@
 # 账号管理应用权限改造方案
 
-日期：2026-10-18。状态：方案已按 TDD 实现并完成本地验证；SVG 使用虚构账号，线上尚未发布。[验证记录](accounts-app-permissions-verification.md)包含测试范围、覆盖率和实现截图。
+日期：2026-10-18。状态：方案已按 TDD 实现、通过 CI 并 squash merge，17:24（Asia/Shanghai）已部署；SVG 使用虚构账号。[验证记录](accounts-app-permissions-verification.md)包含测试、覆盖率和验收边界，[上线记录](../../deploy/parallel-test/releases/20261018-account-app-permissions.md)包含源码、备份与回滚信息。
 
 在门户 `/accounts` 的「编辑账号 → 资料与身份」中，分开维护平台管理身份与应用权限。保留现有四个编辑页签，将内容拆成公共资料、平台管理身份、项目管理、知识库四个区域。系统管理员独立于应用角色，知识库仅开放「可编辑」选择，「仅阅读」显示为禁用状态。沿用既有 IAM 角色，不批量修改已有账号的授权。
 
