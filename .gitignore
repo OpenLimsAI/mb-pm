@@ -30,6 +30,9 @@ backend/.venv/
 .venv/
 .pytest_cache/
 .coverage
+coverage/
+backend/htmlcov/
+backend/coverage.json
 
 # Databases (generated from seed)
 *.db

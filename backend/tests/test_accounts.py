@@ -48,7 +48,10 @@ class FakeCasdoor:
             for name in ROLE_NAMES
         }
         self.calls: list[str] = []
-        self.fail: dict[str, str] = {}
+        self.fail: dict[str, str | list[str]] = {}
+        self.role_delay = 0
+        self.silent_roles: set[str] = set()
+        self.silent_user_updates: list[bool] = []
 
     def add(self, name, *roles, subject=None, display=None, **extra):
         subject = subject or f"sub-{uuid4().hex}"
@@ -90,10 +93,19 @@ class FakeCasdoor:
         assert kwargs["trust_env"] is False
         path = url.split("/api/", 1)[1]
         self.calls.append(path)
-        if self.fail.get(path) == "error":
+        role = (params or {}).get("id", "").partition("/")[2]
+        failure_key = f"{path}:{role}" if f"{path}:{role}" in self.fail else path
+        failure = self.fail.get(failure_key)
+        if isinstance(failure, list):
+            failure = failure.pop(0) if failure else None
+        if failure in {"error", "once"}:
+            if failure == "once":
+                self.fail.pop(failure_key)
             response = self.error("模拟 IAM 拒绝")
         else:
             response = getattr(self, "_" + path.replace("-", "_"))(params or {}, json, data)
+        if path == "get-role" and self.role_delay:
+            time.sleep(self.role_delay)
         response.request = httpx.Request(method, url)
         return response
 
@@ -132,6 +144,8 @@ class FakeCasdoor:
         # Casdoor 按整条记录更新：必须回传完整角色
         assert body["owner"] == owner == ORG and body["name"] == name
         assert set(body) == set(self.roles[name])
+        if name in self.silent_roles:
+            return self.ok("Affected")
         self.roles[name] = copy.deepcopy(body)
         return self.ok("Affected")
 
@@ -146,6 +160,8 @@ class FakeCasdoor:
         return self.ok("Affected")
 
     def _update_user(self, params, body, form):
+        if self.silent_user_updates and self.silent_user_updates.pop(0):
+            return self.ok("Affected")
         user = self._find(params)
         columns = params["columns"].split(",")
         assert body["owner"] == ORG and set(body) - {"owner", "name"} <= set(columns)
@@ -297,15 +313,453 @@ def listing(client, headers):
 
 
 def new_account(**overrides):
+    identity = overrides.pop("identity", "staff")
     return {
         "username": uid("new"),
         "display_name": "新同事",
         "password": "Welcome-2026",
-        "identity": "staff",
+        "platform_admin": identity == "admin",
+        "pm_identity": "staff" if identity == "admin" else identity,
+        "kb_role": "editor",
         "specialty_group": "上游",
         "weekly_hours": 36,
         **overrides,
     }
+
+
+def test_account_lists_platform_identity_and_app_roles_separately(client, casdoor, admin):
+    _, _, headers = admin()
+    name = uid("platform")
+    casdoor.add(name, "admin", "cmc_lead", "kb_viewer", "dikw-admin")
+
+    accounts, _ = listing(client, headers)
+    account = accounts[name]
+    assert account["platform_admin"] is True
+    assert account["pm_identity"] == "lead"
+    assert account["pm_effective_role"] == "admin"
+    assert account["pm_roles"] == ["cmc_lead"]
+    assert account["kb_role"] == "viewer"
+    assert account["kb_roles"] == ["kb_viewer"]
+    assert account["other_roles"] == ["dikw-admin"]
+
+
+def test_platform_admin_toggle_preserves_business_and_knowledge_roles(client, casdoor, admin):
+    _, _, headers = admin()
+    name = uid("separate")
+    sub = casdoor.add(name, "cmc_lead", "kb_viewer", "dikw-admin")
+    url = f"{URL}/{sub}"
+    assert client.patch(url, json={"platform_admin": True}, headers=headers).status_code == 204
+    accounts, _ = listing(client, headers)
+    assert accounts[name]["platform_admin"] is True
+    assert accounts[name]["pm_identity"] == "lead"
+    assert accounts[name]["pm_effective_role"] == "admin"
+    assert accounts[name]["kb_role"] == "viewer"
+    assert accounts[name]["other_roles"] == ["dikw-admin"]
+
+    assert client.patch(url, json={"platform_admin": False}, headers=headers).status_code == 204
+    accounts, _ = listing(client, headers)
+    assert accounts[name]["platform_admin"] is False
+    assert accounts[name]["pm_effective_role"] == "cmc_lead"
+    assert accounts[name]["kb_role"] == "viewer"
+
+
+def test_pm_business_role_changes_do_not_remove_platform_admin(client, casdoor, admin):
+    _, _, headers = admin()
+    name = uid("business")
+    sub = casdoor.add(name, "admin", "cmc_lead", "kb_editor", "dikw-admin")
+    assert (
+        client.patch(f"{URL}/{sub}", json={"pm_identity": "staff"}, headers=headers).status_code
+        == 204
+    )
+    accounts, _ = listing(client, headers)
+    assert accounts[name]["platform_admin"] is True
+    assert accounts[name]["pm_identity"] == "staff"
+    assert accounts[name]["pm_effective_role"] == "admin"
+    assert accounts[name]["kb_role"] == "editor"
+    assert accounts[name]["other_roles"] == ["dikw-admin"]
+
+
+def test_knowledge_viewer_cannot_be_written(client, casdoor, admin):
+    _, _, headers = admin()
+    name = uid("kbcontract")
+    sub = casdoor.add(name, "kb_editor")
+    response = client.patch(f"{URL}/{sub}", json={"kb_role": "viewer"}, headers=headers)
+    assert response.status_code == 422
+    accounts, _ = listing(client, headers)
+    assert accounts[name]["kb_role"] == "editor"
+    assert accounts[name]["pm_member"] is None
+
+
+def test_explicit_knowledge_upgrade_does_not_create_pm_member(client, casdoor, admin):
+    _, _, headers = admin()
+    name = uid("kbonly")
+    sub = casdoor.add(name, "kb_viewer", "dikw-admin")
+    assert (
+        client.patch(f"{URL}/{sub}", json={"kb_role": "editor"}, headers=headers).status_code == 204
+    )
+    accounts, _ = listing(client, headers)
+    assert accounts[name]["kb_role"] == "editor"
+    assert accounts[name]["kb_roles"] == ["kb_editor"]
+    assert accounts[name]["pm_member"] is None
+    assert accounts[name]["other_roles"] == ["dikw-admin"]
+
+
+def test_create_uses_separate_platform_and_business_roles(client, casdoor, admin):
+    _, _, headers = admin()
+    body = new_account()
+    body.update(platform_admin=True, pm_identity="lead", kb_role="editor")
+    assert client.post(URL, json=body, headers=headers).status_code == 204
+    accounts, _ = listing(client, headers)
+    account = accounts[body["username"]]
+    assert account["platform_admin"] is True
+    assert account["pm_identity"] == "lead"
+    assert account["pm_effective_role"] == "admin"
+    assert account["kb_role"] == "editor"
+
+
+def test_disabled_editor_role_is_rejected_before_any_update(client, casdoor, admin):
+    _, _, headers = admin()
+    name = uid("disabledrole")
+    sub = casdoor.add(name, "kb_viewer")
+    casdoor.roles["kb_editor"]["isEnabled"] = False
+    response = client.patch(
+        f"{URL}/{sub}", json={"kb_role": "editor", "display_name": "不能保存"}, headers=headers
+    )
+    assert response.status_code == 409
+    accounts, _ = listing(client, headers)
+    assert accounts[name]["display_name"] == name
+    assert accounts[name]["kb_role"] == "viewer"
+    assert accounts[name]["pm_member"] is None
+
+
+def test_partial_iam_failure_restores_roles_and_profile(client, casdoor, admin):
+    _, _, headers = admin()
+    name = uid("rollback")
+    sub = casdoor.add(name, "kb_viewer", "dikw-admin")
+    casdoor.fail["update-role:kb_viewer"] = "once"
+    response = client.patch(
+        f"{URL}/{sub}", json={"kb_role": "editor", "display_name": "新姓名"}, headers=headers
+    )
+    assert response.status_code == 400
+    accounts, _ = listing(client, headers)
+    assert accounts[name]["display_name"] == name
+    assert accounts[name]["kb_roles"] == ["kb_viewer"]
+    assert accounts[name]["other_roles"] == ["dikw-admin"]
+
+
+def test_concurrent_updates_preserve_both_accounts_role_membership(client, casdoor, admin):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    _, _, headers = admin()
+    names = [uid("concurrent"), uid("concurrent")]
+    subjects = [casdoor.add(name, "kb_viewer") for name in names]
+    ready = Barrier(2)
+    casdoor.role_delay = 0.1
+
+    def save(subject):
+        ready.wait(timeout=5)
+        return client.patch(f"{URL}/{subject}", json={"kb_role": "editor"}, headers=headers)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        responses = list(pool.map(save, subjects))
+    assert [response.status_code for response in responses] == [204, 204]
+    accounts, _ = listing(client, headers)
+    assert [accounts[name]["kb_role"] for name in names] == ["editor", "editor"]
+
+
+def test_database_failure_rolls_back_iam_changes(client, casdoor, admin):
+    from sqlalchemy import event
+    from sqlalchemy.exc import SQLAlchemyError
+    from app.db.session import engine
+
+    _, _, headers = admin()
+    name = uid("dbfailure")
+    sub = casdoor.add(name, "kb_viewer")
+
+    def reject_audit(conn, cursor, statement, parameters, context, executemany):
+        if statement.startswith("INSERT INTO audit_logs"):
+            raise SQLAlchemyError("模拟数据库写入失败")
+
+    event.listen(engine, "before_cursor_execute", reject_audit)
+    try:
+        response = client.patch(
+            f"{URL}/{sub}", json={"kb_role": "editor", "display_name": "新姓名"}, headers=headers
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", reject_audit)
+    assert response.status_code == 409
+    accounts, _ = listing(client, headers)
+    assert accounts[name]["kb_role"] == "viewer"
+    assert accounts[name]["display_name"] == name
+
+
+def test_portal_catalogue_refreshes_after_explicit_kb_grant(client, casdoor, admin, token_factory):
+    _, _, headers = admin()
+    name = uid("catalogue")
+    sub = casdoor.add(name)
+    sid = open_portal_session(token_factory, sub, name)
+    own = {"Cookie": f"{PORTAL_SESSION_COOKIE}={sid}"}
+    before = client.get("/api/v1/portal/me", headers=own).json()
+    assert next(a for a in before["applications"] if a["id"] == "kb")["enabled"] is False
+    assert (
+        client.patch(f"{URL}/{sub}", json={"kb_role": "editor"}, headers=headers).status_code == 204
+    )
+    after = client.get("/api/v1/portal/me", headers=own).json()
+    assert next(a for a in after["applications"] if a["id"] == "kb")["enabled"] is True
+
+
+def test_role_readback_rejects_silent_iam_write_failure(client, casdoor, admin):
+    _, _, headers = admin()
+    name = uid("silent")
+    sub = casdoor.add(name, "kb_viewer")
+    casdoor.silent_roles.add("kb_editor")
+    response = client.patch(f"{URL}/{sub}", json={"kb_role": "editor"}, headers=headers)
+    assert response.status_code == 409
+    accounts, _ = listing(client, headers)
+    assert accounts[name]["kb_roles"] == ["kb_viewer"]
+
+
+def test_new_account_is_removed_if_role_readback_fails(client, casdoor, admin):
+    _, _, headers = admin()
+    body = new_account()
+    casdoor.silent_roles.add("kb_editor")
+    response = client.post(URL, json=body, headers=headers)
+    assert response.status_code == 409
+    accounts, _ = listing(client, headers)
+    assert body["username"] not in accounts
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"identity": "admin"},
+        {"roles": ["admin"]},
+        {"pm_identity": "admin"},
+        {"kb_role": "unassigned"},
+        {"platform_admin": "false"},
+        {"kb_role": "viewer"},
+    ],
+)
+def test_unsafe_or_legacy_permission_writes_are_rejected(client, casdoor, admin, payload):
+    _, _, headers = admin()
+    name = uid("contract")
+    sub = casdoor.add(name, "kb_viewer")
+    assert client.patch(f"{URL}/{sub}", json=payload, headers=headers).status_code == 422
+    accounts, _ = listing(client, headers)
+    assert accounts[name]["platform_admin"] is False
+    assert accounts[name]["kb_roles"] == ["kb_viewer"]
+
+
+@pytest.mark.parametrize(
+    "roles",
+    [
+        ("kb_viewer",),
+        (),
+        ("project_lead", "kb_viewer"),
+        ("production", "kb_editor"),
+        ("qa_qc", "kb_editor"),
+    ],
+)
+def test_profile_and_noop_updates_preserve_roles_and_lazy_members(client, casdoor, admin, roles):
+    _, _, headers = admin()
+    name = uid("profile")
+    sub = casdoor.add(name, *roles)
+    url = f"{URL}/{sub}"
+    assert (
+        client.patch(
+            url, json={"display_name": "新姓名", "email": "new@example.com"}, headers=headers
+        ).status_code
+        == 204
+    )
+    assert (
+        client.patch(url, json={"email": None, "kb_role": None}, headers=headers).status_code == 204
+    )
+    accounts, _ = listing(client, headers)
+    row = accounts[name]
+    assert row["display_name"] == "新姓名" and row["email"] == "new@example.com"
+    assert row["pm_roles"] == sorted(set(roles) & security.ROLES)
+    assert row["pm_member"] is None
+
+
+def test_knowledge_normalization_preserves_legacy_business_scope(client, casdoor, admin):
+    _, _, headers = admin()
+    name = uid("mixed")
+    sub = casdoor.add(name, "project_lead", "kb_viewer", "kb_editor")
+    assert (
+        client.patch(f"{URL}/{sub}", json={"kb_role": "editor"}, headers=headers).status_code == 204
+    )
+    accounts, _ = listing(client, headers)
+    assert accounts[name]["pm_effective_role"] == "project_lead"
+    assert accounts[name]["kb_roles"] == ["kb_editor"]
+
+
+def test_conflicting_pm_member_is_rejected_before_iam_changes(client, casdoor, admin):
+    _, _, headers = admin()
+    name = uid("conflict")
+    sub = casdoor.add(name, "kb_viewer")
+    pm_member(name, bind_to="other-" + uuid4().hex)
+    response = client.patch(
+        f"{URL}/{sub}", json={"specialty_group": "分析", "display_name": "冲突"}, headers=headers
+    )
+    assert response.status_code == 409
+    accounts, _ = listing(client, headers)
+    assert accounts[name]["display_name"] == name
+
+
+def test_platform_admin_still_requires_an_audit_member(client, casdoor, token_factory):
+    name = uid("noaudit")
+    sub = casdoor.add(name, "admin")
+    sid = open_portal_session(token_factory, sub, name, roles=("admin",))
+    response = client.get(URL, headers={"Cookie": f"{PORTAL_SESSION_COOKIE}={sid}"})
+    assert response.status_code == 403
+    assert "记录操作人" in response.json()["detail"]
+
+
+def test_empty_display_name_is_rejected(client, casdoor, admin):
+    _, _, headers = admin()
+    sub = casdoor.add(uid("empty"), "kb_editor")
+    assert (
+        client.patch(f"{URL}/{sub}", json={"display_name": "   "}, headers=headers).status_code
+        == 422
+    )
+    assert (
+        client.post(URL, json=new_account(display_name="   "), headers=headers).status_code == 422
+    )
+
+
+def test_inactive_account_cannot_be_repaired(client, casdoor, admin):
+    _, _, headers = admin()
+    name = uid("inactivefix")
+    sub = casdoor.add(name, "kb_editor", isForbidden=True)
+    assert client.post(f"{URL}/{sub}/repair", headers=headers).status_code == 409
+    accounts, _ = listing(client, headers)
+    assert accounts[name]["enabled"] is False
+
+
+@pytest.mark.parametrize(
+    ("operation", "failure"),
+    [
+        ("username", "update-user"),
+        ("password", "set-password"),
+        ("repair", "update-user"),
+        ("delete", "delete-user"),
+    ],
+)
+def test_iam_rejections_on_sensitive_operations_are_not_success(
+    client, casdoor, admin, operation, failure
+):
+    _, _, headers = admin()
+    name = uid("rejected")
+    sub = casdoor.add(name, "kb_editor", needUpdatePassword=operation == "repair")
+    casdoor.fail[failure] = "error"
+    url = f"{URL}/{sub}"
+    if operation == "delete":
+        response = client.delete(url, headers=headers)
+    else:
+        body = (
+            {"username": uid("renamed")}
+            if operation == "username"
+            else {"password": "Another-pass2026"}
+            if operation == "password"
+            else None
+        )
+        response = client.post(f"{url}/{operation}", json=body, headers=headers)
+    assert response.status_code == 400
+    assert "模拟 IAM 拒绝" in response.json()["detail"]
+
+
+def test_new_account_rejected_by_iam_does_not_persist(client, casdoor, admin):
+    _, _, headers = admin()
+    body = new_account()
+    casdoor.fail["add-user"] = "error"
+    assert client.post(URL, json=body, headers=headers).status_code == 400
+    accounts, _ = listing(client, headers)
+    assert body["username"] not in accounts
+
+
+def test_username_conflicts_and_no_change_are_reported(client, casdoor, admin):
+    _, _, headers = admin()
+    name, taken = uid("rename"), uid("taken")
+    sub = casdoor.add(name, "kb_editor")
+    casdoor.add(taken)
+    for username, status in [(name, 400), (taken, 409)]:
+        assert (
+            client.post(
+                f"{URL}/{sub}/username", json={"username": username}, headers=headers
+            ).status_code
+            == status
+        )
+
+
+def test_failed_compensation_reports_possible_partial_changes(client, casdoor, admin):
+    _, _, headers = admin()
+    name = uid("partial")
+    sub = casdoor.add(name, "kb_viewer")
+    casdoor.fail["update-role:kb_editor"] = ["ok", "error"]
+    casdoor.fail["update-role:kb_viewer"] = "once"
+    response = client.patch(f"{URL}/{sub}", json={"kb_role": "editor"}, headers=headers)
+    assert response.status_code == 409
+    assert "自动撤销失败" in response.json()["detail"]
+    accounts, _ = listing(client, headers)
+    assert accounts[name]["kb_roles"] == ["kb_editor", "kb_viewer"]
+
+
+def test_unreadable_unrelated_session_does_not_prevent_role_grant(
+    client, casdoor, admin, token_factory
+):
+    _, _, headers = admin()
+    name = uid("badcache")
+    sub = casdoor.add(name)
+    sid = open_portal_session(token_factory, sub, name)
+    with SessionLocal() as db:
+        db.add(
+            PortalSession(
+                id=uuid4().hex, tokens="corrupt-test-session", expires_at=int(time.time()) + 60
+            )
+        )
+        db.commit()
+    assert (
+        client.patch(f"{URL}/{sub}", json={"kb_role": "editor"}, headers=headers).status_code == 204
+    )
+    response = client.get("/api/v1/portal/me", headers={"Cookie": f"{PORTAL_SESSION_COOKIE}={sid}"})
+    assert next(a for a in response.json()["applications"] if a["id"] == "kb")["enabled"] is True
+
+
+def test_profile_compensation_is_also_verified(client, casdoor, admin):
+    _, _, headers = admin()
+    name = uid("silentundo")
+    sub = casdoor.add(name, "kb_viewer")
+    casdoor.silent_user_updates = [False, True]
+    casdoor.fail["update-role:kb_viewer"] = "once"
+    response = client.patch(
+        f"{URL}/{sub}", json={"display_name": "新姓名", "kb_role": "editor"}, headers=headers
+    )
+    assert response.status_code == 409
+    assert "自动撤销失败" in response.json()["detail"]
+
+
+def test_local_read_failure_after_iam_write_also_compensates(client, casdoor, admin):
+    from sqlalchemy import event
+    from sqlalchemy.exc import SQLAlchemyError
+    from app.db.session import engine
+
+    _, _, headers = admin()
+    name = uid("readfailure")
+    sub = casdoor.add(name, "kb_viewer")
+
+    def reject_catalogue(conn, cursor, statement, parameters, context, executemany):
+        if "FROM portal_sessions" in statement and "kb_editor" in casdoor.roles_of(name):
+            raise SQLAlchemyError("模拟入口缓存查询失败")
+
+    event.listen(engine, "before_cursor_execute", reject_catalogue)
+    try:
+        response = client.patch(f"{URL}/{sub}", json={"kb_role": "editor"}, headers=headers)
+    finally:
+        event.remove(engine, "before_cursor_execute", reject_catalogue)
+    assert response.status_code == 409
+    accounts, _ = listing(client, headers)
+    assert accounts[name]["kb_role"] == "viewer"
 
 
 @pytest.fixture
@@ -551,7 +1005,7 @@ def test_admin_changes_identity_profile_and_state(client, casdoor, admin, token_
 
     body = {
         "display_name": "邓爱鹏",
-        "identity": "lead",
+        "pm_identity": "lead",
         "specialty_group": "制剂",
         "weekly_hours": 30,
     }
@@ -564,7 +1018,7 @@ def test_admin_changes_identity_profile_and_state(client, casdoor, admin, token_
     # 改回员工：不分配项目管理角色（登录时默认 rd）；管理工作台角色不受影响
     assert (
         client.patch(
-            url, json={"identity": "staff", "specialty_group": ""}, headers=headers
+            url, json={"pm_identity": "staff", "specialty_group": ""}, headers=headers
         ).status_code
         == 204
     )
@@ -599,7 +1053,7 @@ def test_unchanged_identity_keeps_legacy_role(client, casdoor, admin):
     sub = casdoor.add(name, "qa_qc", "kb_editor")
     pm_member(name, bind_to=sub, role="qa_qc")
     calls = len(casdoor.calls)
-    payload = {"identity": "staff", "weekly_hours": 20}
+    payload = {"pm_identity": "staff", "weekly_hours": 20}
     assert client.patch(f"{URL}/{sub}", json=payload, headers=headers).status_code == 204
     assert casdoor.roles_of(name) == ["kb_editor", "qa_qc"]
     assert "update-role" not in casdoor.calls[calls:]
@@ -624,7 +1078,7 @@ def test_leads_can_only_view(client, casdoor, admin, lead):
     staff = uid("staff")
     staff_sub = casdoor.add(staff, "kb_editor")
     url = f"{URL}/{staff_sub}"
-    for body in ({"identity": "lead"}, {"specialty_group": "分析"}, {"display_name": "x"}):
+    for body in ({"pm_identity": "lead"}, {"specialty_group": "分析"}, {"display_name": "x"}):
         assert client.patch(url, json=body, headers=headers).status_code == 403
     assert client.post(URL, json=new_account(), headers=headers).status_code == 403
     response = client.post(f"{url}/password", json={"password": "Another-2026"}, headers=headers)
@@ -639,7 +1093,7 @@ def test_leads_can_only_view(client, casdoor, admin, lead):
 def test_admins_cannot_lock_themselves_or_org_admins_out(client, casdoor, admin):
     sub, name, headers = admin()
     own = f"{URL}/{sub}"
-    assert client.patch(own, json={"identity": "lead"}, headers=headers).status_code == 409
+    assert client.patch(own, json={"platform_admin": False}, headers=headers).status_code == 409
     assert client.patch(own, json={"enabled": False}, headers=headers).status_code == 409
     assert client.delete(own, headers=headers).status_code == 409
     response = client.post(f"{own}/password", json={"password": "Another-2026"}, headers=headers)
@@ -706,16 +1160,16 @@ def test_delete_clears_roles_first_and_keeps_member_history(client, casdoor, adm
     assert client.delete(f"{URL}/{sub}", headers=headers).status_code == 404
 
 
-def test_repair_opens_kb_and_member(client, casdoor, admin):
+def test_repair_member_does_not_grant_knowledge_editor(client, casdoor, admin):
     _, _, headers = admin()
     name = uid("fix")
     sub = casdoor.add(name, "cmc_lead")
     assert client.post(f"{URL}/{sub}/repair", headers=headers).status_code == 204
-    assert casdoor.roles_of(name) == ["cmc_lead", "kb_editor"]
+    assert casdoor.roles_of(name) == ["cmc_lead"]
     member = fetch(User, username=name)
     assert member.role == "cmc_lead" and member.is_active
     _, issues = listing(client, headers)
-    assert not [i for i in issues if i["username"] == name]
+    assert [i["kind"] for i in issues if i["username"] == name] == ["kb_missing"]
 
     sleepy = uid("sleepy")
     sleepy_sub = casdoor.add(sleepy, "kb_editor")

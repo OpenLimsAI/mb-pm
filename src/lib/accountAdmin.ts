@@ -1,19 +1,13 @@
 // 账号管理的显示文案与初始密码生成。身份对应的 IAM 角色见 backend/app/services/accounts.py。
-import type { Identity } from '../api/accounts'
+import type { Account, PMIdentity, KBRole } from '../api/accounts'
 
 export { specialtyGroups } from '../mock/dictionaries'
 
-/** 项目管理、知识库默认对所有人开放（知识库为编辑）；身份只决定项目管理里的重要编辑与账号管理。 */
-export const IDENTITY_OPTIONS: { value: Identity; label: string; hint: string }[] = [
-  { value: 'staff', label: '员工', hint: '项目管理里可做日常录入（更新自己负责的任务）；看不到账号管理。' },
-  { value: 'lead', label: '项目负责人', hint: '可编辑项目（项目信息、预算与 WBS 结构）、删除项目等重要编辑（全部项目）；账号管理里只能查看。' },
-  { value: 'admin', label: '系统管理员', hint: '全部权限，可以修改所有人的所有信息。' },
-]
-
-export const identityLabel = (identity: Identity) => IDENTITY_OPTIONS.find((o) => o.value === identity)?.label ?? '员工'
-
-/** 身份对应的 IAM 角色；IAM 里没有建立时该身份不可选（员工不需要角色）。 */
-export const IDENTITY_ROLE: Record<Identity, string | null> = { staff: null, lead: 'cmc_lead', admin: 'admin' }
+export const pmIdentityLabel = (identity: PMIdentity) => identity === 'lead' ? '项目负责人' : '员工'
+export const kbRoleLabel = (role: KBRole) => ({ viewer: '仅阅读（历史）', editor: '可编辑', unassigned: '待分配' })[role]
+export const legacyPMNote = (account: Account) => account.pmRoles
+  .filter((r) => ['project_lead', 'production', 'qa_qc'].includes(r))
+  .map((r) => ({ project_lead: '项目负责人（本人项目）', production: '生产支持', qa_qc: 'QA/QC' })[r]).join('、')
 
 // 去掉易混淆的 0/O、1/l/I；三段四位，含大小写与数字（满足后端与 IAM 的密码规则）
 const LOWER = 'abcdefghijkmnpqrstuvwxyz'

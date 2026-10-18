@@ -3,8 +3,10 @@
 import axios from 'axios'
 import { API_BASE, camelize, snakeize } from './client'
 import type { SpecialtyGroup } from '../types'
-/** 身份：系统管理员 / 项目负责人 / 员工（对应 IAM 角色见 backend/app/services/accounts.py）。 */
+/** 旧身份字段仅读取兼容；写入分别使用平台身份与 PM / KB 角色。 */
 export type Identity = 'admin' | 'lead' | 'staff'
+export type PMIdentity = 'lead' | 'staff'
+export type KBRole = 'viewer' | 'editor' | 'unassigned'
 export type ActorTier = 'admin' | 'lead'
 
 export interface PMMember {
@@ -26,7 +28,12 @@ export interface Account {
   mustChangePassword: boolean
   orgAdmin: boolean
   identity: Identity
-  /** 知识库默认对所有人开放（编辑）；false 时在「需要处理」里修复。 */
+  platformAdmin: boolean
+  pmIdentity: PMIdentity
+  pmEffectiveRole: string
+  kbRole: KBRole
+  kbRoles: string[]
+  /** 是否持有显式 KB 角色；历史 viewer 仍可读回。 */
   kbEnabled: boolean
   pmRoles: string[]
   otherRoles: string[]
@@ -51,7 +58,9 @@ export interface AccountCreateInput {
   displayName: string
   password: string
   email?: string
-  identity: Identity
+  platformAdmin: boolean
+  pmIdentity: PMIdentity
+  kbRole: 'editor'
   specialtyGroup: SpecialtyGroup | null
   weeklyHours: number
 }
@@ -60,7 +69,9 @@ export interface AccountUpdateInput {
   displayName?: string
   email?: string
   enabled?: boolean
-  identity?: Identity
+  platformAdmin?: boolean
+  pmIdentity?: PMIdentity
+  kbRole?: 'editor'
   /** 空字符串表示清空专业组。 */
   specialtyGroup?: SpecialtyGroup | ''
   weeklyHours?: number

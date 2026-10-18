@@ -4,32 +4,36 @@ IAM 是账号与角色的唯一来源：列表每次直接读 Casdoor，修改�
 不在本系统另存账号。项目管理成员（users 表）只是业务档案（专业组、周工时、任务负责人），随账号维护；
 项目管理里不能再自行增删成员，在 IAM 管理台直接建的账号第一次进入项目管理时自动建成员。
 
-身份 → IAM 角色（项目管理、知识库默认对所有人开放）：
-    系统管理员   admin       项目管理全部权限；账号管理可改所有人的所有信息
+平台身份与应用角色分别维护：
+    系统管理员   admin       独立平台身份；账号管理可写，项目管理继承全部权限
     项目负责人   cmc_lead    编辑项目（项目信息、预算与 WBS 结构）、删除项目等重要编辑（管理全部项目）；账号管理只能查看
     员工         不分配      项目管理默认 rd：更新本人任务等日常录入；看不到账号管理
-    知识库       kb_editor   所有人默认编辑；缺少时列入「需要处理」可一键修复
-旧角色 project_lead 按项目负责人显示，rd / production / qa_qc 按员工显示，身份不变时不改写。
+    知识库       kb_editor   新建默认编辑；历史阅读者保留，编辑授权须明确选择
+旧角色 project_lead 保留本人项目范围，production / qa_qc 保留实际角色；未修改 PM 业务角色时不改写。
 管理工作台（dikw-admin）等其他角色不在账号管理里维护，保持原样（删除账号时一并移出）。
 
 生效时机：角色写入 IAM 后，对方下次登录时生效（登录令牌带角色）；停用对项目管理立即生效（成员同时停用）。
 每次请求都向 IAM 实时核对操作人的角色，操作人还须有有效的项目管理成员（用于审计）。
 """
 
+import hashlib
 import json
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import wraps
 from uuid import uuid4
 
+from cryptography.fernet import InvalidToken
 from fastapi import HTTPException, status
-from sqlalchemy import func
+from jose import JWTError, jwt
+from sqlalchemy import func, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.security import DEFAULT_ROLE, ROLES
-from app.models import AuditLog, IAMIdentity, User
+from app.core.security import DEFAULT_ROLE, ROLE_PRIORITY, ROLES, seal, unseal
+from app.models import AuditLog, IAMIdentity, PortalSession, User
 from app.schemas.accounts import (
     AccountCreate,
     AccountOut,
@@ -45,6 +49,7 @@ from app.services.members import create_member, username_taken
 log = logging.getLogger(__name__)
 
 ADMIN_ROLE = "admin"
+PM_ROLES = ROLES - {ADMIN_ROLE}
 LEAD_ROLES = {"cmc_lead", "project_lead"}
 IDENTITY_ROLE = {"admin": ADMIN_ROLE, "lead": "cmc_lead"}
 KB_ROLES = {"kb_viewer", "kb_editor"}
@@ -179,11 +184,11 @@ def _memberships(roles: list[dict], name: str, *, enabled_only: bool) -> set[str
 
 def _require_roles_exist(roles: set[str], existing: list[dict]) -> None:
     """先确认要分配的角色都在 IAM 中（如测试环境可能没有知识库角色），避免建了一半再撤销。"""
-    missing = sorted(roles - {r["name"] for r in existing})
+    missing = sorted(roles - {r["name"] for r in existing if r.get("isEnabled", True)})
     if missing:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            f"IAM 中还没有角色 {'、'.join(missing)}，请先在 IAM 管理台建立",
+            f"IAM 中缺少已启用的角色 {'、'.join(missing)}，请先在 IAM 管理台配置",
         )
 
 
@@ -241,9 +246,18 @@ def snapshot(db: Session, actor: Actor) -> AccountsOut:
                 enabled=enabled,
                 must_change_password=sub in flagged,
                 org_admin=bool(account.get("isAdmin")),
+                platform_admin=ADMIN_ROLE in held,
+                pm_identity="lead" if held & LEAD_ROLES else "staff",
+                pm_effective_role=next((r for r in ROLE_PRIORITY if r in held), DEFAULT_ROLE),
+                kb_role="editor"
+                if "kb_editor" in held
+                else "viewer"
+                if "kb_viewer" in held
+                else "unassigned",
+                kb_roles=sorted(held & KB_ROLES),
                 identity=_identity(held & ROLES),
                 kb_enabled=kb_enabled,
-                pm_roles=sorted(held & ROLES),
+                pm_roles=sorted(held & PM_ROLES),
                 other_roles=sorted(held - MANAGED_ROLES),
                 pm_member=PMMemberOut(
                     id=member.id,
@@ -272,7 +286,7 @@ def snapshot(db: Session, actor: Actor) -> AccountsOut:
                 "IAM 中打开了「需要更新密码」：登录会被带到 IAM 页面、回不到应用；点修复改为在工作台内改密",
             )
         if not kb_enabled:
-            issue("kb_missing", *here, "知识库尚未开通（应对所有人开放）")
+            issue("kb_missing", *here, "知识库待分配；请选择可编辑权限后保存")
         if conflict:
             issue(
                 "pm_member_conflict", *here, f"同名项目管理成员 {name} 已关联其他 IAM 账号，需核对"
@@ -333,6 +347,34 @@ def _commit(db: Session) -> None:
         ) from exc
 
 
+def _lock_mutations(db: Session) -> None:
+    """共享数据库锁串行化本组织的 IAM 成员读改写，覆盖多个应用进程。"""
+    if db.get_bind().dialect.name == "postgresql":
+        key = int.from_bytes(hashlib.sha256(settings.CASDOOR_ORG.encode()).digest()[:8], "big") & (
+            (1 << 63) - 1
+        )
+        db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": key})
+    else:
+        db.connection().exec_driver_sql("BEGIN IMMEDIATE")
+
+
+def _serialized(operation):
+    @wraps(operation)
+    def run(db: Session, actor: Actor, *args, **kwargs):
+        _admin_only(actor)
+        try:
+            _lock_mutations(db)
+            if ADMIN_ROLE not in live_roles(actor.subject):
+                raise HTTPException(403, "系统管理员身份已变更，请刷新后重试")
+            return operation(db, actor, *args, **kwargs)
+        except Exception:
+            db.rollback()
+            raise
+
+    return run
+
+
+@_serialized
 def create(db: Session, actor: Actor, payload: AccountCreate) -> None:
     _admin_only(actor)
     name = payload.username
@@ -344,8 +386,10 @@ def create(db: Session, actor: Actor, payload: AccountCreate) -> None:
             status.HTTP_409_CONFLICT, f"项目管理成员 {name} 已关联其他 IAM 账号，请换一个用户名"
         )
     roles = {KB_DEFAULT}
-    if payload.identity in IDENTITY_ROLE:
-        roles.add(IDENTITY_ROLE[payload.identity])
+    if payload.platform_admin:
+        roles.add(ADMIN_ROLE)
+    if payload.pm_identity == "lead":
+        roles.add("cmc_lead")
     _require_roles_exist(roles, iam_admin.list_roles())
     try:
         account = iam_admin.create_user(
@@ -356,8 +400,12 @@ def create(db: Session, actor: Actor, payload: AccountCreate) -> None:
     try:
         for role in sorted(roles):
             iam_admin.set_role_members(role, add={name})
-        member = _ensure_member(db, account, _member_role(payload.identity))
-        member.role = _member_role(payload.identity)
+        _verify_saved(
+            account, roles, {"displayName": payload.display_name, "email": payload.email or ""}
+        )
+        role = next((r for r in ROLE_PRIORITY if r in roles), DEFAULT_ROLE)
+        member = _ensure_member(db, account, role)
+        member.role = role
         member.display_name = payload.display_name
         member.specialty_group = payload.specialty_group
         member.weekly_available_hours = payload.weekly_hours
@@ -371,7 +419,10 @@ def create(db: Session, actor: Actor, payload: AccountCreate) -> None:
             {
                 "username": name,
                 "display_name": payload.display_name,
-                "identity": payload.identity,
+                "identity": _identity(roles),
+                "platform_admin": payload.platform_admin,
+                "pm_identity": payload.pm_identity,
+                "kb_role": payload.kb_role,
                 "roles": sorted(roles),
             },
         )
@@ -401,6 +452,65 @@ def _undo_create(name: str, roles: set[str]) -> None:
         log.exception("账号管理：新建失败且未能撤销 IAM 账号 %s，请在 IAM 管理台删除", name)
 
 
+def _undo_update(account: dict, current: set[str], wanted: set[str], changes: dict) -> None:
+    """仅撤销本次触碰的成员关系与资料，不覆盖其他账号或其他应用角色。"""
+    name = account["name"]
+    touched = current ^ wanted
+    held = _memberships(iam_admin.list_roles(), name, enabled_only=False) & touched
+    for role in sorted((current & touched) - held):
+        iam_admin.set_role_members(role, add={name})
+    for role in sorted(held - current):
+        iam_admin.set_role_members(role, remove={name})
+    if changes:
+        latest = _target(account["id"])
+        restore = {}
+        for key, value in changes.items():
+            old = account.get(key, False if key == "isForbidden" else "")
+            if latest.get(key) == old:
+                continue
+            if latest.get(key) != value:
+                raise IAMError("资料已被其他操作修改，无法自动撤销")
+            restore[key] = old
+        if restore:
+            iam_admin.update_user(account["id"], name, restore)
+    restored = _memberships(iam_admin.list_roles(), name, enabled_only=False) & touched
+    if restored != current & touched:
+        raise IAMError("IAM 角色撤销结果不一致")
+    if changes:
+        latest = _target(account["id"])
+        if any(
+            latest.get(key) != account.get(key, False if key == "isForbidden" else "")
+            for key in changes
+        ):
+            raise IAMError("IAM 资料撤销结果不一致")
+
+
+def _verify_saved(account: dict, wanted: set[str], changes: dict) -> None:
+    held = _memberships(iam_admin.list_roles(), account["name"], enabled_only=False) & MANAGED_ROLES
+    latest = _target(account["id"])
+    if held != wanted or any(latest.get(key) != value for key, value in changes.items()):
+        raise HTTPException(409, "IAM 保存结果与预期不一致，已尝试撤销，请刷新后重试")
+
+
+def _refresh_catalogue(db: Session, subject: str, roles: set[str]) -> None:
+    """仅更新门户入口缓存；业务权限仍验签并由各应用校验，不改签发的令牌。"""
+    with db.no_autoflush:
+        for session in db.query(PortalSession):
+            try:
+                data = unseal(session.tokens)
+                # 这里只定位待更新的服务端会话，不用未验签声明授权。
+                if jwt.get_unverified_claims(data["access_token"]).get("sub") != subject:
+                    continue
+            except (InvalidToken, JWTError, ValueError, KeyError, TypeError):
+                continue
+            data["catalogue_roles"] = [
+                {"owner": settings.CASDOOR_ORG, "name": role, "isEnabled": True}
+                for role in sorted(roles)
+            ]
+            session.tokens = seal(data)
+
+
+@_serialized
 def update(db: Session, actor: Actor, subject: str, payload: AccountUpdate) -> None:
     _admin_only(actor)
     account = _target(subject)
@@ -409,14 +519,24 @@ def update(db: Session, actor: Actor, subject: str, payload: AccountUpdate) -> N
     roles = iam_admin.list_roles()
     current = _memberships(roles, name, enabled_only=False) & MANAGED_ROLES
     cur_identity = _identity(current & ROLES)
-    new_identity = payload.identity or cur_identity
+    new_identity = cur_identity
     wanted = set(current)
-    if new_identity != cur_identity:
-        # 改身份时把项目管理角色换成标准的一个（员工不分配，登录时默认为 rd）
-        wanted -= ROLES
-        if new_identity in IDENTITY_ROLE:
-            wanted.add(IDENTITY_ROLE[new_identity])
-    _require_roles_exist(wanted - current, roles)
+    if payload.platform_admin is not None:
+        wanted.discard(ADMIN_ROLE)
+        if payload.platform_admin:
+            wanted.add(ADMIN_ROLE)
+        new_identity = _identity(wanted & ROLES)
+    if payload.pm_identity is not None and payload.pm_identity != (
+        "lead" if current & LEAD_ROLES else "staff"
+    ):
+        wanted -= PM_ROLES
+        if payload.pm_identity == "lead":
+            wanted.add("cmc_lead")
+        new_identity = _identity(wanted & ROLES)
+    if payload.kb_role is not None:
+        wanted -= KB_ROLES
+        wanted.add(KB_DEFAULT)
+    _require_roles_exist((wanted - current) | ({KB_DEFAULT} if payload.kb_role else set()), roles)
 
     enabled = payload.enabled
     if is_self and cur_identity == "admin" and new_identity != "admin":
@@ -434,14 +554,18 @@ def update(db: Session, actor: Actor, subject: str, payload: AccountUpdate) -> N
     if enabled is not None and enabled == bool(account.get("isForbidden")):
         changes["isForbidden"] = not enabled
 
-    # 先对上项目管理成员（可能新建），冲突时在写 IAM 之前就失败
-    member = _ensure_member(db, account, _member_role(new_identity))
+    # 只改 KB / 平台身份 / 公共资料不创建 PM 成员；主动维护 PM 档案才建立绑定。
+    member, _ = _member_for(db, subject, name)
+    if any(
+        v is not None for v in (payload.pm_identity, payload.specialty_group, payload.weekly_hours)
+    ):
+        member = _ensure_member(db, account, _member_role(new_identity))
     profile: dict[str, object] = {}
     group = payload.specialty_group
-    if group is not None and (group or None) != member.specialty_group:
+    if member and group is not None and (group or None) != member.specialty_group:
         profile["specialty_group"] = group or None
     hours = payload.weekly_hours
-    if hours is not None and hours != member.weekly_available_hours:
+    if member and hours is not None and hours != member.weekly_available_hours:
         profile["weekly_available_hours"] = hours
     if not changes and wanted == current and not profile and not db.new:
         db.rollback()
@@ -453,41 +577,76 @@ def update(db: Session, actor: Actor, subject: str, payload: AccountUpdate) -> N
             iam_admin.set_role_members(role, add={name})
         for role in sorted(current - wanted):
             iam_admin.set_role_members(role, remove={name})
-    except IAMError as exc:
-        db.rollback()
-        raise _bad_request(exc) from exc
+        _verify_saved(account, wanted, changes)
+    except (IAMError, HTTPException) as exc:
+        try:
+            _undo_update(account, current, wanted, changes)
+        except Exception as undo:
+            log.exception("账号修改失败且 IAM 补偿失败：%s", subject)
+            raise HTTPException(
+                409, "部分修改可能已保存，自动撤销失败，请刷新并联系管理员核对"
+            ) from undo
+        finally:
+            db.rollback()
+        if isinstance(exc, IAMError):
+            raise _bad_request(exc) from exc
+        raise
     except Exception:
         db.rollback()
         raise
 
-    for key, value in profile.items():
-        setattr(member, key, value)
-    if "displayName" in changes:
-        member.display_name = payload.display_name
-    if new_identity != cur_identity:
-        member.role = _member_role(new_identity)
-    if enabled is not None:
-        # 停用即时生效：项目管理每次请求都检查成员是否启用；门户会话按登录时的令牌鉴权，停用时一并结束其会话
-        member.is_active = enabled
-        if enabled is False:
-            password_policy.end_sessions(db, subject)
-    _audit(
-        db,
-        actor,
-        "修改账号",
-        subject,
-        {
-            "username": name,
-            "fields": sorted([k for k in changes if k != "isForbidden"] + list(profile)),
-            "enabled": enabled,
-            "identity": [cur_identity, new_identity],
-            "added_roles": sorted(wanted - current),
-            "removed_roles": sorted(current - wanted),
-        },
-    )
-    _commit(db)
+    try:
+        if member:
+            for key, value in profile.items():
+                setattr(member, key, value)
+            if "displayName" in changes:
+                member.display_name = payload.display_name
+            if current & ROLES != wanted & ROLES:
+                member.role = next((r for r in ROLE_PRIORITY if r in wanted), DEFAULT_ROLE)
+        if enabled is not None:
+            # 停用立即影响 PM 成员，同时结束目标账号在本系统的会话。
+            if member:
+                member.is_active = enabled
+            if enabled is False:
+                password_policy.end_sessions(db, subject)
+        if wanted != current:
+            _refresh_catalogue(
+                db, subject, wanted & {r["name"] for r in roles if r.get("isEnabled", True)}
+            )
+        _audit(
+            db,
+            actor,
+            "修改账号",
+            subject,
+            {
+                "username": name,
+                "fields": sorted([k for k in changes if k != "isForbidden"] + list(profile)),
+                "enabled": enabled,
+                "identity": [cur_identity, new_identity],
+                "platform_admin": [ADMIN_ROLE in current, ADMIN_ROLE in wanted],
+                "pm_roles": [sorted(current & PM_ROLES), sorted(wanted & PM_ROLES)],
+                "kb_roles": [sorted(current & KB_ROLES), sorted(wanted & KB_ROLES)],
+                "added_roles": sorted(wanted - current),
+                "removed_roles": sorted(current - wanted),
+            },
+        )
+        db.commit()
+    except SQLAlchemyError as exc:
+        db.rollback()
+        try:
+            _lock_mutations(db)
+            _undo_update(account, current, wanted, changes)
+        except Exception as undo:
+            log.exception("数据库保存失败且 IAM 补偿失败：%s", subject)
+            raise HTTPException(
+                409, "部分修改可能已保存，自动撤销失败，请刷新并联系管理员核对"
+            ) from undo
+        finally:
+            db.rollback()
+        raise HTTPException(409, "保存失败，已撤销本次 IAM 修改，请稍后重试") from exc
 
 
+@_serialized
 def rename(db: Session, actor: Actor, subject: str, new_name: str) -> None:
     _admin_only(actor)
     account = _target(subject)
@@ -533,6 +692,7 @@ def rename(db: Session, actor: Actor, subject: str, new_name: str) -> None:
         raise HTTPException(status.HTTP_409_CONFLICT, detail) from exc
 
 
+@_serialized
 def reset_password(db: Session, actor: Actor, subject: str, password: str) -> None:
     _admin_only(actor)
     account = _target(subject)
@@ -551,6 +711,7 @@ def reset_password(db: Session, actor: Actor, subject: str, password: str) -> No
     _commit(db)
 
 
+@_serialized
 def delete(db: Session, actor: Actor, subject: str) -> None:
     _admin_only(actor)
     account = _target(subject)
@@ -578,8 +739,9 @@ def delete(db: Session, actor: Actor, subject: str) -> None:
     _commit(db)
 
 
+@_serialized
 def repair(db: Session, actor: Actor, subject: str) -> None:
-    """「需要处理」中的修复：补开知识库（默认编辑），并建 / 绑定 / 启用项目管理成员。"""
+    """只修复密码标记及 PM 成员；知识库编辑权限必须显式选择后保存。"""
     _admin_only(actor)
     account = _target(subject)
     if account.get("isForbidden"):
@@ -589,7 +751,6 @@ def repair(db: Session, actor: Actor, subject: str) -> None:
     held = _memberships(roles, name, enabled_only=True)
     member = _ensure_member(db, account, _member_role(_identity(held & ROLES)))
     member.is_active = True
-    added = []
     migrated = bool(account.get("needUpdatePassword"))
     if migrated:
         password_policy.require_change(db, subject, "migrated")
@@ -599,18 +760,10 @@ def repair(db: Session, actor: Actor, subject: str) -> None:
         except IAMError as exc:
             db.rollback()
             raise _bad_request(exc) from exc
-    if not held & KB_ROLES:
-        _require_roles_exist({KB_DEFAULT}, roles)
-        try:
-            iam_admin.set_role_members(KB_DEFAULT, add={name})
-        except IAMError as exc:
-            db.rollback()
-            raise _bad_request(exc) from exc
-        added.append(KB_DEFAULT)
     detail = {
         "username": name,
         "member_id": member.id,
-        "added_roles": added,
+        "added_roles": [],
         "migrated_password_flag": migrated,
     }
     _audit(db, actor, "修复账号", subject, detail)

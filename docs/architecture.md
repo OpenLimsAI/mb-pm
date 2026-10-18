@@ -113,6 +113,10 @@ deploy/                 环境配置及历史发布材料
 门户「设置」（`/settings`）同样走门户会话：本人改用户名 / 密码（`/api/v1/portal/username`、`/password`）与 AI 设置（`/api/v1/portal/settings/ai*`，仅 admin / cmc_lead）；PM 不再有组织 / 设置页，`/api/v1/users` 只供团队与负责人选择。
 门户「账号管理」走门户会话：`/api/v1/portal/accounts` → `services/accounts.py` 实时读写 Casdoor（`services/iam_admin.py`），同一请求内同步 PM `users` / `iam_identities`；IAM 写入失败不改 PM，新建中途失败会撤销已建的 IAM 账号。PM 首次登录时由 `core/security.py` 按同一规则（`services/members.py`）自动建成员，`/api/v1/users` 只读。
 
+账号权限分为平台 `admin`、PM 业务角色、KB 角色三个范围，写入字段分别为 `platform_admin`、`pm_identity`、`kb_role`；PM 更新排除 `admin`，KB 只接受编辑授权。仅调整 KB、平台身份或公共资料时不会创建 PM 档案。账号管理写操作使用 PostgreSQL 事务 advisory lock（按组织）或 SQLite `BEGIN IMMEDIATE`，在多个进程间串行读改写 IAM 角色成员；成功后回读校验，中途失败尝试撤销本次 IAM 资料与角色变化，补偿失败显式报错。
+
+账号管理保存角色后，在目标用户已有门户会话的加密元数据中更新 `catalogue_roles`，`/portal/me` 仅用它刷新入口目录。它不改变已签发令牌，也不用于 PM、KB 或账号管理操作授权；这些仍由 IAM 及应用后端校验。独立 KB 的旧会话无法由 mb-pm 清除，实际权限变化须重新登录相应应用并单独验收。
+
 ## 业务数据与计算
 
 - 数据模型以用户、项目、项目成员、子项目、任务、依赖、模板、财务及基线为主。

@@ -1,17 +1,18 @@
 // 账号管理的对话框（仅系统管理员）：新建账号、编辑账号（资料与身份 / 用户名 / 重置密码 / 停用与删除 四页）、
-// 开通说明（密码只显示这一次）。项目管理、知识库默认对所有人开放，这里只设身份与成员档案。
+// 开通说明（密码只显示这一次）。平台身份与 PM / KB 权限分别维护；KB 只允许授予编辑。
 import { useEffect, useId, useState, type ReactNode } from 'react'
 import { AlertTriangle, Check, Copy, Eye, EyeOff, Loader2, Power, RefreshCw, Trash2, X } from 'lucide-react'
 import { Button } from '../ui'
 import { cn } from '../../lib/cn'
 import { accountError, normalizeUsername, passwordProblem, PASSWORD_HINT, usernameProblem, USERNAME_HINT } from '../../lib/account'
-import { credentialText, generatePassword, IDENTITY_OPTIONS, IDENTITY_ROLE, specialtyGroups } from '../../lib/accountAdmin'
+import { credentialText, generatePassword, legacyPMNote, specialtyGroups } from '../../lib/accountAdmin'
 import { portalPublicUrl } from '../../lib/site'
 import {
   createAccount, deleteAccount, renameAccount, resetAccountPassword, updateAccount,
-  type Account, type AccountUpdateInput, type Identity,
+  type Account, type AccountUpdateInput,
 } from '../../api/accounts'
 import type { SpecialtyGroup } from '../../types'
+import { AccountPermissions, type PermissionValue } from './AccountPermissions'
 
 const ORG_ADMIN_TIP = '该账号是 IAM 组织管理员，只能在 IAM 管理台操作。'
 
@@ -32,7 +33,7 @@ function Modal({ title, onClose, busy, wide, tabs, children }: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <div className="absolute inset-0 bg-black/40" onClick={() => !busy && onClose()} />
-      <div className={cn('relative w-full max-h-[92vh] bg-white rounded-xl shadow-2xl flex flex-col', wide ? 'max-w-[620px]' : 'max-w-[460px]')}>
+      <div className={cn('relative w-full max-h-[92vh] bg-white rounded-xl shadow-2xl flex flex-col', wide ? 'max-w-[900px]' : 'max-w-[460px]')}>
         <div className="flex items-center gap-2 px-5 pt-4 pb-3">
           <h2 id={titleId} className="text-base font-semibold text-ink-900 flex-1 min-w-0 truncate">{title}</h2>
           <button onClick={onClose} disabled={busy} className="p-1.5 rounded-md hover:bg-ink-100 text-ink-500" aria-label="关闭">
@@ -115,40 +116,6 @@ function PasswordPair({ label, hint, value, onChange }: {
 
 // —— 身份与成员档案 —— //
 
-const missing = (role: string) => `当前 IAM 里还没有 ${role} 角色`
-
-function IdentityField({ value, onChange, available, locked }: {
-  value: Identity
-  onChange: (v: Identity) => void
-  available: string[]
-  locked?: boolean
-}) {
-  const current = IDENTITY_OPTIONS.find((o) => o.value === value) ?? IDENTITY_OPTIONS[0]
-  const has = (v: Identity) => IDENTITY_ROLE[v] === null || available.includes(IDENTITY_ROLE[v] as string)
-  return (
-    <div>
-      <span className="block text-xs text-ink-500">身份</span>
-      <div className="mt-1 grid sm:grid-cols-3 gap-2" role="radiogroup" aria-label="身份">
-        {IDENTITY_OPTIONS.map((o) => {
-          const selected = value === o.value
-          return (
-            <button key={o.value} type="button" role="radio" aria-checked={selected}
-              disabled={locked ? !selected : !has(o.value)} title={has(o.value) ? undefined : missing(IDENTITY_ROLE[o.value] ?? '')}
-              onClick={() => onChange(o.value)}
-              className={cn('rounded-md border px-3 py-2 text-left text-sm disabled:opacity-40 disabled:cursor-not-allowed',
-                selected ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-ink-300 bg-white text-ink-700 hover:bg-ink-100')}>
-              {o.label}
-            </button>
-          )
-        })}
-      </div>
-      <span className={cn('block text-[11px] mt-1', value === 'admin' ? 'text-amber-700' : 'text-ink-500')}>
-        {locked ? '不能取消自己的系统管理员身份。' : current.hint}</span>
-      <span className="block text-[11px] text-ink-500 mt-1">项目管理和知识库（编辑）默认对所有人开放。</span>
-    </div>
-  )
-}
-
 interface Profile { specialtyGroup: SpecialtyGroup | ''; weeklyHours: string }
 
 const hoursProblem = (hours: string) => {
@@ -191,14 +158,14 @@ export function CreateAccountDialog({ preset, available, onClose, onCreated }: {
   const [username, setUsername] = useState(preset?.username ?? '')
   const [password, setPassword] = useState<PasswordPairValue>({ password: '', confirm: '' })
   const [email, setEmail] = useState('')
-  const [identity, setIdentity] = useState<Identity>('staff')
+  const [permissions, setPermissions] = useState<PermissionValue>({ platformAdmin: false, pmIdentity: 'staff', kbRole: 'editor' })
   const [profile, setProfile] = useState<Profile>({ specialtyGroup: '', weeklyHours: '40' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const userProblem = username ? usernameProblem(username) : null
   const ready = !!displayName.trim() && !nameProblemOf(displayName) && !emailProblemOf(email) && !!username && !userProblem
-    && passwordReady(password) && !hoursProblem(profile.weeklyHours)
+    && passwordReady(password) && !hoursProblem(profile.weeklyHours) && available.includes('kb_editor')
 
   const submit = async () => {
     if (!ready || saving) return
@@ -208,7 +175,8 @@ export function CreateAccountDialog({ preset, available, onClose, onCreated }: {
       const name = normalizeUsername(username)
       await createAccount({
         username: name, displayName: displayName.trim(), password: password.password, email: email.trim() || undefined,
-        identity, specialtyGroup: profile.specialtyGroup || null, weeklyHours: Number(profile.weeklyHours),
+        platformAdmin: permissions.platformAdmin, pmIdentity: permissions.pmIdentity, kbRole: 'editor',
+        specialtyGroup: profile.specialtyGroup || null, weeklyHours: Number(profile.weeklyHours),
       })
       onCreated({ kind: 'created', displayName: displayName.trim(), username: name, password: password.password })
     } catch (e) {
@@ -233,8 +201,9 @@ export function CreateAccountDialog({ preset, available, onClose, onCreated }: {
         <FieldLabel label="邮箱（选填）" error={emailProblemOf(email)} hint="可用于找回密码；不填也能正常登录。">
           <input className={cn('input mt-1', emailProblemOf(email) && 'border-red-400')} type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={120} />
         </FieldLabel>
-        <IdentityField value={identity} onChange={setIdentity} available={available} />
-        <ProfileFields value={profile} onChange={setProfile} />
+        <AccountPermissions value={permissions} onChange={setPermissions} available={available} disabled={saving}>
+          <ProfileFields value={profile} onChange={setProfile} />
+        </AccountPermissions>
         <ErrorLine message={error} />
       </Body>
       <Footer>
@@ -285,12 +254,20 @@ export function AccountDialog({ account, initialTab = 'profile', available, onCl
 }) {
   const [tab, setTab] = useState<AccountTab>(initialTab)
   const [busy, setBusy] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  const [pending, setPending] = useState<AccountTab | 'close' | null>(null)
+  const navigate = (target: AccountTab | 'close') => {
+    if (dirty) setPending(target)
+    else if (target === 'close') onClose()
+    else setTab(target)
+  }
+  const close = () => navigate('close')
   const blocked = blockedReason(tab, account)
-  const panel: PanelProps = { account, busy, setBusy, onClose }
+  const panel: PanelProps = { account, busy, setBusy, onClose: close }
   const tabs = (
     <div className="px-5 border-b border-ink-300/40 flex gap-5 overflow-x-auto" role="tablist" aria-label="编辑内容">
       {TABS.map((t) => (
-        <button key={t.id} role="tab" aria-selected={tab === t.id} disabled={busy} onClick={() => setTab(t.id)}
+        <button key={t.id} role="tab" aria-selected={tab === t.id} disabled={busy} onClick={() => { if (tab !== t.id) navigate(t.id) }}
           className={cn('py-2.5 text-sm whitespace-nowrap border-b-2 -mb-px', tab === t.id ? 'border-brand-600 text-brand-700 font-medium' : 'border-transparent text-ink-500 hover:text-ink-900')}>
           {t.label}
         </button>
@@ -298,15 +275,24 @@ export function AccountDialog({ account, initialTab = 'profile', available, onCl
     </div>
   )
   return (
-    <Modal title={`编辑账号 · ${account.displayName}（${account.username}）`} onClose={onClose} busy={busy} wide tabs={tabs}>
+    <Modal title={`编辑账号 · ${account.displayName}（${account.username}）`} onClose={close} busy={busy} wide tabs={tabs}>
       {blocked ? <>
         <Body><Notice>{blocked}</Notice></Body>
         <Footer><Button onClick={onClose}>关闭</Button></Footer>
       </>
-        : tab === 'profile' ? <ProfilePanel {...panel} available={available} onSaved={onSaved} />
+        : tab === 'profile' ? <ProfilePanel {...panel} available={available} onSaved={onSaved} onDirtyChange={setDirty} />
           : tab === 'username' ? <UsernamePanel {...panel} onSaved={onSaved} />
             : tab === 'password' ? <PasswordPanel {...panel} onDone={onPasswordReset} />
               : <StatusPanel {...panel} onSaved={onSaved} />}
+      {pending && <div role="alertdialog" aria-label="放弃未保存的修改" className="absolute inset-0 z-10 rounded-xl bg-white/95 flex items-center justify-center p-6">
+        <div className="space-y-4 max-w-sm"><h3 className="font-semibold">放弃未保存的修改？</h3><p className="text-sm text-ink-600">本次资料与权限调整尚未保存。</p>
+          <div className="flex gap-3 justify-end"><Button onClick={() => setPending(null)}>继续编辑</Button><Button variant="danger" onClick={() => {
+            setDirty(false); setPending(null)
+            if (pending === 'close') onClose()
+            else setTab(pending)
+          }}>放弃修改</Button></div>
+        </div>
+      </div>}
     </Modal>
   )
 }
@@ -326,10 +312,10 @@ function useSubmit(setBusy: (busy: boolean) => void) {
   return { error, run }
 }
 
-function ProfilePanel({ account, busy, setBusy, onClose, available, onSaved }: PanelProps & { available: string[]; onSaved: (m: string) => void }) {
+function ProfilePanel({ account, busy, setBusy, onClose, available, onSaved, onDirtyChange }: PanelProps & { available: string[]; onSaved: (m: string) => void; onDirtyChange: (dirty: boolean) => void }) {
   const [displayName, setDisplayName] = useState(account.displayName)
   const [email, setEmail] = useState(account.email)
-  const [identity, setIdentity] = useState<Identity>(account.identity)
+  const [permissions, setPermissions] = useState<PermissionValue>({ platformAdmin: account.platformAdmin, pmIdentity: account.pmIdentity, kbRole: account.kbRole })
   const [profile, setProfile] = useState<Profile>({
     specialtyGroup: account.pmMember?.specialtyGroup ?? '',
     weeklyHours: String(account.pmMember?.weeklyHours ?? 40),
@@ -340,15 +326,18 @@ function ProfilePanel({ account, busy, setBusy, onClose, available, onSaved }: P
   const changes: AccountUpdateInput = {}
   if (displayName.trim() !== account.displayName) changes.displayName = displayName.trim()
   if (email.trim() !== account.email) changes.email = email.trim()
-  if (identity !== account.identity) changes.identity = identity
+  if (permissions.platformAdmin !== account.platformAdmin) changes.platformAdmin = permissions.platformAdmin
+  if (permissions.pmIdentity !== account.pmIdentity) changes.pmIdentity = permissions.pmIdentity
+  if (permissions.kbRole !== account.kbRole && permissions.kbRole === 'editor') changes.kbRole = 'editor'
   if (profile.specialtyGroup !== (account.pmMember?.specialtyGroup ?? '')) changes.specialtyGroup = profile.specialtyGroup
   if (Number(profile.weeklyHours) !== (account.pmMember?.weeklyHours ?? 40)) changes.weeklyHours = Number(profile.weeklyHours)
   const dirty = Object.keys(changes).length > 0
+  useEffect(() => { onDirtyChange(dirty) }, [dirty, onDirtyChange])
 
   const submit = () => run(async () => {
     await updateAccount(account.id, changes)
     const name = displayName.trim()
-    onSaved('identity' in changes ? `已保存 ${name} 的修改；身份变更在对方重新登录后生效。` : `已保存 ${name} 的修改。`)
+    onSaved('platformAdmin' in changes || 'pmIdentity' in changes || 'kbRole' in changes ? `已保存 ${name} 的修改；权限调整后请重新登录相应应用。` : `已保存 ${name} 的修改。`)
   })
 
   return <>
@@ -361,8 +350,16 @@ function ProfilePanel({ account, busy, setBusy, onClose, available, onSaved }: P
           <input className={cn('input mt-1', emailProblemOf(email) && 'border-red-400')} type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={120} />
         </FieldLabel>
       </div>
-      <IdentityField value={identity} onChange={setIdentity} available={available} locked={account.isSelf && account.identity === 'admin'} />
-      <ProfileFields value={profile} onChange={setProfile} />
+      <AccountPermissions value={permissions} onChange={setPermissions} available={available} locked={account.isSelf && account.platformAdmin} disabled={busy} pmRoleNote={legacyPMNote(account)}>
+        <ProfileFields value={profile} onChange={setProfile} />
+      </AccountPermissions>
+      {dirty && <div role="status" className="text-xs text-ink-600 space-y-1">
+        <p>待保存 {Object.keys(changes).length} 项修改</p>
+        {'platformAdmin' in changes && <p>平台身份：{account.platformAdmin ? '系统管理员' : '普通成员'} → {permissions.platformAdmin ? '系统管理员' : '普通成员'}</p>}
+        {'platformAdmin' in changes && !permissions.platformAdmin && <p>取消管理员后，项目管理回落为{permissions.pmIdentity === 'lead' ? '项目负责人' : '员工'}。</p>}
+        {'pmIdentity' in changes && <p>项目管理：{account.pmIdentity === 'lead' ? '项目负责人' : '员工'} → {permissions.pmIdentity === 'lead' ? '项目负责人（全部项目）' : '员工'}</p>}
+        {'kbRole' in changes && <p>知识库：{account.kbRole === 'viewer' ? '仅阅读' : '待分配'} → 可编辑</p>}
+      </div>}
       <ErrorLine message={error} />
     </Body>
     <Footer>

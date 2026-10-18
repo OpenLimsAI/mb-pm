@@ -3,10 +3,10 @@
 路由（门户会话；写操作要求门户 Origin）：
     GET    /api/v1/portal/accounts                       账号列表 + 需要处理的问题
     POST   /api/v1/portal/accounts                       新建账号（首次登录须改密码）并分配权限
-    PATCH  /api/v1/portal/accounts/{id}                  改姓名 / 邮箱 / 身份 / 专业组 / 周工时 / 启用状态
+    PATCH  /api/v1/portal/accounts/{id}                  改资料 / 平台身份 / PM 业务角色 / KB 编辑授权 / 启用状态
     POST   /api/v1/portal/accounts/{id}/username         改用户名（项目管理成员同步）
     POST   /api/v1/portal/accounts/{id}/password         重置密码（首次登录须改密码）
-    POST   /api/v1/portal/accounts/{id}/repair           修复：补开知识库，建 / 绑定 / 启用项目管理成员
+    POST   /api/v1/portal/accounts/{id}/repair           修复密码标记及 PM 成员，不授予知识库权限
     DELETE /api/v1/portal/accounts/{id}                  删除 IAM 账号（项目管理成员只停用）
 
 {id} 为 IAM 用户 ID（sub）。每次请求都向 IAM 实时核对调用者的身份，规则见 services/accounts.py。

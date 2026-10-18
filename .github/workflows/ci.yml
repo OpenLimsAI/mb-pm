@@ -30,6 +30,10 @@ jobs:
           node-version: '20'
           cache: npm
       - run: npm ci
+      - name: 账号权限模块测试与逐文件 90% 覆盖率
+        run: npm run test:coverage
+      - name: 门户路由回归
+        run: node scripts/test-portal-routing.mjs
       - name: 构建（tsc -b 类型检查 + vite build）
         run: npm run build
 
@@ -78,7 +82,7 @@ jobs:
         run: pip install -r requirements-dev.txt
       - name: pytest
         working-directory: backend
-        run: python -m pytest tests/ -v
+        run: python -m pytest tests/ -v --cov=app.services.accounts --cov=app.schemas.accounts --cov=app.api.v1.accounts --cov=app.api.v1.portal --cov-branch --cov-fail-under=90 --cov-report=term-missing --cov-report=json:coverage.json
 
   # ───────── 硬护栏 4：Docker 镜像可构建 ─────────
   docker:

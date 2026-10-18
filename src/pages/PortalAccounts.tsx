@@ -13,7 +13,7 @@ import {
 } from '../components/accounts/AccountDialogs'
 import { fetchAccounts, repairAccount, type Account, type AccountIssue, type ActorTier } from '../api/accounts'
 import { accountError } from '../lib/account'
-import { identityLabel } from '../lib/accountAdmin'
+import { kbRoleLabel, legacyPMNote, pmIdentityLabel } from '../lib/accountAdmin'
 import { cn } from '../lib/cn'
 
 type Filter = 'all' | 'disabled'
@@ -93,6 +93,7 @@ function AccountsAdmin() {
     const account = issue.accountId ? byId.get(issue.accountId) : undefined
     if (issue.kind === 'pm_only_member') return setDialog({ kind: 'create', preset: { username: issue.username, displayName: issue.displayName } })
     if (!account) return
+    if (issue.kind === 'kb_missing') return setDialog({ kind: 'edit', account, tab: 'profile' })
     if (issue.kind === 'default_account') return setDialog({ kind: 'edit', account, tab: 'status' })
     setFixing(account.id)
     try {
@@ -112,7 +113,7 @@ function AccountsAdmin() {
         <div className="workspace-section-label">ACCOUNT ADMIN</div>
         <h1>账号管理</h1>
         <p>{actor === 'admin'
-          ? '全公司账号与组织成员都在这里维护：账号保存在迈博 IAM，这里的修改直接写入 IAM，与 IAM 管理台看到的一致。项目管理和知识库默认对所有人开放，身份只决定项目管理里的重要编辑（编辑项目、删除项目等）。'
+          ? '统一维护组织账号：平台管理身份、项目管理业务角色与知识库权限分别设置，修改直接保存到迈博 IAM。系统管理员继承项目管理全部权限；知识库当前只开放编辑授权。'
           : '你可以查看全体成员；新建账号、修改身份等请联系系统管理员。'}</p>
       </div>
 
@@ -163,7 +164,7 @@ function PreviewNote() {
 function IssuesPanel({ issues, fixing, onFix }: { issues: AccountIssue[]; fixing: string | null; onFix: (issue: AccountIssue) => void }) {
   const action: Record<AccountIssue['kind'], { label: string; icon: typeof Wrench } | null> = {
     iam_password_flag: { label: '修复', icon: Wrench },
-    kb_missing: { label: '修复', icon: Wrench },
+    kb_missing: { label: '分配知识库编辑权限', icon: Pencil },
     pm_member_inactive: { label: '修复', icon: Wrench },
     default_account: { label: '删除', icon: Trash2 },
     pm_only_member: { label: '新建账号', icon: UserPlus },
@@ -201,11 +202,13 @@ const Dash = () => <span className="text-ink-500/60">—</span>
 function AccountTable({ accounts, actor, onEdit }: { accounts: Account[]; actor: ActorTier; onEdit: (account: Account) => void }) {
   if (accounts.length === 0) return <div className="p-10 text-center text-sm text-ink-500">没有符合条件的账号。</div>
   return (
-    <table className="w-full min-w-[760px] text-sm">
+    <table className="w-full min-w-[1040px] text-sm">
       <thead>
         <tr className="text-left text-xs text-ink-500 border-b border-[#e6edf2]">
           <th className="font-medium px-4 py-2.5">姓名 / 用户名</th>
-          <th className="font-medium px-3 py-2.5">身份</th>
+          <th className="font-medium px-3 py-2.5">平台身份</th>
+          <th className="font-medium px-3 py-2.5">项目管理</th>
+          <th className="font-medium px-3 py-2.5">知识库</th>
           <th className="font-medium px-3 py-2.5">专业组</th>
           <th className="font-medium px-3 py-2.5 text-right">周工时</th>
           <th className="font-medium px-3 py-2.5">状态</th>
@@ -231,8 +234,14 @@ function AccountTable({ accounts, actor, onEdit }: { accounts: Account[]; actor:
               </div>
             </td>
             <td className="px-3 py-3">
-              {/* 身份标签等宽居中：「员工」与「项目负责人」字数不同，列内保持齐整 */}
-              <Tag tone={a.identity === 'admin' ? 'purple' : a.identity === 'lead' ? 'blue' : 'gray'} className="w-[5.25rem] justify-center">{identityLabel(a.identity)}</Tag>
+              <Tag tone={a.platformAdmin ? 'purple' : 'gray'} className="whitespace-nowrap">{a.platformAdmin ? '系统管理员' : '普通成员'}</Tag>
+            </td>
+            <td className="px-3 py-3">
+              <Tag tone={a.platformAdmin || a.pmIdentity === 'lead' ? 'blue' : 'gray'} className="whitespace-nowrap">{a.platformAdmin ? '全部权限' : pmIdentityLabel(a.pmIdentity)}</Tag>
+              {a.platformAdmin ? <p className="text-xs text-ink-500 mt-1">继承平台身份</p> : legacyPMNote(a) && <p className="text-xs text-ink-500 mt-1">{legacyPMNote(a)}</p>}
+            </td>
+            <td className="px-3 py-3">
+              <Tag tone={a.kbRole === 'editor' ? 'green' : a.kbRole === 'viewer' ? 'gray' : 'yellow'} className="whitespace-nowrap">{kbRoleLabel(a.kbRole)}</Tag>
             </td>
             <td className="px-3 py-3 text-ink-700">{a.pmMember?.specialtyGroup || <Dash />}</td>
             <td className="px-3 py-3 text-right tabular-nums text-ink-700">{a.pmMember ? `${a.pmMember.weeklyHours}h` : <Dash />}</td>
