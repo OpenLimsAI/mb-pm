@@ -208,12 +208,12 @@ def test_failed_generation_does_not_save_and_scope_enforced(
     endpoint = f"/api/v1/projects/{project}/ai-analyses"
     assert client.post(endpoint, headers=auth_headers, json={}).status_code == 502
     assert client.get(endpoint, headers=auth_headers).json() == []
-    # 与该项目无关的项目负责人（经 IAM 绑定）：看不到、也不能分析该项目，更不能改 AI 设置
+    # 与该项目无关的项目负责人（经 IAM 绑定）：看不到、也不能分析该项目；项目负责人仍可配置共享 AI 服务
     uid = iam_user(uuid4().hex[:20], "project_lead")
     other = bearer(uid, "project_lead")
     assert client.get(endpoint, headers=other).status_code == 404
     assert client.post(endpoint, headers=other, json={}).status_code == 404
-    assert client.get("/api/v1/ai/settings", headers=other).status_code == 403
+    assert client.get("/api/v1/ai/settings", headers=other).status_code == 200
 
 
 def test_fallback_only_for_network_errors(monkeypatch):
@@ -356,7 +356,7 @@ def test_startup_adds_prompt_column_to_existing_table(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "role,allowed", [("admin", True), ("cmc_lead", True), ("project_lead", False), ("rd", False)]
+    "role,allowed", [("admin", True), ("cmc_lead", True), ("project_lead", True), ("rd", False)]
 )
 def test_pm_ai_configuration_role_boundary(client, iam_user, bearer, role, allowed):
     # users.id 最多 20 字符；PostgreSQL 会执行长度约束，SQLite 不会。
@@ -431,3 +431,35 @@ def test_pm_ai_settings_cookie_requires_pm_origin(client, admin_user, token_fact
     )
     assert response.status_code == 200
     assert "test-secret-not-real" not in response.text
+
+
+@pytest.mark.parametrize("role", ["rd", "production", "qa_qc"])
+def test_project_members_have_no_ai_endpoints(client, iam_user, bearer, role):
+    user = iam_user("no-ai-" + role, role)
+    headers = bearer(user, role)
+    for method, endpoint, payload in [
+        ("GET", "/api/v1/ai/settings", None),
+        ("GET", "/api/v1/ai/status", None),
+        ("PUT", "/api/v1/ai/settings", config_payload()),
+        ("POST", "/api/v1/ai/models", {}),
+        ("POST", "/api/v1/ai/test", {}),
+        ("GET", "/api/v1/projects/hidden/ai-analyses", None),
+        ("POST", "/api/v1/projects/hidden/ai-analyses", {}),
+        ("GET", "/api/v1/finances/ai-analyses", None),
+        ("POST", "/api/v1/finances/ai-analyses", {}),
+    ]:
+        response = client.request(method, endpoint, headers=headers, json=payload)
+        assert response.status_code == 403, (role, endpoint, response.text)
+
+
+def test_revoked_project_lead_cannot_use_ai_with_old_token(client, iam_user, bearer, monkeypatch):
+    from app.services import iam_admin
+
+    user = iam_user("revoked-ai-lead", "cmc_lead")
+    monkeypatch.setattr(iam_admin, "get_user_by_sub", lambda sub: {"roles": []})
+    for endpoint in [
+        "/api/v1/ai/status",
+        "/api/v1/projects/hidden/ai-analyses",
+        "/api/v1/finances/ai-analyses",
+    ]:
+        assert client.get(endpoint, headers=bearer(user, "cmc_lead")).status_code == 403

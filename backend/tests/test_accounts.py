@@ -1241,3 +1241,40 @@ def test_delete_clears_flag_and_sessions(client, casdoor, admin, token_factory):
     sid = open_portal_session(token_factory, sub, name)
     assert client.delete(f"{URL}/{sub}", headers=headers).status_code == 204
     assert not flagged(sub) and fetch(PortalSession, id=security.digest(sid)) is None
+
+
+def test_knowledge_manager_is_an_independent_application_role(client, casdoor, admin):
+    _, _, headers = admin()
+    name = uid("kb-owner")
+    sub = casdoor.add(name, "rd", "kb_viewer", "dikw-admin")
+    casdoor.roles["kb_manager"] = {
+        "owner": settings.CASDOOR_ORG,
+        "name": "kb_manager",
+        "isEnabled": True,
+        "users": [],
+    }
+    response = client.patch(f"{URL}/{sub}", json={"kb_role": "manager"}, headers=headers)
+    assert response.status_code == 204, response.text
+    assert casdoor.roles_of(name) == ["dikw-admin", "kb_manager", "rd"]
+    accounts, _ = listing(client, headers)
+    assert accounts[name]["kb_role"] == "manager"
+    assert accounts[name]["kb_enabled"] is True
+    assert accounts[name]["pm_identity"] == "staff"
+    assert accounts[name]["platform_admin"] is False
+    response = client.patch(f"{URL}/{sub}", json={"kb_role": "editor"}, headers=headers)
+    assert response.status_code == 204
+    assert casdoor.roles_of(name) == ["dikw-admin", "kb_editor", "rd"]
+
+
+def test_create_knowledge_manager_does_not_grant_platform_or_project_lead(client, casdoor, admin):
+    _, _, headers = admin()
+    casdoor.roles["kb_manager"] = {
+        "owner": settings.CASDOOR_ORG,
+        "name": "kb_manager",
+        "isEnabled": True,
+        "users": [],
+    }
+    payload = new_account(kb_role="manager")
+    response = client.post(URL, json=payload, headers=headers)
+    assert response.status_code == 204, response.text
+    assert casdoor.roles_of(payload["username"]) == ["kb_manager"]

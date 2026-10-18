@@ -51,7 +51,7 @@ const M: Record<PermKey, Role[]> = {
   // QA/QC 专属审核权
   'deviation.review':     ['admin', 'cmc_lead', 'qa_qc'],
   'batch.release':        ['admin', 'qa_qc'],
-  'ai.config':            ['admin', 'cmc_lead'],
+  'ai.config':            ['admin', 'cmc_lead', 'project_lead'],
   'ai.analyze':           ['admin', 'cmc_lead', 'project_lead'],
   'ai.finance':           ['admin', 'cmc_lead'],
 }
@@ -65,7 +65,7 @@ export const roleLabels: Record<Role, string> = {
   admin: '系统管理员',
   cmc_lead: '项目负责人',
   project_lead: '项目负责人（本人项目）',
-  rd: '员工',
+  rd: '项目成员',
   production: '生产支持',
   qa_qc: 'QA/QC',
 }

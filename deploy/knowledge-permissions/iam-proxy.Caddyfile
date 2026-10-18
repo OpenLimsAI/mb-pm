@@ -1,0 +1,56 @@
+{
+ admin off
+ auto_https disable_redirects
+ skip_install_trust
+ pki {
+  ca local {
+   name "maibo iam-proxy local CA"
+  }
+ }
+}
+
+iam.openlims.ai {
+ tls internal
+ @oidc path /.well-known/openid-configuration /.well-known/jwks /api/login/oauth/access_token /api/userinfo /api/login/oauth/introspect
+ handle @oidc {
+  reverse_proxy casdoor:8000 {
+   header_up Host iam.openlims.ai
+  }
+ }
+ # Knowledge owners are resolved server-side using the application's existing
+ # credentials. Keep every other Casdoor API/UI route inaccessible here.
+ @knowledge_roles {
+  method GET
+  path /api/get-user
+  query owner=mabpharm
+  header Authorization "Basic *"
+ }
+ handle @knowledge_roles {
+  header Cache-Control "no-store"
+  reverse_proxy casdoor:8000 {
+   header_up Host iam.openlims.ai
+  }
+ }
+ handle {
+  respond 404
+ }
+ log {
+  format filter {
+   wrap json
+   fields {
+    request>headers>Authorization delete
+   }
+  }
+ }
+}
+
+:8080 {
+ bind 127.0.0.1
+ handle /healthz {
+  rewrite * /.well-known/openid-configuration
+  reverse_proxy casdoor:8000
+ }
+ handle {
+  respond 404
+ }
+}

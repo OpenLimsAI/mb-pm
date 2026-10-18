@@ -16,7 +16,7 @@ CATEGORIES = ("人力", "设备", "原材料", "外部服务", "其他")
 
 
 @pytest.fixture(autouse=True)
-def isolated_ai_settings(tmp_path, monkeypatch):
+def isolated_ai_settings(tmp_path, monkeypatch, live_ai_roles):
     monkeypatch.setattr(settings, "AI_SETTINGS_PATH", str(tmp_path / "ai.json"))
 
 

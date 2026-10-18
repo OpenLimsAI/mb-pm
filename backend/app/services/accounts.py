@@ -52,8 +52,9 @@ ADMIN_ROLE = "admin"
 PM_ROLES = ROLES - {ADMIN_ROLE}
 LEAD_ROLES = {"cmc_lead", "project_lead"}
 IDENTITY_ROLE = {"admin": ADMIN_ROLE, "lead": "cmc_lead"}
-KB_ROLES = {"kb_viewer", "kb_editor"}
+KB_ROLES = {"kb_manager", "kb_viewer", "kb_editor"}
 KB_DEFAULT = "kb_editor"
+KB_ROLE_MAPPING = {"manager": "kb_manager", "editor": "kb_editor"}
 MANAGED_ROLES = ROLES | KB_ROLES
 SELF_PASSWORD_HINT = "修改自己的密码请到工作台「我的设置」"
 ORG_ADMIN_HINT = "该账号是 IAM 组织管理员，只能在 IAM 管理台{}"
@@ -249,7 +250,9 @@ def snapshot(db: Session, actor: Actor) -> AccountsOut:
                 platform_admin=ADMIN_ROLE in held,
                 pm_identity="lead" if held & LEAD_ROLES else "staff",
                 pm_effective_role=next((r for r in ROLE_PRIORITY if r in held), DEFAULT_ROLE),
-                kb_role="editor"
+                kb_role="manager"
+                if "kb_manager" in held
+                else "editor"
                 if "kb_editor" in held
                 else "viewer"
                 if "kb_viewer" in held
@@ -385,7 +388,7 @@ def create(db: Session, actor: Actor, payload: AccountCreate) -> None:
         raise HTTPException(
             status.HTTP_409_CONFLICT, f"项目管理成员 {name} 已关联其他 IAM 账号，请换一个用户名"
         )
-    roles = {KB_DEFAULT}
+    roles = {KB_ROLE_MAPPING[payload.kb_role]}
     if payload.platform_admin:
         roles.add(ADMIN_ROLE)
     if payload.pm_identity == "lead":
@@ -535,8 +538,11 @@ def update(db: Session, actor: Actor, subject: str, payload: AccountUpdate) -> N
         new_identity = _identity(wanted & ROLES)
     if payload.kb_role is not None:
         wanted -= KB_ROLES
-        wanted.add(KB_DEFAULT)
-    _require_roles_exist((wanted - current) | ({KB_DEFAULT} if payload.kb_role else set()), roles)
+        wanted.add(KB_ROLE_MAPPING[payload.kb_role])
+    _require_roles_exist(
+        (wanted - current) | ({KB_ROLE_MAPPING[payload.kb_role]} if payload.kb_role else set()),
+        roles,
+    )
 
     enabled = payload.enabled
     if is_self and cur_identity == "admin" and new_identity != "admin":

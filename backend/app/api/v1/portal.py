@@ -109,7 +109,7 @@ def session_data(request: Request, db: Session) -> dict:
 
 
 # 工作台「设置 › AI 分析」可修改的角色（与项目管理 ai.config 一致）
-AI_MANAGERS = ("admin", "cmc_lead")
+AI_MANAGERS = ("admin", "cmc_lead", "project_lead")
 
 
 def enabled_roles(claims: dict) -> set[str]:
@@ -147,7 +147,7 @@ def applications(claims: dict, db: Session) -> list[PortalApplicationOut]:
             pm_reason = "项目管理中已有同名成员，请联系系统管理员核对"
         elif user and not user.is_active:
             pm_reason = "项目管理账号已停用，请联系系统管理员"
-    kb_enabled = bool(roles & {"kb_viewer", "kb_editor"})
+    kb_enabled = bool(roles & {"kb_manager", "kb_viewer", "kb_editor"})
     managers = bool(roles & {"admin", "cmc_lead", "project_lead"})
     # KB 原生应用仍是最终权限边界。没有明确 KB 角色时，不猜测默认阅读授权。
     return [

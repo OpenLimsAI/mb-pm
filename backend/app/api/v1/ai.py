@@ -21,19 +21,37 @@ Analyst = Annotated[User, Depends(analyst)]
 Database = Annotated[Session, Depends(get_db)]
 
 
-def configuration_manager(user: Manager, db: Database) -> User:
+def configuration_manager(user: Analyst, db: Database) -> User:
     # 从门户移回 PM 后仍实时核对 IAM：旧令牌里的管理角色不能继续修改模型服务地址和密钥。
     identity = (
         db.query(IAMIdentity)
         .filter_by(issuer=settings.casdoor_issuer, user_id=user.id)
         .one_or_none()
     )
-    if identity is None or not accounts.live_roles(identity.subject) & {"admin", "cmc_lead"}:
-        raise HTTPException(403, "仅系统管理员和项目负责人可修改 AI 设置")
+    if identity is None or not accounts.live_roles(identity.subject) & {
+        "admin",
+        "cmc_lead",
+        "project_lead",
+    }:
+        raise HTTPException(403, "仅系统管理员和项目负责人可使用 AI 功能")
     return user
 
 
 ConfigurationManager = Annotated[User, Depends(configuration_manager)]
+
+
+def finance_manager(user: Manager, db: Database) -> User:
+    identity = (
+        db.query(IAMIdentity)
+        .filter_by(issuer=settings.casdoor_issuer, user_id=user.id)
+        .one_or_none()
+    )
+    if identity is None or not accounts.live_roles(identity.subject) & {"admin", "cmc_lead"}:
+        raise HTTPException(403, "仅系统管理员和管理全部项目的项目负责人可使用组合财务 AI")
+    return user
+
+
+FinanceManager = Annotated[User, Depends(finance_manager)]
 
 
 def accessible_project(project_id: str, user: User, db: Session) -> Project:
@@ -81,7 +99,7 @@ def put_settings(body: AISettingsInput, user: ConfigurationManager):
 
 
 @router.get("/ai/status")
-def get_status(user: Analyst):
+def get_status(user: ConfigurationManager):
     cfg = ai.load_settings()
     selected = cfg["providers"][cfg["provider"]]
     return {
@@ -107,7 +125,7 @@ def test(body: ConnectionInput, user: ConfigurationManager):
 
 
 @router.get("/projects/{project_id}/ai-analyses")
-def history(project_id: str, user: Analyst, db: Database):
+def history(project_id: str, user: ConfigurationManager, db: Database):
     project = accessible_project(project_id, user, db)
     _, source = ai.project_context(db, project)
     rows = db.scalars(
@@ -123,7 +141,7 @@ def history(project_id: str, user: Analyst, db: Database):
 
 
 @router.post("/projects/{project_id}/ai-analyses", status_code=201)
-def generate(project_id: str, body: AnalysisInput, user: Analyst, db: Database):
+def generate(project_id: str, body: AnalysisInput, user: ConfigurationManager, db: Database):
     project = accessible_project(project_id, user, db)
     context, source = ai.project_context(db, project)
     user_id = user.id
@@ -161,7 +179,7 @@ def generate(project_id: str, body: AnalysisInput, user: Analyst, db: Database):
 
 
 @router.get("/finances/ai-analyses")
-def finance_history(user: Manager, db: Database):
+def finance_history(user: FinanceManager, db: Database):
     _, source = ai.finance_context(db)
     rows = db.scalars(
         select(FinanceAIAnalysis).order_by(FinanceAIAnalysis.created_at.desc()).limit(20)
@@ -173,7 +191,7 @@ def finance_history(user: Manager, db: Database):
 
 
 @router.post("/finances/ai-analyses", status_code=201)
-def finance_generate(body: AnalysisInput, user: Manager, db: Database):
+def finance_generate(body: AnalysisInput, user: FinanceManager, db: Database):
     context, source = ai.finance_context(db)
     user_id = user.id
     db.rollback()  # Release the read transaction while waiting for the model.
