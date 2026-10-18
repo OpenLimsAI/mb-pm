@@ -70,6 +70,24 @@ API 文档位于 `http://127.0.0.1:8000/docs`。
 Vite 设置了 `strictPort`，前端端口被占用时会报错；改端口时同步 origin 配置及 IAM 回调。
 IAM 换码及公钥拉取的内部地址可用 `CASDOOR_INTERNAL_URL` 覆盖，issuer 仍使用公网地址。
 
+## 本地知识库入口
+
+从本机开发工作台点击知识库，默认进入同一主机的 4322 端口，例如
+`http://localhost:5185` → `http://localhost:4322/`。卡片同步显示本地地址，
+不再跳到客户的 `kb.openlims.ai`。生产构建及正式域名始终使用生产知识库入口。
+如本地知识库使用其他端口，在门户 `.env.local` 设置 `VITE_KNOWLEDGE_PORT` 后重启 Vite。
+
+本工作区的独立知识库前端启动命令：
+
+```sh
+cd ../integrations/dikw-mbweb-customer
+npm run dev
+```
+
+该开发前端仅提供本地界面，不代表已启动 Core、配置 IAM 或模型服务。
+本地没有 Core 时不能读取论文，完整的权限、翻译及问答联调需要另行配置知识库后端；
+不会通过这个本地入口自动复制或连接客户生产数据库和密钥。
+
 ## 构建与测试
 
 前端构建及门户路由核对（项目根目录）：

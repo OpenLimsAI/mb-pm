@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ArrowRight, ArrowUpRight, BookOpen, BriefcaseBusiness, Check, ChevronRight, History, LayoutGrid, LockKeyhole, RefreshCw, ShieldCheck, UsersRound } from 'lucide-react'
 import PortalLayout from '../components/portal/PortalLayout'
 import { usePortalContext } from '../components/portal/context'
+import { knowledgeLaunchUrl } from '../lib/site'
 
 export interface WorkspaceUser {
   id: string
@@ -54,7 +55,7 @@ const applicationPresentations: readonly ApplicationPresentation[] = [
     name: '知识库',
     englishName: 'KNOWLEDGE BASE',
     description: '连接团队的知识与经验，让需要的信息更容易找到，让积累持续产生价值。',
-    domain: 'kb.openlims.ai',
+    domain: new URL(knowledgeLaunchUrl).host,
     href: '/launch/kb',
     external: true,
     kind: 'knowledge',
