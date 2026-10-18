@@ -357,7 +357,8 @@ def test_startup_adds_prompt_column_to_existing_table(tmp_path, monkeypatch):
     "role,allowed", [("admin", True), ("cmc_lead", True), ("project_lead", False), ("rd", False)]
 )
 def test_pm_ai_configuration_role_boundary(client, iam_user, bearer, role, allowed):
-    uid = iam_user(f"ai-config-{role}", role)
+    # users.id 最多 20 字符；PostgreSQL 会执行长度约束，SQLite 不会。
+    uid = iam_user(f"ai-cfg-{role}", role)
     response = client.get("/api/v1/ai/settings", headers=bearer(uid, role))
     assert response.status_code == (200 if allowed else 403)
 
