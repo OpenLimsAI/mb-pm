@@ -17,7 +17,7 @@
 
 1. 备份 IAM、PM、KB 的数据卷与当前配置，记录原镜像、提交及代理配置，保留已有会话和译文数据库。
 2. 在 Casdoor `mabpharm` 创建启用的空角色 `kb_manager`。不批量升级旧用户；由系统管理员在门户明确指定负责人。`kb_editor` 继续表示知识库用户。首次改权后退出并重新进入 KB。
-3. 当前 KB 容器不能直连 Casdoor，只能访问 `iam-proxy` 的 OIDC 白名单。候选 [`iam-proxy.Caddyfile`](iam-proxy.Caddyfile) 仅增加 `GET /api/get-user`，要求 owner 为 `mabpharm` 且使用 Basic 请求头；Casdoor 仍验证应用凭据。其他管理 API 和 UI 继续返回 404，凭据不进入 URL 或访问日志。
+3. 当前 KB 容器不能直连 Casdoor，只能访问 `iam-proxy` 的 OIDC 白名单。候选 [`iam-proxy.Caddyfile`](iam-proxy.Caddyfile) 仅增加 `GET /api/get-user`，完整查询串必须为 `owner=mabpharm&userId=<账号 ID>`，且使用 Basic 请求头；Casdoor 仍验证应用凭据。拒绝其他选择器、重复 owner 和额外参数，其他管理 API 和 UI 继续返回 404，凭据不进入 URL 或访问日志。
 4. 发布前用 `caddy adapt` / `validate` 检查候选，按原挂载路径备份并替换代理配置，再 reload。先在 KB 容器内验证该查询能返回当前已验证 subject，检查非 Basic、其他组织和其他 API 均不被放行。此处的实际应用凭据读权限尚待部署时验证；不可为绕过失败扩大网络或管理 API 白名单。
 5. 发布合并后的 KB 镜像，保留独立数据卷。KB 自动将 `kb_manager` 加入编辑角色映射，负责人校验先验证 BFF 会话，再实时查询 IAM 专用角色。IAM 不可用时，上传与 AI 设置拒绝执行，不用 `editor` 或平台管理员推断负责人。
 6. 发布 PM / 门户镜像。门户仅写入 `kb_manager` / `kb_editor`，保留其他应用与中台角色。缺少启用的 IAM 角色时选项不可用。
