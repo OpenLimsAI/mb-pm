@@ -1,6 +1,6 @@
 # 账号权限改造验证记录
 
-日期：2026-10-18。状态：前后端代码已实现并完成本地验证，尚未部署。对应[改造方案与 TDD 记录](accounts-app-permissions.md)。
+日期：2026-10-18。状态：前后端完成本地与 CI 验证，PR 已 squash merge；17:24（Asia/Shanghai）已部署，Chrome 生产面板只读核对通过。对应[改造方案与 TDD 记录](accounts-app-permissions.md)及[上线回执](../../deploy/parallel-test/releases/20261018-account-app-permissions.md)。
 
 ## 已实现的行为
 
@@ -35,7 +35,16 @@
 
 前端范围是 `src/components/accounts/`、`src/pages/PortalAccounts.tsx`、`src/lib/accountAdmin.ts`、`src/api/accounts.ts`；逐文件的语句、行、函数、分支均设置 90% 门槛。
 
-后端范围是 `app.services.accounts`、`app.schemas.accounts`、`app.api.v1.accounts`、`app.api.v1.portal`；CI 使用分支测量和 `--cov-fail-under=90`。以上指标不是整个仓库的覆盖率。复现命令见[开发与测试说明](../development.md#构建与测试)。前后端门槛已写入 CI 配置，远端 GitHub Actions 尚未触发。
+后端范围是 `app.services.accounts`、`app.schemas.accounts`、`app.api.v1.accounts`、`app.api.v1.portal`；CI 使用分支测量和 `--cov-fail-under=90`。以上指标不是整个仓库的覆盖率。复现命令见[开发与测试说明](../development.md#构建与测试)。
+
+## CI 与部署验证
+
+- [功能 PR #22](https://github.com/OpenLimsAI/mb-pm/pull/22) 的 5 项 CI 全部通过后 squash merge；[正式更新说明 PR #23](https://github.com/OpenLimsAI/mb-pm/pull/23) 按同样顺序合并。根 `AGENTS.md` 已固定此 SOP。
+- [功能 CI](https://github.com/OpenLimsAI/mb-pm/actions/runs/39114330524)：PostgreSQL 后端 282 项通过，模块综合覆盖率显示 94%；前端 39 项通过，语句 98.53%、分支 97.03%、函数 98.37%、行 99.25%，逐文件 90% 门槛通过。此处为 Linux / Node 20 结果，上表为 Windows 本地结果。
+- 从 main `0750183b195024e615ca458ea32def32f6bb653b` 构建，合并后 main CI 也全部通过。镜像 `mb-pm:account-permissions-20261018T092058Z` 已同步部署到 `app` 与 `app-direct`。
+- 最终隔离候选 62 项通过，真实 Casdoor 管理 API 在生产 IAM 副本完成 22 次测试写调用，覆盖独立角色、历史授权、接口拒绝和失败补偿；没有生产账号权限写操作。
+- 21 项公网检查通过；两个应用 healthy，9 张业务表切换前后计数与 SHA256 一致，其余 11 个生产容器 ID 不变。
+- Chrome 已用原 IAM 会话自动登录并只读查看新版列表和编辑面板：平台身份独立、管理员继承 PM 全部权限、KB 仅阅读禁用、可编辑选中，无修改时保存禁用。没有线上保存或改权。
 
 ## 页面核对
 
@@ -46,6 +55,6 @@
 
 ## 后续验收与存量事项
 
-真实 IAM 登录、PM / KB 重新登录采用新角色、跨应用 SSO 仍需部署后验证。门户入口缓存只影响目录显示，不改变已签发令牌；本次不承诺独立 KB 旧会话即时撤权。没有进行线上账号修改、服务器发布或数据库结构迁移。
+生产门户复用 IAM 会话自动登录已确认；客户实际改权后的 PM / KB 重新登录、KB 编辑能力及历史阅读者的受保护写接口仍需真实验收。候选使用模拟门户认证会话和隔离的真实 IAM 管理 API，不等同于客户生产登录。门户入口缓存只影响目录显示，不改变已签发令牌；独立 KB 旧会话不由 PM 立即撤销。本次没有生产账号权限修改或数据库结构迁移。
 
 本地全量测试中的 AI 文件模式断言已按平台处理：POSIX 环境仍严格检查 `0600`，Windows 不以 POSIX 模式位判断权限。运行依赖版本未改变；额外执行的生产依赖审计仍报告 axios、form-data、react-router、react-router-dom 的 4 项存量 high 告警，未在本功能中扩大修复范围。
