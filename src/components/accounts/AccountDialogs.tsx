@@ -5,7 +5,7 @@ import { AlertTriangle, Check, Copy, Eye, EyeOff, Loader2, Power, RefreshCw, Tra
 import { Button } from '../ui'
 import { cn } from '../../lib/cn'
 import { accountError, normalizeUsername, passwordProblem, PASSWORD_HINT, usernameProblem, USERNAME_HINT } from '../../lib/account'
-import { credentialText, generatePassword, legacyPMNote, specialtyGroups } from '../../lib/accountAdmin'
+import { credentialText, generatePassword, kbRoleLabel, legacyPMNote, specialtyGroups } from '../../lib/accountAdmin'
 import { portalPublicUrl } from '../../lib/site'
 import {
   createAccount, deleteAccount, renameAccount, resetAccountPassword, updateAccount,
@@ -165,7 +165,7 @@ export function CreateAccountDialog({ preset, available, onClose, onCreated }: {
 
   const userProblem = username ? usernameProblem(username) : null
   const ready = !!displayName.trim() && !nameProblemOf(displayName) && !emailProblemOf(email) && !!username && !userProblem
-    && passwordReady(password) && !hoursProblem(profile.weeklyHours) && available.includes('kb_editor')
+    && passwordReady(password) && !hoursProblem(profile.weeklyHours) && available.includes(permissions.kbRole === 'manager' ? 'kb_manager' : 'kb_editor')
 
   const submit = async () => {
     if (!ready || saving) return
@@ -175,7 +175,7 @@ export function CreateAccountDialog({ preset, available, onClose, onCreated }: {
       const name = normalizeUsername(username)
       await createAccount({
         username: name, displayName: displayName.trim(), password: password.password, email: email.trim() || undefined,
-        platformAdmin: permissions.platformAdmin, pmIdentity: permissions.pmIdentity, kbRole: 'editor',
+        platformAdmin: permissions.platformAdmin, pmIdentity: permissions.pmIdentity, kbRole: permissions.kbRole === 'manager' ? 'manager' : 'editor',
         specialtyGroup: profile.specialtyGroup || null, weeklyHours: Number(profile.weeklyHours),
       })
       onCreated({ kind: 'created', displayName: displayName.trim(), username: name, password: password.password })
@@ -328,7 +328,7 @@ function ProfilePanel({ account, busy, setBusy, onClose, available, onSaved, onD
   if (email.trim() !== account.email) changes.email = email.trim()
   if (permissions.platformAdmin !== account.platformAdmin) changes.platformAdmin = permissions.platformAdmin
   if (permissions.pmIdentity !== account.pmIdentity) changes.pmIdentity = permissions.pmIdentity
-  if (permissions.kbRole !== account.kbRole && permissions.kbRole === 'editor') changes.kbRole = 'editor'
+  if (permissions.kbRole !== account.kbRole && (permissions.kbRole === 'manager' || permissions.kbRole === 'editor')) changes.kbRole = permissions.kbRole
   if (profile.specialtyGroup !== (account.pmMember?.specialtyGroup ?? '')) changes.specialtyGroup = profile.specialtyGroup
   if (Number(profile.weeklyHours) !== (account.pmMember?.weeklyHours ?? 40)) changes.weeklyHours = Number(profile.weeklyHours)
   const dirty = Object.keys(changes).length > 0
@@ -356,9 +356,9 @@ function ProfilePanel({ account, busy, setBusy, onClose, available, onSaved, onD
       {dirty && <div role="status" className="text-xs text-ink-600 space-y-1">
         <p>待保存 {Object.keys(changes).length} 项修改</p>
         {'platformAdmin' in changes && <p>平台身份：{account.platformAdmin ? '系统管理员' : '普通成员'} → {permissions.platformAdmin ? '系统管理员' : '普通成员'}</p>}
-        {'platformAdmin' in changes && !permissions.platformAdmin && <p>取消管理员后，项目管理回落为{permissions.pmIdentity === 'lead' ? '项目负责人' : '员工'}。</p>}
-        {'pmIdentity' in changes && <p>项目管理：{account.pmIdentity === 'lead' ? '项目负责人' : '员工'} → {permissions.pmIdentity === 'lead' ? '项目负责人（全部项目）' : '员工'}</p>}
-        {'kbRole' in changes && <p>知识库：{account.kbRole === 'viewer' ? '仅阅读' : '待分配'} → 可编辑</p>}
+        {'platformAdmin' in changes && !permissions.platformAdmin && <p>取消管理员后，项目管理回落为{permissions.pmIdentity === 'lead' ? '项目负责人' : '项目成员'}。</p>}
+        {'pmIdentity' in changes && <p>项目管理：{account.pmIdentity === 'lead' ? '项目负责人' : '项目成员'} → {permissions.pmIdentity === 'lead' ? '项目负责人（全部项目）' : '项目成员'}</p>}
+        {'kbRole' in changes && <p>知识库：{kbRoleLabel(account.kbRole)} → {kbRoleLabel(permissions.kbRole)}</p>}
       </div>}
       <ErrorLine message={error} />
     </Body>

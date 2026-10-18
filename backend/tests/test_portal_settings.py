@@ -130,9 +130,11 @@ def test_ai_settings_only_for_admin_and_project_leads(client, token_factory, aut
     assert client.get("/api/v1/portal/me", headers=admin).json()["can_configure_ai"] is True
     assert client.get("/api/v1/portal/me", headers=lead).json()["can_configure_ai"] is True
     assert client.get("/api/v1/portal/me", headers=staff).json()["can_configure_ai"] is False
-    for headers in (old_lead, staff):
-        assert client.get(AI_URL, headers=headers).status_code == 403
-        assert client.put(AI_URL, json=ai_payload(), headers=headers).status_code == 403
+    assert client.get("/api/v1/portal/me", headers=old_lead).json()["can_configure_ai"] is True
+    assert client.get(AI_URL, headers=old_lead).status_code == 200
+    assert client.put(AI_URL, json=ai_payload(), headers=old_lead).status_code == 200
+    assert client.get(AI_URL, headers=staff).status_code == 403
+    assert client.put(AI_URL, json=ai_payload(), headers=staff).status_code == 403
     assert client.get(AI_URL).status_code == 401
 
     # 写操作要求门户 Origin

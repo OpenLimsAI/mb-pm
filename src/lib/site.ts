@@ -53,3 +53,11 @@ export function projectApplicationUrl(returnTo = '/dashboard'): string {
   url.searchParams.set('return_to', safeReturnPath(returnTo, '/dashboard'))
   return url.toString()
 }
+
+
+/** 组合开发模式中，门户页面始终验证门户会话，避免被仍有效的 PM 会话来回重定向。 */
+export function loginUsesProjectSession(returnTo: string): boolean {
+  const path = returnTo.split(/[?#]/)[0].replace(/\/+$/, '') || '/'
+  const portalPaths = ['/', '/workspace', '/account', '/accounts', '/settings', '/help', '/release-notes']
+  return siteMode === 'pm' || (siteMode === 'combined' && !portalPaths.includes(path) && !path.startsWith('/launch/'))
+}

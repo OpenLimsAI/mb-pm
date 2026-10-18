@@ -92,13 +92,13 @@ PM 回调为 `https://pm.openlims.ai/api/v1/auth/callback`，登出回跳为 `ht
 - 项目管理默认开放；系统管理员 / 项目负责人（`cmc_lead`）看全部，旧角色项目负责人（`project_lead`）看自己负责或参与的项目。
 - 研发 / 生产人员看参与或有本人任务的项目，任务级仍限制在本人负责或协作任务；QA/QC 另含跨项目「分析方法 / 稳定性」任务。
 - 财务与基线按可见项目收窄，服务端执行授权，界面隐藏入口不能替代鉴权。
-- 系统管理员是单独的平台管理身份，对应 `admin`；PM 业务角色对应员工（默认 `rd`）或负责人 `cmc_lead`。修改 PM 角色不移除 `admin`；取消平台身份后回落到保留的业务角色。它不等同于 Casdoor 的 `isAdmin` 组织管理员属性。
-- KB 准入仍识别启用的 `kb_viewer` / `kb_editor`；账号管理仅允许授予 `kb_editor`，「仅阅读」置灰，已有阅读者保留原角色。新建默认编辑，待分配账号须在编辑面板明确选择，修复其他问题不补发 KB 权限。相应 IAM 角色必须存在且启用。
-- 账号写接口使用 `platform_admin`、`pm_identity`、`kb_role`，KB 写入只接受 `editor`；旧 `identity` 仅保留在读取响应中，旧字段写入及任意角色数组会被拒绝，避免整包覆盖平台权限。
+- 系统管理员是单独的平台管理身份，对应 `admin`；PM 业务角色对应项目成员（默认 `rd`）或负责人 `cmc_lead`。修改 PM 角色不移除 `admin`；取消平台身份后回落到保留的业务角色。它不等同于 Casdoor 的 `isAdmin` 组织管理员属性。
+- KB 准入识别启用的 `kb_manager` / `kb_editor` / `kb_viewer`。账号管理可选知识库负责人（`kb_manager`）或知识库用户（`kb_editor`），负责人选项在前；历史 `kb_viewer` 保留只读，只有明确选择角色并保存才升级。相应 IAM 角色须先创建并启用；平台管理员不自动获得 KB 负责人身份。配套服务与代理要求见[知识库权限交接](../deploy/knowledge-permissions/README.md)。
+- 账号写接口使用 `platform_admin`、`pm_identity`、`kb_role`，KB 写入只接受 `manager` / `editor`；旧 `identity` 仅保留在读取响应中，旧字段写入及任意角色数组会被拒绝，避免整包覆盖平台权限。
 - PM 根据经验签令牌中的角色判定权限；复核会话不等于实时查询 IAM 最新角色，角色变更生效需结合令牌有效期与各应用续期规则。
 
 ## AI 配置
 
-系统管理员 / 项目负责人（`cmc_lead`）在项目管理「AI设置」（`/ai-settings`）维护模型地址、密钥、默认提示词及可选 Ollama 回退；使用 PM 会话调用 `/api/v1/ai/settings`、`/api/v1/ai/models`、`/api/v1/ai/test`，Cookie 写操作要求 PM Origin，配置请求实时核对 IAM 状态与管理角色。沿用同一份 `AI_SETTINGS_PATH`，无需重填模型或密钥。旧门户 `/api/v1/portal/settings/ai*` 接口暂留兼容，新前端不再调用；旧 `/settings?tab=ai` 书签跳到 PM 的 AI设置。
+系统管理员 / 项目负责人（`cmc_lead` / 旧 `project_lead`）在项目管理「AI设置」（`/ai-settings`）维护模型地址、密钥、默认提示词及可选 Ollama 回退；使用 PM 会话调用 `/api/v1/ai/settings`、`/api/v1/ai/models`、`/api/v1/ai/test`，Cookie 写操作要求 PM Origin。设置、模型测试、分析和历史接口实时核对 IAM 管理角色，项目成员不能调用；组合财务 AI 仍限 `admin` / `cmc_lead`，旧项目负责人的项目范围不扩大。沿用同一份 `AI_SETTINGS_PATH`，无需重填模型或密钥。旧门户 `/api/v1/portal/settings/ai*` 接口暂留兼容，新前端不再调用；旧 `/settings?tab=ai` 书签跳到 PM 的 AI设置。
 API Key 存在后端 `AI_SETTINGS_PATH` 指向的受保护文件中，生产使用持久卷；前端仅看到是否已设置。
 留空保留原密钥，修改服务地址清除旧密钥。模型接收的数据范围、分析入口和报告行为见 [AI 功能说明](features.md#ai-设置与项目--财务分析)。

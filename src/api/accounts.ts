@@ -6,7 +6,7 @@ import type { SpecialtyGroup } from '../types'
 /** 旧身份字段仅读取兼容；写入分别使用平台身份与 PM / KB 角色。 */
 export type Identity = 'admin' | 'lead' | 'staff'
 export type PMIdentity = 'lead' | 'staff'
-export type KBRole = 'viewer' | 'editor' | 'unassigned'
+export type KBRole = 'manager' | 'viewer' | 'editor' | 'unassigned'
 export type ActorTier = 'admin' | 'lead'
 
 export interface PMMember {
@@ -60,7 +60,7 @@ export interface AccountCreateInput {
   email?: string
   platformAdmin: boolean
   pmIdentity: PMIdentity
-  kbRole: 'editor'
+  kbRole: 'manager' | 'editor'
   specialtyGroup: SpecialtyGroup | null
   weeklyHours: number
 }
@@ -71,7 +71,7 @@ export interface AccountUpdateInput {
   enabled?: boolean
   platformAdmin?: boolean
   pmIdentity?: PMIdentity
-  kbRole?: 'editor'
+  kbRole?: 'manager' | 'editor'
   /** 空字符串表示清空专业组。 */
   specialtyGroup?: SpecialtyGroup | ''
   weeklyHours?: number

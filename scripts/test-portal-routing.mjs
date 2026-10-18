@@ -72,3 +72,12 @@ for (const invalid of [undefined, null, {}, 'https://evil.example', '//evil.exam
   assert.equal(target.searchParams.has('access_token'), false)
 }
 console.log('Portal routing checks passed: domain modes, fixed app targets, deep links, unsafe return paths.')
+
+// 门户匿名、PM 会话仍有效时，版本更新不可选用 PM 会话，否则会与 PortalGate 循环跳转。
+for (const route of ['/release-notes', '/release-notes/?x=1#latest', '/accounts', '/settings', '/help', '/launch/kb']) {
+  assert.equal(local.loginUsesProjectSession(route), false)
+  assert.equal(portal.loginUsesProjectSession(route), false)
+  assert.equal(pm.loginUsesProjectSession(route), true)
+}
+assert.equal(local.loginUsesProjectSession('/projects/p1'), true)
+assert.equal(local.loginUsesProjectSession('/ai-settings'), true)

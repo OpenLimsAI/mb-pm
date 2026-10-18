@@ -5,7 +5,7 @@ import { USE_API } from '../api/client'
 import { hasIamSession, IamUnreachable, LoginRejected, NeedsIamPage, signInWithPassword, signInWithSession, startLogin } from '../api/iamLogin'
 import { useAuth } from '../store/auth'
 import { usePortal } from '../store/portal'
-import { safeReturnPath, siteMode, workspaceUrl } from '../lib/site'
+import { loginUsesProjectSession, safeReturnPath, siteMode, workspaceUrl } from '../lib/site'
 import '../styles/login.css'
 
 // 后端回调失败时以 ?error=<code> 回到本页
@@ -36,7 +36,7 @@ export default function Login() {
   const returnTo = safeReturnPath(from, siteMode === 'pm' ? '/dashboard' : '/')
   // 本地组合预览兼容 PM 深链接；www 只使用门户会话，pm 只使用业务会话。
   // 门户页面（App.tsx 中 PortalGate 下的路由）须列在这里，否则组合预览会在登录页与门户页之间来回跳转。
-  const isProjectReturn = siteMode === 'pm' || (siteMode === 'combined' && !['/', '/workspace', '/account', '/accounts', '/settings'].includes(returnTo.split('?')[0]) && !returnTo.startsWith('/launch/'))
+  const isProjectReturn = loginUsesProjectSession(returnTo)
   const { status, refresh, login, logout } = isProjectReturn ? project : portal
   const checking = USE_API && status === 'loading'
   const visibleError = error || (status === 'error' ? (isProjectReturn ? project.error : portal.error) || '暂时无法确认登录身份，请重新登录。' : undefined)
