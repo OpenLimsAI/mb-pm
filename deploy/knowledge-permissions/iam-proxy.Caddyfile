@@ -22,7 +22,9 @@ iam.openlims.ai {
  @knowledge_roles {
   method GET
   path /api/get-user
-  query owner=mabpharm
+  # Match the complete query emitted by URLSearchParams in the BFF. Reject
+  # alternate id/name selectors, duplicate owners and extra parameters.
+  expression `{http.request.uri.query}.matches('^owner=mabpharm&userId=[A-Za-z0-9_-]{1,128}$')`
   header Authorization "Basic *"
  }
  handle @knowledge_roles {
