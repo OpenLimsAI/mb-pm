@@ -15,11 +15,13 @@ from fastapi.staticfiles import StaticFiles
 import app.models  # noqa: F401  确保所有 ORM 表注册到 Base.metadata
 from app.api.v1 import (
     account,
+    accounts,
     ai,
     auth,
     baselines,
     finances,
     portal,
+    portal_settings,
     projects,
     structure,
     sub_projects,
@@ -103,7 +105,6 @@ def _ensure_schema() -> None:
             logger.info("已加宽 %s.%s → VARCHAR(%d)（issue #4）", table, col, _TARGET_ID_LEN)
 
 
-@asynccontextmanager
 def _backfill_task_order() -> None:
     """任务手动顺序：为升级前的老数据 / 种子数据补齐顺序号（沿用原显示顺序，幂等）。"""
     from app.services.task_order import backfill_all
@@ -117,6 +118,19 @@ def _backfill_task_order() -> None:
         db.close()
 
 
+def _backfill_team_members() -> None:
+    """任务只能派给项目团队：为老数据把有任务但不在团队名单里的人补为团队成员（幂等）。"""
+    from app.services.team import backfill_assignees
+
+    db = SessionLocal()
+    try:
+        if count := backfill_assignees(db):
+            logger.info("已把 %d 位有任务的人补入项目团队", count)
+    finally:
+        db.close()
+
+
+@asynccontextmanager
 async def lifespan(_: FastAPI):
     # 建表（SQLite 首次运行即创建文件）
     Base.metadata.create_all(bind=engine)
@@ -139,6 +153,8 @@ async def lifespan(_: FastAPI):
             logger.info("数据库已有数据 → 跳过种子")
     # 任务手动顺序：老数据 / 种子补齐顺序号（幂等）
     _backfill_task_order()
+    # 项目团队：有任务的人补入团队名单（幂等）
+    _backfill_team_members()
     yield
 
 
@@ -180,6 +196,8 @@ def health():
 API_PREFIX = "/api/v1"
 app.include_router(auth.router, prefix=API_PREFIX)
 app.include_router(portal.router, prefix=API_PREFIX)
+app.include_router(portal_settings.router, prefix=API_PREFIX)
+app.include_router(accounts.router, prefix=API_PREFIX)
 app.include_router(account.router, prefix=API_PREFIX)
 app.include_router(users.router, prefix=API_PREFIX)
 app.include_router(projects.router, prefix=API_PREFIX)

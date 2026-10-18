@@ -1,7 +1,8 @@
 // 更改项目成员抽屉：全量编辑项目团队成员。
 //
 // 复用里程碑设置抽屉的右侧外壳（遮罩 + ml-auto + ESC）。负责人单列展示且锁定（不可移除，
-// 由后端单独维护、不计入成员）；其余在职用户以可搜索勾选列表呈现，勾选=团队成员。
+// 由后端单独维护、不计入成员）；其余在职用户以可搜索勾选列表呈现，勾选=团队成员，当前团队排在前面。
+// 任务只能派给团队成员（lib/projectTeam）：负责或协作本项目任务的人勾选并锁定，先在 WBS 转交任务才能移出。
 // 保存走 data/bootstrap.updateProjectMembers（API：PUT 全量替换 + 重新同步；离线 mock：本地替换）。
 
 import { useEffect, useMemo, useState } from 'react'
@@ -11,8 +12,10 @@ import { Button, Avatar, Tag } from '../ui'
 import { users, findUser } from '../../mock'
 import { roleLabels } from '../../lib/permissions'
 import { useDataStore } from '../../store/data'
-import { updateProjectMembers } from '../../data/bootstrap'
+import { refreshAllData, updateProjectMembers } from '../../data/bootstrap'
+import { rejectionText } from '../../api/client'
 import { cn } from '../../lib/cn'
+import { taskLoadOf } from '../../lib/projectTeam'
 
 interface Props {
   project: Project
@@ -23,9 +26,11 @@ export function ProjectMembersDrawer({ project, onClose }: Props) {
   const mode = useDataStore((s) => s.mode)
   const owner = findUser(project.ownerId)
 
-  const [selected, setSelected] = useState<Set<string>>(
+  const initial = useMemo(
     () => new Set((project.memberIds || []).filter((id) => id !== project.ownerId)),
+    [project.memberIds, project.ownerId],
   )
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(initial))
   const [keyword, setKeyword] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -37,13 +42,18 @@ export function ProjectMembersDrawer({ project, onClose }: Props) {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  // 候选：在职用户，排除负责人；按关键词过滤
+  // 本项目任务的负责 / 协作人数（不含项目负责人）：这些人不能移出团队
+  const taskLoad = useMemo(() => taskLoadOf(project), [project])
+
+  // 候选：在职用户（已停用的只在仍属团队时列出），排除负责人；当前团队在前，按关键词过滤
   const candidates = useMemo(() => {
     const kw = keyword.trim().toLowerCase()
+    const inTeam = (id: string) => initial.has(id) || taskLoad.has(id)
     return users
-      .filter((u) => u.isActive !== false && u.id !== project.ownerId)
+      .filter((u) => u.id !== project.ownerId && (u.isActive !== false || inTeam(u.id)))
       .filter((u) => !kw || `${u.displayName} ${u.username} ${u.specialtyGroup ?? ''} ${roleLabels[u.role] ?? ''}`.toLowerCase().includes(kw))
-  }, [keyword, project.ownerId])
+      .sort((a, b) => Number(inTeam(b.id)) - Number(inTeam(a.id)))
+  }, [keyword, project.ownerId, initial, taskLoad])
 
   const toggle = (id: string) =>
     setSelected((prev) => {
@@ -53,11 +63,9 @@ export function ProjectMembersDrawer({ project, onClose }: Props) {
       return next
     })
 
-  const initial = useMemo(
-    () => new Set((project.memberIds || []).filter((id) => id !== project.ownerId)),
-    [project.memberIds, project.ownerId],
-  )
   const dirty = selected.size !== initial.size || [...selected].some((id) => !initial.has(id))
+
+  const teamSize = new Set([...selected, ...taskLoad.keys()]).size + (owner ? 1 : 0)
 
   const save = async () => {
     setSaving(true)
@@ -67,8 +75,10 @@ export function ProjectMembersDrawer({ project, onClose }: Props) {
       onClose()
     } catch (e) {
       console.error(e)
-      setError('保存失败，请确认后端已启动后重试。')
+      setError(rejectionText(e, '保存失败，请确认后端已启动后重试。'))
       setSaving(false)
+      // 被拒多半是他人刚给某人派了任务：刷新后锁定状态与服务器一致
+      if (rejectionText(e, '') && mode === 'api') void refreshAllData().catch(() => undefined)
     }
   }
 
@@ -117,7 +127,7 @@ export function ProjectMembersDrawer({ project, onClose }: Props) {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] text-ink-500 uppercase tracking-wider">团队成员</span>
-              <span className="text-[11px] text-ink-500">已选 <b className="text-brand-600">{selected.size}</b> 人</span>
+              <span className="text-[11px] text-ink-500">团队共 <b className="text-brand-600">{teamSize}</b> 人（含负责人）</span>
             </div>
 
             <div className="relative">
@@ -134,23 +144,40 @@ export function ProjectMembersDrawer({ project, onClose }: Props) {
                 <div className="p-4 text-center text-xs text-ink-500">没有匹配的人员</div>
               ) : (
                 candidates.map((u) => {
-                  const checked = selected.has(u.id)
+                  const load = taskLoad.get(u.id)
+                  const checked = !!load || selected.has(u.id)
                   return (
                     <label
                       key={u.id}
-                      className={cn('flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-brand-50/40', checked && 'bg-brand-50/60')}
+                      title={load ? '负责或协作本项目任务，不能移出团队；请先在 WBS 中转交其任务' : undefined}
+                      className={cn(
+                        'flex items-center gap-2.5 px-3 py-2',
+                        load ? 'cursor-default' : 'cursor-pointer hover:bg-brand-50/40',
+                        checked && 'bg-brand-50/60',
+                      )}
                     >
-                      <input type="checkbox" checked={checked} onChange={() => toggle(u.id)} className="accent-brand-600" />
+                      <input type="checkbox" checked={checked} disabled={!!load} onChange={() => toggle(u.id)} className="accent-brand-600" />
                       <Avatar user={u} size="sm" />
                       <div className="flex-1 min-w-0">
                         <div className="text-sm text-ink-900 truncate">{u.displayName}</div>
                         <div className="text-[11px] text-ink-500 truncate">{roleLabels[u.role]}{u.specialtyGroup ? ` · ${u.specialtyGroup}` : ''}</div>
                       </div>
+                      {u.isActive === false && <Tag tone="gray">已停用</Tag>}
+                      {load && (
+                        <Tag tone="gray" className="shrink-0">
+                          {[load.owned && `负责 ${load.owned}`, load.assisted && `协作 ${load.assisted}`].filter(Boolean).join(' · ')} 个任务
+                        </Tag>
+                      )}
                     </label>
                   )
                 })
               )}
             </div>
+            {taskLoad.size > 0 && (
+              <p className="text-[11px] text-ink-400">
+                任务只能派给团队成员。标「任务」的人负责或协作本项目任务，不能在这里取消；要移出请先在 WBS 中转交其任务。
+              </p>
+            )}
           </div>
 
           {error && (

@@ -15,6 +15,8 @@ export type AuthStatus = 'loading' | 'ready' | 'anonymous' | 'offline' | 'error'
 
 interface AuthState {
   currentUser: User | null
+  /** 管理员设置了临时密码：须先修改密码（门禁显示改密页，不加载业务数据）。 */
+  mustChangePassword: boolean
   status: AuthStatus
   error: string | null
   /** 重新向后端确认登录身份（并发调用合并为一次请求）。 */
@@ -29,16 +31,20 @@ let refreshing: Promise<void> | undefined
 
 export const useAuth = create<AuthState>((set) => ({
   currentUser: null,
+  mustChangePassword: false,
   status: 'loading',
   error: null,
   refresh: () => {
     if (!refreshing) {
       refreshing = fetchMe()
-        .then((user) => set({ currentUser: user as unknown as User, status: 'ready', error: null }))
+        .then(({ mustChangePassword, ...user }) => set({
+          currentUser: user as unknown as User, mustChangePassword: !!mustChangePassword, status: 'ready', error: null,
+        }))
         .catch((err) => {
           const { status, detail } = asAPIError(err)
           set({
             currentUser: null,
+            mustChangePassword: false,
             status: status === 401 ? 'anonymous' : status === undefined ? 'offline' : 'error',
             error: detail,
           })

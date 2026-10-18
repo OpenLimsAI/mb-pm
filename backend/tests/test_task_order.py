@@ -175,3 +175,27 @@ def test_import_and_copy_keep_order(client, auth_headers, project_factory):
         assert (
             client.delete(f"/api/v1/projects/{project_id}", headers=auth_headers).status_code == 204
         )
+
+
+def test_startup_backfills_missing_order(project_factory, client, admin_user):
+    """启动（lifespan）时为缺顺序号的任务补号 —— 回归：装饰器曾错放在 _backfill_task_order 上，补号从未执行。"""
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    pid = project_factory(owner_id=admin_user)
+    db = SessionLocal()
+    try:
+        for task in db.query(Task).filter(Task.sub_project_id == f"{pid}-sp"):
+            task.sort_order = None
+        db.commit()
+    finally:
+        db.close()
+    with TestClient(app):  # 再次进入 lifespan
+        pass
+    db = SessionLocal()
+    try:
+        orders = [t.sort_order for t in db.query(Task).filter(Task.sub_project_id == f"{pid}-sp")]
+    finally:
+        db.close()
+    assert orders and None not in orders

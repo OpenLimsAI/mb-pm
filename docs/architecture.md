@@ -102,13 +102,16 @@ deploy/                 环境配置及历史发布材料
 
 ## 登录与应用入口
 
-浏览器发起登录 → 后端生成 state / nonce / PKCE → 跳转 IAM → IAM 返回授权码 →
-后端换取令牌并校验签名、issuer、audience 和身份 → 建立 HttpOnly 会话 Cookie。
+登录页提交用户名 / 密码 → 后端生成 state / nonce / PKCE（`/login/start`）→ 浏览器直接向 IAM `/api/login` 提交凭据换授权码
+（IAM 同时写入自己的登录会话，供单点登录；已有 IAM 会话时不带密码直接换码；浏览器连不上 IAM 或需两步验证时退回跳转 IAM 登录页）→ 打开回调 →
+后端换取令牌并校验签名、issuer、audience 和身份 → 建立 HttpOnly 会话 Cookie。密码不经过本系统后端。
 令牌加密保存在服务端，不交给前端 JavaScript，也不放在应用跳转 URL 中。
 
 `src/lib/site.ts` 按域名选择界面：www 显示门户，pm 显示项目管理，本地开发默认组合模式。
 门户只获取身份与应用准入清单，不加载项目数据；业务页面延迟加载，由各应用重新检查权限。
 门户与 PM 使用独立客户端及业务会话，账号开通、角色与退出范围见配置文档。
+门户「设置」（`/settings`）同样走门户会话：本人改用户名 / 密码（`/api/v1/portal/username`、`/password`）与 AI 设置（`/api/v1/portal/settings/ai*`，仅 admin / cmc_lead）；PM 不再有组织 / 设置页，`/api/v1/users` 只供团队与负责人选择。
+门户「账号管理」走门户会话：`/api/v1/portal/accounts` → `services/accounts.py` 实时读写 Casdoor（`services/iam_admin.py`），同一请求内同步 PM `users` / `iam_identities`；IAM 写入失败不改 PM，新建中途失败会撤销已建的 IAM 账号。PM 首次登录时由 `core/security.py` 按同一规则（`services/members.py`）自动建成员，`/api/v1/users` 只读。
 
 ## 业务数据与计算
 
@@ -116,7 +119,8 @@ deploy/                 环境配置及历史发布材料
 - 项目页面先经 `/auth/me` 确认身份，再加载当前用户可见数据到前端运行时数组；API 更新后重新同步。演示数据与真实持久化数据属于不同模式。
 - 更新任务状态、进度及实际工时后，`backend/app/services/rollup.py` 重算子项目及项目进度。
 - 模板实例化由 `src/lib/instantiate.ts` 展开任务树，经 `/projects/import` 整包落库。
-- 项目「编辑模式」经 `GET / PUT /projects/{id}/structure` 读取结构快照、提交编辑后的完整结构；`backend/app/services/structure.py` 在一个事务内比对增删改，校验结构版本（他人改过则拒绝）、删除保护（已开始或已录实际花费）与依赖成环，并写审计日志。前端草稿逻辑在 `src/lib/projectStructure.ts`，界面与模板结构编辑共用 `src/components/structure/StructureEditorKit.tsx`。
+- 项目「编辑项目」页的结构部分经 `GET / PUT /projects/{id}/structure` 读取结构快照、提交编辑后的完整结构；`backend/app/services/structure.py` 在一个事务内比对增删改，校验结构版本（他人改过则拒绝）、删除保护（已开始或已录实际花费）与依赖成环，并写审计日志。前端草稿逻辑在 `src/lib/projectStructure.ts`，界面与模板结构编辑共用 `src/components/structure/StructureEditorKit.tsx`。
+- 任务只能派给项目团队（负责人 + `project_members`）：任务新建 / 改派、结构保存时校验，仍有任务的人不能移出团队；整包导入、复制项目、更换项目负责人时自动把有任务的人留在团队中，启动时为老数据补齐（幂等），规则集中在 `backend/app/services/team.py`，前端对应 `src/lib/projectTeam.ts`。
 - 任务在子项目内的先后由 `tasks.sort_order`（手动顺序）决定：编辑模式按列表位置保存，WBS 视图经 `src/lib/taskOrder.ts` 排列，后端统一用 `TASK_WBS_ORDER`；启动时为没有顺序号的老数据按原显示顺序补号（不改 `updated_at`）。
 - 项目计划起止按任务实时派生（`backend/app/services/rollup.py` 的 `live_span`，与 `live_health` 同为读取时计算，不写库）：项目接口、结构快照、基线快照、复制平移与 AI 上下文统一使用；前端 `getProjectSpan` 同一规则。
 - 复制项目经 `POST /projects/{id}/copy`，由 `backend/app/services/project_copy.py` 一个事务内照搬结构与计划、重置执行数据，可按新的计划开始整体平移日期。

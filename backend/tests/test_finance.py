@@ -143,11 +143,17 @@ def test_budget_edit_permissions_and_validation(
     lead = iam_user(f"t-pl-{uuid4().hex[:6]}", "project_lead")
     member = iam_user(f"t-rd-{uuid4().hex[:6]}", "rd")
     pid = project_factory(lead, member_ids=(member,))
+    other = project_factory("t-admin")
     url = f"/api/v1/finances/{pid}"
-    # 项目负责人（即使是 owner）与执行层都不能改预算
+    # 与「编辑项目」一致：旧角色 project_lead 只能改本人负责 / 参与的项目；执行层不能改
+    lead_headers = bearer(lead, "project_lead")
     assert (
-        client.put(url, json=budget_body(), headers=bearer(lead, "project_lead")).status_code == 403
+        client.put(
+            f"/api/v1/finances/{other}", json=budget_body(), headers=lead_headers
+        ).status_code
+        == 403
     )
+    assert client.put(url, json=budget_body(), headers=lead_headers).status_code == 200
     assert client.put(url, json=budget_body(), headers=bearer(member, "rd")).status_code == 403
     assert client.put(url, json=budget_body()).status_code == 401
     for bad in [
@@ -206,7 +212,7 @@ def test_executor_records_actual_cost_but_cannot_change_task_budget(
 # —— 财务 AI 分析 —— #
 
 
-def test_finance_prompt_default_custom_reset_and_status(client, auth_headers):
+def test_finance_prompt_default_custom_reset_and_status(client, auth_headers, live_ai_roles):
     current = client.get("/api/v1/ai/settings", headers=auth_headers).json()
     assert current["finance_analysis_prompt"] == ai.DEFAULT_FINANCE_ANALYSIS_PROMPT
     assert current["default_finance_analysis_prompt"] == ai.DEFAULT_FINANCE_ANALYSIS_PROMPT
@@ -313,15 +319,3 @@ def test_finance_analysis_permissions_and_failures(
     assert client.post(endpoint, headers=auth_headers, json={}).status_code == 502
     with SessionLocal() as db:
         assert db.query(FinanceAIAnalysis).count() == before
-
-
-def test_member_with_finance_analysis_cannot_be_deleted(
-    client, auth_headers, iam_user, bearer, monkeypatch
-):
-    enable_ai()
-    monkeypatch.setattr(ai, "chat", lambda *args: ("## 财务摘要\n测试", {}))
-    lead = iam_user(f"t-cmc-{uuid4().hex[:6]}", "cmc_lead")
-    res = client.post("/api/v1/finances/ai-analyses", headers=bearer(lead, "cmc_lead"), json={})
-    assert res.status_code == 201
-    res = client.delete(f"/api/v1/users/{lead}", headers=auth_headers)
-    assert res.status_code == 409 and "AI 分析" in res.json()["detail"]

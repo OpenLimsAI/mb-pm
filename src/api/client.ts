@@ -90,3 +90,9 @@ export function asAPIError(err: unknown): APIError {
   }
   return { detail: String(err) }
 }
+
+/** 后端明确拒绝（4xx，如「仍负责本项目任务，不能移出团队」）时显示其说明；网络错误等显示 fallback。 */
+export function rejectionText(err: unknown, fallback: string): string {
+  const { status, detail } = asAPIError(err)
+  return status !== undefined && status >= 400 && status < 500 && typeof detail === 'string' && detail ? detail : fallback
+}

@@ -1,5 +1,7 @@
-// 项目「编辑模式」—— 与模板结构编辑同一套界面和用法（共用 structure/StructureEditorKit）：
-// 增删改子项目、任务 / 里程碑、前置依赖，先记在草稿里，点「保存修改」一次性提交（后端一个事务）。
+// 项目「编辑项目」页（页首「编辑项目」进入，权限 project.edit）：
+// · 项目预算：预算卡内直接编辑，与项目信息和结构一起提交；
+// · 项目结构：与模板结构编辑同一套界面和用法（共用 structure/StructureEditorKit），
+//   增删改子项目、任务 / 里程碑、前置依赖，先记在草稿里，点「保存修改」一次性提交（后端一个事务）。
 //
 // 只改结构；状态、进度、实际日期与实际花费仍在任务详情或「表格录入」里填写。
 // 已开始或已录实际花费的任务不能删除；改日期不自动顺延后续任务，与前置冲突时行内提示。
@@ -19,6 +21,9 @@ import {
 } from '../structure/StructureEditorKit'
 import * as S from '../../lib/projectStructure'
 import { cn } from '../../lib/cn'
+import { ProjectBudgetCard } from './ProjectBudgetCard'
+import { financeDraftState, toFinanceDraft, type FinanceDraft } from '../../lib/financeDraft'
+import { ADD_TO_TEAM_HINT, teamIds } from '../../lib/projectTeam'
 
 // 新建：index 为插入位置；after 为「在两个任务之间插入」时的上一个任务（开始日期默认接在它之后，不带前置）
 type EditorState =
@@ -38,7 +43,7 @@ function errorText(error: unknown): { status?: number; text: string } {
   return { text: '操作失败，请稍后重试。' }
 }
 
-/** 保存成功后的提示，如「项目结构已保存：新增 2 个任务、删除 1 个任务。」 */
+/** 保存成功后的提示，如「项目修改已保存：新增 2 个任务、删除 1 个任务。」 */
 function savedMessage(r: StructureSaveResult): string {
   const parts = [
     r.createdSubProjects && `新增 ${r.createdSubProjects} 个子项目`,
@@ -49,17 +54,21 @@ function savedMessage(r: StructureSaveResult): string {
     (r.addedDependencies || r.removedDependencies) && `依赖 +${r.addedDependencies} / −${r.removedDependencies}`,
     r.reordered && '调整了顺序',
     r.projectUpdated && '修改了项目编号 / 名称',
+    r.financeUpdated && '修改了项目预算',
   ].filter(Boolean)
-  return parts.length ? `项目结构已保存：${parts.join('、')}。` : '项目结构已保存。'
+  return parts.length ? `项目修改已保存：${parts.join('、')}。` : '项目修改已保存。'
 }
 
-const DISCARD = '放弃未保存的结构修改？'
+const DISCARD = '放弃未保存的项目和预算修改？'
 
 /** onExit(message)：保存成功时带提示文字；取消 / 返回时为空。 */
 export function ProjectStructureEditor({ project, onExit }: { project: Project; onExit: (message?: string) => void }) {
   const online = useDataStore((s) => s.mode) === 'api'
   const [initial, setInitial] = useState<S.ProjectDraft | null>(null)
   const [draft, setDraft] = useState<S.ProjectDraft | null>(null)
+  const [financeDraft, setFinanceDraft] = useState<FinanceDraft | null>(null)
+  const [initialFinance, setInitialFinance] = useState<FinanceDraft | null>(null)
+  const [taskCosts, setTaskCosts] = useState<Record<string, number>>({})
   const [loadError, setLoadError] = useState('')
   const [reload, setReload] = useState(0)
   const [editor, setEditor] = useState<EditorState | null>(null)
@@ -83,6 +92,10 @@ export function ProjectStructureEditor({ project, onExit }: { project: Project; 
         const d = S.fromSnapshot(snap)
         setInitial(d)
         setDraft(d)
+        const budget = toFinanceDraft(snap.finance, 0, `${snap.project.plannedStart.slice(0, 4)}-${snap.project.plannedEnd.slice(0, 4)}`)
+        setInitialFinance(budget)
+        setFinanceDraft(budget)
+        setTaskCosts(Object.fromEntries(snap.tasks.map((task) => [task.id, task.actualCost ?? 0])))
         setLoadError('')
         setSaveError('')
         setStale(false)
@@ -91,7 +104,9 @@ export function ProjectStructureEditor({ project, onExit }: { project: Project; 
     return () => { active = false }
   }, [project.id, online, reload])
 
-  const dirty = !!draft && !!initial && !S.sameStructure(draft, initial)
+  const financeDirty = !!financeDraft && JSON.stringify(financeDraft) !== JSON.stringify(initialFinance)
+  const financeState = financeDraft ? financeDraftState(financeDraft) : null
+  const dirty = financeDirty || (!!draft && !!initial && !S.sameStructure(draft, initial))
 
   // 有未保存修改时：刷新 / 关闭页面、点侧边栏等站内链接前先确认（BrowserRouter 不支持 useBlocker）
   useEffect(() => {
@@ -124,14 +139,15 @@ export function ProjectStructureEditor({ project, onExit }: { project: Project; 
   }
 
   const save = async () => {
-    if (!draft) return
+    if (!draft || saving) return
+    if (financeDirty && financeState?.invalid) { setSaveError('请检查预算：金额须在 0–99,999,999 万元之间，财年最多 20 字，备注最多 200 字，且不能包含控制字符。'); return }
     const problem = S.draftProblem(draft) ?? (takenCodes.has(draft.project.code.trim()) ? '项目编号已存在，请换一个' : null)
     if (problem) { setSaveError(problem); return }
     setSaving(true)
     setSaveError('')
     let message: string
     try {
-      message = savedMessage((await saveStructure(project.id, S.toSaveRequest(draft, summary))).result)
+      message = savedMessage((await saveStructure(project.id, { ...S.toSaveRequest(draft, summary), ...(financeDirty && financeState ? { finance: financeState.value } : {}) })).result)
     } catch (e) {
       const { status, text } = errorText(e)
       if (status === 409 && text.includes('已被他人修改')) setStale(true)
@@ -143,7 +159,7 @@ export function ProjectStructureEditor({ project, onExit }: { project: Project; 
     try {
       await refreshAllData()
     } catch {
-      message += '页面数据刷新失败，请手动刷新页面查看最新结构。'
+      message += '页面数据刷新失败，请手动刷新页面查看最新项目。'
     }
     onExit(message)
   }
@@ -153,7 +169,7 @@ export function ProjectStructureEditor({ project, onExit }: { project: Project; 
       <Card>
         <EmptyState
           title="离线演示模式不支持修改项目结构"
-          description="连接后端并使用 IAM 登录后，可在编辑模式中增删改任务。"
+          description="连接后端并使用 IAM 登录后，可在「编辑项目」中修改预算与项目结构。"
           action={<Button onClick={() => onExit()}>返回</Button>}
         />
       </Card>
@@ -171,7 +187,7 @@ export function ProjectStructureEditor({ project, onExit }: { project: Project; 
       </Card>
     )
   }
-  if (!draft) {
+  if (!draft || !financeDraft) {
     return <div className="py-12 text-center text-sm text-ink-500 flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />正在读取项目结构…</div>
   }
 
@@ -184,10 +200,10 @@ export function ProjectStructureEditor({ project, onExit }: { project: Project; 
       <div className="flex items-start justify-between gap-4 mb-4">
         <div>
           <h2 className="text-xl font-semibold text-ink-900 flex items-center gap-2">
-            <PencilLine className="w-5 h-5 text-brand-600" /> 编辑项目结构
+            <PencilLine className="w-5 h-5 text-brand-600" /> 编辑项目
           </h2>
           <p className="text-sm text-ink-500 mt-1">
-            修改先保存在草稿里，点「保存修改」后一次性生效。状态、进度、实际日期与实际花费请在任务详情或「表格录入」中填写。
+            预算、项目信息与结构的修改先保存在草稿里，点「保存修改」后一次性生效。状态、进度、实际日期与实际花费请在任务详情或「表格录入」中填写。
           </p>
         </div>
         <StructureCounts {...counts} />
@@ -196,12 +212,25 @@ export function ProjectStructureEditor({ project, onExit }: { project: Project; 
       {stale && (
         <div role="alert" className="mb-3 p-3 rounded-lg bg-amber-50 text-amber-800 text-sm flex items-center gap-3">
           <AlertTriangle className="w-4 h-4 shrink-0" />
-          <span className="flex-1">编辑期间有人修改了这个项目的结构，本次修改未保存。重新载入会放弃本次修改。</span>
+          <span className="flex-1">编辑期间有人修改了这个项目的结构或预算，本次修改未保存。重新载入会放弃本次修改。</span>
           <Button size="sm" icon={<RotateCcw className="w-3.5 h-3.5" />} onClick={() => setReload((v) => v + 1)}>重新载入</Button>
         </div>
       )}
 
       <div className="space-y-3">
+        <ProjectBudgetCard project={project} editor={{
+          draft: financeDraft,
+          onChange: (value) => { setFinanceDraft(value); setSaveError('') },
+          spent: Object.values(taskCosts).reduce((sum, cost) => sum + cost, 0),
+          groups: draft.subs.map((sub) => ({
+            id: sub.key, name: sub.name,
+            total: sub.tasks.reduce((sum, task) => sum + (task.costBudget ?? 0), 0),
+            cost: sub.tasks.reduce((sum, task) => sum + (task.id ? taskCosts[task.id] ?? 0 : 0), 0),
+          })),
+          disabled: saving,
+          showRequiredError: financeDirty,
+        }} />
+
         <ProjectInfoRow
           draft={draft}
           canEdit={canEditInfo}
@@ -283,7 +312,7 @@ export function ProjectStructureEditor({ project, onExit }: { project: Project; 
         error={saveError || undefined}
         saving={saving}
         saveLabel="保存修改"
-        saveDisabled={!dirty || stale}
+        saveDisabled={!dirty || stale || (financeDirty && !!financeState?.invalid)}
         onCancel={cancel}
         onSave={save}
       >
@@ -312,11 +341,12 @@ export function ProjectStructureEditor({ project, onExit }: { project: Project; 
 
 // ============= 任务表单（与模板的任务抽屉同一外观） =============
 
+// 负责人只能选项目团队中的在职用户；沿用的原负责人（如已停用）照常显示
 function ownerOptions(project: Project, currentOwnerId?: string): User[] {
-  const team = new Set([project.ownerId, ...(project.memberIds ?? [])])
+  const team = teamIds(project)
   return users
-    .filter((u) => u.isActive || u.id === currentOwnerId)
-    .sort((a, b) => Number(team.has(b.id)) - Number(team.has(a.id)) || a.displayName.localeCompare(b.displayName, 'zh'))
+    .filter((u) => (u.isActive && team.has(u.id)) || u.id === currentOwnerId)
+    .sort((a, b) => a.displayName.localeCompare(b.displayName, 'zh'))
 }
 
 function ProjectTaskDrawer({ draft, state, project, onClose, onSubmit }: {
@@ -404,6 +434,7 @@ function ProjectTaskDrawer({ draft, state, project, onClose, onSubmit }: {
               <option key={u.id} value={u.id}>{u.displayName}{u.specialtyGroup ? ` · ${u.specialtyGroup}` : ''}{u.isActive ? '' : '（已停用）'}</option>
             ))}
           </select>
+          <span className="block text-[10px] text-ink-400 mt-1">{ADD_TO_TEAM_HINT}</span>
         </label>
         <label className="block">
           <span className="text-[11px] text-ink-500">成本预算（万）</span>

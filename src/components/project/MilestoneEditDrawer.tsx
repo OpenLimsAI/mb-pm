@@ -18,6 +18,7 @@ import {
   createMilestoneWithDeps, updateMilestoneWithDeps, deleteMilestoneWithDeps,
 } from '../../data/bootstrap'
 import { cn } from '../../lib/cn'
+import { rejectionText } from '../../api/client'
 
 export type MilestoneEditTarget =
   | { mode: 'create' }
@@ -124,7 +125,7 @@ export function MilestoneEditDrawer({ target, project, onClose }: Props) {
       onClose()
     } catch (e) {
       console.error(e)
-      setError('保存失败，请确认后端已启动后重试。')
+      setError(rejectionText(e, '保存失败，请确认后端已启动后重试。'))
       setSaving(false)
     }
   }

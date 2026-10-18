@@ -17,7 +17,7 @@ npm ci
 VITE_USE_API=false npm run dev
 ```
 
-打开 `http://localhost:5175/login`，点击「界面预览」查看门户；`/account?preview=1` 预览账号页。
+打开 `http://localhost:5175/login`，点击「界面预览」查看门户；`/settings?preview=1` 预览「我的设置」个人账号页。
 预览仅在开发模式开放，明确标记身份未经验证，禁用真实应用跳转及退出。
 项目管理演示界面可从 `/dashboard` 进入；此模式不验证 IAM 登录，也不连接客户数据库。
 需要沿用 5176 端口时可执行 `VITE_USE_API=false npm run dev -- --host 127.0.0.1 --port 5176`。

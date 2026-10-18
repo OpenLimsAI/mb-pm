@@ -55,7 +55,7 @@ export function DeleteProjectButton({
     } catch (err) {
       const { status } = asAPIError(err)
       setError(
-        status === 403 ? '当前账号没有删除权限：仅系统管理员和 CMC 负责人可删除项目。' :
+        status === 403 ? '当前账号没有删除权限：仅系统管理员和项目负责人可删除项目。' :
         status === 401 ? '登录已失效，请重新登录后再试。' :
         status === 404 ? '项目已不存在，请返回项目列表刷新。' :
         status === 409 ? '项目仍被其他记录引用，暂时无法删除。' :

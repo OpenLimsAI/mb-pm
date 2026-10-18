@@ -10,6 +10,8 @@ type PortalStatus = 'loading' | 'ready' | 'anonymous' | 'error'
 interface PortalState {
   user: PortalUser | null
   applications: PortalApplication[]
+  mustChangePassword: boolean
+  canConfigureAi: boolean
   status: PortalStatus
   error: string | null
   refresh: () => Promise<void>
@@ -22,17 +24,21 @@ let refreshing: Promise<void> | undefined
 export const usePortal = create<PortalState>((set) => ({
   user: null,
   applications: [],
+  mustChangePassword: false,
+  canConfigureAi: false,
   status: 'loading',
   error: null,
   refresh: () => {
     if (!refreshing) {
       refreshing = fetchPortalIdentity()
-        .then(({ user, applications }) => set({ user, applications, status: 'ready', error: null }))
+        .then(({ user, applications, mustChangePassword, canConfigureAi }) => set({ user, applications, mustChangePassword: !!mustChangePassword, canConfigureAi: !!canConfigureAi, status: 'ready', error: null }))
         .catch((err) => {
           const { status, detail } = asAPIError(err)
           set({
             user: null,
             applications: [],
+            mustChangePassword: false,
+            canConfigureAi: false,
             status: status === 401 ? 'anonymous' : 'error',
             error: status === undefined ? '暂时无法连接工作台登录服务，请检查网络后重试。' : detail,
           })

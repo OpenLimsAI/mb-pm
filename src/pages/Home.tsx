@@ -30,6 +30,7 @@ import type { Health, Project, Task } from '../types'
 import { Card, CardHeader, CardBody, Tag, Avatar, HealthTag } from '../components/ui'
 import { PersonalKanban } from '../components/dashboard/PersonalKanban'
 import { cn } from '../lib/cn'
+import { accountsUrl } from '../lib/site'
 
 // 与 mock 数据共用同一「今日」锚点，保证状态/进度/风险判定确定且自洽。
 const today = TODAY
@@ -459,7 +460,7 @@ function OrgOverview({ org }: {
       <CardHeader
         title={<span className="flex items-center gap-2"><Users className="w-4 h-4 text-brand-600" />组织总览</span>}
         subtitle="成员与专业组分布"
-        action={<Link to="/org" className="text-sm text-brand-600 hover:text-brand-700 flex items-center gap-1">进入组织 <ArrowRight className="w-3.5 h-3.5" /></Link>}
+        action={<a href={accountsUrl} className="text-sm text-brand-600 hover:text-brand-700 flex items-center gap-1">账号管理 <ArrowRight className="w-3.5 h-3.5" /></a>}
       />
       <CardBody>
         <div className="flex items-center gap-6">

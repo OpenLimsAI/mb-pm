@@ -27,10 +27,24 @@
 .mb-login-card-eyebrow { font-size: 12px; color: #738695; margin-bottom: 10px; }
 .mb-login-card h2 { font-size: clamp(22px, 2vw, 28px); font-weight: 650; letter-spacing: -.025em; line-height: 1.5; }
 .mb-login-card-description { margin-top: 14px; font-size: 14px; line-height: 1.9; color: #718393; }
-.mb-login-identity { display: flex; gap: 12px; align-items: center; margin-top: 32px; padding: 17px 18px; border-radius: 10px; background: #f6f8fa; border: 1px solid #e6edf2; color: #43657e; }
-.mb-login-identity > svg { flex-shrink: 0; }
-.mb-login-identity strong { display: block; font-size: 13px; font-weight: 600; color: #34516a; }
-.mb-login-identity span { display: block; margin-top: 4px; font-size: 11px; color: #788b9b; }
+/* 嵌入式登录表单：用户名 / 密码直接在本页提交到迈博 IAM */
+.mb-login-form { margin-top: 26px; display: grid; gap: 16px; }
+.mb-login-identity-note { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #5d7689; }
+.mb-login-identity-note > svg { color: #23486f; flex-shrink: 0; }
+.mb-login-field { display: grid; gap: 7px; font-size: 12px; font-weight: 600; color: #34516a; }
+.mb-login-input { display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 0 14px; border: 1px solid #d8e2ea; border-radius: 10px; background: #fff; color: #6f8597; transition: border-color .18s ease, box-shadow .18s ease; }
+.mb-login-input:focus-within { border-color: #23486f; box-shadow: 0 0 0 3px rgb(35 72 111 / .1); }
+.mb-login-input > svg { flex-shrink: 0; }
+.mb-login-input input { flex: 1; min-width: 0; height: 48px; border: 0; outline: 0; background: transparent; font-size: 15px; font-weight: 400; color: #1f3446; }
+.mb-login-input input::placeholder { color: #9aabb9; }
+.mb-login-input input:disabled { cursor: not-allowed; }
+.mb-login-reveal { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; margin-right: -6px; border: 0; border-radius: 7px; background: transparent; color: #6f8597; cursor: pointer; }
+.mb-login-reveal:hover { background: #f2f6f8; color: #23486f; }
+.mb-login-options { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 12px; color: #6f8597; }
+.mb-login-options label { display: flex; align-items: center; gap: 7px; color: #34516a; cursor: pointer; }
+.mb-login-options input { width: 15px; height: 15px; accent-color: #23486f; }
+.mb-login-form .mb-login-error { margin-top: 0; }
+.mb-login-form .mb-login-submit { margin-top: 4px; }
 .mb-login-submit { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; border: 0; border-radius: 10px; padding: 17px 18px; min-height: 55px; margin-top: 22px; background: rgb(35, 72, 111); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; transition: background .18s ease, box-shadow .18s ease; }
 .mb-login-submit:hover:not(:disabled) { background: #1c3d60; box-shadow: 0 5px 14px rgb(35 72 111 / .15); }
 .mb-login-submit:disabled { opacity: .64; cursor: wait; }
@@ -40,12 +54,10 @@
 .mb-login-switch:hover { background: #f2f6f8; }
 .mb-login-switch:disabled { opacity: .5; cursor: wait; }
 .mb-login-error { margin-top: 18px; padding: 12px 14px; border: 1px solid #f0d3d2; background: #fdf5f4; border-radius: 8px; color: #973f3b; font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
-.mb-login-management { padding-top: 23px; font-size: 12px; color: #738695; text-align: center; line-height: 1.8; }
-.mb-login-management a { color: #23486f; text-decoration: underline; text-underline-offset: 4px; font-weight: 600; }
-.mb-login-management a:hover { color: #087b9c; }
 .mb-login-help { text-align: center; font-size: 11px; line-height: 1.8; color: #788b9b; margin-top: 36px; padding-top: 22px; border-top: 1px solid #e9eef3; }
 .mb-login-footer { width: min(1280px, calc(100% - 56px)); margin: 0 auto 22px; display: flex; justify-content: space-between; gap: 12px; font-size: 10px; color: #8292a0; }
 .mb-login :where(a, button):focus-visible { outline: 3px solid #087b9c; outline-offset: 4px; }
+.mb-login-reveal:focus-visible { outline-offset: 0; }
 .mb-login-spinner { animation: mb-login-spin 1s linear infinite; }
 @keyframes mb-login-spin { to { transform: rotate(360deg); } }
 
@@ -82,7 +94,7 @@
   .mb-login-panel { padding: 30px 28px; }
   .mb-login-card-mark { display: none; }
   .mb-login-card-description { font-size: 13px; }
-  .mb-login-identity { margin-top: 24px; }
+  .mb-login-form { margin-top: 20px; gap: 14px; }
   .mb-login-help { margin-top: 24px; }
   .mb-login-footer { width: calc(100% - 44px); margin-bottom: 18px; }
 }

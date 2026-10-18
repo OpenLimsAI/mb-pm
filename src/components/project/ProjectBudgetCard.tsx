@@ -1,15 +1,15 @@
-// 项目预算与成本卡 —— 项目详情「概览」用。
+// 项目预算与成本卡 —— 项目详情「概览」（只读）与「编辑项目」（可改预算）共用。
 //
 // 口径（与后端 services/finance.py 一致）：
-//   · 项目预算：总预算 / 已承诺 / 成本结构由管理员或 CMC 负责人维护（右上角「编辑预算」）。
+//   · 项目预算：总预算 / 已承诺 / 成本结构在「编辑项目」中修改（权限 project.edit），预算与项目修改一起保存。
 //   · 已花费 = 该项目全部任务的实际花费合计（WBS 中录入，不含内部人力），自动汇总、不可手改。
 //   · WBS 任务预算：各任务成本预算之和，并按子项目分解（模板 costBudget → 任务 costBudget）。
 // 订阅数据版本：在 WBS 行内改预算 / 花费后即时刷新。
 
-import { useMemo, useState } from 'react'
-import { Wallet, Coins, AlertTriangle, Pencil } from 'lucide-react'
+import { useMemo } from 'react'
+import { Wallet, Coins, AlertTriangle } from 'lucide-react'
 import type { Project } from '../../types'
-import { Button, Card, CardHeader, CardBody, Tag } from '../ui'
+import { Card, CardHeader, CardBody, Tag } from '../ui'
 import {
   FINANCE_CATEGORIES, getProjectFinance, executionRate, isOverBudget,
   getProjectSubs, getSubTasks, getProjectTasks,
@@ -17,20 +17,37 @@ import {
 import { can } from '../../lib/permissions'
 import { useAuth } from '../../store/auth'
 import { useDataStore } from '../../store/data'
-import { FinanceEditDialog } from '../finance/FinanceEditDialog'
+import { FinanceFields } from '../finance/FinanceFields'
+import { financeDraftState, type FinanceDraft } from '../../lib/financeDraft'
 
 const fmt = (v: number) => `¥${Math.round(v).toLocaleString('zh-CN')}万`
 
-export function ProjectBudgetCard({ project }: { project: Project }) {
+export function ProjectBudgetCard({ project, editor }: { project: Project; editor?: {
+  draft: FinanceDraft
+  onChange: (draft: FinanceDraft) => void
+  spent: number
+  groups: { id: string; name: string; total: number; cost: number }[]
+  disabled: boolean
+  showRequiredError: boolean
+} }) {
   // 订阅版本：WBS 改预算 / 花费、编辑项目预算后重新汇总
   const version = useDataStore((s) => s.version)
-  const canEdit = can(useAuth((s) => s.currentUser?.role), 'finance.edit')
-  const [editing, setEditing] = useState(false)
+  const role = useAuth((s) => s.currentUser?.role)
+  const canEditProject = can(role, 'project.edit')
 
-  const finance = getProjectFinance(project.id)
+  const storedFinance = getProjectFinance(project.id)
+  const finance = editor ? (editor.draft.totalBudget.trim() ? {
+    projectId: project.id, ...financeDraftState(editor.draft).value, spent: editor.spent,
+    taskBudget: editor.groups.reduce((sum, g) => sum + g.total, 0),
+  } : undefined) : storedFinance
 
   // 自下而上：任务预算合计 + 实际花费合计 + 按子项目分解（按当前用户可见的任务）
   const { taskTotal, costTotal, bySub } = useMemo(() => {
+    if (editor) return {
+      taskTotal: editor.groups.reduce((sum, g) => sum + g.total, 0),
+      costTotal: editor.spent,
+      bySub: editor.groups.filter((g) => g.total > 0 || g.cost > 0).map((g) => ({ sub: { id: g.id, name: g.name }, total: g.total, cost: g.cost })),
+    }
     const subs = getProjectSubs(project.id).sort((a, b) => a.sortOrder - b.sortOrder)
     const bySub = subs
       .map((s) => {
@@ -50,7 +67,7 @@ export function ProjectBudgetCard({ project }: { project: Project }) {
       bySub,
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project.id, version])
+  }, [project.id, version, editor])
 
   const over = finance ? isOverBudget(finance) : false
   const spentPct = finance && finance.totalBudget ? (finance.spent / finance.totalBudget) * 100 : 0
@@ -65,22 +82,24 @@ export function ProjectBudgetCard({ project }: { project: Project }) {
     <Card>
       <CardHeader
         title={<span className="flex items-center gap-2"><Wallet className="w-4 h-4 text-brand-600" />预算与成本</span>}
-        subtitle="项目预算执行（已花费 = 任务实际花费合计）· WBS 任务预算明细"
+        subtitle={editor
+          ? '直接修改下方预算，与项目信息和结构一起点击「保存修改」生效 · 金额单位：万元'
+          : '项目预算执行（已花费 = 任务实际花费合计）· WBS 任务预算明细'}
         action={
           <div className="flex items-center gap-2">
             {finance
               ? <Tag tone={over ? 'red' : 'green'}>{over ? '超支' : `执行 ${executionRate(finance)}%`}</Tag>
               : <Tag tone="gray">未设置项目预算</Tag>}
-            {canEdit && (
-              <Button size="sm" icon={<Pencil className="w-3.5 h-3.5" />} onClick={() => setEditing(true)}>
-                {finance ? '编辑预算' : '设置预算'}
-              </Button>
-            )}
           </div>
         }
       />
       <CardBody>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {editor ? (
+            <div className="lg:col-span-2">
+              <FinanceFields draft={editor.draft} onChange={editor.onChange} spent={editor.spent} taskBudget={taskTotal} disabled={editor.disabled} showRequiredError={editor.showRequiredError} />
+            </div>
+          ) : <>
           {/* 1. 项目预算执行 */}
           <div>
             <div className="text-xs text-ink-500">项目总预算</div>
@@ -109,7 +128,7 @@ export function ProjectBudgetCard({ project }: { project: Project }) {
               </>
             ) : (
               <div className="mt-2 text-xs text-ink-400 leading-relaxed">
-                尚未设置项目预算。{canEdit ? <>点击右上角「设置预算」填写总预算与已承诺。</> : <>请联系系统管理员或 CMC 负责人设置。</>}
+                尚未设置项目预算。{canEditProject ? <>可在页首「编辑项目」中设置。</> : <>请联系系统管理员或项目负责人设置。</>}
               </div>
             )}
           </div>
@@ -136,6 +155,8 @@ export function ProjectBudgetCard({ project }: { project: Project }) {
               <div className="text-xs text-ink-400">未填报</div>
             )}
           </div>
+
+          </>}
 
           {/* 3. WBS 任务预算 / 实际花费（自下而上） */}
           <div>
@@ -175,7 +196,6 @@ export function ProjectBudgetCard({ project }: { project: Project }) {
           </div>
         </div>
       </CardBody>
-      {editing && <FinanceEditDialog project={project} finance={finance} onClose={() => setEditing(false)} />}
     </Card>
   )
 }

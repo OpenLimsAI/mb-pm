@@ -11,7 +11,7 @@ const code = ts.transpileModule(source.replaceAll('import.meta.env', 'testEnviro
 
 function site(hostname, DEV = false, VITE_APP_MODE = undefined) {
   const context = {
-    exports: {}, URL, testEnvironment: { DEV, VITE_APP_MODE },
+    exports: {}, URL, URLSearchParams, testEnvironment: { DEV, VITE_APP_MODE },
     window: { location: { hostname, origin: DEV ? `http://${hostname}:5176` : `https://${hostname}` } },
   }
   vm.runInNewContext(code, context)
@@ -28,6 +28,30 @@ assert.equal(site('unknown.example').siteMode, 'portal')
 assert.equal(site('127.0.0.1', true, 'pm').siteMode, 'pm')
 assert.equal(site('localhost', true, 'portal').siteMode, 'portal')
 assert.equal(pm.workspaceUrl, 'https://www.openlims.ai')
+// 组织（账号管理）与设置在门户：PM 的旧入口跳到 www，本地组合模式留在本地
+for (const mode of [portal, pm]) {
+  assert.equal(mode.accountsUrl, 'https://www.openlims.ai/accounts')
+  assert.equal(mode.settingsUrl, 'https://www.openlims.ai/settings')
+}
+assert.equal(local.accountsUrl, '/accounts')
+assert.equal(local.settingsUrl, '/settings')
+// 版本更新归属门户；项目管理旧入口离开 PM，本地组合模式仍留在本地。
+assert.equal(portal.releaseNotesUrl, '/release-notes')
+assert.equal(pm.releaseNotesUrl, 'https://www.openlims.ai/release-notes')
+assert.equal(local.releaseNotesUrl, '/release-notes')
+// 个人设置留在门户，AI 配置回 PM；旧书签在三种域名模式下均不能形成循环。
+assert.equal(portal.aiSettingsUrl, 'https://pm.openlims.ai/ai-settings')
+assert.equal(pm.aiSettingsUrl, '/ai-settings')
+assert.equal(local.aiSettingsUrl, '/ai-settings')
+assert.equal(portal.settingsRedirect(''), null)
+assert.equal(local.settingsRedirect(''), null)
+assert.equal(pm.settingsRedirect(''), 'https://www.openlims.ai/settings')
+assert.equal(portal.settingsRedirect('?tab=ai'), 'https://pm.openlims.ai/ai-settings')
+assert.equal(pm.settingsRedirect('?tab=ai'), '/ai-settings')
+assert.equal(local.settingsRedirect('?tab=ai'), '/ai-settings')
+assert.equal(local.settingsRedirect('?tab=ai&preview=1'), '/ai-settings?preview=1')
+assert.equal(portal.settingsRedirect('?tab=ai&preview=1'), 'https://pm.openlims.ai/ai-settings')
+assert.equal(pm.settingsRedirect('?tab=account'), 'https://www.openlims.ai/settings?tab=account')
 
 // www 打开 PM 必须离开 www；本地组合模式仍在本地后端联调。
 assert.equal(portal.projectApplicationUrl(), 'https://pm.openlims.ai/api/v1/auth/login?return_to=%2Fdashboard')

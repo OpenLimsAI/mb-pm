@@ -1,8 +1,8 @@
-// 项目团队面板 — 区分四类身份：
+// 项目团队面板 — 区分身份：
 //   1. 项目负责人 (project owner)
 //   2. 项目团队成员 (project member — Project.memberIds)
-//   3. 任务执行者 (task owner — 出现在任务 ownerId/collaboratorIds 但非以上两类)
-//   4. （可选展示）只在团队但无任务的成员
+//   3. 任务执行者 (出现在任务 ownerId/collaboratorIds 但非以上两类；任务只能派给团队成员，
+//      后端启动时已把这类人补入团队，正常不会出现)
 
 import { useState } from 'react'
 import { UserCog, UserMinus, AlertTriangle, Loader2, X } from 'lucide-react'
@@ -12,6 +12,7 @@ import { getProjectTasks, findUser, calcWorkload } from '../../mock'
 import { useAuth } from '../../store/auth'
 import { useDataStore } from '../../store/data'
 import { updateProjectMembers } from '../../data/bootstrap'
+import { rejectionText } from '../../api/client'
 import { cn } from '../../lib/cn'
 import { ProjectMembersDrawer } from './ProjectMembersDrawer'
 
@@ -46,7 +47,7 @@ export function TeamPanel({ project }: { project: Project }) {
       setConfirmId(null)
     } catch (e) {
       console.error(e)
-      setRemoveError('移除失败，请确认后端已启动后重试。')
+      setRemoveError(rejectionText(e, '移除失败，请确认后端已启动后重试。'))
     } finally {
       setRemovingId(null)
     }
@@ -74,11 +75,14 @@ export function TeamPanel({ project }: { project: Project }) {
       if (!u) return null
       const w = calcWorkload(id)
       const myTasks = tasks.filter((t) => t.ownerId === id)
+      // 负责或协作的任务都算：仍有任务的人不能移出团队
+      const assignedCount = tasks.filter((t) => t.ownerId === id || t.collaboratorIds?.includes(id)).length
       return {
         user: u,
         roleInProject,
         workload: w,
         taskCount: myTasks.length,
+        assignedCount,
         doneCount: myTasks.filter((t) => t.status === '已完成' || t.status === '已验证').length,
       }
     })
@@ -180,7 +184,7 @@ export function TeamPanel({ project }: { project: Project }) {
                     <button
                       onClick={() => {
                         setRemoveError(null)
-                        if (m.taskCount > 0) { setBlockedId(m.user.id); setConfirmId(null) }
+                        if (m.assignedCount > 0) { setBlockedId(m.user.id); setConfirmId(null) }
                         else { setConfirmId(m.user.id); setBlockedId(null) }
                       }}
                       className="shrink-0 p-1.5 rounded-md text-ink-400 hover:text-red-600 hover:bg-red-50 transition-colors"
@@ -198,7 +202,7 @@ export function TeamPanel({ project }: { project: Project }) {
                     <div className="flex items-start gap-2 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-2">
                       <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                       <div className="flex-1">
-                        Ta 仍负责本项目 <b>{m.taskCount}</b> 个任务，无法移除。请先在 <b>WBS</b> 中将这些任务的负责人转交他人后再移除。
+                        Ta 仍负责或协作本项目 <b>{m.assignedCount}</b> 个任务，无法移除。请先在 <b>WBS</b> 中将这些任务转交他人后再移除。
                       </div>
                       <button onClick={() => setBlockedId(null)} className="shrink-0 text-amber-600 hover:text-amber-900" aria-label="关闭">
                         <X className="w-3.5 h-3.5" />

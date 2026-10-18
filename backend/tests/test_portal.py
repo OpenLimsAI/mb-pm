@@ -105,7 +105,7 @@ def app_map(client):
     return {item["id"]: item for item in response.json()["applications"]}
 
 
-def test_kb_only_user_enters_portal_but_not_pm(portal_fixture, token_factory, monkeypatch):
+def test_new_user_enters_portal_with_pm_open_by_default(portal_fixture, token_factory, monkeypatch):
     client, db = portal_fixture
     response = complete(
         client,
@@ -125,7 +125,8 @@ def test_kb_only_user_enters_portal_but_not_pm(portal_fixture, token_factory, mo
         "display_name": "knowledge.reader",
     }
     assert app_map(client)["kb"]["enabled"] is True
-    assert app_map(client)["pm"]["enabled"] is False
+    # 项目管理默认开放：首次进入项目管理时才建成员，门户目录本身不建成员 / 绑定 / 会话
+    assert app_map(client)["pm"]["enabled"] is True
     assert client.get("/api/v1/auth/me").status_code == 401
     assert client.get("/api/v1/projects").status_code == 401
     assert db.query(User).count() == 1
@@ -162,10 +163,10 @@ def test_pm_only_catalogue_checks_but_does_not_bind(portal_fixture, token_factor
     "claim_roles, pm, kb",
     [
         (roles("admin", "kb_editor"), True, True),
-        (roles("admin", "rd", "kb_viewer"), False, True),
-        (roles(), False, False),
-        ([{"owner": "built-in", "name": "kb_viewer"}], False, False),
-        ([{"owner": "mabpharm", "name": "kb_viewer", "isEnabled": False}], False, False),
+        (roles("admin", "rd", "kb_viewer"), True, True),
+        (roles(), True, False),
+        ([{"owner": "built-in", "name": "kb_viewer"}], True, False),
+        ([{"owner": "mabpharm", "name": "kb_viewer", "isEnabled": False}], True, False),
     ],
 )
 def test_catalogue_independent_role_rules(
@@ -179,9 +180,11 @@ def test_catalogue_independent_role_rules(
     assert db.query(IAMIdentity).count() == 0
 
 
-@pytest.mark.parametrize("change", ["inactive", "already_bound", "missing"])
+@pytest.mark.parametrize(
+    ("change", "enabled"), [("inactive", False), ("already_bound", False), ("missing", True)]
+)
 def test_pm_catalogue_requires_available_business_user(
-    portal_fixture, token_factory, monkeypatch, change
+    portal_fixture, token_factory, monkeypatch, change, enabled
 ):
     client, db = portal_fixture
     if change == "inactive":
@@ -192,7 +195,8 @@ def test_pm_catalogue_requires_available_business_user(
     complete(
         client, db, token_factory, monkeypatch, name="missing" if change == "missing" else "admin"
     )
-    assert app_map(client)["pm"]["enabled"] is False
+    # 没有同名成员时首次进入会自动建；停用或同名成员已绑定其他账号时不开放
+    assert app_map(client)["pm"]["enabled"] is enabled
 
 
 def test_session_cookie_names_and_tables_are_isolated(portal_fixture, token_factory):

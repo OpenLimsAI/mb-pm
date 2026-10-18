@@ -5,7 +5,6 @@ export const knowledgePublicUrl = 'https://kb.openlims.ai'
 // 论文知识库（dikw-mbweb）自 2026-10-06 起独立部署在 knowledgePublicUrl 根地址，入口不再需要 #mb-web；
 // 旧链接 /#mb-web 仍会打开论文知识库。管理工作台不经此域名访问。
 export const knowledgeLaunchUrl = `${knowledgePublicUrl}/`
-export const iamLoginUrl = 'https://iam.openlims.ai/login'
 
 type SiteMode = 'portal' | 'pm' | 'combined'
 const configuredMode = import.meta.env.VITE_APP_MODE
@@ -16,6 +15,24 @@ export const siteMode: SiteMode = ['portal', 'pm', 'combined'].includes(configur
       : 'portal'
 
 export const workspaceUrl = siteMode === 'combined' ? '/' : portalPublicUrl
+/** 门户「账号管理」：成员与账号的唯一修改入口（与 IAM 同步），也是组织名单（仅系统管理员 / 项目负责人可见）。 */
+export const accountsUrl = siteMode === 'combined' ? '/accounts' : `${portalPublicUrl}/accounts`
+/** 门户「我的设置」：个人身份、用户名 / 密码及应用访问。 */
+export const settingsUrl = siteMode === 'combined' ? '/settings' : `${portalPublicUrl}/settings`
+/** 版本更新统一从门户工作台阅读；PM 的旧页面跳转到门户。 */
+export const releaseNotesUrl = siteMode === 'pm' ? `${portalPublicUrl}/release-notes` : '/release-notes'
+/** AI 配置属于项目管理；门户中的旧链接跳到 PM，不复制配置。 */
+export const aiSettingsUrl = siteMode === 'portal' ? `${projectPublicUrl}/ai-settings` : '/ai-settings'
+
+/** 旧 /settings?tab=ai 转到 AI设置；PM 的个人设置仍返回门户。 */
+export function settingsRedirect(search: string): string | null {
+  const params = new URLSearchParams(search)
+  if (params.get('tab') === 'ai') {
+    const preview = siteMode === 'combined' && params.get('preview') === '1' ? '?preview=1' : ''
+    return aiSettingsUrl + preview
+  }
+  return siteMode === 'pm' ? settingsUrl + search : null
+}
 
 /** 登录返回地址只接受本站路径。 */
 export function safeReturnPath(from: unknown, fallback = '/'): string {

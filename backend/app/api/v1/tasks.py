@@ -10,6 +10,7 @@
 权限矩阵参考前端 lib/permissions.ts：
   admin/cmc_lead/project_lead → 全字段更新（project_lead 仅限自己负责 / 参与的项目）
   rd/production/qa_qc         → 仅能改本人 owner 或 collaborator 的任务
+任务只能派给项目团队里的人（新建、改负责人、加协作人），规则见 services/team.py。
 """
 
 from datetime import datetime, timezone
@@ -21,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_role
 from app.db.session import get_db
-from app.models import AuditLog, SubProject, Task, User
+from app.models import AuditLog, Project, SubProject, Task, User
 from app.schemas.common import Page, PageMeta
 from app.schemas.task import TaskCreate, TaskOut, TaskUpdate
 from app.services.rollup import recompute_project, recompute_subproject, rollup_for_task
@@ -32,6 +33,7 @@ from app.services.scope import (
     visible_task_ids_for,
 )
 from app.services.task_order import next_sort_order
+from app.services.team import ensure_in_team
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -126,6 +128,9 @@ def create_task(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "sub_project not found")
     if sub.project_id not in visible_project_ids_for(user, db):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "sub_project not visible")
+    ensure_in_team(
+        db, db.get(Project, sub.project_id), [payload.owner_id, *(payload.collaborator_ids or [])]
+    )
 
     if payload.sort_order is None:
         payload.sort_order = next_sort_order(db, sub.id)
@@ -188,8 +193,19 @@ def update_task(
                 f"执行层不能修改任务的{'、'.join(forbidden)}，请联系项目负责人",
             )
 
+    # 新的负责人 / 协作人须已在项目团队中（沿用原来的不受影响）
+    changes = payload.model_dump(exclude_unset=True)
+    added = set()
+    if changes.get("owner_id") and changes["owner_id"] != task.owner_id:
+        added.add(changes["owner_id"])
+    if changes.get("collaborator_ids"):
+        added |= set(changes["collaborator_ids"]) - set(task.collaborator_ids or [])
+    if added:
+        sub = db.query(SubProject).filter_by(id=task.sub_project_id).first()
+        ensure_in_team(db, db.get(Project, sub.project_id), added)
+
     old_status = task.status
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    for k, v in changes.items():
         setattr(task, k, v)
 
     # 状态变更钩子 → 写审计日志

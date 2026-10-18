@@ -9,7 +9,7 @@
 // 行内任一字段改动 → 调 updateTaskProgress（API：PATCH + 自动汇总到子项目/项目；离线：本地汇总），
 // 每行带独立的保存状态指示（保存中 / 已保存 / 失败）。任务名仍可点开抽屉看依赖、备注等完整信息。
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import {
   Search, Diamond, Flame, ChevronDown, ChevronRight, Check, Loader2, AlertCircle,
   FolderTree, Filter, X,
@@ -23,6 +23,7 @@ import { useAuth } from '../../store/auth'
 import { can } from '../../lib/permissions'
 import { getTaskSchedule, isTaskDone, scheduleToneText } from '../../lib/schedule'
 import { cn } from '../../lib/cn'
+import { ADD_TO_TEAM_HINT, teamIds } from '../../lib/projectTeam'
 
 const TASK_STATUSES: TaskStatus[] = ['未开始', '进行中', '阻塞', '延迟', '已完成', '已验证']
 const MILESTONE_STATUSES: TaskStatus[] = ['未开始', '已验证']
@@ -59,15 +60,11 @@ export function WBSTable({ project, onOpenTask, selectedTaskId }: Props) {
   const ownerIds = new Set(subs.flatMap((s) => getSubTasks(s.id).map((t) => t.ownerId)))
   const ownerOptions = users.filter((u) => ownerIds.has(u.id))
 
-  // 可改派的负责人：在职用户，项目团队（负责人 + 成员）优先分组，便于行内改派
-  const teamIds = useMemo(
-    () => new Set<string>([project.ownerId, ...(project.memberIds || [])]),
-    [project.ownerId, project.memberIds],
-  )
-  const active = users.filter((u) => u.isActive !== false)
-  const byName = (a: User, b: User) => a.displayName.localeCompare(b.displayName, 'zh-Hans-CN')
-  const team = active.filter((u) => teamIds.has(u.id)).sort(byName)
-  const others = active.filter((u) => !teamIds.has(u.id)).sort(byName)
+  // 可改派的负责人：只能是项目团队（负责人 + 成员）中的在职用户，其他人先在「团队」页加入
+  const inTeam = teamIds(project)
+  const team = users
+    .filter((u) => u.isActive !== false && inTeam.has(u.id))
+    .sort((a: User, b: User) => a.displayName.localeCompare(b.displayName, 'zh-Hans-CN'))
 
   const matches = (t: Task): boolean => {
     const kw = keyword.trim().toLowerCase()
@@ -199,7 +196,6 @@ export function WBSTable({ project, onOpenTask, selectedTaskId }: Props) {
                   onOpenTask={onOpenTask}
                   selectedTaskId={selectedTaskId}
                   team={team}
-                  others={others}
                 />
               ))}
             </tbody>
@@ -210,7 +206,7 @@ export function WBSTable({ project, onOpenTask, selectedTaskId }: Props) {
   )
 }
 
-function SubGroup({ sub, tasks, collapsed, onToggle, onOpenTask, selectedTaskId, team, others }: {
+function SubGroup({ sub, tasks, collapsed, onToggle, onOpenTask, selectedTaskId, team }: {
   sub: SubProject
   tasks: Task[]
   collapsed: boolean
@@ -218,7 +214,6 @@ function SubGroup({ sub, tasks, collapsed, onToggle, onOpenTask, selectedTaskId,
   onOpenTask?: (id: string) => void
   selectedTaskId?: string
   team: User[]
-  others: User[]
 }) {
   const subBudget = tasks.reduce((a, t) => a + (t.costBudget ?? 0), 0)
   const subCost = tasks.reduce((a, t) => a + (t.actualCost ?? 0), 0)
@@ -253,7 +248,7 @@ function SubGroup({ sub, tasks, collapsed, onToggle, onOpenTask, selectedTaskId,
         </td>
       </tr>
       {!collapsed && tasks.map((t) => (
-        <WBSRow key={t.id} task={t} onOpenTask={onOpenTask} selected={selectedTaskId === t.id} team={team} others={others} />
+        <WBSRow key={t.id} task={t} onOpenTask={onOpenTask} selected={selectedTaskId === t.id} team={team} />
       ))}
     </>
   )
@@ -261,15 +256,14 @@ function SubGroup({ sub, tasks, collapsed, onToggle, onOpenTask, selectedTaskId,
 
 type RowState = 'idle' | 'saving' | 'saved' | 'error'
 
-function WBSRow({ task, onOpenTask, selected, team, others }: {
+function WBSRow({ task, onOpenTask, selected, team }: {
   task: Task
   onOpenTask?: (id: string) => void
   selected?: boolean
   team: User[]
-  others: User[]
 }) {
   const owner = findUser(task.ownerId)
-  const ownerInList = team.some((u) => u.id === task.ownerId) || others.some((u) => u.id === task.ownerId)
+  const ownerInList = team.some((u) => u.id === task.ownerId)
   // 任务预算只由项目负责人及以上维护；执行层只录入实际花费（后端同样拦截）
   const canEditBudget = can(useAuth((s) => s.currentUser?.role), 'task.budget.edit')
   const isMilestone = task.isMilestone
@@ -393,11 +387,7 @@ function WBSRow({ task, onOpenTask, selected, team, others }: {
             <optgroup label="项目团队">
               {team.map((u) => <option key={u.id} value={u.id}>{u.displayName}</option>)}
             </optgroup>
-            {others.length > 0 && (
-              <optgroup label="其他成员">
-                {others.map((u) => <option key={u.id} value={u.id}>{u.displayName}</option>)}
-              </optgroup>
-            )}
+            <option disabled>{ADD_TO_TEAM_HINT}</option>
           </select>
         </div>
       </td>

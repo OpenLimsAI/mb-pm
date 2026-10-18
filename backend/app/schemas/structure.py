@@ -9,6 +9,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.schemas.finance import ProjectFinanceUpdate
+
 
 def _text(value: str) -> str:
     value = value.strip()
@@ -69,4 +71,6 @@ class StructureSaveIn(BaseModel):
     summary: str | None = Field(default=None, max_length=200)
     # 缺省表示不改项目编号 / 名称
     project: StructureProjectIn | None = None
+    # 缺省 / null 保留预算；提供时与项目结构在同一事务里保存
+    finance: ProjectFinanceUpdate | None = None
     sub_projects: list[StructureSubIn] = Field(max_length=200)

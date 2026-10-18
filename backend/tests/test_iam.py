@@ -15,7 +15,15 @@ from app.core import security
 from app.core.config import settings
 from app.db.session import get_db
 from app.main import app
-from app.models import IAMIdentity, IAMLogin, IAMSession, PortalLogin, PortalSession, User
+from app.models import (
+    IAMIdentity,
+    IAMLogin,
+    IAMSession,
+    PasswordChangeRequired,
+    PortalLogin,
+    PortalSession,
+    User,
+)
 
 
 @pytest.fixture
@@ -23,7 +31,15 @@ def fixture(token_factory):
     engine = create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )
-    for model in [User, IAMIdentity, IAMSession, IAMLogin, PortalLogin, PortalSession]:
+    for model in [
+        User,
+        IAMIdentity,
+        IAMSession,
+        IAMLogin,
+        PortalLogin,
+        PortalSession,
+        PasswordChangeRequired,
+    ]:
         model.__table__.create(engine)
     db = Session(engine)
     for role in security.ROLES:
@@ -85,21 +101,32 @@ def test_no_demo_or_local_jwt_bypass(fixture):
     assert client.get("/api/v1/auth/me").status_code == 401
 
 
-@pytest.mark.parametrize(
-    "change",
-    [
-        {"owner": "built-in"},
-        {"roles": []},
-        {"roles": ["admin"]},
-        {"roles": [{"owner": "elsewhere", "name": "admin"}]},
-        {"isForbidden": True},
-        {"roles": [{"owner": "mabpharm", "name": "admin"}, {"owner": "mabpharm", "name": "rd"}]},
-        {"roles": [{"owner": "mabpharm", "name": "admin", "isEnabled": False}]},
-    ],
-)
-def test_wrong_org_or_role_rejected(fixture, token_factory, change):
+@pytest.mark.parametrize("change", [{"owner": "built-in"}, {"isForbidden": True}])
+def test_wrong_org_or_forbidden_account_rejected(fixture, token_factory, change):
     client, _ = fixture
     assert client.get("/api/v1/auth/me", headers=auth(token_factory(**change))).status_code == 403
+
+
+@pytest.mark.parametrize(
+    ("roles", "expected"),
+    [
+        ([], "rd"),
+        (["admin"], "rd"),
+        ([{"owner": "elsewhere", "name": "admin"}], "rd"),
+        ([{"owner": "mabpharm", "name": "admin", "isEnabled": False}], "rd"),
+        ([{"owner": "mabpharm", "name": "admin"}, {"owner": "mabpharm", "name": "rd"}], "admin"),
+        (
+            [{"owner": "mabpharm", "name": "qa_qc"}, {"owner": "mabpharm", "name": "cmc_lead"}],
+            "cmc_lead",
+        ),
+        ([{"owner": "mabpharm", "name": "kb_editor"}], "rd"),
+    ],
+)
+def test_pm_is_open_to_everyone_and_highest_role_wins(fixture, token_factory, roles, expected):
+    """项目管理默认对组织内所有人开放：没有项目管理角色按员工（rd），多个角色取最高的。"""
+    client, _ = fixture
+    response = client.get("/api/v1/auth/me", headers=auth(token_factory(roles=roles)))
+    assert response.status_code == 200 and response.json()["role"] == expected
 
 
 def test_inactive_user_cannot_sign_in(fixture, token_factory):
@@ -229,15 +256,57 @@ def test_first_login_binds_existing_id_and_blocks_username_takeover(
     assert location.endswith("/login?error=role")
 
 
-def test_unprovisioned_iam_account_cannot_sign_in(fixture, token_factory, monkeypatch):
+def test_first_login_creates_member_for_new_iam_account(fixture, token_factory, monkeypatch):
+    """在 IAM 管理台直接建的账号：第一次进入项目管理时按 IAM 资料自动建成员并绑定。"""
     client, db = fixture
     state, data = begin_login(client, db)
-    exchange(monkeypatch, token_factory, data["nonce"], sub="stranger", name="stranger")
+    exchange(
+        monkeypatch,
+        token_factory,
+        data["nonce"],
+        sub="newcomer-sub",
+        name="newcomer",
+        displayName="新同事",
+        email="",
+        roles=[],
+    )
+    location = client.get("/api/v1/auth/callback", params={"state": state, "code": "ok"}).headers[
+        "location"
+    ]
+    assert "error=" not in location
+    member = db.query(User).filter_by(username="newcomer").one()
+    assert member.display_name == "新同事" and member.role == "rd" and member.is_active
+    assert member.email == "newcomer@mabpharm.example"
+    assert db.get(IAMIdentity, (settings.casdoor_issuer, "newcomer-sub")).user_id == member.id
+    assert db.query(IAMSession).count() == 1
+
+
+def test_login_follows_iam_status_and_display_name(fixture, token_factory, monkeypatch):
+    """IAM 为准：已绑定成员在本系统被停用、但 IAM 账号启用时，登录即恢复；IAM 中改过的姓名随登录同步。"""
+    client, db = fixture
+    member = db.get(User, "admin")
+    member.is_active = False
+    db.commit()
+    assert client.get("/api/v1/auth/me", headers=auth(token_factory())).status_code == 403
+    state, data = begin_login(client, db)
+    exchange(monkeypatch, token_factory, data["nonce"], displayName="张管理（新）")
+    location = client.get("/api/v1/auth/callback", params={"state": state, "code": "ok"}).headers[
+        "location"
+    ]
+    assert "error=" not in location
+    db.refresh(member)
+    assert member.is_active and member.display_name == "张管理（新）"
+
+
+def test_first_login_refuses_case_variant_of_existing_member(fixture, token_factory, monkeypatch):
+    client, db = fixture
+    state, data = begin_login(client, db)
+    exchange(monkeypatch, token_factory, data["nonce"], sub="variant-sub", name="Admin")
     location = client.get("/api/v1/auth/callback", params={"state": state, "code": "ok"}).headers[
         "location"
     ]
     assert location.endswith("/login?error=role")
-    assert db.query(IAMSession).count() == 0
+    assert db.query(User).filter_by(username="Admin").first() is None
 
 
 def test_sessions_expire_and_are_checked_via_cookie(fixture, token_factory):

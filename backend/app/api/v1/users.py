@@ -1,29 +1,18 @@
-"""Users API —— 组织成员目录 + 增删改（admin / cmc_lead）。
+"""Users API —— 组织成员目录（只读）。
 
 路由：
     GET    /api/v1/users                列表（按 role / specialty / active / keyword 过滤）
-    POST   /api/v1/users                新增成员
-    PATCH  /api/v1/users/{id}           更新（停用/启用、角色、专业组等）
-    DELETE /api/v1/users/{id}           删除（引用守卫：仍负责项目/任务则拒绝，建议先停用）
+    POST / PATCH / DELETE               已停用（410）：成员由门户「账号管理」统一维护，与 IAM 同步
 """
-
-from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_role
+from app.api.deps import get_current_user
 from app.db.session import get_db
-from app.models import (
-    AuditLog,
-    FinanceAIAnalysis,
-    Project,
-    ProjectAIAnalysis,
-    SubProject,
-    Task,
-    User,
-)
-from app.schemas.user import UserCreate, UserOut, UserUpdate
+from app.models import User
+from app.schemas.user import UserOut
+from app.services import members
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -37,6 +26,8 @@ def list_users(
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
+    # 名单以 IAM 为准：在 IAM 管理台停用 / 改名的账号，加载名单时同步（每分钟最多一次）
+    members.reconcile_with_iam(db)
     q = db.query(User)
     if role:
         q = q.filter(User.role == role)
@@ -50,89 +41,12 @@ def list_users(
     return [UserOut.model_validate(u) for u in q.order_by(User.display_name).all()]
 
 
-@router.post("", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-def create_user(
-    payload: UserCreate,
-    db: Session = Depends(get_db),
-    _user: User = Depends(require_role("admin", "cmc_lead")),
-):
-    if db.query(User).filter(User.username == payload.username).first():
-        raise HTTPException(status.HTTP_409_CONFLICT, f"用户名 {payload.username!r} 已存在")
-    if db.query(User).filter(User.email == payload.email).first():
-        raise HTTPException(status.HTTP_409_CONFLICT, f"邮箱 {payload.email!r} 已存在")
-
-    uid = payload.id or f"u-{uuid4().hex[:10]}"
-    if db.query(User).filter_by(id=uid).first():
-        raise HTTPException(status.HTTP_409_CONFLICT, f"id {uid!r} 已存在")
-
-    data = payload.model_dump(exclude={"id"})
-    obj = User(id=uid, **data)
-    db.add(obj)
-    db.commit()
-    db.refresh(obj)
-    return UserOut.model_validate(obj)
+RETIRED = "成员由门户「账号管理」统一维护（与 IAM 同步），请在账号管理中新建或修改"
 
 
-@router.patch("/{user_id}", response_model=UserOut)
-def update_user(
-    user_id: str,
-    payload: UserUpdate,
-    db: Session = Depends(get_db),
-    _user: User = Depends(require_role("admin", "cmc_lead")),
-):
-    obj = db.query(User).filter_by(id=user_id).first()
-    if not obj:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "user not found")
-
-    data = payload.model_dump(exclude_unset=True)
-    if "email" in data and data["email"] != obj.email:
-        if db.query(User).filter(User.email == data["email"]).first():
-            raise HTTPException(status.HTTP_409_CONFLICT, f"邮箱 {data['email']!r} 已存在")
-
-    for k, v in data.items():
-        setattr(obj, k, v)
-    db.commit()
-    db.refresh(obj)
-    return UserOut.model_validate(obj)
-
-
-@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(
-    user_id: str,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_role("admin", "cmc_lead")),
-):
-    obj = db.query(User).filter_by(id=user_id).first()
-    if not obj:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "user not found")
-    if obj.id == user.id:
-        raise HTTPException(status.HTTP_409_CONFLICT, "不能删除当前登录用户")
-
-    # 引用守卫：仍承担工作的成员不可硬删除（避免悬挂负责人），建议先停用或转移
-    owns_proj = db.query(Project).filter_by(owner_id=user_id).count()
-    owns_task = db.query(Task).filter_by(owner_id=user_id).count()
-    owns_sub = db.query(SubProject).filter_by(owner_id=user_id).count()
-    has_audit = db.query(AuditLog).filter_by(actor_id=user_id).count()
-    has_analysis = (
-        db.query(ProjectAIAnalysis).filter_by(created_by=user_id).count()
-        + db.query(FinanceAIAnalysis).filter_by(created_by=user_id).count()
-    )
-    if owns_proj or owns_task or owns_sub or has_audit or has_analysis:
-        parts = []
-        if owns_proj:
-            parts.append(f"{owns_proj} 个项目")
-        if owns_task:
-            parts.append(f"{owns_task} 个任务")
-        if owns_sub:
-            parts.append(f"{owns_sub} 个子项目")
-        if has_analysis:
-            parts.append(f"{has_analysis} 份 AI 分析记录")
-        detail = "、".join(parts) if parts else "审计记录"
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            f"该成员仍负责 {detail}，请先停用或将负责人转移给他人后再删除。",
-        )
-
-    # ProjectMember 关系级联删除（成员身份），可安全删除用户
-    db.delete(obj)
-    db.commit()
+# 新增 / 修改 / 删除成员已移到门户「账号管理」：只保留一处能改组织信息，避免项目管理里出现 IAM 没有的成员。
+@router.post("", status_code=status.HTTP_410_GONE)
+@router.patch("/{user_id}", status_code=status.HTTP_410_GONE)
+@router.delete("/{user_id}", status_code=status.HTTP_410_GONE)
+def retired_member_writes():
+    raise HTTPException(status.HTTP_410_GONE, RETIRED)

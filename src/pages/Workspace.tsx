@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, ArrowUpRight, BookOpen, BriefcaseBusiness, Check, ChevronRight, LayoutGrid, LockKeyhole, RefreshCw, ShieldCheck } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, BookOpen, BriefcaseBusiness, Check, ChevronRight, History, LayoutGrid, LockKeyhole, RefreshCw, ShieldCheck, UsersRound } from 'lucide-react'
 import PortalLayout from '../components/portal/PortalLayout'
 import { usePortalContext } from '../components/portal/context'
 
@@ -11,7 +11,7 @@ export interface WorkspaceUser {
 }
 
 export interface WorkspaceApplication {
-  id: 'pm' | 'kb'
+  id: 'pm' | 'kb' | 'accounts'
   enabled: boolean
   reason?: string
 }
@@ -21,6 +21,7 @@ interface ApplicationPresentation {
   name: string
   englishName: string
   description: string
+  /** 卡片右上角：应用域名 */
   domain: string
   href: string
   external?: boolean
@@ -100,6 +101,8 @@ export default function Workspace({ user, applications, onRefresh, onLogout, pre
   const [refreshing, setRefreshing] = useState(false)
   const [notice, setNotice] = useState('')
   const displayName = user?.displayName || user?.username || ''
+  // 管理功能单独分区，仅向获得账号管理准入的人显示；界面预览和普通员工不显示。
+  const showManagement = !preview && applications.some((entry) => entry.id === 'accounts' && entry.enabled)
 
   const refreshIdentity = async () => {
     if (refreshing) return
@@ -147,9 +150,33 @@ export default function Workspace({ user, applications, onRefresh, onLogout, pre
           </div>
         </section>
 
+        {showManagement && (
+          <section className="workspace-management" aria-labelledby="workspace-management-title">
+            <div className="workspace-section-heading">
+              <div><div className="workspace-section-label">ADMINISTRATION</div><h2 id="workspace-management-title">管理功能</h2><p>组织与账号维护，按管理权限使用。</p></div>
+              <ShieldCheck className="workspace-management-mark" size={24} strokeWidth={1.6} aria-hidden="true" />
+            </div>
+            <Link className="workspace-management-card" to="/accounts" aria-label="进入账号管理">
+              <span className="workspace-management-icon"><UsersRound size={25} strokeWidth={1.7} aria-hidden="true" /></span>
+              <div className="workspace-management-copy">
+                <h3>账号管理</h3>
+                <p>统一查看组织成员与账号身份，维护公司账号信息。</p>
+                <span className="workspace-management-access">系统管理员可管理 · 项目负责人只读</span>
+              </div>
+              <span className="workspace-management-entry">进入账号管理<ArrowRight size={18} aria-hidden="true" /></span>
+            </Link>
+          </section>
+        )}
+
+        <section className="workspace-updates" aria-labelledby="workspace-updates-title">
+          <span className="workspace-updates-icon"><History size={24} strokeWidth={1.7} aria-hidden="true" /></span>
+          <div><h2 id="workspace-updates-title">版本更新</h2><p>了解应用的新功能与改进，查看历次更新记录。</p></div>
+          <Link to={'/release-notes' + (preview ? '?preview=1' : '')}>查看版本更新<ArrowRight size={18} aria-hidden="true" /></Link>
+        </section>
+
         <aside className="workspace-help" aria-label="账号与访问说明">
           <span className="workspace-help-icon"><ShieldCheck size={22} strokeWidth={1.6} aria-hidden="true" /></span>
-          <div><strong>一个身份，连接你的工作</strong><p>用户信息统一在 IAM 平台管理，应用内的数据和操作权限由各应用管理。</p></div>
+          <div><strong>一个身份，连接你的工作</strong><p>账号由系统管理员统一开通；修改用户名或密码请在「我的设置」中进行。</p></div>
           <Link to="/help">使用帮助<ChevronRight size={16} aria-hidden="true" /></Link>
         </aside>
     </PortalLayout>

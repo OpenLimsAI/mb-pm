@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import Login from './pages/Login'
 import { WorkspacePage } from './pages/Workspace'
 import PortalGate from './components/portal/PortalGate'
-import { siteMode, workspaceUrl } from './lib/site'
+import { accountsUrl, releaseNotesUrl, settingsRedirect, siteMode, workspaceUrl } from './lib/site'
 import { RequirePerm } from './components/auth/RequirePerm'
 import { BootSplash } from './components/auth/AuthStatus'
 
@@ -19,13 +19,13 @@ const TemplateDetail = lazy(() => import('./pages/TemplateDetail'))
 const TemplateEditor = lazy(() => import('./pages/TemplateEditor'))
 const TemplatePreview = lazy(() => import('./pages/TemplatePreview'))
 const Finance = lazy(() => import('./pages/Finance'))
-const OrgManagement = lazy(() => import('./pages/OrgManagement'))
 const Tasks = lazy(() => import('./pages/Tasks'))
 const GanttPage = lazy(() => import('./pages/Gantt'))
 const Workload = lazy(() => import('./pages/Workload'))
-const Settings = lazy(() => import('./pages/Settings'))
 const ReleaseNotes = lazy(() => import('./pages/ReleaseNotes'))
-const PortalAccount = lazy(() => import('./pages/PortalAccount'))
+const PortalSettings = lazy(() => import('./pages/PortalSettings'))
+const AISettings = lazy(() => import('./pages/AISettings'))
+const PortalAccounts = lazy(() => import('./pages/PortalAccounts'))
 const PortalHelp = lazy(() => import('./pages/PortalHelp'))
 const PortalLaunch = lazy(() => import('./pages/PortalLaunch'))
 
@@ -43,11 +43,22 @@ export default function App() {
           <Route path="/workspace" element={<Navigate to="/" replace />} />
           <Route element={<PortalGate />}>
             <Route path="/" element={<WorkspacePage />} />
-            <Route path="/account" element={<PortalAccount />} />
+            <Route path="/settings" element={<SettingsRoute />} />
+            {/* 原「我的账号」页并入「我的设置」（保留 ?preview=1 等查询参数） */}
+            <Route path="/account" element={<SettingsAlias />} />
+            <Route path="/accounts" element={<PortalAccounts />} />
+            <Route path="/release-notes" element={<ReleaseNotes />} />
             <Route path="/launch/:appId" element={<PortalLaunch />} />
           </Route>
         </>}
-        {siteMode === 'pm' && <Route path="/workspace" element={<ExternalWorkspace />} />}
+        {siteMode === 'pm' && <>
+          <Route path="/workspace" element={<ExternalWorkspace />} />
+          {/* 个人设置回门户；旧 AI 标签直达项目管理 AI设置 */}
+          <Route path="/settings" element={<SettingsRoute />} />
+          <Route path="/org" element={<ExternalRedirect to={accountsUrl} message="正在打开账号管理 …" />} />
+          <Route path="/release-notes" element={<ExternalRedirect to={releaseNotesUrl} message="正在打开工作台版本更新 …" keepQuery />} />
+        </>}
+        {siteMode === 'combined' && <Route path="/org" element={<Navigate to="/accounts" replace />} />}
         {siteMode !== 'portal' && <Route element={<ReadyGate />}>
           <Route element={<AppLayout />}>
             {siteMode === 'pm' && <Route path="/" element={<Home />} />}
@@ -67,9 +78,9 @@ export default function App() {
               <Route path="/workload"            element={<Workload />} />
             </Route>
             <Route path="/finance"               element={<Finance />} />
-            <Route path="/org"                   element={<OrgManagement />} />
-            <Route path="/settings"              element={<Settings />} />
-            <Route path="/release-notes"         element={<ReleaseNotes />} />
+            <Route element={<RequirePerm perms={['ai.config']} />}>
+              <Route path="/ai-settings"         element={<AISettings />} />
+            </Route>
           </Route>
         </Route>}
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -82,7 +93,7 @@ export default function App() {
 function RouteTitle() {
   const { pathname } = useLocation()
   useEffect(() => {
-    const portal = siteMode === 'portal' || (siteMode === 'combined' && (['/', '/login', '/workspace', '/account', '/help'].includes(pathname) || pathname.startsWith('/launch/')))
+    const portal = siteMode === 'portal' || (siteMode === 'combined' && (['/', '/login', '/workspace', '/account', '/accounts', '/settings', '/help', '/release-notes'].includes(pathname) || pathname.startsWith('/launch/')))
     document.title = portal ? '迈博药业 · 员工应用门户' : 'CMC-PMS · 项目管理'
   }, [pathname])
   return null
@@ -91,4 +102,23 @@ function RouteTitle() {
 function ExternalWorkspace() {
   useEffect(() => { window.location.replace(workspaceUrl) }, [])
   return <BootSplash message="正在打开应用工作台 …" />
+}
+
+function SettingsAlias() {
+  const { search } = useLocation()
+  return <Navigate to={{ pathname: '/settings', search }} replace />
+}
+
+function SettingsRoute() {
+  const { search } = useLocation()
+  const target = settingsRedirect(search)
+  if (!target) return <PortalSettings />
+  if (target.startsWith('/')) return <Navigate to={target} replace />
+  return <ExternalRedirect to={target} message={new URLSearchParams(search).get('tab') === 'ai' ? '正在打开项目管理 AI设置 …' : '正在打开我的设置 …'} />
+}
+
+function ExternalRedirect({ to, message, keepQuery = false }: { to: string; message: string; keepQuery?: boolean }) {
+  const { search } = useLocation()
+  useEffect(() => { window.location.replace(keepQuery ? to + search : to) }, [to, search, keepQuery])
+  return <BootSplash message={message} />
 }

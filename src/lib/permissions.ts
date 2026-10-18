@@ -3,11 +3,11 @@ import type { Role } from '../types'
 
 export type PermKey =
   | 'project.create' | 'project.delete'
+  | 'project.edit'       // 「编辑项目」：编辑模式（结构、项目编号 / 名称）+ 项目预算（总预算 / 已承诺 / 成本结构）
   | 'template.edit' | 'template.import' | 'template.export'
   | 'subproject.create' | 'task.create'
   | 'task.update' | 'task.update.own'
   | 'task.budget.edit'   // 任务预算（执行层只能录入实际花费）
-  | 'finance.edit'       // 项目预算（总预算 / 已承诺 / 成本结构）
   | 'dashboard.manager' | 'workload.view' | 'workload.recommend'
   | 'dashboard.personal'
   | 'gantt.view' | 'gantt.view.own' | 'gantt.edit'
@@ -24,6 +24,9 @@ export type PermKey =
 const M: Record<PermKey, Role[]> = {
   'project.create':       ['admin', 'cmc_lead'],
   'project.delete':       ['admin', 'cmc_lead'],
+  // 与账号管理的身份对应：系统管理员、项目负责人（旧角色 project_lead 同样显示为项目负责人，
+  // 后端只允许其编辑本人负责 / 参与的项目）；员工没有
+  'project.edit':         ['admin', 'cmc_lead', 'project_lead'],
   'template.edit':        ['admin', 'cmc_lead'],
   'template.import':      ['admin', 'cmc_lead'],
   'template.export':      ['admin', 'cmc_lead'],
@@ -32,7 +35,6 @@ const M: Record<PermKey, Role[]> = {
   'task.update':          ['admin', 'cmc_lead', 'project_lead'],
   'task.update.own':      ['rd', 'production', 'qa_qc'],
   'task.budget.edit':     ['admin', 'cmc_lead', 'project_lead'],
-  'finance.edit':         ['admin', 'cmc_lead'],
   'dashboard.manager':    ['admin', 'cmc_lead', 'project_lead'],
   'workload.view':        ['admin', 'cmc_lead', 'project_lead'],
   'workload.recommend':   ['admin', 'cmc_lead', 'project_lead'],
@@ -61,9 +63,9 @@ export const can = (role: Role | undefined, perm: PermKey): boolean => {
 
 export const roleLabels: Record<Role, string> = {
   admin: '系统管理员',
-  cmc_lead: 'CMC 负责人',
-  project_lead: '项目负责人',
-  rd: '工艺开发',
+  cmc_lead: '项目负责人',
+  project_lead: '项目负责人（本人项目）',
+  rd: '员工',
   production: '生产支持',
   qa_qc: 'QA/QC',
 }

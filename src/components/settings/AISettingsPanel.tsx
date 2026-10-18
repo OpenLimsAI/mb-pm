@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
 import { CheckCircle2, Cloud, Cpu, Loader2, MessageSquareText, RotateCcw, Save, Unplug } from 'lucide-react'
-import { aiError, getAIModels, getAISettings, MAX_PROMPT_LENGTH, providerLabels, saveAISettings, testAIConnection, type AIProvider, type AISettings, type ProviderConfig } from '../../api/ai'
+import {
+  aiError, MAX_PROMPT_LENGTH, providerLabels, getAIModels, getAISettings, saveAISettings, testAIConnection,
+  type AIProvider, type AISettings, type ProviderConfig,
+} from '../../api/ai'
 import { Button } from '../ui'
-import { useDataStore } from '../../store/data'
 import { cn } from '../../lib/cn'
 
-// 设置 ›「AI 分析」：服务商 / 模型 / 密钥、离线备用与默认分析提示词（admin / cmc_lead）。
-export function AISettingsPanel() {
-  const online = useDataStore(s => s.mode) === 'api'
+// 项目管理「AI设置」：服务商 / 模型 / 密钥、离线备用与默认分析提示词（系统管理员 / 项目负责人）。
+// 经 PM 会话调用 /api/v1/ai/settings；沿用原配置文件。online=false 时（界面预览）只显示说明。
+export function AISettingsPanel({ online = true }: { online?: boolean }) {
   const [draft, setDraft] = useState<AISettings | null>(null)
   const [editing, setEditing] = useState<AIProvider>('deepseek')
   const [busy, setBusy] = useState('')
@@ -71,7 +73,7 @@ export function AISettingsPanel() {
       {!draft && online && !error && <div className="flex gap-2 items-center text-ink-500"><Loader2 className="animate-spin w-4 h-4" />正在加载设置…</div>}
       {draft && cfg && <>
         <section className="card p-5 space-y-4">
-          <div><h2 className="font-semibold">AI 设置</h2><p className="text-sm text-ink-500 mt-1">选择项目分析服务。每家服务商的地址、模型和密钥分别保存。</p></div>
+          <div><h2 className="font-semibold">分析服务</h2><p className="text-sm text-ink-500 mt-1">选择项目分析服务。每家服务商的地址、模型和密钥分别保存。</p></div>
           <fieldset disabled={!!busy} className="grid sm:grid-cols-2 gap-5">
             <label className="text-sm space-y-2"><span className="font-medium">项目分析使用</span><select className="input" value={draft.provider} onChange={e => { const p = e.target.value as AIProvider; update({ provider: p }); setEditing(p); setModels([]) }}>{Object.entries(providerLabels).map(([p, label]) => <option key={p} value={p}>{label}</option>)}</select></label>
             <div className="rounded-lg bg-ink-100 p-3 text-sm text-ink-700">当前模型：<b className="text-ink-900">{draft.providers[draft.provider].model || '尚未选择'}</b><p className="text-xs mt-1">在下方填写配置，可先读取模型列表，再测试实际调用。</p></div>

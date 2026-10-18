@@ -62,20 +62,24 @@ IAM：`IAMIdentity`（issuer + sub ↔ 业务用户，一对一绑定）· `IAMS
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/auth/login?return_to=` | 发起 IAM 登录（302 到 Casdoor，授权码 + PKCE） |
+| GET | `/auth/login?return_to=` | 发起 IAM 登录（302 到 Casdoor，授权码 + PKCE；登录页嵌入式登录失败时的回退） |
+| POST | `/auth/login/start` | 嵌入式登录开始（须本站 Origin）：保存 state / PKCE，返回 IAM `/api/login` 地址与应用、组织名；浏览器直接向 IAM 提交用户名 / 密码 |
 | GET | `/auth/callback` | IAM 回调：换 token、验签、建立会话后回到 `return_to` |
 | POST | `/auth/logout` | 销毁会话并跳 Casdoor 登出 |
 | GET | `/auth/me` | 当前用户（角色来自 IAM） |
 | GET | `/auth/config` | 规范登录入口 `login_url`；兼容旧前端的 `signup_enabled` 固定为 `false` |
 | POST | `/auth/register` | 已停用，固定返回 410 和「所有用户信息在iam平台管理」，不创建账号 |
-| POST | `/account/username` | 本人改用户名（需当前密码）：改 IAM 用户名并同步业务成员 |
-| POST | `/account/password` | 本人改密码（需当前密码）：其他设备上的会话一并退出 |
+| POST | `/account/username` | 本人改用户名（需当前密码）：改 IAM 用户名并同步业务成员（日常入口已移到门户「设置」） |
+| POST | `/account/password` | 本人改密码（需当前密码）：其他设备上的会话一并退出（PM「请先修改临时密码」页使用） |
+| POST | `/portal/login/start` | 门户嵌入式登录开始（须门户 Origin），同 `/auth/login/start` |
+| POST | `/portal/username`、`/portal/password` | 门户「设置 › 我的账号」：本人改用户名 / 密码（门户会话，需当前密码，须门户 Origin） |
+| GET/PUT | `/portal/settings/ai` | 门户「设置 › AI 分析」（admin / cmc_lead）；另有 POST `/portal/settings/ai/models`、`/portal/settings/ai/test` |
 | GET/POST | `/projects` | 列表 / 创建 |
 | **POST** | **`/projects/import`** | **整包创建：项目+子项目+任务+依赖（模板实例化结果）** |
 | GET/PATCH | `/projects/{id}` | 详情 / 更新 |
 | DELETE | `/projects/{id}` | 删除（admin / cmc_lead）：连同子项目 / 任务 / 依赖 / 团队 / 财务 / 基线，保留用户账号 |
 | GET | `/finances` | 可见项目的预算；`spent` = 任务实际花费合计（实时汇总），`task_budget` = 任务预算合计 |
-| PUT | `/finances/{project_id}` | 设置 / 修改项目预算（admin / cmc_lead）：总预算、已承诺、成本结构、财年、备注；不接受 `spent`；写审计日志 |
+| PUT | `/finances/{project_id}` | 设置 / 修改项目预算（admin / cmc_lead；旧角色 project_lead 限本人负责 / 参与的项目）：总预算、已承诺、成本结构、财年、备注；不接受 `spent`；写审计日志 |
 | GET/POST | `/finances/ai-analyses` | 财务 AI 分析（admin / cmc_lead）：历史（最近 20 份，含是否过期）/ 生成 |
 | GET | `/sub-projects?project_id=` | 子项目列表 |
 | GET/POST | `/tasks` | 任务列表 / 创建 |

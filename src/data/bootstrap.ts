@@ -27,7 +27,8 @@ import { hydrateCreatedIntoMock, useProjectsStore, type ProjectBundle } from '..
 import { deriveRollup } from '../lib/instantiate'
 import { diffPredecessors } from '../lib/dependency-utils'
 import { TODAY, getProjectSpan } from '../mock'
-import type { BaselineSnapshot, Priority, ProductType, Project, ProjectBaseline, Role, SpecialtyGroup, SubProject, Task, TaskDependency, TaskStatus, Template, TemplateNode, TemplateVersion, User } from '../types'
+import { includeAssignees, teamIds } from '../lib/projectTeam'
+import type { BaselineSnapshot, Priority, ProductType, Project, ProjectBaseline, SubProject, Task, TaskDependency, TaskStatus, Template, TemplateNode, TemplateVersion, User } from '../types'
 
 function replaceArray<T>(target: T[], items: T[]): void {
   target.length = 0
@@ -86,6 +87,7 @@ const identityKey = (u: User | null) => (u ? `${u.id}:${u.role}` : null)
 function enterOfflineMode(notice: string | null): void {
   hydrateCreatedIntoMock() // 离线：复用本地持久化的新建项目
   syncOfflineSpent() // 与后端同一规则：已花费 = 任务实际花费合计
+  includeAssignees(projects) // 与后端同一规则：有任务的人在项目团队中
   const cto = users.find((u) => u.id === 'u2') ?? users[0]
   useAuth.setState({ currentUser: cto, status: 'offline', error: null })
   const ds = useDataStore.getState()
@@ -112,8 +114,9 @@ export async function bootstrap(): Promise<void> {
     enterOfflineMode('后端未连接 —— 当前为离线只读演示数据。启动后端后刷新即可持久化。')
     return
   }
-  if (status !== 'ready') {
-    // 未登录（守卫跳 /login）或身份不可用（守卫展示原因）：允许之后重新引导。
+  if (status !== 'ready' || useAuth.getState().mustChangePassword) {
+    // 未登录（守卫跳 /login）、身份不可用（守卫展示原因）或须先改临时密码（守卫显示改密页）：
+    // 不拉业务数据，允许之后重新引导。
     _started = false
     return
   }
@@ -333,7 +336,8 @@ export async function createMilestoneWithDeps(input: {
   const { projectId, subProjectId, basics, predecessorIds } = input
   const proj = projects.find((p) => p.id === projectId)
   const sub = subProjects.find((s) => s.id === subProjectId)
-  const ownerId = sub?.ownerId || proj?.ownerId || ''
+  // 任务只能派给项目团队成员：子项目负责人不在团队时由项目负责人承担
+  const ownerId = (sub?.ownerId && proj && teamIds(proj).has(sub.ownerId) ? sub.ownerId : proj?.ownerId) || ''
   const code = nextMilestoneCode(projectId)
 
   const draft = {
@@ -508,82 +512,6 @@ export async function deleteTemplateEntry(id: string): Promise<void> {
     return
   }
   useTemplatesStore.getState().deleteTemplate(id)
-}
-
-// ============= 组织成员（用户）=============
-
-const AVATAR_PALETTE = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#a855f7', '#ec4899', '#14b8a6', '#84cc16', '#f97316']
-function pickAvatarColor(seed: string): string {
-  let h = 0
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
-  return AVATAR_PALETTE[h % AVATAR_PALETTE.length]
-}
-
-export interface OrgMemberInput {
-  username: string
-  displayName: string
-  email: string
-  role: Role
-  specialtyGroup?: SpecialtyGroup | null
-  weeklyAvailableHours?: number
-}
-
-/** 新增组织成员（API：POST /users + 重新同步；离线 mock：本地新增）。返回新成员 id。 */
-export async function createOrgMember(input: OrgMemberInput): Promise<string> {
-  const avatarColor = pickAvatarColor(input.username || input.displayName)
-  if (useDataStore.getState().mode === 'api') {
-    const dto = await usersApi.createUser({ ...input, isActive: true, avatarColor })
-    await refreshAllData()
-    return dto.id
-  }
-  if (users.some((u) => u.username === input.username)) throw new Error(`用户名 ${input.username} 已存在`)
-  if (users.some((u) => u.email === input.email)) throw new Error(`邮箱 ${input.email} 已存在`)
-  const id = `u-${Math.round(progressNonce())}`
-  users.push({
-    id,
-    username: input.username,
-    displayName: input.displayName,
-    email: input.email,
-    role: input.role,
-    specialtyGroup: input.specialtyGroup ?? undefined,
-    weeklyAvailableHours: input.weeklyAvailableHours ?? 40,
-    isActive: true,
-    avatarColor,
-  })
-  useDataStore.getState().bump()
-  return id
-}
-
-/** 更新组织成员（停用/启用、角色、专业组、工时等）。 */
-export async function updateOrgMember(id: string, patch: usersApi.UserUpdateRequest): Promise<void> {
-  if (useDataStore.getState().mode === 'api') {
-    await usersApi.updateUser(id, patch)
-    await refreshAllData()
-    return
-  }
-  const u = users.find((x) => x.id === id)
-  if (u) Object.assign(u, patch)
-  useDataStore.getState().bump()
-}
-
-/** 删除组织成员（引用守卫：仍负责项目/任务则拒绝，建议先停用）。 */
-export async function deleteOrgMember(id: string): Promise<void> {
-  if (useDataStore.getState().mode === 'api') {
-    await usersApi.deleteUser(id)
-    await refreshAllData()
-    return
-  }
-  if (useAuth.getState().currentUser?.id === id) throw new Error('不能删除当前登录用户')
-  const referenced =
-    projects.some((p) => p.ownerId === id) ||
-    subProjects.some((s) => s.ownerId === id) ||
-    tasks.some((t) => t.ownerId === id || (t.collaboratorIds?.includes(id) ?? false))
-  if (referenced) throw new Error('该成员仍负责项目/任务，请先停用或将负责人转移给他人后再删除。')
-  const idx = users.findIndex((x) => x.id === id)
-  if (idx >= 0) users.splice(idx, 1)
-  // 镜像后端 ProjectMember 级联：从项目成员名单移除
-  projects.forEach((p) => { if (p.memberIds?.includes(id)) p.memberIds = p.memberIds.filter((m) => m !== id) })
-  useDataStore.getState().bump()
 }
 
 // ============= 计划基线 =============

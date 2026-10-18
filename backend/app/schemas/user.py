@@ -31,3 +31,9 @@ class UserUpdate(BaseModel):
 class UserOut(UserBase):
     model_config = ConfigDict(from_attributes=True)
     id: str
+
+
+class MeOut(UserOut):
+    """当前登录用户；must_change_password 为 true 时须先改临时密码（其余接口返回 403）。"""
+
+    must_change_password: bool = False

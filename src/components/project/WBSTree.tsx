@@ -11,7 +11,7 @@ interface Props {
   selectedTaskId?: string
   highlightCriticalPath?: boolean
   criticalPathIds?: Set<string>
-  /** 卡片右上角操作（如「编辑模式」）；增删改结构统一在编辑模式中进行 */
+  /** 卡片右上角操作；增删改结构统一在页首「编辑项目」中进行 */
   action?: ReactNode
 }
 

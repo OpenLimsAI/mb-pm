@@ -15,7 +15,7 @@ from app.services import ai
 
 
 @pytest.fixture(autouse=True)
-def isolated_ai_settings(tmp_path, monkeypatch):
+def isolated_ai_settings(tmp_path, monkeypatch, live_ai_roles):
     monkeypatch.setattr(settings, "AI_SETTINGS_PATH", str(tmp_path / "ai.json"))
 
 
@@ -270,20 +270,6 @@ def test_local_truncation_and_no_fallback_when_disabled(monkeypatch):
         ai.analyze(ai.load_settings(), {}, "")
 
 
-def test_user_with_ai_analyses_cannot_be_deleted(
-    client, auth_headers, project, iam_user, bearer, monkeypatch
-):
-    """生成过分析报告的成员受引用守卫保护（报告保留作者），应先停用而非删除。"""
-    ai.save_settings(AISettingsInput(**config_payload()))
-    monkeypatch.setattr(ai, "chat", lambda *args: ("## 管理摘要\n测试", {}))
-    analyst = iam_user(uuid4().hex[:20], "cmc_lead")
-    endpoint = f"/api/v1/projects/{project}/ai-analyses"
-    assert client.post(endpoint, headers=bearer(analyst, "cmc_lead"), json={}).status_code == 201
-    res = client.delete(f"/api/v1/users/{analyst}", headers=auth_headers)
-    assert res.status_code == 409
-    assert "AI 分析" in res.json()["detail"]
-
-
 def test_analysis_prompt_default_custom_reset_and_limit(client, auth_headers):
     """默认分析提示词：系统默认 → 自定义 → 恢复默认；项目负责人通过 /ai/status 读到当前默认值。"""
     settings_now = client.get("/api/v1/ai/settings", headers=auth_headers).json()
@@ -365,3 +351,80 @@ def test_startup_adds_prompt_column_to_existing_table(tmp_path, monkeypatch):
     with engine.connect() as conn:
         assert conn.execute(text("SELECT prompt FROM project_ai_analyses")).scalar() == ""
     engine.dispose()
+
+
+@pytest.mark.parametrize(
+    "role,allowed", [("admin", True), ("cmc_lead", True), ("project_lead", False), ("rd", False)]
+)
+def test_pm_ai_configuration_role_boundary(client, iam_user, bearer, role, allowed):
+    uid = iam_user(f"ai-config-{role}", role)
+    response = client.get("/api/v1/ai/settings", headers=bearer(uid, role))
+    assert response.status_code == (200 if allowed else 403)
+
+
+@pytest.mark.parametrize("disabled,roles", [(False, []), (True, ["admin"])])
+def test_pm_ai_configuration_rechecks_live_iam(client, auth_headers, monkeypatch, disabled, roles):
+    from app.services import iam_admin
+
+    saved = client.put("/api/v1/ai/settings", json=config_payload(), headers=auth_headers)
+    assert saved.status_code == 200
+    before = ai.load_settings()
+    monkeypatch.setattr(
+        iam_admin,
+        "get_user_by_sub",
+        lambda sub: {
+            "isForbidden": disabled,
+            "roles": [
+                {"owner": settings.CASDOOR_ORG, "name": role, "isEnabled": True} for role in roles
+            ],
+        },
+    )
+    connection = {
+        "provider": "deepseek",
+        "config": {"base_url": "https://api.deepseek.com", "model": "deepseek-chat"},
+    }
+    # 登录时仍是管理员的旧令牌：角色被撤销或账号停用后，读取/保存/列模型/测试均被拒绝。
+    for method, url, body in [
+        ("GET", "/api/v1/ai/settings", None),
+        ("PUT", "/api/v1/ai/settings", config_payload()),
+        ("POST", "/api/v1/ai/models", connection),
+        ("POST", "/api/v1/ai/test", connection),
+    ]:
+        assert client.request(method, url, json=body, headers=auth_headers).status_code == 403
+    assert ai.load_settings() == before
+
+
+def test_pm_ai_settings_cookie_requires_pm_origin(client, admin_user, token_factory):
+    import time
+
+    from app.core import security
+    from app.models import IAMSession
+
+    session_id = f"ai-settings-{uuid4().hex}"
+    token = token_factory("admin", sub=admin_user)
+    with SessionLocal() as db:
+        db.add(
+            IAMSession(
+                id=security.digest(session_id),
+                expires_at=int(time.time()) + 600,
+                tokens=security.seal({"access_token": token}),
+            )
+        )
+        db.commit()
+    headers = {"Cookie": f"{security.SESSION_COOKIE}={session_id}"}
+    assert client.get("/api/v1/ai/settings", headers=headers).status_code == 200
+    payload = config_payload()
+    assert client.put("/api/v1/ai/settings", json=payload, headers=headers).status_code == 403
+    assert (
+        client.put(
+            "/api/v1/ai/settings",
+            json=payload,
+            headers={**headers, "Origin": "https://www.openlims.ai"},
+        ).status_code
+        == 403
+    )
+    response = client.put(
+        "/api/v1/ai/settings", json=payload, headers={**headers, "Origin": settings.pms_origin}
+    )
+    assert response.status_code == 200
+    assert "test-secret-not-real" not in response.text

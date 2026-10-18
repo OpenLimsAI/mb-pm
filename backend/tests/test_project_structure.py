@@ -342,3 +342,136 @@ def test_rollup_only_recomputed_when_tasks_added_or_removed(client, auth_headers
     assert client.put(url(pid), json=body, headers=auth_headers).status_code == 200
     with SessionLocal() as db:
         assert db.get(SubProject, f"{pid}-sp").progress == 13  # (40 + 0 + 0) / 3，新增任务后重算
+
+
+# 预算卡改为内联草稿后，与项目信息和结构原子提交。
+def test_combined_budget_and_structure_save(client, auth_headers, project_factory):
+    pid = project_factory("t-admin")
+    set_task(f"{pid}-t1", actual_cost=12.5)
+    snap = client.get(url(pid), headers=auth_headers).json()
+    assert snap["finance"]["spent"] == 12.5
+    body = payload_from(snap)
+    body["project"] = {"code": snap["project"]["code"], "name": "预算与项目一起更新"}
+    body["sub_projects"][0]["tasks"][0]["cost_budget"] = 80
+    body["finance"] = {
+        "total_budget": 300.25,
+        "committed": 20.5,
+        "breakdown": {"人力": 60, "设备": 40},
+        "fiscal_year": "2026-2028",
+        "notes": "统一保存",
+    }
+    response = client.put(url(pid), json=body, headers=auth_headers)
+    assert response.status_code == 200, response.text
+    out = response.json()
+    assert out["project"]["name"] == "预算与项目一起更新"
+    assert out["finance"]["total_budget"] == 300.25
+    assert out["finance"]["committed"] == 20.5
+    assert out["finance"]["breakdown"]["设备"] == 40
+    assert out["finance"]["fiscal_year"] == "2026-2028"
+    assert out["finance"]["notes"] == "统一保存"
+    assert out["finance"]["spent"] == 12.5 and out["finance"]["task_budget"] == 80
+    assert out["result"]["finance_updated"] is True
+    assert out["version"] != snap["version"]
+    with SessionLocal() as db:
+        log = db.query(AuditLog).filter_by(target="项目预算", target_id=pid[:40]).one()
+        assert json.loads(log.detail)["changes"]["total_budget"] == [100.0, 300.25]
+    assert client.get(url(pid), headers=auth_headers).json()["finance"] == out["finance"]
+
+
+def test_invalid_combined_edits_leave_budget_and_structure_unchanged(
+    client, auth_headers, project_factory
+):
+    pid = project_factory("t-admin")
+    snap = client.get(url(pid), headers=auth_headers).json()
+    for invalid_budget in (True, False):
+        body = payload_from(snap)
+        body["finance"] = {"total_budget": -1 if invalid_budget else 500}
+        body["sub_projects"][0]["name"] = "不能部分保存"
+        if not invalid_budget:
+            body["sub_projects"][0]["tasks"][0]["predecessors"] = [f"{pid}-t1"]
+        response = client.put(url(pid), json=body, headers=auth_headers)
+        assert response.status_code == 422, response.text
+        assert client.get(url(pid), headers=auth_headers).json() == snap
+    with SessionLocal() as db:
+        assert db.query(AuditLog).filter_by(target_id=pid[:40]).count() == 0
+
+
+def test_separate_finance_edit_invalidates_combined_draft(client, auth_headers, project_factory):
+    pid = project_factory("t-admin")
+    snap = client.get(url(pid), headers=auth_headers).json()
+    body = payload_from(snap)
+    body["finance"] = {"total_budget": 500}
+    body["sub_projects"][0]["name"] = "过期修改"
+    assert (
+        client.put(
+            f"/api/v1/finances/{pid}", json={"total_budget": 600}, headers=auth_headers
+        ).status_code
+        == 200
+    )
+    response = client.put(url(pid), json=body, headers=auth_headers)
+    assert response.status_code == 409
+    after = client.get(url(pid), headers=auth_headers).json()
+    assert after["finance"]["total_budget"] == 600
+    assert after["sub_projects"] == snap["sub_projects"]
+
+
+def test_combined_budget_save_preserves_new_actual_cost(client, auth_headers, project_factory):
+    pid = project_factory("t-admin")
+    snap = client.get(url(pid), headers=auth_headers).json()
+    body = payload_from(snap)
+    body["finance"] = {"total_budget": 500}
+    set_task(f"{pid}-t1", actual_cost=35, progress=20)
+    response = client.put(url(pid), json=body, headers=auth_headers)
+    assert response.status_code == 200, response.text
+    assert response.json()["finance"]["spent"] == 35
+    assert response.json()["tasks"][0]["progress"] == 20
+    body = payload_from(response.json())
+    body["finance"] = {"total_budget": 600, "spent": 1}
+    assert client.put(url(pid), json=body, headers=auth_headers).status_code == 422
+
+
+def test_structure_only_does_not_create_budget_and_combined_can_create(
+    client, auth_headers, project_factory
+):
+    from app.models import ProjectFinance
+
+    pid = project_factory("t-admin")
+    with SessionLocal() as db:
+        db.query(ProjectFinance).filter_by(project_id=pid).delete()
+        db.commit()
+    snap = client.get(url(pid), headers=auth_headers).json()
+    assert snap["finance"] is None
+    body = payload_from(snap)
+    body["sub_projects"][0]["name"] = "只改结构"
+    response = client.put(url(pid), json=body, headers=auth_headers)
+    assert response.status_code == 200 and response.json()["finance"] is None
+    body = payload_from(response.json())
+    body["finance"] = {"total_budget": 120, "committed": 30}
+    response = client.put(url(pid), json=body, headers=auth_headers)
+    assert response.status_code == 200 and response.json()["finance"]["total_budget"] == 120
+
+
+def test_combined_save_rolls_back_on_finance_write_failure(
+    client, auth_headers, project_factory, monkeypatch
+):
+    from fastapi import HTTPException
+    from app.services import structure
+
+    pid = project_factory("t-admin")
+    snap = client.get(url(pid), headers=auth_headers).json()
+    original = structure.update_finance
+
+    def fail_after_budget_write(*args, **kwargs):
+        original(*args, **kwargs)
+        args[0].flush()
+        raise HTTPException(503, "模拟预算写入失败")
+
+    monkeypatch.setattr(structure, "update_finance", fail_after_budget_write)
+    body = payload_from(snap)
+    body["finance"] = {"total_budget": 500}
+    body["sub_projects"][0]["name"] = "不能提前提交"
+    response = client.put(url(pid), json=body, headers=auth_headers)
+    assert response.status_code == 503
+    assert client.get(url(pid), headers=auth_headers).json() == snap
+    with SessionLocal() as db:
+        assert db.query(AuditLog).filter_by(target_id=pid[:40]).count() == 0

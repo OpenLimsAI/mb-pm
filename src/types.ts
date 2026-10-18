@@ -1,10 +1,12 @@
 // CMC-PMS 全局类型定义（与 URS 第7节数据模型一致）
 
+// 账号管理按三类身份分配：系统管理员 = admin；项目负责人 = cmc_lead；员工 = 不分配项目管理角色（登录时默认 rd）。
+// project_lead / production / qa_qc 为旧角色，仍兼容。
 export type Role =
   | 'admin'         // 系统管理员
-  | 'cmc_lead'      // CMC负责人
-  | 'project_lead'  // 项目负责人
-  | 'rd'            // 工艺开发人员
+  | 'cmc_lead'      // 项目负责人（管理全部项目：编辑项目（预算与 WBS 结构）、删除项目等；原「CMC 负责人」）
+  | 'project_lead'  // 项目负责人（仅本人项目，旧角色）
+  | 'rd'            // 员工（默认：更新本人任务等日常录入；原「工艺开发」）
   | 'production'    // 生产支持人员
   | 'qa_qc'         // QA/QC 人员（分析任务跟踪 / 批次放行 / 偏差审核）
 

@@ -7,7 +7,7 @@
     PATCH  /api/v1/projects/{id}             部分更新（owner 或 admin / cmc_lead）
     DELETE /api/v1/projects/{id}             删除（admin / cmc_lead，含子项目/任务/依赖/团队/财务/基线）
     POST   /api/v1/projects/{id}/copy        复制为新项目（admin / cmc_lead；结构与计划照搬，执行数据重置）
-    PUT    /api/v1/projects/{id}/members     全量替换团队成员
+    PUT    /api/v1/projects/{id}/members     全量替换团队成员（仍有任务的人不能移出，见 services/team.py）
 """
 
 from uuid import uuid4
@@ -41,6 +41,7 @@ from app.schemas.project import (
 from app.services.project_copy import copy_project
 from app.services.rollup import live_health, live_span
 from app.services.scope import visible_project_ids_for
+from app.services.team import ensure_assignees_kept, include_assignees
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -174,6 +175,8 @@ def import_project(
         fin = payload.finance.model_dump(exclude={"spent"})
         fin["project_id"] = project.id  # 以新项目 id 为准
         db.add(ProjectFinance(**fin))
+    # 任务负责人 / 协作人自动在团队中
+    include_assignees(db, project)
 
     db.commit()
     db.refresh(project)
@@ -238,12 +241,15 @@ def update_project(
         setattr(project, k, v)
 
     if payload.member_ids is not None:
-        # 全量替换团队
+        # 全量替换团队；仍有任务的人不能移出
+        ensure_assignees_kept(db, project, payload.member_ids)
         db.query(ProjectMember).filter_by(project_id=project.id).delete()
-        for mid in payload.member_ids:
+        for mid in set(payload.member_ids):
             if mid == project.owner_id:
                 continue
             db.add(ProjectMember(project_id=project.id, user_id=mid))
+    # 更换负责人后，原负责人若仍有任务则留在团队中
+    include_assignees(db, project)
 
     db.commit()
     db.refresh(project)
@@ -290,6 +296,7 @@ def replace_members(
             status.HTTP_403_FORBIDDEN, "only owner / admin / cmc_lead can edit team"
         )
 
+    ensure_assignees_kept(db, project, member_ids)
     db.query(ProjectMember).filter_by(project_id=project.id).delete()
     for mid in set(member_ids):
         if mid == project.owner_id:
