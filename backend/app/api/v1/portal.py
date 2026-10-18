@@ -339,9 +339,14 @@ def session_claims(request: Request, db: Session) -> dict:
 @router.get("/me", response_model=PortalMeOut, response_model_exclude_none=True)
 def me(request: Request, db: Session = Depends(get_db)):
     claims = session_claims(request, db)
+    # 账号管理保存后的入口缓存只影响目录显示，不能用于任何业务操作授权。
+    catalogue_roles = session_data(request, db).get("catalogue_roles")
+    directory_claims = (
+        {**claims, "roles": catalogue_roles} if isinstance(catalogue_roles, list) else claims
+    )
     return PortalMeOut(
         user=current_user(claims, db, request),
-        applications=applications(claims, db),
+        applications=applications(directory_claims, db),
         must_change_password=password_policy.change_required(db, claims["sub"]),
         can_configure_ai=pm_role(claims) in AI_MANAGERS,
     )

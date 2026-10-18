@@ -1,4 +1,5 @@
 import json
+import os
 import stat
 import threading
 from datetime import date, timedelta
@@ -83,7 +84,8 @@ def test_settings_secrets_preserved_cleared_and_not_forwarded(client, auth_heade
     assert res.status_code == 200
     assert "test-secret" not in res.text
     assert res.json()["providers"]["deepseek"]["key_set"]
-    assert stat.S_IMODE(__import__("os").stat(settings.AI_SETTINGS_PATH).st_mode) == 0o600
+    if os.name == "posix":  # Windows 不提供 POSIX 文件模式；生产 Linux 仍须严格为 0600。
+        assert stat.S_IMODE(os.stat(settings.AI_SETTINGS_PATH).st_mode) == 0o600
     payload = res.json()
     payload["providers"]["deepseek"]["api_key"] = ""
     client.put("/api/v1/ai/settings", json=payload, headers=auth_headers)

@@ -1,15 +1,17 @@
 """门户「账号管理」的请求 / 响应体。账号与角色以 IAM 为准，项目管理成员档案（专业组、周工时）随账号维护。
 
-身份（系统管理员 / 项目负责人 / 员工）如何对应 IAM 角色，见 services/accounts.py 开头的说明。
+平台管理身份、项目管理业务角色与知识库角色分别写入，映射见 services/accounts.py。
 """
 
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, StrictBool, field_validator
 
 from app.schemas.account import check_password, check_username
 
 Identity = Literal["admin", "lead", "staff"]
+PMIdentity = Literal["lead", "staff"]
+KBRole = Literal["viewer", "editor", "unassigned"]
 ActorTier = Literal["admin", "lead"]
 # 与前端 src/mock/dictionaries.ts 的 specialtyGroups 一致
 SpecialtyGroup = Literal["上游", "下游", "制剂", "分析", "稳定性", "工艺验证", "CMC综合"]
@@ -49,10 +51,16 @@ class AccountOut(BaseModel):
     must_change_password: bool
     # Casdoor「是组织管理员」：只能在 IAM 管理台停用 / 删除 / 重置密码 / 改名
     org_admin: bool
+    platform_admin: bool
+    pm_identity: PMIdentity
+    pm_effective_role: str
+    kb_role: KBRole
+    kb_roles: list[str]
+    # 旧客户端的只读兼容字段。
     identity: Identity
-    # 知识库默认对所有人开放（编辑）；false 时列入「需要处理」
+    # 显式 KB 角色准入；历史 viewer 仅可读回，写入只接受 editor。
     kb_enabled: bool
-    # 实际持有的项目管理角色（多个时取最高的身份）
+    # 实际持有的 PM 业务角色，不含独立平台 admin。
     pm_roles: list[str]
     # 账号管理不维护的其他角色（如 dikw-admin），只读显示
     other_roles: list[str]
@@ -80,11 +88,14 @@ class AccountsOut(BaseModel):
 
 
 class AccountCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     username: str = Field(max_length=64)
     display_name: str = Field(max_length=50)
     password: str = Field(max_length=128)
     email: EmailStr | None = None
-    identity: Identity = "staff"
+    platform_admin: StrictBool = False
+    pm_identity: PMIdentity = "staff"
+    kb_role: Literal["editor"] = "editor"
     specialty_group: SpecialtyGroup | None = None
     weekly_hours: int = Field(40, ge=0, le=80)
 
@@ -107,10 +118,13 @@ class AccountCreate(BaseModel):
 class AccountUpdate(BaseModel):
     """只处理请求中出现（且不为 null）的字段；专业组传空字符串表示清空。"""
 
+    model_config = ConfigDict(extra="forbid")
     display_name: str | None = Field(None, max_length=50)
     email: EmailStr | Literal[""] | None = None
     enabled: bool | None = None
-    identity: Identity | None = None
+    platform_admin: StrictBool | None = None
+    pm_identity: PMIdentity | None = None
+    kb_role: Literal["editor"] | None = None
     specialty_group: SpecialtyGroup | Literal[""] | None = None
     weekly_hours: int | None = Field(None, ge=0, le=80)
 
