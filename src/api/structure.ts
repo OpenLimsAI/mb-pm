@@ -1,8 +1,10 @@
 // 项目结构编辑（编辑模式）API —— 读取结构快照，统一保存编辑后的完整结构（后端一个事务）。
 import { api } from './client'
+import type { ProjectFinanceDTO, ProjectFinanceInput } from './finances'
 import type { TaskStatus } from '../types'
 
 export interface StructureSnapshot {
+  finance: ProjectFinanceDTO | null
   version: string
   /** plannedStart / plannedEnd 按任务实时派生 */
   project: { id: string; code: string; name: string; ownerId: string; plannedStart: string; plannedEnd: string }
@@ -31,6 +33,7 @@ export interface StructureSnapshot {
 }
 
 export interface StructureSaveRequest {
+  finance?: ProjectFinanceInput
   version: string
   summary?: string
   /** 项目本身（Lv1）的编号与名称 */
@@ -77,6 +80,7 @@ export interface StructureSaveResult {
   reordered: boolean
   /** 改了项目编号 / 名称 */
   projectUpdated: boolean
+  financeUpdated?: boolean
 }
 
 export async function saveStructure(

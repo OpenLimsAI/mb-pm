@@ -3,7 +3,7 @@
 //「预算总览」：
 //   §1 组合 KPI —— 总预算 / 已花费 / 已承诺 / 剩余 / 执行率 / 超支项目
 //   §2 预算执行 + 成本结构（手工填报）+ 超支项目
-//   §3 分项目预算明细 —— 每个项目的预算执行 + 任务预算合计；admin / cmc_lead 可逐项目编辑预算
+//   §3 分项目预算明细 —— 每个项目的预算执行 + 任务预算合计；有「编辑项目」权限的人可逐项目编辑预算
 //「AI 财务分析」（admin / cmc_lead）：与项目 AI 分析同一套体系的组合财务分析。
 //
 // 口径：已花费 = 该项目全部任务实际花费合计（后端实时汇总，不含内部人力）；
@@ -78,7 +78,7 @@ function TabButton({ icon: Icon, active, onClick, children }: { icon: LucideIcon
 function FinanceOverview() {
   const navigate = useNavigate()
   const version = useDataStore((s) => s.version)
-  const canEdit = can(useAuth((s) => s.currentUser?.role), 'finance.edit')
+  const canEdit = can(useAuth((s) => s.currentUser?.role), 'project.edit')
   const [editing, setEditing] = useState<Project | null>(null)
 
   const data = useMemo(() => {

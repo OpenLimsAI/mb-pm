@@ -1,7 +1,7 @@
 // 账号规则（与后端 backend/app/schemas/account.py 保持一致）：改用户名、改密码共用。
 import axios from 'axios'
 
-export const USERNAME_HINT = '3–32 位小写字母或数字，可用 . _ - 分隔'
+export const USERNAME_HINT = '2–32 位小写字母或数字，可用 . _ - 分隔'
 export const PASSWORD_HINT = '8–64 位，需同时包含字母和数字，不含空格'
 
 const USERNAME_RE = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/
@@ -11,7 +11,7 @@ export const normalizeUsername = (value: string) => value.trim().toLowerCase()
 
 export function usernameProblem(value: string): string | null {
   const name = normalizeUsername(value)
-  if (name.length < 3 || name.length > 32) return '用户名长度需为 3–32 个字符'
+  if (name.length < 2 || name.length > 32) return '用户名长度需为 2–32 个字符'
   if (!USERNAME_RE.test(name)) return '用户名只能包含小写字母和数字，可用 . _ - 分隔（不能连用或出现在首尾）'
   if (RESERVED.has(name)) return '该用户名为系统保留，请换一个'
   return null

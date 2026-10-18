@@ -12,8 +12,8 @@ PASSWORD_MIN, PASSWORD_MAX = 8, 64
 
 def check_username(value: str) -> str:
     value = value.strip().lower()
-    if not 3 <= len(value) <= 32:
-        raise ValueError("用户名长度需为 3–32 个字符")
+    if not 2 <= len(value) <= 32:
+        raise ValueError("用户名长度需为 2–32 个字符")
     if not USERNAME_RE.fullmatch(value):
         raise ValueError("用户名只能包含小写字母和数字，可用 . _ - 分隔（不能连用或出现在首尾）")
     if value in RESERVED_USERNAMES:

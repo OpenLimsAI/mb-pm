@@ -1,8 +1,8 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   LayoutGrid, Diamond, FolderTree, Users, GanttChartSquare, Rows3, Table2, Flag, Zap, Sparkles,
-  PencilLine, CheckCircle2, X,
+  CheckCircle2, X,
 } from 'lucide-react'
 import { findProject, findTask } from '../mock'
 import { useDataStore } from '../store/data'
@@ -21,7 +21,7 @@ import { ProjectAIAnalysis } from '../components/project/ProjectAIAnalysis'
 import { TeamPanel } from '../components/project/TeamPanel'
 import { ProjectStructureEditor } from '../components/project/ProjectStructureEditor'
 import { TaskDrawer } from '../components/task/TaskDrawer'
-import { Button, EmptyState } from '../components/ui'
+import { EmptyState } from '../components/ui'
 import { cn } from '../lib/cn'
 
 // Tab 顺序：概览 → 里程碑 → WBS → 延迟推演 → 基线 → 团队 → AI 分析（仅管理者）
@@ -33,8 +33,8 @@ export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>()
   const role = useAuth((s) => s.currentUser?.role)
   const canAnalyze = can(role, 'ai.analyze')
-  // 编辑模式（增删改子项目 / 任务 / 依赖）：与任务创建同一权限；后端另按项目可见范围校验
-  const canEditStructure = can(role, 'task.create')
+  // 「编辑项目」（项目信息、预算、子项目 / 任务 / 依赖）：与账号管理身份对应；后端另按项目可见范围校验
+  const canEditProject = can(role, 'project.edit')
   // 订阅数据版本：任务进展保存后重算并刷新本页（含抽屉、WBS、里程碑）
   useDataStore((s) => s.version)
   const online = useDataStore((s) => s.mode) === 'api'
@@ -66,22 +66,14 @@ export default function ProjectDetail() {
     setDrawerTaskId(taskId)
   }
 
-  // 「编辑模式」入口：概览的 WBS 卡片与 WBS 页签各一个，进入同一个编辑器
-  const editButton = canEditStructure ? (
-    <Button
-      size="sm"
-      icon={<PencilLine className="w-3.5 h-3.5" />}
-      disabled={!online}
-      title={online ? '增删改子项目、任务和前置依赖，确认后一次性保存' : '离线演示模式不支持修改项目结构'}
-      onClick={() => {
+  // 「编辑项目」入口在页首（删除项目左侧），进入编辑页：预算 + 项目结构
+  const startEditing = canEditProject
+    ? () => {
         setNotice(null)
         setDrawerTaskId(null)
         setEditing(true)
-      }}
-    >
-      编辑模式
-    </Button>
-  ) : null
+      }
+    : undefined
 
   if (editing) {
     return (
@@ -101,7 +93,11 @@ export default function ProjectDetail() {
 
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-4">
-      <ProjectHeader project={project} />
+      <ProjectHeader
+        project={project}
+        onEdit={startEditing}
+        editDisabledReason={online ? undefined : '离线演示模式不支持修改项目'}
+      />
 
       {notice && (
         <div role="status" className="p-3 rounded-lg bg-emerald-50 text-emerald-800 text-sm flex items-center gap-2">
@@ -131,7 +127,7 @@ export default function ProjectDetail() {
         <div className="space-y-4">
           <MilestoneTimeline project={project} onSelectTask={handleSelectTask} />
           <ProjectBudgetCard project={project} />
-          <WBSTree project={project} onSelectTask={handleSelectTask} selectedTaskId={selectedTaskId} action={editButton} />
+          <WBSTree project={project} onSelectTask={handleSelectTask} selectedTaskId={selectedTaskId} />
         </div>
       )}
 
@@ -143,7 +139,7 @@ export default function ProjectDetail() {
       {/* WBS：表格（行内编辑）/ 树形 / 甘特图 */}
       {tab === 'wbs' && (
         <div className="space-y-3">
-          <WbsViewSwitcher view={wbsView} onChange={setWbsView} action={editButton} />
+          <WbsViewSwitcher view={wbsView} onChange={setWbsView} />
           {wbsView === 'table' && (
             <WBSTable project={project} onOpenTask={handleSelectTask} selectedTaskId={selectedTaskId} />
           )}
@@ -194,7 +190,7 @@ function TabBtn({
   )
 }
 
-function WbsViewSwitcher({ view, onChange, action }: { view: WbsView; onChange: (v: WbsView) => void; action?: ReactNode }) {
+function WbsViewSwitcher({ view, onChange }: { view: WbsView; onChange: (v: WbsView) => void }) {
   const opts: { v: WbsView; label: string; icon: typeof Table2 }[] = [
     { v: 'table', label: '表格录入', icon: Table2 },
     { v: 'tree', label: '树形', icon: Rows3 },
@@ -221,7 +217,6 @@ function WbsViewSwitcher({ view, onChange, action }: { view: WbsView; onChange: 
         <span className="text-xs text-ink-400">
           系统严格三级：项目 → 子项目 → 任务（Lv3 下不可再建子节点）
         </span>
-        {action}
       </div>
     </div>
   )

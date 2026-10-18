@@ -1,10 +1,11 @@
 // 认证 API —— 登录 / 登出都是整页跳转，由后端与 IAM 交互；前端只查询当前用户。
-// 改用户名 / 密码经后端调用 IAM 完成，浏览器不直接访问 IAM 管理接口；账号由 IAM 平台开通。
+// 账号由系统管理员在门户「账号管理」开通；改用户名 / 密码在工作台「设置」。
 import { api, API_BASE } from './client'
 import type { UserDTO } from './types'
 
-export async function fetchMe(): Promise<UserDTO> {
-  const { data } = await api.get<UserDTO>('/auth/me')
+/** mustChangePassword：管理员设置了临时密码，须先改密（改密前其他接口返回 403）。 */
+export async function fetchMe(): Promise<UserDTO & { mustChangePassword?: boolean }> {
+  const { data } = await api.get<UserDTO & { mustChangePassword?: boolean }>('/auth/me')
   return data
 }
 
@@ -25,13 +26,8 @@ export async function getLoginUrl(): Promise<string> {
 /** 以顶层表单 POST 提交：后端销毁业务会话 → Casdoor 清 SSO → 回到 /login。 */
 export const logoutUrl = `${API_BASE}/auth/logout`
 
-/** 改密码：后端校验当前密码；成功后本系统在其他设备上的登录会退出。 */
+/** 改密码（项目管理「请先修改临时密码」页）：后端校验当前密码；成功后本系统在其他设备上的登录会退出。
+ *  日常改用户名 / 密码在工作台「我的设置」（门户会话，见 api/portal.ts）。 */
 export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
   await api.post('/account/password', { currentPassword, newPassword })
-}
-
-/** 改用户名（即 IAM 登录名）：后端校验当前密码后改 IAM 用户名，并同步业务账号。 */
-export async function changeUsername(newUsername: string, currentPassword: string): Promise<UserDTO> {
-  const { data } = await api.post<UserDTO>('/account/username', { newUsername, currentPassword })
-  return data
 }

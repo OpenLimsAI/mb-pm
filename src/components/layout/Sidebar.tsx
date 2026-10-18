@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, FolderKanban, ListChecks, GanttChartSquare, Gauge, Wallet, Users, ChevronDown,
-  Settings2, BookOpen, Network, Library, type LucideIcon,
+  LayoutDashboard, FolderKanban, ListChecks, GanttChartSquare, Gauge, Wallet, ChevronDown,
+  SlidersHorizontal, type LucideIcon,
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { can, type PermKey } from '../../lib/permissions'
-import { knowledgeLaunchUrl } from '../../lib/site'
 import { useAuth } from '../../store/auth'
 
 interface NavItem {
@@ -15,12 +14,11 @@ interface NavItem {
   icon: LucideIcon
   end?: boolean
   perms?: PermKey[]   // 满足其一才显示（与 App 路由守卫一致）
-  groupOnly?: boolean // 仅展开子菜单，to 用作折叠偏好的键
-  external?: boolean
   children?: NavItem[]
 }
 
 // 左侧主导航。模板管理由「项目」页右上角入口进入；任务 / 甘特图 / 人员负荷 收在「项目」下，可折叠。
+// 账号管理、个人设置、版本更新与跨应用切换在门户工作台；项目管理保留 AI设置。
 const navItems: NavItem[] = [
   { to: '/dashboard', label: '首页',   icon: LayoutDashboard, end: true },
   {
@@ -32,15 +30,7 @@ const navItems: NavItem[] = [
     ],
   },
   { to: '/finance',   label: '财务',   icon: Wallet },
-  { to: '/org',       label: '组织',   icon: Users },
-  { to: '/settings',  label: '设置',   icon: Settings2 },
-  { to: '/release-notes', label: '版本更新', icon: BookOpen },
-  {
-    to: '/related-systems', label: '相关系统', icon: Network, groupOnly: true,
-    children: [
-      { to: knowledgeLaunchUrl, label: '知识库', icon: Library, external: true },
-    ],
-  },
+  { to: '/ai-settings', label: 'AI设置', icon: SlidersHorizontal, perms: ['ai.config'] },
 ]
 
 // 记住用户收起的分组（仅本浏览器的界面偏好；读写失败时按默认全部展开）
@@ -83,11 +73,8 @@ export function Sidebar() {
           className="app-brand-logo"
         />
         <div className="app-brand-copy flex-1 min-w-0">
-          <div className="text-base font-semibold text-white leading-tight flex items-center gap-1.5">
+          <div className="text-base font-semibold text-white leading-tight">
             CMC-PMS
-            <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-white/10 text-cyan-100 border border-white/20">
-              CTO
-            </span>
           </div>
           <div className="text-[10px] text-blue-100 mt-1 leading-tight">研发项目组合 · 决策视图</div>
         </div>
@@ -106,20 +93,6 @@ export function Sidebar() {
           const groupId = `nav-group${it.to.replace(/\//g, '-')}`
           return (
             <div key={it.to}>
-              {it.groupOnly ? (
-                <button
-                  type="button"
-                  onClick={() => toggle(it.to)}
-                  aria-expanded={open}
-                  aria-controls={groupId}
-                  title={it.label}
-                  className="app-nav-link w-full flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-ink-700 hover:bg-brand-50/60 transition-colors focus-visible:outline focus-visible:outline-brand-500"
-                >
-                  <it.icon className="w-4 h-4 shrink-0" />
-                  <span className="app-nav-label">{it.label}</span>
-                  <ChevronDown className={cn('app-nav-toggle ml-auto w-4 h-4 shrink-0 transition-transform', !open && '-rotate-90')} />
-                </button>
-              ) : (
               <div className="flex items-center gap-0.5">
                 <NavItemLink item={it} className="flex-1" highlight={!open && childActive} />
                 <button
@@ -134,7 +107,6 @@ export function Sidebar() {
                   <ChevronDown className={cn('w-4 h-4 transition-transform', !open && '-rotate-90')} />
                 </button>
               </div>
-              )}
               <div id={groupId} hidden={!open} className="app-nav-children mt-1 ml-5 pl-2 border-l border-ink-300/60 space-y-1">
                 {children.map((c) => <NavItemLink key={c.to} item={c} child />)}
               </div>
@@ -168,19 +140,6 @@ function NavItemLink({
       <item.icon className={cn('shrink-0', child ? 'w-3.5 h-3.5' : 'w-4 h-4')} />
       <span className="app-nav-label">{item.label}</span>
     </>
-  )
-
-  if (item.external) return (
-    <a
-      href={item.to}
-      target="_blank"
-      rel="noopener noreferrer"
-      title={item.label}
-      aria-label={item.label}
-      className={linkClassName()}
-    >
-      {content}
-    </a>
   )
 
   return (

@@ -1,6 +1,6 @@
 # 新功能说明与 Release notes
 
-系统入口：左侧「版本更新」→ `/release-notes`（沿用登录守卫）。
+系统入口：门户工作台顶部导航或首页「版本更新」→ `/release-notes`（沿用门户登录守卫，不要求项目管理权限）。项目管理旧页面 `pm.openlims.ai/release-notes` 自动跳转到门户 `www.openlims.ai/release-notes`。
 独立 HTML：`public/release-notes.html`，可直接在浏览器中打开、下载或打印；部署后访问 `/release-notes.html`。
 独立文件只含通用产品说明，可公开阅读，不含客户数据、账号、密钥或内部部署信息。
 

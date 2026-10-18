@@ -23,6 +23,10 @@ from app.core.config import settings
 from app.models import IAMIdentity, User
 
 ROLES = {"admin", "cmc_lead", "project_lead", "rd", "production", "qa_qc"}
+# 同时持有多个项目管理角色时取最高的；没有项目管理角色时按「员工」（rd：更新本人任务等日常录入）。
+# 项目管理默认对组织内所有人开放，账号管理里只区分 系统管理员 / 项目负责人 / 员工。
+ROLE_PRIORITY = ("admin", "cmc_lead", "project_lead", "qa_qc", "production", "rd")
+DEFAULT_ROLE = "rd"
 SESSION_COOKIE = "mbpm_iam_session"
 LOGIN_COOKIE = "mbpm_iam_login"
 _jwks_cache: dict = {}
@@ -116,16 +120,17 @@ def decode_access_token(
         raise HTTPException(401, "IAM 令牌无效或已过期") from exc
 
 
-def sync_username(user: User, name: object, db: Session) -> None:
-    """IAM 中改过用户名（如管理员在 IAM 控制台改名）：登录时同步到已绑定的业务账号；
-    与其他业务用户冲突时保持原样（绑定按 sub，不受用户名影响）。"""
-    if (
-        isinstance(name, str)
-        and 0 < len(name) <= 50
-        and name != user.username
-        and not db.query(User.id).filter(User.username == name, User.id != user.id).first()
-    ):
-        user.username = name
+def pm_role(claims: dict) -> str:
+    """令牌中本组织启用的项目管理角色里最高的一个；没有则为默认的员工角色。"""
+    entries = claims.get("roles")
+    held = {
+        r.get("name")
+        for r in (entries if isinstance(entries, list) else [])
+        if isinstance(r, dict)
+        and r.get("owner") == settings.CASDOOR_ORG
+        and r.get("isEnabled", True) is True
+    }
+    return next((role for role in ROLE_PRIORITY if role in held), DEFAULT_ROLE)
 
 
 def resolve_identity(claims: dict, db: Session, *, bind: bool = False) -> User:
@@ -133,20 +138,7 @@ def resolve_identity(claims: dict, db: Session, *, bind: bool = False) -> User:
         raise HTTPException(403, "该 IAM 账号不属于项目管理组织")
     if claims.get("isForbidden") or claims.get("isDeleted"):
         raise HTTPException(403, "IAM 账号已停用")
-    entries = claims.get("roles")
-    if not isinstance(entries, list):
-        raise HTTPException(403, "IAM 账号未分配项目管理角色")
-    roles = {
-        r.get("name")
-        for r in entries
-        if isinstance(r, dict)
-        and r.get("owner") == settings.CASDOOR_ORG
-        and r.get("isEnabled", True) is True
-        and isinstance(r.get("name"), str)
-        and r["name"] in ROLES
-    }
-    if len(roles) != 1:
-        raise HTTPException(403, "IAM 账号必须分配一个项目管理角色")
+    role = pm_role(claims)
     subject = claims["sub"]
     issuer = settings.casdoor_issuer
     if len(subject) > 255:
@@ -155,23 +147,40 @@ def resolve_identity(claims: dict, db: Session, *, bind: bool = False) -> User:
     if identity:
         user = db.get(User, identity.user_id)
         if bind and user:
-            sync_username(user, claims.get("name"), db)
+            # 登录时以 IAM 为准：同步用户名与姓名；令牌未标记停用说明账号已启用，成员随之启用
+            from app.services.members import sync_profile
+
+            sync_profile(db, user, claims)
+            user.is_active = True
     elif bind:
-        # 只关联管理员已预置的业务用户：绝不按邮箱或浏览器传来的 ID 创建账号 / 赋权。
+        # 首次登录：已有同名且未绑定的成员（如历史预置）则绑定；没有就按 IAM 资料新建成员。
+        # 只信任经验签的令牌（sub / name 来自 IAM），不接受浏览器传来的身份。
+        from app.services.members import create_member, username_taken
+
         name = claims.get("name")
-        user = (
-            db.query(User).filter_by(username=name, is_active=True).first()
-            if isinstance(name, str) and name
-            else None
-        )
+        if not isinstance(name, str) or not name or len(name) > 50:
+            raise HTTPException(403, "IAM 用户资料不完整")
+        user = db.query(User).filter_by(username=name).first()
         if user and db.query(IAMIdentity).filter_by(issuer=issuer, user_id=user.id).first():
             raise HTTPException(403, "此业务账号已绑定其他 IAM 身份，请联系管理员")
         if user:
             db.add(IAMIdentity(issuer=issuer, subject=subject, user_id=user.id))
+        elif username_taken(db, name):
+            raise HTTPException(403, "项目管理中已有同名成员，请联系管理员核对")
+        else:
+            display = claims.get("displayName")
+            user = create_member(
+                db,
+                subject,
+                name,
+                display if isinstance(display, str) else name,
+                claims.get("email"),
+                role,
+            )
     else:
         user = None
     if not user or not user.is_active:
         raise HTTPException(403, "此 IAM 账号尚未关联有效的项目管理用户")
     # 授权只认 IAM 角色：仅覆盖本请求内的对象，不写回 users 表。
-    set_committed_value(user, "role", next(iter(roles)))
+    set_committed_value(user, "role", role)
     return user

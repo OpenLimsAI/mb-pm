@@ -8,7 +8,7 @@ export interface PortalUser {
 }
 
 export interface PortalApplication {
-  id: 'pm' | 'kb'
+  id: 'pm' | 'kb' | 'accounts'
   enabled: boolean
   reason?: string
 }
@@ -16,6 +16,10 @@ export interface PortalApplication {
 export interface PortalIdentity {
   user: PortalUser
   applications: PortalApplication[]
+  /** 管理员设置了临时密码：须先在门户里改密（改密前账号管理等接口返回 403）。 */
+  mustChangePassword: boolean
+  /** 兼容字段：原门户 AI 配置准入；当前配置入口在项目管理，由 ai.config 判定。 */
+  canConfigureAi: boolean
 }
 
 // 门户会话与 PM 会话独立。门户的 401 不应触发 PM 全局退出事件。
@@ -36,3 +40,14 @@ export async function getPortalLoginUrl(): Promise<string> {
 }
 
 export const portalLogoutUrl = `${API_BASE}/portal/logout`
+
+/** 本人在门户改密码：后端校验当前密码，清除临时密码标记，其他设备上的登录退出。 */
+export async function changePortalPassword(currentPassword: string, newPassword: string): Promise<void> {
+  await portalApi.post('/password', { current_password: currentPassword, new_password: newPassword })
+}
+
+/** 本人在门户改用户名（IAM 登录名）：后端校验当前密码，项目管理成员的用户名一并更新。 */
+export async function changePortalUsername(newUsername: string, currentPassword: string): Promise<PortalUser> {
+  const { data } = await portalApi.post('/username', { new_username: newUsername, current_password: currentPassword })
+  return camelize<PortalUser>(data)
+}

@@ -9,7 +9,7 @@ const financeTags = (a: AIAnalysis) => [
 ]
 
 // 财务 →「AI 财务分析」（admin / cmc_lead）：全部项目的预算执行、任务成本偏差与数据缺口。
-// 与项目分析是同一套体系：共用 AI 设置、默认提示词（设置 › AI 分析 › 财务分析提示词）与报告存档。
+// 与项目分析是同一套体系：共用 AI 设置、默认提示词（项目管理「AI设置」› 财务分析提示词）与报告存档。
 export function FinanceAIAnalysis() {
   return (
     <AIAnalysisPanel

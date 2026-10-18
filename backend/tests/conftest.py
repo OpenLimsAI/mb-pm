@@ -39,6 +39,7 @@ from app.core import security  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.db.session import SessionLocal  # noqa: E402
 from app.main import app  # noqa: E402
+from app.services import members  # noqa: E402
 from app.models import (  # noqa: E402
     IAMIdentity,
     Project,
@@ -52,11 +53,37 @@ from app.models import (  # noqa: E402
 )
 
 
+@pytest.fixture(autouse=True)
+def _no_iam_reconcile(monkeypatch):
+    """接口测试共用一个库、各自用替身 IAM：真实对账会把其他用例绑定的成员按「IAM 中不存在」停用。
+    对账逻辑本身在 test_members.py 用独立的内存库测试。"""
+    monkeypatch.setattr(members, "reconcile_with_iam", lambda db, force=False: 0)
+
+
 @pytest.fixture(scope="session")
 def client():
     """进入上下文以触发 lifespan（create_all + _ensure_schema 建表）。"""
     with TestClient(app) as c:
         yield c
+
+
+@pytest.fixture
+def live_ai_roles(monkeypatch):
+    """AI 配置测试的实时 IAM 替身，使用用例已绑定成员的角色，不连接真实 IAM。"""
+    from app.services import iam_admin
+
+    def roles(subject):
+        with SessionLocal() as db:
+            identity = db.get(IAMIdentity, (settings.casdoor_issuer, subject))
+            user = db.get(User, identity.user_id) if identity else None
+            return {
+                "isForbidden": not (user and user.is_active),
+                "roles": [{"owner": settings.CASDOOR_ORG, "name": user.role, "isEnabled": True}]
+                if user
+                else [],
+            }
+
+    monkeypatch.setattr(iam_admin, "get_user_by_sub", roles)
 
 
 @pytest.fixture(scope="session")

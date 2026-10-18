@@ -1,5 +1,5 @@
 // 推荐负责人（FR-SW-002）：按专业组匹配 + 负荷率升序给出候选人。
-// 指定一个真实任务时，参数取自任务本身，可直接改派（写后端）；不指定任务则仅作试算。
+// 指定一个真实任务时，参数取自任务本身，可直接改派（写后端），但只能改派给该项目团队中的人；不指定任务则仅作试算。
 
 import { useMemo, useState, type ReactNode } from 'react'
 import { X, Sparkles, CheckCircle2, AlertTriangle, ArrowRight, ListChecks, Loader2 } from 'lucide-react'
@@ -17,6 +17,7 @@ import { useAuth } from '../../store/auth'
 import { useDataStore } from '../../store/data'
 import type { Module, Task } from '../../types'
 import { cn } from '../../lib/cn'
+import { teamIds } from '../../lib/projectTeam'
 
 interface Props {
   /** 预选的任务（如从「过载周任务」进入）；不传则从试算开始 */
@@ -50,7 +51,12 @@ export function RecommendModal({ initialTaskId, onClose, onAssigned }: Props) {
 
   const [taskId, setTaskId] = useState(initialTaskId ?? '')
   const task = taskId ? findTask(taskId) : undefined
-  const taskModule = task ? findSubProject(task.subProjectId)?.module : undefined
+  const taskSub = task ? findSubProject(task.subProjectId) : undefined
+  const taskModule = taskSub?.module
+  // 指定任务时只能改派给该项目团队中的人
+  const taskProject = taskSub ? projects.find((p) => p.id === taskSub.projectId) : undefined
+  const team = taskProject ? teamIds(taskProject) : null
+  const outsideTeam = (userId: string) => !!team && !team.has(userId)
 
   // 试算参数（不指定任务时可编辑）
   const [module, setModule] = useState<Module>('分析方法')
@@ -69,7 +75,7 @@ export function RecommendModal({ initialTaskId, onClose, onAssigned }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [pModule, pEffort, pStart, pEnd, invalid, version],
   )
-  const eligible = candidates.filter((c) => c.currentLevel !== 'high' && c.matchesGroup)
+  const eligible = candidates.filter((c) => c.currentLevel !== 'high' && c.matchesGroup && !outsideTeam(c.user.id))
   const overload = candidates.filter((c) => c.predictedLevel === 'high')
 
   const [picked, setPicked] = useState<string | null>(null)
@@ -167,7 +173,9 @@ export function RecommendModal({ initialTaskId, onClose, onAssigned }: Props) {
               <AlertTriangle className="w-3 h-3" />
               {overload.length} 位接手后将过载
             </Tag>
-            <span className="ml-auto text-[11px] text-ink-500">符合条件：当前负荷 ≤ 90% 且专业组匹配；按负荷率升序</span>
+            <span className="ml-auto text-[11px] text-ink-500">
+              符合条件：当前负荷 ≤ 90% 且专业组匹配{team ? '、在项目团队中' : ''}；按负荷率升序
+            </span>
           </div>
 
           <ul className="divide-y divide-ink-300/40">
@@ -176,6 +184,7 @@ export function RecommendModal({ initialTaskId, onClose, onAssigned }: Props) {
                 key={c.user.id}
                 c={c}
                 isCurrentOwner={c.user.id === task?.ownerId}
+                outsideTeam={outsideTeam(c.user.id)}
                 picked={picked === c.user.id}
                 onPick={() => setPicked(c.user.id)}
               />
@@ -220,18 +229,20 @@ export function RecommendModal({ initialTaskId, onClose, onAssigned }: Props) {
 }
 
 function CandidateRow({
-  c, isCurrentOwner, picked, onPick,
-}: { c: ReturnType<typeof recommendForTask>[number]; isCurrentOwner: boolean; picked: boolean; onPick: () => void }) {
+  c, isCurrentOwner, outsideTeam, picked, onPick,
+}: { c: ReturnType<typeof recommendForTask>[number]; isCurrentOwner: boolean; outsideTeam: boolean; picked: boolean; onPick: () => void }) {
   const willOverload = c.predictedLevel === 'high'
   const groupMismatch = !c.matchesGroup
   return (
     <li
       className={cn(
-        'px-6 py-3 cursor-pointer flex items-center gap-3 transition-colors',
-        picked ? 'bg-brand-50' : 'hover:bg-ink-100/40',
-        willOverload && 'opacity-70'
+        'px-6 py-3 flex items-center gap-3 transition-colors',
+        outsideTeam ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
+        picked ? 'bg-brand-50' : !outsideTeam && 'hover:bg-ink-100/40',
+        willOverload && !outsideTeam && 'opacity-70'
       )}
-      onClick={onPick}
+      title={outsideTeam ? '不在该项目团队中，不能改派；请先在项目「团队」页加入' : undefined}
+      onClick={outsideTeam ? undefined : onPick}
     >
       <div className={cn(
         'w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center',
@@ -247,6 +258,7 @@ function CandidateRow({
           <span className="font-medium text-sm text-ink-900">{c.user.displayName}</span>
           {c.user.specialtyGroup && <Tag tone={groupMismatch ? 'gray' : 'blue'}>{c.user.specialtyGroup}</Tag>}
           {isCurrentOwner && <Tag tone="purple">当前负责人</Tag>}
+          {outsideTeam && <Tag tone="gray">不在项目团队</Tag>}
           {groupMismatch && <Tag tone="yellow">非专业组匹配</Tag>}
           {willOverload && <Tag tone="red">接手后将过载</Tag>}
         </div>

@@ -245,6 +245,7 @@ def test_legacy_signup_settings_cannot_reenable_registration(client, casdoor, mo
     assert response.status_code == 200
     assert response.json() == {
         "login_url": "http://pms.test/api/v1/auth/login",
+        "iam_session_url": legacy_settings.casdoor_issuer + "/api/get-account",
         "signup_enabled": False,
     }
     assert client.post("/api/v1/auth/register", json=registration()).status_code == 410
@@ -416,3 +417,29 @@ def test_account_changes_need_iam_service(client, casdoor, member, bearer):
     response = client.post("/api/v1/account/password", json=body, headers=bearer(user_id, "rd"))
     assert response.status_code == 503
     assert casdoor.users[user_id]["password"] == PASSWORD
+
+
+# —— 临时密码须先修改（标记期间只放行查询身份 / 改密 / 退出）—— #
+
+
+def test_flagged_member_must_change_password_first(client, casdoor, member, bearer):
+    from app.models import PasswordChangeRequired
+    from app.services import password_policy
+
+    user_id = member()
+    db = SessionLocal()
+    try:
+        password_policy.require_change(db, user_id, "reset")
+        db.commit()
+    finally:
+        db.close()
+    headers = bearer(user_id, "rd")
+    me = client.get("/api/v1/auth/me", headers=headers)
+    assert me.status_code == 200 and me.json()["must_change_password"] is True
+    blocked = client.get("/api/v1/projects", headers=headers)  # Bearer 访问同样拦截
+    assert blocked.status_code == 403 and "临时密码" in blocked.json()["detail"]
+    body = {"current_password": PASSWORD, "new_password": "Brand-new-2026"}
+    assert client.post("/api/v1/account/password", json=body, headers=headers).status_code == 204
+    assert row(PasswordChangeRequired, subject=user_id) is None
+    assert client.get("/api/v1/auth/me", headers=headers).json()["must_change_password"] is False
+    assert client.get("/api/v1/projects", headers=headers).status_code == 200

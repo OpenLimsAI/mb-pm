@@ -12,9 +12,9 @@ from urllib.parse import urlencode
 
 import httpx
 from cryptography.fernet import InvalidToken
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse
-from sqlalchemy import delete
+from sqlalchemy import delete, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -23,16 +23,20 @@ from app.api.v1.auth import no_cache, safe_return_to, set_cookie
 from app.core.config import settings
 from app.core.security import (
     LOGIN_COOKIE,
-    ROLES,
     SESSION_COOKIE,
     decode_access_token,
     digest,
+    pm_role,
     seal,
     unseal,
 )
 from app.db.session import get_db
 from app.models import IAMIdentity, IAMSession, PortalLogin, PortalSession, User
+from app.schemas.account import PasswordChange
+from app.schemas.auth import LoginStart
 from app.schemas.portal import PortalApplicationOut, PortalMeOut, PortalUserOut
+from app.services import iam_login, password_policy
+from app.services.iam_admin import IAMError
 
 router = APIRouter(prefix="/portal", tags=["portal"])
 PORTAL_LOGIN_COOKIE = "mbportal_iam_login"
@@ -80,6 +84,34 @@ def validate_identity(claims: dict) -> PortalUserOut:
     )
 
 
+def current_user(claims: dict, db: Session, request: Request | None = None) -> PortalUserOut:
+    """门户显示的身份。登录令牌里的用户名在本人改名后要到下次登录才更新：
+    已绑定项目管理成员时以成员的用户名为准（改名时同步写入，并随 IAM 对账）；
+    未绑定时用本会话里记下的新用户名（见 portal_settings.change_username）。"""
+    user = validate_identity(claims)
+    identity = db.get(IAMIdentity, (settings.casdoor_issuer, claims["sub"]))
+    member = db.get(User, identity.user_id) if identity else None
+    if member is not None:
+        user.username = member.username
+    elif request is not None and (renamed := session_data(request, db).get("username")):
+        user.username = renamed
+    return user
+
+
+def session_data(request: Request, db: Session) -> dict:
+    """当前门户会话里保存的数据（令牌与本人改名后的用户名）；会话无效时为空。"""
+    session_id = request.cookies.get(PORTAL_SESSION_COOKIE, "")
+    session = db.get(PortalSession, digest(session_id)) if session_id else None
+    try:
+        return unseal(session.tokens) if session else {}
+    except (InvalidToken, ValueError, TypeError):
+        return {}
+
+
+# 工作台「设置 › AI 分析」可修改的角色（与项目管理 ai.config 一致）
+AI_MANAGERS = ("admin", "cmc_lead")
+
+
 def enabled_roles(claims: dict) -> set[str]:
     entries = claims.get("roles")
     if not isinstance(entries, list):
@@ -95,34 +127,41 @@ def enabled_roles(claims: dict) -> set[str]:
 
 
 def applications(claims: dict, db: Session) -> list[PortalApplicationOut]:
+    """项目管理默认对组织内所有人开放（首次进入时自动建成员）；知识库看 KB 角色。"""
     roles = enabled_roles(claims)
     pm_reason = None
-    if len(roles & ROLES) != 1:
-        pm_reason = "请在 IAM 中分配一个项目管理角色"
+    identity = db.get(IAMIdentity, (settings.casdoor_issuer, claims["sub"]))
+    if identity:
+        user = db.get(User, identity.user_id)
+        if not user or not user.is_active:
+            pm_reason = "项目管理账号已停用，请联系系统管理员"
     else:
-        identity = db.get(IAMIdentity, (settings.casdoor_issuer, claims["sub"]))
-        if identity:
-            user = db.get(User, identity.user_id)
-            eligible = bool(user and user.is_active)
-        else:
-            # 与 PM 首次登录规则一致，仅核对可绑定性，目录查询不建立绑定。
-            user = db.query(User).filter_by(username=claims["name"], is_active=True).first()
-            eligible = bool(
-                user
-                and not db.query(IAMIdentity)
-                .filter_by(issuer=settings.casdoor_issuer, user_id=user.id)
-                .first()
-            )
-        if not eligible:
-            pm_reason = "请联系管理员关联有效的项目管理用户"
+        # 与 PM 首次登录规则一致，仅核对能否关联或新建，目录查询不建立绑定。
+        user = db.query(User).filter(func.lower(User.username) == claims["name"].lower()).first()
+        if user and (
+            user.username != claims["name"]
+            or db.query(IAMIdentity)
+            .filter_by(issuer=settings.casdoor_issuer, user_id=user.id)
+            .first()
+        ):
+            pm_reason = "项目管理中已有同名成员，请联系系统管理员核对"
+        elif user and not user.is_active:
+            pm_reason = "项目管理账号已停用，请联系系统管理员"
     kb_enabled = bool(roles & {"kb_viewer", "kb_editor"})
+    managers = bool(roles & {"admin", "cmc_lead", "project_lead"})
     # KB 原生应用仍是最终权限边界。没有明确 KB 角色时，不猜测默认阅读授权。
     return [
         PortalApplicationOut(id="pm", enabled=pm_reason is None, reason=pm_reason),
         PortalApplicationOut(
             id="kb",
             enabled=kb_enabled,
-            reason=None if kb_enabled else "请在 IAM 中开通知识库阅读权限",
+            reason=None if kb_enabled else "知识库尚未开通，请联系系统管理员",
+        ),
+        # 仅决定是否显示入口；账号管理接口每次请求都向 IAM 实时核对身份
+        PortalApplicationOut(
+            id="accounts",
+            enabled=managers,
+            reason=None if managers else "仅系统管理员和项目负责人可用",
         ),
     ]
 
@@ -140,15 +179,13 @@ def login_error(code: str):
 def config():
     return {
         "login_url": settings.portal_origin + "/api/v1/portal/login",
-        "iam_url": settings.casdoor_issuer + "/login",
+        # 登录页据此检查浏览器里是否已有 IAM 登录会话（有则直接单点登录，不再要求输入密码）
+        "iam_session_url": settings.casdoor_issuer + "/api/get-account",
     }
 
 
-@router.get("/login")
-def login(
-    db: Session = Depends(get_db),
-    return_to: str = Query("/", max_length=2048),
-):
+def begin_login(db: Session, return_to: str) -> dict:
+    """生成 state / PKCE / nonce 并保存门户登录事务，返回 IAM 授权参数（跳转登录页与嵌入式登录共用）。"""
     require_configuration()
     state, verifier, nonce = (secrets.token_urlsafe(32) for _ in range(3))
     now = int(time.time())
@@ -160,7 +197,7 @@ def login(
     challenge = (
         base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
     )
-    params = {
+    return {
         "client_id": settings.portal_client_id,
         "response_type": "code",
         "redirect_uri": settings.portal_callback_url,
@@ -170,11 +207,31 @@ def login(
         "code_challenge": challenge,
         "code_challenge_method": "S256",
     }
+
+
+@router.get("/login")
+def login(
+    db: Session = Depends(get_db),
+    return_to: str = Query("/", max_length=2048),
+):
+    params = begin_login(db, return_to)
     response = RedirectResponse(
         settings.casdoor_issuer + "/login/oauth/authorize?" + urlencode(params), 303
     )
-    set_cookie(response, PORTAL_LOGIN_COOKIE, state, 600)
+    set_cookie(response, PORTAL_LOGIN_COOKIE, params["state"], 600)
     return no_cache(response)
+
+
+@router.post("/login/start")
+def login_start(
+    request: Request, body: LoginStart, response: Response, db: Session = Depends(get_db)
+):
+    """嵌入式登录：门户登录页直接输入用户名 / 密码（见 services/iam_login.py）。"""
+    require_same_origin(request, origin=settings.portal_origin)
+    params = begin_login(db, body.return_to)
+    set_cookie(response, PORTAL_LOGIN_COOKIE, params["state"], 600)
+    no_cache(response)
+    return iam_login.embedded_login(params)
 
 
 def handle_callback(request: Request, code: str, state: str, error: str, db: Session):
@@ -264,8 +321,8 @@ def callback(
     return handle_callback(request, code, state, error, db)
 
 
-@router.get("/me", response_model=PortalMeOut, response_model_exclude_none=True)
-def me(request: Request, db: Session = Depends(get_db)):
+def session_claims(request: Request, db: Session) -> dict:
+    """当前门户会话的已验签令牌声明；同时重新校验组织与账号状态。"""
     require_configuration()
     session_id = request.cookies.get(PORTAL_SESSION_COOKIE, "")
     session = db.get(PortalSession, digest(session_id)) if session_id else None
@@ -275,8 +332,37 @@ def me(request: Request, db: Session = Depends(get_db)):
         claims = decode_portal_token(unseal(session.tokens)["access_token"])
     except (InvalidToken, ValueError, KeyError, TypeError) as exc:
         raise HTTPException(401, "登录会话已失效") from exc
-    user = validate_identity(claims)
-    return PortalMeOut(user=user, applications=applications(claims, db))
+    validate_identity(claims)
+    return claims
+
+
+@router.get("/me", response_model=PortalMeOut, response_model_exclude_none=True)
+def me(request: Request, db: Session = Depends(get_db)):
+    claims = session_claims(request, db)
+    return PortalMeOut(
+        user=current_user(claims, db, request),
+        applications=applications(claims, db),
+        must_change_password=password_policy.change_required(db, claims["sub"]),
+        can_configure_ai=pm_role(claims) in AI_MANAGERS,
+    )
+
+
+@router.post("/password", status_code=204)
+def change_password(payload: PasswordChange, request: Request, db: Session = Depends(get_db)):
+    """本人在门户里改密码（须当前密码）：清除临时密码标记，其他设备上的登录退出。"""
+    require_same_origin(request, origin=settings.portal_origin)
+    claims = session_claims(request, db)
+    keep = {
+        digest(c)
+        for c in (request.cookies.get(PORTAL_SESSION_COOKIE), request.cookies.get(SESSION_COOKIE))
+        if c
+    }
+    try:
+        password_policy.change_own_password(
+            db, claims["sub"], payload.current_password, payload.new_password, keep
+        )
+    except IAMError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 
 @router.post("/logout")

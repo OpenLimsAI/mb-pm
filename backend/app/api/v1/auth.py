@@ -17,7 +17,7 @@ from urllib.parse import urlencode
 
 import httpx
 from cryptography.fernet import InvalidToken
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError
@@ -35,8 +35,10 @@ from app.core.security import (
     unseal,
 )
 from app.db.session import get_db
-from app.models import IAMLogin, IAMSession, User
-from app.schemas.user import UserOut
+from app.models import IAMIdentity, IAMLogin, IAMSession, User
+from app.schemas.auth import LoginStart
+from app.schemas.user import MeOut, UserOut
+from app.services import iam_login, password_policy
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -82,8 +84,8 @@ def login_error(code: str):
     return no_cache(response)
 
 
-@router.get("/login")
-def login(db: Session = Depends(get_db), return_to: str = Query("/", max_length=2048)):
+def begin_login(db: Session, return_to: str) -> dict:
+    """生成 state / PKCE / nonce 并保存登录事务，返回 IAM 授权参数（跳转登录页与嵌入式登录共用）。"""
     if not settings.CASDOOR_CLIENT_SECRET:
         raise HTTPException(503, "IAM 客户端尚未配置")
     return_to = safe_return_to(return_to)
@@ -103,7 +105,7 @@ def login(db: Session = Depends(get_db), return_to: str = Query("/", max_length=
         )
     )
     db.commit()
-    params = {
+    return {
         "client_id": settings.CASDOOR_CLIENT_ID,
         "response_type": "code",
         "redirect_uri": settings.iam_callback_url,
@@ -113,11 +115,28 @@ def login(db: Session = Depends(get_db), return_to: str = Query("/", max_length=
         "code_challenge": challenge,
         "code_challenge_method": "S256",
     }
+
+
+@router.get("/login")
+def login(db: Session = Depends(get_db), return_to: str = Query("/", max_length=2048)):
+    params = begin_login(db, return_to)
     response = RedirectResponse(
         settings.casdoor_issuer + "/login/oauth/authorize?" + urlencode(params), 303
     )
-    set_cookie(response, LOGIN_COOKIE, state, 600)
+    set_cookie(response, LOGIN_COOKIE, params["state"], 600)
     return no_cache(response)
+
+
+@router.post("/login/start")
+def login_start(
+    request: Request, body: LoginStart, response: Response, db: Session = Depends(get_db)
+):
+    """嵌入式登录：登录页直接输入用户名 / 密码（见 services/iam_login.py）。"""
+    require_same_origin(request, origin=settings.pms_origin)
+    params = begin_login(db, body.return_to)
+    set_cookie(response, LOGIN_COOKIE, params["state"], 600)
+    no_cache(response)
+    return iam_login.embedded_login(params)
 
 
 @router.get("/config")
@@ -125,6 +144,8 @@ def config():
     # 规范 origin 下的登录入口：从其他端口 / 主机名进入时也会回到同一 origin，保证 cookie 与回调一致。
     return {
         "login_url": settings.pms_origin + "/api/v1/auth/login",
+        # 登录页据此检查浏览器里是否已有 IAM 登录会话（有则直接单点登录，不再要求输入密码）
+        "iam_session_url": settings.casdoor_issuer + "/api/get-account",
         # 保留兼容字段，旧前端也不能重新开放注册。
         "signup_enabled": False,
     }
@@ -256,6 +277,12 @@ def logout(request: Request, db: Session = Depends(get_db)):
     return no_cache(response)
 
 
-@router.get("/me", response_model=UserOut)
-def me(user: User = Depends(get_current_user)):
-    return UserOut.model_validate(user)
+@router.get("/me", response_model=MeOut)
+def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    identity = (
+        db.query(IAMIdentity).filter_by(issuer=settings.casdoor_issuer, user_id=user.id).first()
+    )
+    return MeOut(
+        **UserOut.model_validate(user).model_dump(),
+        must_change_password=password_policy.change_required(db, identity and identity.subject),
+    )

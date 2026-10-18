@@ -1,11 +1,21 @@
-// 与可下载的独立 HTML 使用同一份内容，避免应用内说明与离线手册不一致。
-// 说明页只包含产品文案，不读取业务数据；路由沿用应用的登录守卫。
+import PortalLayout from '../components/portal/PortalLayout'
+import { usePortalContext } from '../components/portal/context'
+
+// 门户登录后可阅读，不依赖项目管理权限或业务数据；与可下载 HTML 共用内容源。
 export default function ReleaseNotes() {
+  const { user, logout, preview } = usePortalContext()
   return (
-    <iframe
-      title="CMC-PMS 版本更新"
-      src={`/release-notes.html?v=${__APP_BUILD__}`}
-      className="block w-full h-full min-h-[400px] border-0"
-    />
+    <PortalLayout user={user} logout={logout} preview={preview}>
+      <div className="portal-page-heading">
+        <div className="workspace-section-label">RELEASE NOTES</div>
+        <h1>版本更新</h1>
+        <p>了解应用的新功能、使用方式与历史更新记录。</p>
+      </div>
+      <iframe
+        title="应用功能说明与版本更新"
+        src={`/release-notes.html?v=${__APP_BUILD__}`}
+        className="portal-release-frame"
+      />
+    </PortalLayout>
   )
 }

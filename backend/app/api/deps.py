@@ -20,6 +20,7 @@ from app.core.security import (
 )
 from app.db.session import get_db
 from app.models import IAMSession, User
+from app.services import password_policy
 
 
 def require_same_origin(request: Request, *, origin: str | None = None) -> None:
@@ -48,8 +49,11 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
             token = unseal(session.tokens)["access_token"]
         except (InvalidToken, ValueError, KeyError) as exc:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "登录会话已失效") from exc
-    # 每次请求都重新验签并校验组织 / 唯一角色 / 账号启用状态。
-    return resolve_identity(decode_access_token(token), db)
+    # 每次请求都重新验签并校验组织 / 账号启用状态；须先改临时密码的账号只放行改密 / 查询身份 / 退出。
+    claims = decode_access_token(token)
+    user = resolve_identity(claims, db)
+    password_policy.enforce(db, claims["sub"], request.url.path)
+    return user
 
 
 def require_role(*roles: str):

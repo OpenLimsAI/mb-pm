@@ -7,9 +7,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, require_role
-from app.models import FinanceAIAnalysis, Project, ProjectAIAnalysis, User
+from app.core.config import settings
+from app.models import FinanceAIAnalysis, IAMIdentity, Project, ProjectAIAnalysis, User
 from app.schemas.ai import AISettingsInput, AnalysisInput, ConnectionInput
-from app.services import ai
+from app.services import accounts, ai
 from app.services.scope import visible_project_ids_for
 
 router = APIRouter(tags=["ai"])
@@ -20,23 +21,63 @@ Analyst = Annotated[User, Depends(analyst)]
 Database = Annotated[Session, Depends(get_db)]
 
 
+def configuration_manager(user: Manager, db: Database) -> User:
+    # 从门户移回 PM 后仍实时核对 IAM：旧令牌里的管理角色不能继续修改模型服务地址和密钥。
+    identity = (
+        db.query(IAMIdentity)
+        .filter_by(issuer=settings.casdoor_issuer, user_id=user.id)
+        .one_or_none()
+    )
+    if identity is None or not accounts.live_roles(identity.subject) & {"admin", "cmc_lead"}:
+        raise HTTPException(403, "仅系统管理员和项目负责人可修改 AI 设置")
+    return user
+
+
+ConfigurationManager = Annotated[User, Depends(configuration_manager)]
+
+
 def accessible_project(project_id: str, user: User, db: Session) -> Project:
     if project_id not in visible_project_ids_for(user, db):
         raise HTTPException(404, "项目不存在或无权访问")
     return db.get(Project, project_id)
 
 
-@router.get("/ai/settings")
-def get_settings(user: Manager):
+# 项目管理「AI设置」经 PM 会话 / Bearer 调用；旧门户接口暂留兼容，共用同一份配置。
+def settings_view() -> dict:
     return ai.public_settings(ai.load_settings())
 
 
-@router.put("/ai/settings")
-def put_settings(body: AISettingsInput, user: Manager):
+def save_settings(body: AISettingsInput) -> dict:
     try:
         return ai.save_settings(body)
     except ai.AIError as e:
         raise HTTPException(400, str(e)) from None
+
+
+def list_models(body: ConnectionInput) -> dict:
+    try:
+        cfg = ai.resolve_config(body.provider, body.config, ai.load_settings())
+        return {"models": ai.list_models(body.provider, cfg)}
+    except ai.AIError as e:
+        raise HTTPException(502, str(e)) from None
+
+
+def test_connection(body: ConnectionInput) -> dict:
+    try:
+        cfg = ai.resolve_config(body.provider, body.config, ai.load_settings())
+        return ai.test_connection(body.provider, cfg)
+    except ai.AIError as e:
+        raise HTTPException(502, str(e)) from None
+
+
+@router.get("/ai/settings")
+def get_settings(user: ConfigurationManager):
+    return settings_view()
+
+
+@router.put("/ai/settings")
+def put_settings(body: AISettingsInput, user: ConfigurationManager):
+    return save_settings(body)
 
 
 @router.get("/ai/status")
@@ -56,21 +97,13 @@ def get_status(user: Analyst):
 
 
 @router.post("/ai/models")
-def models(body: ConnectionInput, user: Manager):
-    try:
-        cfg = ai.resolve_config(body.provider, body.config, ai.load_settings())
-        return {"models": ai.list_models(body.provider, cfg)}
-    except ai.AIError as e:
-        raise HTTPException(502, str(e)) from None
+def models(body: ConnectionInput, user: ConfigurationManager):
+    return list_models(body)
 
 
 @router.post("/ai/test")
-def test(body: ConnectionInput, user: Manager):
-    try:
-        cfg = ai.resolve_config(body.provider, body.config, ai.load_settings())
-        return ai.test_connection(body.provider, cfg)
-    except ai.AIError as e:
-        raise HTTPException(502, str(e)) from None
+def test(body: ConnectionInput, user: ConfigurationManager):
+    return test_connection(body)
 
 
 @router.get("/projects/{project_id}/ai-analyses")

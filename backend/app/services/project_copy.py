@@ -6,7 +6,7 @@
 项目状态「活跃」，已承诺与成本结构（手工填报）清零，与新建项目一致。
 不复制：基线、AI 分析、审计记录。
 日期：指定新的计划开始时，项目与全部任务的计划日期按同样天数平移。
-人员：已停用的负责人改由新项目负责人承担；已停用的团队成员 / 协作人不带入。
+人员：已停用的负责人改由新项目负责人承担；已停用的团队成员 / 协作人不带入；任务负责人 / 协作人都在新项目团队中。
 """
 
 import json
@@ -30,6 +30,7 @@ from app.models import (
 from app.models.task import TASK_WBS_ORDER
 from app.schemas.project import ProjectCopyIn
 from app.services.rollup import live_span, recompute_project
+from app.services.team import include_assignees
 
 _TASK_CODE_MAX = 50  # Task.code 列宽
 
@@ -168,6 +169,7 @@ def copy_project(db: Session, source: Project, body: ProjectCopyIn, actor: User)
             )
         )
     db.flush()
+    include_assignees(db, project)  # 换了负责人时，原负责人的任务仍由 Ta 承担，Ta 留在团队中
     recompute_project(db, project.id)  # 按复制后的任务派生 health（进度为 0）
 
     db.add(

@@ -1,13 +1,18 @@
-import { ArrowLeft, Calendar, FileText, User } from 'lucide-react'
+import { ArrowLeft, Calendar, FileText, PencilLine, User } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { Project } from '../../types'
-import { Card, HealthTag, Tag, Avatar } from '../ui'
+import { Button, Card, HealthTag, Tag, Avatar } from '../ui'
 import { findUser, getProjectSpan, templates as allTemplates } from '../../mock'
 import { getProjectSummary } from '../../lib/analytics'
 import { cn } from '../../lib/cn'
 import { DeleteProjectButton } from './DeleteProjectButton'
 
-export function ProjectHeader({ project }: { project: Project }) {
+export function ProjectHeader({ project, onEdit, editDisabledReason }: {
+  project: Project
+  /** 「编辑项目」入口（有 project.edit 权限且不在编辑中时传入） */
+  onEdit?: () => void
+  editDisabledReason?: string
+}) {
   const navigate = useNavigate()
   const owner = findUser(project.ownerId)
   const summary = getProjectSummary(project)
@@ -15,12 +20,25 @@ export function ProjectHeader({ project }: { project: Project }) {
 
   return (
     <Card className="p-5">
-      {/* 返回 + 删除（仅系统管理员 / CMC 负责人可见） */}
+      {/* 返回 + 编辑项目（结构与预算）+ 删除（仅系统管理员 / 项目负责人可见） */}
       <div className="flex items-center justify-between gap-3 mb-3">
         <Link to="/projects" className="inline-flex items-center gap-1 text-xs text-ink-500 hover:text-ink-900">
           <ArrowLeft className="w-3 h-3" /> 返回项目列表
         </Link>
-        <DeleteProjectButton project={project} onDeleted={() => navigate('/projects', { replace: true })} />
+        <div className="flex items-center gap-2">
+          {onEdit && (
+            <Button
+              size="sm"
+              icon={<PencilLine className="w-3.5 h-3.5" />}
+              disabled={!!editDisabledReason}
+              title={editDisabledReason ?? '修改项目编号 / 名称、预算、子项目、任务和前置依赖'}
+              onClick={onEdit}
+            >
+              编辑项目
+            </Button>
+          )}
+          <DeleteProjectButton project={project} onDeleted={() => navigate('/projects', { replace: true })} />
+        </div>
       </div>
 
       <div className="flex items-start gap-6">

@@ -78,11 +78,14 @@ export function aiError(error: unknown): string {
   return '操作失败，请重试。'
 }
 
+export const getAIStatus = async () => (await api.get<AIStatus>('/ai/status')).data
+// 项目管理会话；请求与响应的键名由 api 拦截器统一转换。
 export const getAISettings = async () => (await api.get<AISettings>('/ai/settings')).data
 export const saveAISettings = async (settings: AISettings) => (await api.put<AISettings>('/ai/settings', settings)).data
-export const getAIStatus = async () => (await api.get<AIStatus>('/ai/status')).data
-export const getAIModels = async (provider: AIProvider, config: ProviderConfig) => (await api.post<{ models: string[] }>('/ai/models', { provider, config }, { timeout: 35000 })).data
-export const testAIConnection = async (provider: AIProvider, config: ProviderConfig) => (await api.post<{ ok: boolean; ms: number; model: string }>('/ai/test', { provider, config }, { timeout: 135000 })).data
+export const getAIModels = async (provider: AIProvider, config: ProviderConfig) =>
+  (await api.post<{ models: string[] }>('/ai/models', { provider, config }, { timeout: 35000 })).data
+export const testAIConnection = async (provider: AIProvider, config: ProviderConfig) =>
+  (await api.post<{ ok: boolean; ms: number; model: string }>('/ai/test', { provider, config }, { timeout: 135000 })).data
 export const getAIAnalyses = async (id: string) => (await api.get<AIAnalysis[]>(`/projects/${encodeURIComponent(id)}/ai-analyses`)).data
 export const generateAIAnalysis = async (id: string, focus: string, prompt: string) => (await api.post<AIAnalysis>(`/projects/${encodeURIComponent(id)}/ai-analyses`, { focus, prompt }, { timeout: 450000 })).data
 export const getFinanceAIAnalyses = async () => (await api.get<AIAnalysis[]>('/finances/ai-analyses')).data

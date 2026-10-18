@@ -4,6 +4,7 @@
 - 统一保存：提交的是编辑后的完整结构，后端与当前库比对后一次性生效；任何校验失败则全部不生效。
 - 版本校验：进入编辑模式时拿到结构版本，保存时若他人已改过结构（含计划日期、负责人、预算等），拒绝并提示重新载入。
 - 只改结构：名称、里程碑标记、负责人、计划起止、工时、预算、备注、前置依赖、子项目；
+  新建或改派的负责人须是启用账号且已在项目团队中（见 services/team.py）；
   状态、进度、实际日期与实际花费不在这里改。
 - 删除保护：已开始（状态不是「未开始」、进度 > 0 或已有实际开始 / 完成日期）或已录实际花费的任务不能删除。
 - 不自动顺延：只保存本次修改的日期，不推算后续任务（冲突由前端提示）。
@@ -20,10 +21,12 @@ from fastapi import HTTPException, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.models import AuditLog, Project, SubProject, Task, TaskDependency, User
+from app.models import AuditLog, Project, ProjectFinance, SubProject, Task, TaskDependency, User
 from app.models.task import TASK_WBS_ORDER
 from app.schemas.structure import StructureSaveIn
+from app.services.finance import finance_view, task_cost_totals, update_finance
 from app.services.rollup import live_span, recompute_project, recompute_subproject
+from app.services.team import ADD_FIRST, team_ids
 
 
 def _num(value) -> str | None:
@@ -59,10 +62,19 @@ def _load(db: Session, project_id: str):
     return subs, tasks, deps
 
 
-def structure_version(project, subs, tasks, deps) -> str:
+def structure_version(project, subs, tasks, deps, finance=None) -> str:
     """结构指纹：只含编辑模式可改的字段（进度等日常录入不会让编辑中的草稿失效）。"""
     data = {
         "project": [project.code, project.name],
+        "finance": None
+        if finance is None
+        else {
+            "total_budget": _num(finance.total_budget),
+            "committed": _num(finance.committed),
+            "breakdown": sorted((k, _num(v)) for k, v in (finance.breakdown or {}).items()),
+            "fiscal_year": finance.fiscal_year,
+            "notes": finance.notes,
+        },
         "subs": sorted([s.id, s.name, s.module, s.stage, s.sort_order] for s in subs),
         "tasks": sorted(
             [
@@ -97,9 +109,11 @@ def delete_block_reason(task: Task) -> str | None:
 
 def structure_snapshot(db: Session, project: Project) -> dict:
     subs, tasks, deps = _load(db, project.id)
+    finance = db.get(ProjectFinance, project.id)
     start, end = live_span(db, [project])[project.id]
     return {
-        "version": structure_version(project, subs, tasks, deps),
+        "version": structure_version(project, subs, tasks, deps, finance),
+        "finance": finance_view(finance, task_cost_totals(db, [project.id])) if finance else None,
         "project": {
             "id": project.id,
             "code": project.code,
@@ -187,9 +201,11 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
     # 串行化同一项目的并发保存（PostgreSQL 行锁；SQLite 忽略）
     db.query(Project).filter_by(id=project.id).with_for_update().first()
     subs, tasks, deps = _load(db, project.id)
-    if structure_version(project, subs, tasks, deps) != body.version:
+    finance = db.get(ProjectFinance, project.id)
+    if structure_version(project, subs, tasks, deps, finance) != body.version:
         raise HTTPException(
-            status.HTTP_409_CONFLICT, "项目结构已被他人修改，请重新载入后再编辑（本次修改未保存）"
+            status.HTTP_409_CONFLICT,
+            "项目结构或预算已被他人修改，请重新载入后再编辑（本次修改未保存）",
         )
     sub_by_id = {s.id: s for s in subs}
     task_by_id = {t.id: t for t in tasks}
@@ -225,14 +241,17 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
         if task.planned_end < task.planned_start:
             raise _invalid(f"「{task.name}」的计划结束早于计划开始")
 
-    # 负责人：新建或改了负责人时必须是启用账号；沿用原负责人不受影响
+    # 负责人：新建或改了负责人时必须是启用账号且在项目团队中；沿用原负责人不受影响
     owner_ids = {task.owner_id for _, task in payload_tasks}
     users = {u.id: u for u in db.query(User).filter(User.id.in_(owner_ids)).all()}
+    team = team_ids(db, project)
     for _, task in payload_tasks:
         user = users.get(task.owner_id)
         unchanged = task.id is not None and task_by_id[task.id].owner_id == task.owner_id
         if user is None or (not user.is_active and not unchanged):
             raise _invalid(f"「{task.name}」的负责人不存在或已停用")
+        if task.owner_id not in team and not unchanged:
+            raise _invalid(f"「{task.name}」的负责人{user.display_name}不在项目团队中，{ADD_FIRST}")
 
     # 前置依赖：引用本次结构中的任务（id 或 key），不能自依赖，不能成环
     id_to_key = {task.id: task.key for _, task in payload_tasks if task.id is not None}
@@ -465,6 +484,10 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
         else:
             db.get(Project, project.id).progress = 0
 
+    finance_updated = False
+    if body.finance is not None:
+        _, finance_updated = update_finance(db, project.id, body.finance, actor)
+
     result = {
         "created_sub_projects": created_subs,
         "deleted_sub_projects": len(removed_subs),
@@ -475,6 +498,7 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
         "removed_dependencies": removed_deps + cascaded_deps,
         "reordered": reordered,
         "project_updated": project_updated,
+        **({"finance_updated": finance_updated} if body.finance is not None else {}),
     }
     db.add(
         AuditLog(
