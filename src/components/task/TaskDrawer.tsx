@@ -12,14 +12,12 @@ import { updateTaskProgress } from '../../data/bootstrap'
 import { useDataStore } from '../../store/data'
 import { getTaskSchedule, scheduleToneText } from '../../lib/schedule'
 import { cn } from '../../lib/cn'
+import { PRIMARY_TASK_STATUSES, primaryTaskStatus } from '../../lib/taskStatus'
 
 interface Props {
   task: Task | null
   onClose: () => void
 }
-
-const TASK_STATUSES: TaskStatus[] = ['未开始', '进行中', '阻塞', '延迟', '已完成', '已验证']
-const MILESTONE_STATUSES: TaskStatus[] = ['未开始', '已验证']
 
 export function TaskDrawer({ task, onClose }: Props) {
   // ESC 关闭
@@ -268,7 +266,7 @@ function ProgressEditor({ task }: { task: Task }) {
   const onStatus = (s: TaskStatus) => {
     setStatus(s)
     if (s === '已完成' || s === '已验证') setProgress(100)
-    else if (s === '未开始') setProgress(0)
+    else if (s === '未开始' || isMilestone) setProgress(0)
   }
 
   const effortNum = actualEffort === '' ? null : Number(actualEffort)
@@ -308,8 +306,6 @@ function ProgressEditor({ task }: { task: Task }) {
     }
   }
 
-  const statuses = isMilestone ? MILESTONE_STATUSES : TASK_STATUSES
-
   return (
     <div className="rounded-lg border border-brand-200 bg-brand-50/40 p-4">
       <div className="flex items-center justify-between mb-3">
@@ -325,16 +321,22 @@ function ProgressEditor({ task }: { task: Task }) {
 
       <div className="grid grid-cols-2 gap-3">
         {/* 状态 */}
-        <label className="block">
+        <label className="block col-span-2">
           <span className="text-[11px] text-ink-500">状态</span>
-          <select className="input mt-1" value={status} onChange={(e) => onStatus(e.target.value as TaskStatus)}>
-            {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
+          <select className="input mt-1" value={primaryTaskStatus(status)} onChange={(e) => onStatus(e.target.value as TaskStatus)}>
+            {PRIMARY_TASK_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
+        {(status === '阻塞' || status === '延迟') && (
+          <div className="col-span-2 flex items-center gap-3 text-xs">
+            <span className="rounded bg-amber-50 px-2 py-1 text-amber-800">副状态：{status}</span>
+            <button className="text-brand-700 hover:underline" onClick={() => onStatus('进行中')}>清除副状态</button>
+          </div>
+        )}
 
         {/* 进度（里程碑不显示） */}
         {!isMilestone && (
-          <label className="block">
+          <label className="block col-span-2">
             <span className="text-[11px] text-ink-500">完成进度 <span className="font-medium text-ink-700">{progress}%</span></span>
             <input
               type="range" min={0} max={100} step={5} value={progress}
@@ -345,15 +347,15 @@ function ProgressEditor({ task }: { task: Task }) {
         )}
 
         {/* 计划开始 / 结束（可编辑：排期调整） */}
-        <label className="block">
+        <label className="block min-w-0">
           <span className="text-[11px] text-ink-500">计划开始</span>
-          <input type="date" className="input mt-1" value={plannedStart} onChange={(e) => setPlannedStart(e.target.value)} />
+          <input type="date" className="input mt-1 min-w-0" value={plannedStart} onChange={(e) => setPlannedStart(e.target.value)} />
         </label>
-        <label className="block">
+        <label className="block min-w-0">
           <span className="text-[11px] text-ink-500">计划结束</span>
           <input
             type="date"
-            className={cn('input mt-1', datesInvalid && 'border-red-400 focus:border-red-500')}
+            className={cn('input mt-1 min-w-0', datesInvalid && 'border-red-400 focus:border-red-500')}
             value={plannedEnd}
             min={plannedStart || undefined}
             onChange={(e) => setPlannedEnd(e.target.value)}
@@ -361,13 +363,13 @@ function ProgressEditor({ task }: { task: Task }) {
         </label>
 
         {/* 实际开始 / 结束 */}
-        <label className="block">
+        <label className="block min-w-0">
           <span className="text-[11px] text-ink-500">实际开始</span>
-          <input type="date" className="input mt-1" value={actualStart} onChange={(e) => setActualStart(e.target.value)} />
+          <input type="date" className="input mt-1 min-w-0" value={actualStart} onChange={(e) => setActualStart(e.target.value)} />
         </label>
-        <label className="block">
+        <label className="block min-w-0">
           <span className="text-[11px] text-ink-500">实际结束</span>
-          <input type="date" className="input mt-1" value={actualEnd} onChange={(e) => setActualEnd(e.target.value)} />
+          <input type="date" className="input mt-1 min-w-0" value={actualEnd} onChange={(e) => setActualEnd(e.target.value)} />
         </label>
 
         {/* 实际工时（里程碑不显示） */}
@@ -410,7 +412,7 @@ function ProgressEditor({ task }: { task: Task }) {
         )}
         {status !== '已完成' && status !== '已验证' && (
           <button className="text-xs text-emerald-700 hover:underline flex items-center gap-1"
-            onClick={() => { onStatus(isMilestone ? '已验证' : '已完成'); if (!actualEnd) setActualEnd(TODAY.toISOString().slice(0, 10)) }}>
+            onClick={() => { onStatus('已完成'); if (!actualEnd) setActualEnd(TODAY.toISOString().slice(0, 10)) }}>
             <CheckCircle2 className="w-3 h-3" /> 标记完成
           </button>
         )}
