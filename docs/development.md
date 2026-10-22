@@ -102,6 +102,8 @@ node scripts/test-portal-routing.mjs
 门户脚本核对域名分流、固定应用目标、深链接和不安全返回地址，不访问真实 IAM。
 Vitest 使用 jsdom、Testing Library 和 MSW 测试真实界面及 HTTP 客户端。账号权限覆盖范围包括 `src/components/accounts/`、`PortalAccounts.tsx`、`accountAdmin.ts`、`api/accounts.ts`，逐文件要求语句、行、函数、分支均不低于 90%；报告输出到 `coverage/`。其他业务模块不计入该新功能门槛。
 
+`ProjectCreate.test.tsx` 覆盖空白与模板创建切换、无模板时创建、预算校验和失败重试；后端 `tests/test_blank_project.py` 使用独立测试库核对零任务保存、后续添加首个任务及创建权限，不写入本地业务库或客户生产数据。
+
 后端测试依赖需额外安装；`run.sh` 只安装运行依赖。在 `backend` 目录执行：
 
 ```sh
