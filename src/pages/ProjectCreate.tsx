@@ -2,11 +2,12 @@ import { useState, useMemo } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, ArrowRight, CheckCircle2, FileText, Sparkles, Diamond,
-  Calendar, ChevronDown, ChevronRight, Users, X, Plus, Search, Trash2,
+  Calendar, ChevronDown, ChevronRight, Users, X, Plus, Search, Trash2, FilePlus2,
 } from 'lucide-react'
 import { Card, CardBody, Button, Tag, Avatar } from '../components/ui'
 import { users, productTypes, stages, TODAY } from '../mock'
 import { useTemplatesStore } from '../store/templates'
+import { useDataStore } from '../store/data'
 import { createProjectBundle } from '../data/bootstrap'
 import { instantiateTemplate, deriveRollup } from '../lib/instantiate'
 import type { ProductType, Project, Stage, TemplateNode, User } from '../types'
@@ -14,9 +15,11 @@ import { roleLabels } from '../lib/permissions'
 import { cn } from '../lib/cn'
 
 type Step = 1 | 2 | 3 | 4
+type ProjectSource = { kind: 'blank' } | { kind: 'template'; templateId: string } | null
 
 export default function ProjectCreate() {
   const navigate = useNavigate()
+  const dataMode = useDataStore((s) => s.mode)
   const [step, setStep] = useState<Step>(1)
 
   // Step 1 输入
@@ -33,16 +36,17 @@ export default function ProjectCreate() {
   // Step 2
   const allTemplates = useTemplatesStore((s) => s.templates)
   const matchedTemplates = useMemo(() => allTemplates.filter((t) => t.productType === productType && t.isActive), [allTemplates, productType])
-  const [templateId, setTemplateId] = useState<string>('')
-  const selectedTemplate = useMemo(() => allTemplates.find((t) => t.id === templateId), [allTemplates, templateId])
+  const [source, setSource] = useState<ProjectSource>(null)
+  const isBlank = source?.kind === 'blank'
+  const selectedTemplate = useMemo(() => source?.kind === 'template' ? allTemplates.find((t) => t.id === source.templateId) : undefined, [allTemplates, source])
   const selectedVersion = selectedTemplate?.versions.find((v) => v.isCurrent)
 
   // Step 3 — 已生成的任务树（可调整）
   const projectLeads = users.filter((u) => u.role === 'project_lead' || u.role === 'cmc_lead')
 
   const step1Valid = name && code && ownerId
-  // 模板存在且产品类型一致才放行（纵深防御：即便 templateId 残留也挡住跨类型模板）
-  const step2Valid = !!selectedTemplate && selectedTemplate.productType === productType
+  // 空白项目须明确选择；模板仍须启用、类型匹配且有当前版本。
+  const step2Valid = isBlank || !!(selectedTemplate?.isActive && selectedTemplate.productType === productType && selectedVersion)
 
   // —— 真正创建项目（实例化模板 → 写入后端 / mock 运行时数组）—— //
   const [createdProjectId, setCreatedProjectId] = useState('')
@@ -53,7 +57,7 @@ export default function ProjectCreate() {
   // Step 3 — 可编辑的任务树草稿（增删任务后再创建）
   const [draft, setDraft] = useState<TemplateNode | null>(null)
   const [draftVersionId, setDraftVersionId] = useState<string>('')
-  const effectiveStructure = draft ?? selectedVersion?.structureJson
+  const effectiveStructure = isBlank ? undefined : draft ?? selectedVersion?.structureJson
   // 按层级精确统计 Lv3 任务/里程碑（避免「被删空的子项目」被叶子启发式误计为 1 个任务）
   const draftCounts = effectiveStructure ? countLeafTasks(effectiveStructure) : { tasks: 0, milestones: 0 }
   const draftTaskCount = draftCounts.tasks
@@ -69,6 +73,11 @@ export default function ProjectCreate() {
 
   // 进入第 3 步：首次或换模板时，用模板结构初始化草稿（同模板返回不丢失已编辑内容）
   const enterStep3 = () => {
+    if (!step2Valid) return
+    if (isBlank) {
+      setDraft(null)
+      setDraftVersionId('')
+    }
     if (selectedVersion && draftVersionId !== selectedVersion.id) {
       setDraft(JSON.parse(JSON.stringify(selectedVersion.structureJson)) as TemplateNode)
       setDraftVersionId(selectedVersion.id)
@@ -118,7 +127,7 @@ export default function ProjectCreate() {
   })
 
   const handleCreate = async () => {
-    if (!selectedTemplate || !selectedVersion || creating || createdProjectId) return
+    if (!step2Valid || budgetInvalid || (!isBlank && (!effectiveStructure || draftTaskCount === 0)) || creating || createdProjectId) return
     setCreating(true)
     setCreateError(null)
     try {
@@ -126,8 +135,7 @@ export default function ProjectCreate() {
       const projectId = `pu-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
       const now = TODAY  // 与演示快照统一锚点
       // 使用用户在第 3 步增删后的草稿结构（无草稿则用原模板）
-      const structure = draft ?? selectedVersion.structureJson
-      const inst = instantiateTemplate(structure, {
+      const inst = isBlank ? { subProjects: [], tasks: [], dependencies: [] } : instantiateTemplate(effectiveStructure!, {
         projectId,
         projectCode: code,
         projectStartDate: plannedStart,
@@ -151,8 +159,8 @@ export default function ProjectCreate() {
         health: rollup.health,
         plannedStart,
         plannedEnd,
-        templateId: selectedTemplate.id,
-        templateVersion: selectedVersion.versionNumber,
+        templateId: selectedTemplate?.id ?? null,
+        templateVersion: selectedVersion?.versionNumber ?? null,
         description,
         progress: rollup.progress,
       }
@@ -187,10 +195,10 @@ export default function ProjectCreate() {
         <ArrowLeft className="w-3 h-3" /> 返回项目列表
       </Link>
       <h1 className="text-2xl font-semibold text-ink-900 mb-1">创建新项目</h1>
-      <p className="text-sm text-ink-500 mb-5">系统将根据模板自动生成完整的三级任务树（FR-PF-001）</p>
+      <p className="text-sm text-ink-500 mb-5">可从空白项目开始，也可使用模板自动生成三级任务树。</p>
 
       {/* Stepper */}
-      <Stepper step={step} />
+      <Stepper step={step} isBlank={isBlank} />
 
       <Card className="mt-4">
         <CardBody className="p-6">
@@ -220,7 +228,7 @@ export default function ProjectCreate() {
                     onChange={(e) => {
                       // 切换产品类型须重选模板：清掉旧模板与第 3 步草稿，避免「产品类型 vs 模板」不一致的项目
                       setProductType(e.target.value as ProductType)
-                      setTemplateId('')
+                      setSource(null)
                       setDraft(null)
                       setDraftVersionId('')
                     }}
@@ -260,24 +268,48 @@ export default function ProjectCreate() {
 
           {step === 2 && (
             <div>
-              <h2 className="text-lg font-medium mb-1">选择项目模板</h2>
+              <h2 className="text-lg font-medium mb-1">选择创建方式</h2>
               <p className="text-sm text-ink-500 mb-4">
-                系统根据「{productType}」自动推荐 {matchedTemplates.length} 个匹配的模板。
-                <Sparkles className="w-3 h-3 inline-block mx-1 text-amber-500" />
-                选定模板后，系统将一键生成完整三级任务树。
+                选择空白项目自行规划，或使用「{productType}」的匹配模板生成任务树。
               </p>
 
               <div className="space-y-3">
+                <button
+                  type="button"
+                  aria-pressed={isBlank}
+                  onClick={() => setSource({ kind: 'blank' })}
+                  className={cn(
+                    'w-full text-left p-4 rounded-md border transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600',
+                    isBlank ? 'border-brand-500 bg-brand-50 ring-2 ring-brand-500/20' : 'border-ink-300 hover:border-brand-300 hover:bg-ink-100'
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={cn('w-10 h-10 rounded-md flex items-center justify-center shrink-0', isBlank ? 'bg-brand-600 text-white' : 'bg-brand-50 text-brand-600')}>
+                      <FilePlus2 className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium text-ink-900">空白项目</span>
+                        <Tag tone="gray">不使用模板</Tag>
+                        {isBlank && <CheckCircle2 className="w-4 h-4 text-brand-600" />}
+                      </div>
+                      <p className="text-xs text-ink-500">仅创建项目基本信息与预算，不自动生成子项目、任务或里程碑。创建后可在「编辑项目」中自行添加。</p>
+                    </div>
+                  </div>
+                </button>
+                <p className="text-xs text-ink-500 pt-2">可用模板 · {matchedTemplates.length} 个</p>
                 {matchedTemplates.map((t) => {
                   const v = t.versions.find((vv) => vv.isCurrent)
                   const taskCount = countNodes(v?.structureJson, 'task')
                   const subCount = countNodes(v?.structureJson, 'sub')
                   const milestoneCount = countMilestones(v?.structureJson)
-                  const active = templateId === t.id
+                  const active = selectedTemplate?.id === t.id
                   return (
                     <button
                       key={t.id}
-                      onClick={() => setTemplateId(t.id)}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setSource({ kind: 'template', templateId: t.id })}
                       className={cn(
                         'w-full text-left p-4 rounded-md border transition-all',
                         active ? 'border-brand-500 bg-brand-50 ring-2 ring-brand-500/20' : 'border-ink-300 hover:border-brand-300 hover:bg-ink-100'
@@ -321,28 +353,41 @@ export default function ProjectCreate() {
             </div>
           )}
 
-          {step === 3 && selectedVersion && effectiveStructure && (
+          {step === 3 && step2Valid && (
             <div>
-              <h2 className="text-lg font-medium mb-1">预览并调整任务树</h2>
-              <p className="text-sm text-ink-500 mb-4">
-                以下为系统根据模板 <span className="font-medium text-ink-900">{selectedTemplate?.name} {selectedVersion.versionNumber}</span> 生成的三级 WBS。
-                你可以在此<span className="text-ink-700 font-medium">增删任务</span>后再创建；分配负责人时系统会自动推荐符合负荷的人员。
-              </p>
+              {isBlank ? (
+                <div className="rounded-md border border-brand-200 bg-brand-50 p-5">
+                  <div className="flex items-center gap-2 mb-2 text-brand-700">
+                    <FilePlus2 className="w-5 h-5" />
+                    <h2 className="text-lg font-medium">确认空白项目</h2>
+                  </div>
+                  <p className="text-sm text-ink-700">「{name}」（{code}）将不关联任何模板，以 0 个子项目、0 个任务、0 个里程碑开始。</p>
+                  <p className="text-xs text-ink-500 mt-2">创建后进入项目详情，点击「编辑项目」即可添加子项目、任务和里程碑；现在也可以先设置项目总预算。</p>
+                </div>
+              ) : selectedVersion && effectiveStructure && (
+                <>
+                  <h2 className="text-lg font-medium mb-1">预览并调整任务树</h2>
+                  <p className="text-sm text-ink-500 mb-4">
+                    以下为系统根据模板 <span className="font-medium text-ink-900">{selectedTemplate?.name} {selectedVersion.versionNumber}</span> 生成的三级 WBS。
+                    你可以在此<span className="text-ink-700 font-medium">增删任务</span>后再创建；分配负责人时系统会自动推荐符合负荷的人员。
+                  </p>
 
-              <div className="rounded-md border border-ink-300/60 bg-ink-100/40 p-2 max-h-[480px] overflow-y-auto">
-                <EditableTaskTree root={effectiveStructure} onDelete={deleteTask} onAdd={addTask} />
-              </div>
+                  <div className="rounded-md border border-ink-300/60 bg-ink-100/40 p-2 max-h-[480px] overflow-y-auto">
+                    <EditableTaskTree root={effectiveStructure} onDelete={deleteTask} onAdd={addTask} />
+                  </div>
 
-              <div className="mt-4 px-3 py-2 rounded-md bg-amber-50 text-amber-700 text-xs flex items-start gap-2">
-                <Sparkles className="w-3.5 h-3.5 mt-0.5" />
-                <span>
-                  将生成 <b>{draftTaskCount}</b> 个任务、<b>{draftMilestoneCount}</b> 个里程碑
-                  {modified && <span className="ml-1 text-brand-700">（已调整，原模板 {originalTaskCount} 个任务）</span>}。
-                  创建后仍可在「项目详情 → WBS / 甘特图」中继续调整。
-                </span>
-              </div>
-              {draftTaskCount === 0 && (
-                <div className="mt-2 text-xs text-red-600">请至少保留 1 个任务再创建项目。</div>
+                  <div className="mt-4 px-3 py-2 rounded-md bg-amber-50 text-amber-700 text-xs flex items-start gap-2">
+                    <Sparkles className="w-3.5 h-3.5 mt-0.5" />
+                    <span>
+                      将生成 <b>{draftTaskCount}</b> 个任务、<b>{draftMilestoneCount}</b> 个里程碑
+                      {modified && <span className="ml-1 text-brand-700">（已调整，原模板 {originalTaskCount} 个任务）</span>}。
+                      创建后仍可在「项目详情 → WBS / 甘特图」中继续调整。
+                    </span>
+                  </div>
+                  {draftTaskCount === 0 && (
+                    <div className="mt-2 text-xs text-red-600">请至少保留 1 个任务再创建项目。</div>
+                  )}
+                </>
               )}
 
               <div className="mt-4 grid sm:grid-cols-[220px_1fr] gap-3 items-start">
@@ -357,8 +402,8 @@ export default function ProjectCreate() {
                   {budgetInvalid && <span className="block text-xs text-red-600">请输入 0–99,999,999 之间的金额</span>}
                 </label>
                 <p className="text-xs text-ink-500 leading-relaxed sm:mt-7">
-                  默认为任务预算合计 ¥{suggestedBudget.toLocaleString('zh-CN')}万（外包 / 耗材 / CRO 等，不含内部人力）。
-                  已花费将按任务实际花费自动汇总；创建后系统管理员或 CMC 负责人可在项目概览中调整预算与已承诺。
+                  {isBlank ? '空白项目的预算默认为 0，可先填写预算，也可在创建后通过「编辑项目」调整。' : <>默认为任务预算合计 ¥{suggestedBudget.toLocaleString('zh-CN')}万（外包 / 耗材 / CRO 等，不含内部人力）。</>}
+                  已花费将按任务实际花费自动汇总。
                   {budgetDraft !== null && (
                     <button type="button" className="ml-1 text-brand-700 hover:underline" onClick={() => setBudgetDraft(null)}>恢复默认</button>
                   )}
@@ -374,7 +419,9 @@ export default function ProjectCreate() {
               </div>
               <h2 className="text-xl font-semibold text-ink-900 mb-2">项目创建成功 🎉</h2>
               <p className="text-sm text-ink-500 mb-2">
-                项目「{name}」（{code}）已基于模板 <span className="font-medium">{selectedTemplate?.name} {selectedVersion?.versionNumber}</span> 创建，并自动生成 {createdTaskCount} 个任务，已加入项目组合。
+                {isBlank
+                  ? <>项目「{name}」（{code}）已创建为空白项目，未生成任务，已加入项目组合。进入项目后可通过「编辑项目」自行规划。</>
+                  : <>项目「{name}」（{code}）已基于模板 <span className="font-medium">{selectedTemplate?.name} {selectedVersion?.versionNumber}</span> 创建，并自动生成 {createdTaskCount} 个任务，已加入项目组合。</>}
               </p>
               {memberIds.length > 0 && (
                 <p className="text-xs text-ink-500 mb-4">
@@ -389,7 +436,7 @@ export default function ProjectCreate() {
                 </Button>
               </div>
               <p className="text-[11px] text-ink-500 mt-4 italic">
-                项目已持久化（后端 SQLite，刷新/重启不丢失），即时出现在首页组合总览与项目列表中。
+                {dataMode === 'api' ? '项目已保存到后端数据库，可在首页组合总览与项目列表中查看。' : '当前为离线演示，项目仅保存在本机浏览器中，可在本地项目列表中查看。'}
               </p>
             </div>
           )}
@@ -414,7 +461,7 @@ export default function ProjectCreate() {
                 <Button
                   variant="primary"
                   onClick={() => (step === 3 ? handleCreate() : step === 2 ? enterStep3() : setStep((s) => (s + 1) as Step))}
-                  disabled={(step === 1 && !step1Valid) || (step === 2 && !step2Valid) || (step === 3 && (draftTaskCount === 0 || budgetInvalid)) || creating}
+                  disabled={(step === 1 && !step1Valid) || (step === 2 && !step2Valid) || (step === 3 && (!step2Valid || (!isBlank && draftTaskCount === 0) || budgetInvalid)) || creating}
                   icon={<ArrowRight className="w-4 h-4" />}
                 >
                   {step === 3 ? (creating ? '创建中…' : '确认创建') : '下一步'}
@@ -428,11 +475,11 @@ export default function ProjectCreate() {
   )
 }
 
-function Stepper({ step }: { step: Step }) {
+function Stepper({ step, isBlank }: { step: Step; isBlank: boolean }) {
   const items = [
     { n: 1, label: '基本信息' },
-    { n: 2, label: '选择模板' },
-    { n: 3, label: '预览任务树' },
+    { n: 2, label: '创建方式' },
+    { n: 3, label: isBlank ? '确认项目' : '预览任务树' },
     { n: 4, label: '完成' },
   ]
   return (
