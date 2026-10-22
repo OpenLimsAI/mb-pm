@@ -104,6 +104,8 @@ Vitest 使用 jsdom、Testing Library 和 MSW 测试真实界面及 HTTP 客户�
 
 `ProjectCreate.test.tsx` 覆盖空白与模板创建切换、无模板时创建、预算校验和失败重试；后端 `tests/test_blank_project.py` 使用独立测试库核对零任务保存、后续添加首个任务及创建权限，不写入本地业务库或客户生产数据。
 
+`Tasks.test.tsx` 和 `taskOrder.test.ts` 覆盖跨项目 WBS 排序、日期相同或逆序、旧数据兜底、筛选后相对顺序、权限范围及数据同步后的顺序更新。
+
 后端测试依赖需额外安装；`run.sh` 只安装运行依赖。在 `backend` 目录执行：
 
 ```sh
