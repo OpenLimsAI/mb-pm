@@ -131,6 +131,12 @@ python -m pytest tests/ -q --cov=app.services.accounts --cov=app.schemas.account
 信息获取从工作台卡片或 `/information` 进入，复用门户会话。仅在 `VITE_USE_API=false` 的开发预览可直接打开 `/information?preview=1`；页面常驻演示标识。
 真实登录时界面显示实际账号，但业务资料、采集、入库和费用均为交互演示，不访问知识库或模型服务。详见[信息获取首版](information.md)。
 
+## 知识方案开发
+
+开发预览可直接打开 `/solutions?preview=1`（`VITE_USE_API=false`），不连接真实服务。正式模式需要门户登录及后端，方案使用数据库持久化。企业知识库适配另需服务端连接配置；没有模型配置时返回资料检索结果，不假装生成 AI 回答。完整范围见[应用说明](knowledge-solutions.md)。
+
+针对性检查：`npx vitest run src/features/solutions src/pages/Workspace.test.tsx`、`node scripts/test-portal-routing.mjs`；后端在 `backend` 执行 `python -m pytest tests/test_solutions.py tests/test_solution_knowledge.py -q`。Node 26 的实验性 Web Storage 会干扰 jsdom，建议使用与 CI 一致的 Node 20 或稳定的 Node 24。
+
 ## CI 与验收范围
 
 GitHub Actions 检查前端账号权限覆盖率、门户路由及构建、后端格式、PostgreSQL 测试及账号接口覆盖率、Docker 镜像构建；ESLint / Ruff lint 目前仅报告问题。

@@ -39,6 +39,9 @@ assert.equal(local.settingsUrl, '/settings')
 assert.equal(portal.releaseNotesUrl, '/release-notes')
 assert.equal(pm.releaseNotesUrl, 'https://www.openlims.ai/release-notes')
 assert.equal(local.releaseNotesUrl, '/release-notes')
+assert.equal(local.solutionsUrl, '/solutions')
+assert.equal(portal.solutionsUrl, '/solutions')
+assert.equal(pm.solutionsUrl, 'https://www.openlims.ai/solutions')
 // 个人设置留在门户，AI 配置回 PM；旧书签在三种域名模式下均不能形成循环。
 assert.equal(portal.aiSettingsUrl, 'https://pm.openlims.ai/ai-settings')
 assert.equal(pm.aiSettingsUrl, '/ai-settings')
@@ -86,7 +89,7 @@ for (const invalid of [undefined, null, {}, 'https://evil.example', '//evil.exam
 console.log('Portal routing checks passed: domain modes, fixed app targets, deep links, unsafe return paths.')
 
 // 门户匿名、PM 会话仍有效时，版本更新不可选用 PM 会话，否则会与 PortalGate 循环跳转。
-for (const route of ['/release-notes', '/release-notes/?x=1#latest', '/accounts', '/settings', '/help', '/launch/kb', '/information', '/information/sources', '/information/inbox?unread=1', '/launch/information']) {
+for (const route of ['/release-notes', '/release-notes/?x=1#latest', '/accounts', '/settings', '/help', '/launch/kb', '/information', '/information/sources', '/information/inbox?unread=1', '/launch/information', '/solutions', '/solutions/example?tab=knowledge', '/launch/solutions']) {
   assert.equal(local.loginUsesProjectSession(route), false)
   assert.equal(portal.loginUsesProjectSession(route), false)
   assert.equal(pm.loginUsesProjectSession(route), true)

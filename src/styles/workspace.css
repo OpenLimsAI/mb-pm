@@ -48,7 +48,7 @@
 .workspace-refresh:hover:not(:disabled) { border-color: #aec4d4; background: #fafcfd; }
 .workspace-refresh:disabled { opacity: .65; cursor: wait; }
 .workspace-notice { min-height: 25px; margin-top: 6px; color: #536b7f; font-size: 12px; line-height: 1.6; }
-.workspace-app-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 25px; }
+.workspace-app-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 25px; }
 .workspace-app-card { display: flex; flex-direction: column; min-width: 0; padding: 29px 31px 0; background: #fff; border: 1px solid #dfe7ed; border-radius: 12px; box-shadow: 0 3px 12px rgb(29 60 83 / .025); transition: border-color 180ms, box-shadow 180ms, transform 180ms; overflow: hidden; }
 a.workspace-app-card:hover { border-color: #afc8d8; box-shadow: 0 12px 24px rgb(29 60 83 / .065); transform: translateY(-3px); }
 .workspace-app-card--unavailable .workspace-app-icon { color: #7d8d99; background: #f0f3f5; border-color: #e7ecef; }
@@ -58,6 +58,7 @@ a.workspace-app-card:hover { border-color: #afc8d8; box-shadow: 0 12px 24px rgb(
 .workspace-app-icon { width: 57px; height: 57px; display: flex; align-items: center; justify-content: center; border-radius: 13px; background: #eaf0f6; color: var(--workspace-blue); border: 1px solid #e0e9f1; }
 .workspace-app-card--knowledge .workspace-app-icon { background: #eaf3f3; border-color: #e0ecec; color: #326b78; }
 .workspace-app-card--information .workspace-app-icon { background: #e5f2ef; border-color: #d6eae4; color: #176f76; }
+.workspace-app-card--solutions .workspace-app-icon { background: #eaf0f8; border-color: #dce6f3; color: #294c73; }
 .workspace-app-domain { font-size: 12px; letter-spacing: .15px; color: #738798; }
 .workspace-app-copy { margin-top: 28px; }
 .workspace-eyebrow { font-size: 9px; color: #71889d; letter-spacing: 1.7px; font-weight: 600; }
