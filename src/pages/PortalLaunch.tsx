@@ -4,7 +4,7 @@ import { ArrowRight, Loader2, LockKeyhole } from 'lucide-react'
 import PortalLayout from '../components/portal/PortalLayout'
 import { usePortalContext } from '../components/portal/context'
 import { usePortal } from '../store/portal'
-import { informationUrl, knowledgeLaunchUrl, projectApplicationUrl } from '../lib/site'
+import { informationUrl, solutionsUrl, knowledgeLaunchUrl, projectApplicationUrl } from '../lib/site'
 
 export default function PortalLaunch() {
   const { appId } = useParams()
@@ -13,8 +13,8 @@ export default function PortalLaunch() {
   const context = usePortalContext()
   const { refresh, preview, logout } = context
   const [problem, setProblem] = useState('')
-  const valid = appId === 'pm' || appId === 'kb' || appId === 'information'
-  const name = appId === 'information' ? '信息获取' : appId === 'pm' ? '项目管理' : '知识库'
+  const valid = appId === 'pm' || appId === 'kb' || appId === 'information' || appId === 'solutions'
+  const name = appId === 'solutions' ? '知识方案' : appId === 'information' ? '信息获取' : appId === 'pm' ? '项目管理' : '知识库'
 
   useEffect(() => {
     if (!valid || preview) return
@@ -29,7 +29,7 @@ export default function PortalLaunch() {
         setProblem(access?.reason || '尚未开通此应用，请联系管理员。')
       } else {
         // 固定应用地址，不接收任意外部 URL，也不通过 URL 携带身份令牌。
-        window.location.replace(appId === 'information' ? informationUrl : appId === 'pm' ? projectApplicationUrl(returnTo) : knowledgeLaunchUrl)
+        window.location.replace(appId === 'solutions' ? solutionsUrl : appId === 'information' ? informationUrl : appId === 'pm' ? projectApplicationUrl(returnTo) : knowledgeLaunchUrl)
       }
     })
     return () => { cancelled = true }

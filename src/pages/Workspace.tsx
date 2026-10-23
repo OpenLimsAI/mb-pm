@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, ArrowUpRight, BookOpen, BriefcaseBusiness, Check, ChevronRight, History, LayoutGrid, LockKeyhole, Radar, RefreshCw, ShieldCheck, UsersRound } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, BookOpen, BriefcaseBusiness, Check, ChevronRight, FilePenLine, History, LayoutGrid, LockKeyhole, Radar, RefreshCw, ShieldCheck, UsersRound } from 'lucide-react'
 import PortalLayout from '../components/portal/PortalLayout'
 import { usePortalContext } from '../components/portal/context'
 import { knowledgeLaunchUrl } from '../lib/site'
@@ -12,13 +12,13 @@ export interface WorkspaceUser {
 }
 
 export interface WorkspaceApplication {
-  id: 'pm' | 'kb' | 'information' | 'accounts'
+  id: 'pm' | 'kb' | 'information' | 'solutions' | 'accounts'
   enabled: boolean
   reason?: string
 }
 
 interface ApplicationPresentation {
-  id: 'pm' | 'kb' | 'information'
+  id: 'pm' | 'kb' | 'information' | 'solutions'
   name: string
   englishName: string
   description: string
@@ -26,7 +26,7 @@ interface ApplicationPresentation {
   domain: string
   href: string
   external?: boolean
-  kind: 'projects' | 'knowledge' | 'information'
+  kind: 'projects' | 'knowledge' | 'information' | 'solutions'
   features: readonly string[]
 }
 
@@ -40,6 +40,16 @@ export interface WorkspaceProps {
 }
 
 const applicationPresentations: readonly ApplicationPresentation[] = [
+  {
+    id: 'solutions',
+    name: '知识方案',
+    englishName: 'KNOWLEDGE STUDIO',
+    description: '在写作中查阅知识、追问依据，把论文、实践与专家判断写成可追溯的研究方案。',
+    domain: '研究 · 论证 · 撰写',
+    href: '/launch/solutions',
+    kind: 'solutions',
+    features: ['方案撰写', '知识与 AI', '评审与版本'],
+  },
   {
     id: 'pm',
     name: '项目管理',
@@ -74,7 +84,7 @@ const applicationPresentations: readonly ApplicationPresentation[] = [
 ]
 
 function ApplicationCard({ application, access, preview }: { application: ApplicationPresentation; access?: WorkspaceApplication; preview: boolean }) {
-  const Icon = application.kind === 'information' ? Radar : application.kind === 'knowledge' ? BookOpen : BriefcaseBusiness
+  const Icon = application.kind === 'solutions' ? FilePenLine : application.kind === 'information' ? Radar : application.kind === 'knowledge' ? BookOpen : BriefcaseBusiness
   const enabled = preview || access?.enabled === true
   const content = (
     <>
@@ -99,10 +109,10 @@ function ApplicationCard({ application, access, preview }: { application: Applic
   )
   const className = `workspace-app-card workspace-app-card--${application.kind}${enabled ? '' : ' workspace-app-card--unavailable'}`
 
-  if (!enabled || (preview && application.id !== 'information')) return <article className={className}>{content}</article>
+  if (!enabled || (preview && !['information', 'solutions'].includes(application.id))) return <article className={className}>{content}</article>
 
   return (
-    <a className={className} href={preview ? '/information?preview=1' : application.href} target={application.external ? '_blank' : undefined} rel={application.external ? 'noopener noreferrer' : undefined} aria-label={`进入${application.name}${application.external ? '（新标签页）' : ''}`}>
+    <a className={className} href={preview ? `/${application.id}?preview=1` : application.href} target={application.external ? '_blank' : undefined} rel={application.external ? 'noopener noreferrer' : undefined} aria-label={`进入${application.name}${application.external ? '（新标签页）' : ''}`}>
       {content}
     </a>
   )

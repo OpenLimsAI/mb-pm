@@ -24,6 +24,7 @@ from app.api.v1 import (
     portal,
     portal_settings,
     projects,
+    solutions,
     structure,
     sub_projects,
     task_dependencies,
@@ -221,6 +222,7 @@ app.include_router(templates.router, prefix=API_PREFIX)
 app.include_router(finances.router, prefix=API_PREFIX)
 app.include_router(baselines.router, prefix=API_PREFIX)
 app.include_router(ai.router, prefix=API_PREFIX)
+app.include_router(solutions.router, prefix=API_PREFIX)
 
 
 # 页面与文件名不带哈希的静态文件（index.html、release-notes.html 等）：每次向服务器确认是否有新版本，
