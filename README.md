@@ -79,6 +79,7 @@ node scripts/test-portal-routing.mjs
 ## 部署
 
 员工门户：<https://www.openlims.ai>；项目管理：<https://pm.openlims.ai>。
+信息获取交互首版：<https://www.openlims.ai/information>，登录后使用，当前为演示数据。
 知识库：<https://kb.openlims.ai>；IAM：<https://iam.openlims.ai/login>。
 
 环境状态、备份、发版、验收与回滚以 [部署交接简明](docs/部署交接简明.md) 为准，
