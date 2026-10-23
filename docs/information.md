@@ -42,3 +42,5 @@ PostgreSQL `information_entries` 保存团队元数据/任务/个人偏好，`in
 备份 PM/IAM 数据库、AI 配置、Compose/env、KB 原文/数据及在线 SQLite；回滚只恢复原镜像/配置，保留新增表和卷，不覆盖客户新数据。监控初始关闭。发布记录须分清本机真实 Core、隔离身份和客户实际登录验收。
 
 本次实现验收见[2026-10-23 记录](verification/20261023-information-live.md)。此前演示版发布见[历史记录](../deploy/parallel-test/releases/20261023-information-application.md)；真实版生产状态以后续发布回执为准。
+
+2026-10-23 已部署真实服务，固定源码、镜像、备份与验收范围见[生产发布回执](../deploy/parallel-test/releases/20261023-information-live.md)。
