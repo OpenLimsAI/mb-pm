@@ -103,16 +103,14 @@ def test_information_keeps_existing_password_change_guard(information_portal):
     assert db.query(User).count() == 0
 
 
-def test_information_prototype_adds_no_collection_or_paid_model_api(information_portal):
+def test_real_collection_denies_anonymous_requests_and_has_no_paid_model_api(information_portal):
     client, _, session = information_portal
     assert client.get("/api/v1/portal/me").status_code == 401
-    headers = {**session(), "Origin": settings.portal_origin}
-    for path in (
-        "/api/v1/information/sources/check",
-        "/api/v1/information/jobs",
-        "/api/v1/information/import",
-    ):
-        assert client.post(path, headers=headers, json={}).status_code == 404
+    for path in ("/api/v1/information/jobs", "/api/v1/information/sources/missing/check"):
+        assert client.post(path, json={}).status_code == 401
+    assert (
+        client.post("/api/v1/information/analysis", headers=session(), json={}).status_code == 404
+    )
 
 
 def test_namespace_uses_verified_identity_and_survives_display_changes(information_portal):

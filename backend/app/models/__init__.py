@@ -19,3 +19,5 @@ from app.models.project import Project, ProjectMember  # noqa: F401
 from app.models.task import SubProject, Task, TaskDependency  # noqa: F401
 from app.models.template import Template, TemplateVersion  # noqa: F401
 from app.models.user import User  # noqa: F401
+
+from app.models.information import InformationEntry, InformationLease, InformationText  # noqa: F401

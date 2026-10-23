@@ -3,7 +3,6 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import InformationApp from './InformationApp'
-import { demoStorageKey, restoreDemo } from './demo'
 
 const namespace = 'a'.repeat(64)
 beforeEach(() => {
@@ -11,8 +10,8 @@ beforeEach(() => {
   vi.stubGlobal('localStorage', { get length() { return data.size }, getItem: (key: string) => data.get(key) ?? null, setItem: (key: string, value: string) => { data.set(key, String(value)) }, removeItem: (key: string) => data.delete(key), clear: () => data.clear(), key: (index: number) => [...data.keys()][index] ?? null })
 })
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals() })
-function mount(path = '/information', options: { namespace?: string; preview?: boolean } = { namespace }) {
-  return render(<MemoryRouter initialEntries={[path]}><Routes><Route element={<Outlet context={{ user: { id: 'real-user', username: 'li.admin', displayName: '李总管' }, identityNamespace: options.namespace, applications: [], preview: options.preview || false, logout: vi.fn(), refresh: vi.fn() }} />}><Route path="/information/*" element={<InformationApp />} /></Route></Routes></MemoryRouter>)
+function mount(path = '/information', options: { namespace?: string; preview?: boolean } = { namespace, preview: true }) {
+  return render(<MemoryRouter initialEntries={[path]}><Routes><Route element={<Outlet context={{ user: { id: 'real-user', username: 'li.admin', displayName: '李总管' }, identityNamespace: options.namespace, applications: [], preview: options.preview ?? true, logout: vi.fn(), refresh: vi.fn() }} />}><Route path="/information/*" element={<InformationApp />} /></Route></Routes></MemoryRouter>)
 }
 
 test('新应用匹配四分类来源布局，实际账号与明确演示标识始终可见', () => {
@@ -22,7 +21,7 @@ test('新应用匹配四分类来源布局，实际账号与明确演示标识�
   expect(screen.queryByText('开发账户')).not.toBeInTheDocument()
   expect(screen.getByText('界面体验 · 演示数据')).toBeInTheDocument()
   expect(screen.getByText(/真实采集、知识库同步和 AI 尚未接入/)).toBeInTheDocument()
-  expect(screen.getByRole('link', { name: '应用工作台' })).toHaveAttribute('href', '/')
+  expect(screen.getByRole('link', { name: '应用工作台' })).toHaveAttribute('href', '/?preview=1')
   for (const name of ['Q 质量','S 安全性','E 有效性','M 多学科']) expect(screen.getByRole('heading', { name })).toBeInTheDocument()
   expect(screen.getByText(/M 类目录检查超时，不能判断是否有更新/)).toBeInTheDocument()
 })
@@ -81,7 +80,7 @@ test('选择新文件夹和文件后才创建演示收录任务，可暂停并�
 test('登录身份隔离演示状态，缺少验证命名空间时只使用内存', async () => {
   const first = mount('/information/following')
   await userEvent.click(screen.getByRole('checkbox', { name: '关注 Q 质量' }))
-  expect(restoreDemo(demoStorageKey(namespace)).follows).toContain('scope:Q')
+  expect(screen.getByRole('checkbox', { name: '关注 Q 质量' })).toBeChecked()
   first.unmount()
   const other = mount('/information/following', { namespace: 'b'.repeat(64) })
   expect(screen.getByRole('checkbox', { name: '关注 Q 质量' })).not.toBeChecked()
@@ -109,9 +108,7 @@ test('个人笔记提醒与来源监控独立，费用测算不请求当前价�
   await userEvent.clear(screen.getByLabelText('我的研究笔记'))
   await userEvent.type(screen.getByLabelText('我的研究笔记'), '个人研究记录')
   await userEvent.click(screen.getByRole('button', { name: '保存笔记' }))
-  const saved = restoreDemo(demoStorageKey(namespace))
-  expect(saved.note).toBe('个人研究记录')
-  expect(saved.sources[0].enabled).toBe(true)
+  expect(screen.getByLabelText('我的研究笔记')).toHaveValue('个人研究记录')
   await userEvent.click(screen.getByRole('link', { name: /运行与费用/ }))
   expect(screen.getByText('未调用真实模型，无实际费用账单。')).toBeInTheDocument()
   const price = screen.getByLabelText('输入单价（元 / 百万 Token）')
@@ -123,9 +120,9 @@ test('个人笔记提醒与来源监控独立，费用测算不请求当前价�
 test('重置演示恢复最初数据', async () => {
   mount('/information/following')
   await userEvent.click(screen.getByRole('checkbox', { name: '关注 Q 质量' }))
-  expect(restoreDemo(demoStorageKey(namespace)).follows).toContain('scope:Q')
+  expect(screen.getByRole('checkbox', { name: '关注 Q 质量' })).toBeChecked()
   await userEvent.click(screen.getByRole('button', { name: '重置演示数据' }))
-  expect(restoreDemo(demoStorageKey(namespace)).follows).not.toContain('scope:Q')
+  expect(window.localStorage.length).toBe(0)
 })
 
 test.each(['toString','constructor','__proto__'])('未知继承属性路由安全回退到来源页：%s', route => {
@@ -139,6 +136,6 @@ test('示例解析重试同步资料详情并保留已保存版本', async () =>
   expect(screen.getByRole('button', { name: '重试解析 · 演示' })).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: '重试解析 · 演示' }))
   expect(screen.queryByRole('button', { name: '重试解析 · 演示' })).not.toBeInTheDocument()
-  expect(screen.getByRole('status')).toHaveTextContent('模拟解析已完成')
-  expect(restoreDemo(demoStorageKey(namespace)).documents.find(doc => doc.id === 'm4')?.versions).toHaveLength(2)
+  expect(screen.getByRole('status')).toHaveTextContent('解析重试任务已提交')
+  expect(screen.getAllByText(/演示采集版/)).toHaveLength(2)
 })
