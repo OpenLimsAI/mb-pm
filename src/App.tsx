@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import Login from './pages/Login'
 import { WorkspacePage } from './pages/Workspace'
 import PortalGate from './components/portal/PortalGate'
-import { accountsUrl, releaseNotesUrl, settingsRedirect, siteMode, workspaceUrl } from './lib/site'
+import { accountsUrl, informationUrl, releaseNotesUrl, settingsRedirect, siteMode, workspaceUrl } from './lib/site'
 import { RequirePerm } from './components/auth/RequirePerm'
 import { BootSplash } from './components/auth/AuthStatus'
 
@@ -28,6 +28,7 @@ const AISettings = lazy(() => import('./pages/AISettings'))
 const PortalAccounts = lazy(() => import('./pages/PortalAccounts'))
 const PortalHelp = lazy(() => import('./pages/PortalHelp'))
 const PortalLaunch = lazy(() => import('./pages/PortalLaunch'))
+const Information = lazy(() => import('./pages/Information'))
 
 // www 域名只开放门户页面；pm 保留业务路由与独立鉴权；本地 combined 同时预览两者。
 export default function App() {
@@ -49,10 +50,12 @@ export default function App() {
             <Route path="/accounts" element={<PortalAccounts />} />
             <Route path="/release-notes" element={<ReleaseNotes />} />
             <Route path="/launch/:appId" element={<PortalLaunch />} />
+            <Route path="/information/*" element={<Information />} />
           </Route>
         </>}
         {siteMode === 'pm' && <>
           <Route path="/workspace" element={<ExternalWorkspace />} />
+          <Route path="/information/*" element={<ExternalRedirect to={informationUrl} message="正在打开信息获取 …" />} />
           {/* 个人设置回门户；旧 AI 标签直达项目管理 AI设置 */}
           <Route path="/settings" element={<SettingsRoute />} />
           <Route path="/org" element={<ExternalRedirect to={accountsUrl} message="正在打开账号管理 …" />} />
@@ -93,6 +96,10 @@ export default function App() {
 function RouteTitle() {
   const { pathname } = useLocation()
   useEffect(() => {
+    if (pathname === '/information' || pathname.startsWith('/information/')) {
+      document.title = '信息获取 · 迈博工作空间'
+      return
+    }
     const portal = siteMode === 'portal' || (siteMode === 'combined' && (['/', '/login', '/workspace', '/account', '/accounts', '/settings', '/help', '/release-notes'].includes(pathname) || pathname.startsWith('/launch/')))
     document.title = portal ? '迈博药业 · 员工应用门户' : 'CMC-PMS · 项目管理'
   }, [pathname])

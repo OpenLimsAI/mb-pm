@@ -8,13 +8,15 @@ export interface PortalUser {
 }
 
 export interface PortalApplication {
-  id: 'pm' | 'kb' | 'accounts'
+  id: 'pm' | 'kb' | 'information' | 'accounts'
   enabled: boolean
   reason?: string
 }
 
 export interface PortalIdentity {
   user: PortalUser
+  /** 由后端从已验证 issuer / organization / subject 推导的非秘密界面隔离键。 */
+  identityNamespace?: string
   applications: PortalApplication[]
   /** 管理员设置了临时密码：须先在门户里改密（改密前账号管理等接口返回 403）。 */
   mustChangePassword: boolean

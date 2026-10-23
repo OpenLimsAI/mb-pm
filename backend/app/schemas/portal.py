@@ -12,13 +12,15 @@ class PortalUserOut(BaseModel):
 
 
 class PortalApplicationOut(BaseModel):
-    id: Literal["pm", "kb", "accounts"]
+    id: Literal["pm", "kb", "information", "accounts"]
     enabled: bool
     reason: str | None = None
 
 
 class PortalMeOut(BaseModel):
     user: PortalUserOut
+    # 非秘密身份隔离键：防止同一浏览器切换 IAM 发行方 / 组织 / 账号时混用界面草稿。
+    identity_namespace: str = ""
     applications: list[PortalApplicationOut]
     # 管理员设置了临时密码：须先在门户里改密码
     must_change_password: bool = False

@@ -9,6 +9,7 @@ type PortalStatus = 'loading' | 'ready' | 'anonymous' | 'error'
 
 interface PortalState {
   user: PortalUser | null
+  identityNamespace?: string
   applications: PortalApplication[]
   mustChangePassword: boolean
   canConfigureAi: boolean
@@ -31,11 +32,12 @@ export const usePortal = create<PortalState>((set) => ({
   refresh: () => {
     if (!refreshing) {
       refreshing = fetchPortalIdentity()
-        .then(({ user, applications, mustChangePassword, canConfigureAi }) => set({ user, applications, mustChangePassword: !!mustChangePassword, canConfigureAi: !!canConfigureAi, status: 'ready', error: null }))
+        .then(({ user, identityNamespace, applications, mustChangePassword, canConfigureAi }) => set({ user, identityNamespace, applications, mustChangePassword: !!mustChangePassword, canConfigureAi: !!canConfigureAi, status: 'ready', error: null }))
         .catch((err) => {
           const { status, detail } = asAPIError(err)
           set({
             user: null,
+            identityNamespace: undefined,
             applications: [],
             mustChangePassword: false,
             canConfigureAi: false,
