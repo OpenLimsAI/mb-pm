@@ -17,7 +17,7 @@
 | 账号管理 | `/accounts` | 组织成员名单与账号维护：系统管理员可改，项目负责人只读，员工看不到（见下文） |
 | 版本更新 | `/release-notes` | 应用功能说明与历史更新，所有登录用户可查看 |
 | 使用帮助 | `/help` | 登录、权限与退出说明 |
-| 信息获取 | `/information/*` | 独立应用的可操作界面首版，明确使用演示资料，不执行真实采集或入库 |
+| 信息获取 | `/information/*` | ICH 四类真实目录检查、归档、正文检索与受控知识库收录 |
 | 知识方案 | `/solutions/*` | 方案编辑与知识问答工作台，支持引用、评审和导出，详见[应用说明](knowledge-solutions.md) |
 | 应用跳转 | `/launch/pm`、`/launch/kb`、`/launch/information`、`/launch/solutions` | 验证准入后打开固定应用 |
 

@@ -99,14 +99,11 @@ PM 回调为 `https://pm.openlims.ai/api/v1/auth/callback`，登出回跳为 `ht
 - 账号写接口使用 `platform_admin`、`pm_identity`、`kb_role`，KB 写入只接受 `manager` / `editor`；旧 `identity` 仅保留在读取响应中，旧字段写入及任意角色数组会被拒绝，避免整包覆盖平台权限。
 - PM 根据经验签令牌中的角色判定权限；复核会话不等于实时查询 IAM 最新角色，角色变更生效需结合令牌有效期与各应用续期规则。
 
-## 信息获取交互首版
+## 信息获取
 
-信息获取目前是门户内的交互首版，向有效组织成员开放界面体验，不更改 PM / KB 授权。
-无需新增 IAM 应用、模型密钥、采集配置或服务令牌；`/portal/me.identity_namespace` 只供浏览器隔离演示状态，不能用于鉴权。
-真实采集、后台监控及知识库同步尚未接入，详见[信息获取](information.md)。
+有效门户成员可浏览和订阅；系统管理员（`admin`）与知识库负责人（`kb_manager`）可管理来源、检查、收录及重试，后台每步实时核对 IAM。不会因此创建 PM 成员或授予普通知识库上传权限。
 
-## AI 配置
+配置 `INFORMATION_WORKER_ENABLED=true`、持久化 `INFORMATION_DATA_DIR`（容器为 `/data/information`），`INFORMATION_MAX_ARCHIVE_MB` 默认 5120。两个 PM 实例必须共享相同数据卷和数据库，全局租约避免重复采集。
+知识库收录另需 `INFORMATION_KB_URL` 指向内部 BFF，并将新生成的至少 32 字符密钥分别配置为 PM `INFORMATION_KB_SECRET`、KB `INFORMATION_BRIDGE_SECRET`。密钥按环境独立，0600 保存；不要复制已有 Core 令牌到 PM。仅连接三个应用容器的内部专用网络，不发布桥接端口。
 
-系统管理员 / 项目负责人（`cmc_lead` / 旧 `project_lead`）在项目管理「AI设置」（`/ai-settings`）维护模型地址、密钥、默认提示词及可选 Ollama 回退；使用 PM 会话调用 `/api/v1/ai/settings`、`/api/v1/ai/models`、`/api/v1/ai/test`，Cookie 写操作要求 PM Origin。设置、模型测试、分析和历史接口实时核对 IAM 管理角色，项目成员不能调用；组合财务 AI 仍限 `admin` / `cmc_lead`，旧项目负责人的项目范围不扩大。沿用同一份 `AI_SETTINGS_PATH`，无需重填模型或密钥。旧门户 `/api/v1/portal/settings/ai*` 接口暂留兼容，新前端不再调用；旧 `/settings?tab=ai` 书签跳到 PM 的 AI设置。
-API Key 存在后端 `AI_SETTINGS_PATH` 指向的受保护文件中，生产使用持久卷；前端仅看到是否已设置。
-留空保留原密钥，修改服务地址清除旧密钥。模型接收的数据范围、分析入口和报告行为见 [AI 功能说明](features.md#ai-设置与项目--财务分析)。
+默认 ICH 来源关闭监控。先检查官方清单，再批量收录到原文归档或真实知识库文件夹；手动开启监控后默认每日检查。详见[信息获取使用与部署](information.md)。

@@ -226,3 +226,5 @@
   .if-error-text { color: #ddb583!important; }
   .if-diff.before { background: #3b2d2c; }
 }
+
+.information-app .if-real-text{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;line-height:1.8;max-height:65vh;overflow:auto}

@@ -126,10 +126,10 @@ python -m pytest tests/ -q --cov=app.services.accounts --cov=app.schemas.account
 该命令需要 `requirements-dev.txt` 中的 `pytest-cov`，门槛统计上述模块，JSON 保留行与分支明细。Windows 的虚拟环境解释器为 `.venv\Scripts\python.exe`。真实 IAM / KB 登录验收不由这些替身接口测试替代。
 设置 `TEST_DATABASE_URL` 可改用专用测试 PostgreSQL；测试会重建表，只能指向可清空的测试库。
 
-## 信息获取界面体验
+## 信息获取本地使用
 
 信息获取从工作台卡片或 `/information` 进入，复用门户会话。仅在 `VITE_USE_API=false` 的开发预览可直接打开 `/information?preview=1`；页面常驻演示标识。
-真实登录时界面显示实际账号，但业务资料、采集、入库和费用均为交互演示，不访问知识库或模型服务。详见[信息获取首版](information.md)。
+真实 API 模式连接持久后端，并按[配置说明](configuration.md#信息获取)启用 worker 与可选 KB 桥接。原文使用独立目录，不指向客户备份。预览仅使用内存演示数据，不能写真实接口；真实接口失败不会回落到演示资料。详见[信息获取](information.md)。
 
 ## 知识方案开发
 

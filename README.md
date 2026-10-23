@@ -4,7 +4,7 @@
 
 面向制药企业管理者与研发团队，提供员工应用门户和 CMC 研发项目管理。
 门户连接项目管理、知识库、信息获取和知识方案，项目管理顶栏可返回应用工作台；身份及角色由 mb-casd（Casdoor）IAM 统一管理。
-本仓库包含门户、项目管理前后端、知识方案及信息获取交互首版；企业知识库是独立服务。
+本仓库包含门户、项目管理前后端、知识方案及信息获取应用；企业知识库是独立服务。
 
 ## 快速启动
 
@@ -80,7 +80,7 @@ node scripts/test-portal-routing.mjs
 ## 部署
 
 员工门户：<https://www.openlims.ai>；项目管理：<https://pm.openlims.ai>。
-信息获取交互首版：<https://www.openlims.ai/information>，登录后使用，当前为演示数据。
+信息获取应用：<https://www.openlims.ai/information>，登录后使用；实际环境状态见发布记录。
 知识库：<https://kb.openlims.ai>；IAM：<https://iam.openlims.ai/login>。
 
 环境状态、备份、发版、验收与回滚以 [部署交接简明](docs/部署交接简明.md) 为准，
