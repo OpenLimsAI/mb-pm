@@ -160,6 +160,8 @@ def applications(claims: dict, db: Session) -> list[PortalApplicationOut]:
         ),
         # 信息获取当前为交互原型，组织成员可体验；真实采集及入库暂未接入。
         PortalApplicationOut(id="information", enabled=True),
+        # 方案应用面向组织成员；方案所有权与知识来源权限由其接口独立检查。
+        PortalApplicationOut(id="solutions", enabled=True),
         # 仅决定是否显示入口；账号管理接口每次请求都向 IAM 实时核对身份
         PortalApplicationOut(
             id="accounts",

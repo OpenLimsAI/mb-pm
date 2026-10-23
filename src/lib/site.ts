@@ -23,6 +23,7 @@ export const siteMode: SiteMode = ['portal', 'pm', 'combined'].includes(configur
 export const workspaceUrl = siteMode === 'combined' ? '/' : portalPublicUrl
 /** 信息获取作为工作台独立应用，共用门户登录，不依赖项目管理会话。 */
 export const informationUrl = siteMode === 'pm' ? `${portalPublicUrl}/information` : '/information'
+export const solutionsUrl = siteMode === 'pm' ? `${portalPublicUrl}/solutions` : '/solutions'
 /** 门户「账号管理」：成员与账号的唯一修改入口（与 IAM 同步），也是组织名单（仅系统管理员 / 项目负责人可见）。 */
 export const accountsUrl = siteMode === 'combined' ? '/accounts' : `${portalPublicUrl}/accounts`
 /** 门户「我的设置」：个人身份、用户名 / 密码及应用访问。 */
@@ -67,5 +68,5 @@ export function projectApplicationUrl(returnTo = '/dashboard'): string {
 export function loginUsesProjectSession(returnTo: string): boolean {
   const path = returnTo.split(/[?#]/)[0].replace(/\/+$/, '') || '/'
   const portalPaths = ['/', '/workspace', '/account', '/accounts', '/settings', '/help', '/release-notes']
-  return siteMode === 'pm' || (siteMode === 'combined' && !portalPaths.includes(path) && !path.startsWith('/launch/') && path !== '/information' && !path.startsWith('/information/'))
+  return siteMode === 'pm' || (siteMode === 'combined' && !portalPaths.includes(path) && !path.startsWith('/launch/') && path !== '/information' && !path.startsWith('/information/') && path !== '/solutions' && !path.startsWith('/solutions/'))
 }

@@ -6,7 +6,7 @@
 
 ## 员工应用门户
 
-门户入口为 `https://www.openlims.ai`，提供迈博药业登录界面及项目管理、知识库、信息获取应用卡片。
+门户入口为 `https://www.openlims.ai`，提供迈博药业登录界面及项目管理、知识库、信息获取、知识方案应用卡片。
 `pm.openlims.ai` 保留项目管理，`kb.openlims.ai` 是外部知识库系统。
 
 | 页面 | 路由 | 用途 |
@@ -18,7 +18,8 @@
 | 版本更新 | `/release-notes` | 应用功能说明与历史更新，所有登录用户可查看 |
 | 使用帮助 | `/help` | 登录、权限与退出说明 |
 | 信息获取 | `/information/*` | 独立应用的可操作界面首版，明确使用演示资料，不执行真实采集或入库 |
-| 应用跳转 | `/launch/pm`、`/launch/kb`、`/launch/information` | 验证准入后打开固定应用 |
+| 知识方案 | `/solutions/*` | 方案编辑与知识问答工作台，支持引用、评审和导出，详见[应用说明](knowledge-solutions.md) |
+| 应用跳转 | `/launch/pm`、`/launch/kb`、`/launch/information`、`/launch/solutions` | 验证准入后打开固定应用 |
 
 门户包含登录、工作台、我的设置、账号管理、版本更新、帮助，以及独立的信息获取应用和应用跳转页；`/workspace` 在门户兼容跳转至首页，`/account` 跳转至 `/settings`。
 PM 域名的 `/workspace` 返回正式门户，PM 首页及 `/dashboard` 保留项目总览。PM 顶栏通过浅金色「应用工作台」入口返回门户，知识库统一从工作台打开；侧栏不再显示「相关系统」，品牌区移除无权限含义的固定 CTO 标签。组织管理与个人设置属于工作台，PM 侧栏保留「AI设置」（`/ai-settings`，限系统管理员 / 项目负责人 `cmc_lead`）。PM 的 `/settings` 和顶栏姓名打开门户「我的设置」，`/org` 跳到门户「账号管理」；门户与 PM 的旧 `/settings?tab=ai` 均跳到项目管理 `/ai-settings`。
