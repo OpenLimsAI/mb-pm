@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, ArrowUpRight, BookOpen, BriefcaseBusiness, Check, ChevronRight, History, LayoutGrid, LockKeyhole, RefreshCw, ShieldCheck, UsersRound } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, BookOpen, BriefcaseBusiness, Check, ChevronRight, History, LayoutGrid, LockKeyhole, Radar, RefreshCw, ShieldCheck, UsersRound } from 'lucide-react'
 import PortalLayout from '../components/portal/PortalLayout'
 import { usePortalContext } from '../components/portal/context'
 import { knowledgeLaunchUrl } from '../lib/site'
@@ -12,13 +12,13 @@ export interface WorkspaceUser {
 }
 
 export interface WorkspaceApplication {
-  id: 'pm' | 'kb' | 'accounts'
+  id: 'pm' | 'kb' | 'information' | 'accounts'
   enabled: boolean
   reason?: string
 }
 
 interface ApplicationPresentation {
-  id: 'pm' | 'kb'
+  id: 'pm' | 'kb' | 'information'
   name: string
   englishName: string
   description: string
@@ -26,7 +26,7 @@ interface ApplicationPresentation {
   domain: string
   href: string
   external?: boolean
-  kind: 'projects' | 'knowledge'
+  kind: 'projects' | 'knowledge' | 'information'
   features: readonly string[]
 }
 
@@ -61,10 +61,20 @@ const applicationPresentations: readonly ApplicationPresentation[] = [
     kind: 'knowledge',
     features: ['知识检索', '内容阅读', '经验沉淀'],
   },
+  {
+    id: 'information',
+    name: '信息获取',
+    englishName: 'INFORMATION ACQUISITION',
+    description: '管理医药信息源，收集重要资料，让网站更新与知识积累连接起来。',
+    domain: 'ICH · Q / S / E / M',
+    href: '/launch/information',
+    kind: 'information',
+    features: ['信息源监控', '批量收录', '更新与关注'],
+  },
 ]
 
 function ApplicationCard({ application, access, preview }: { application: ApplicationPresentation; access?: WorkspaceApplication; preview: boolean }) {
-  const Icon = application.kind === 'knowledge' ? BookOpen : BriefcaseBusiness
+  const Icon = application.kind === 'information' ? Radar : application.kind === 'knowledge' ? BookOpen : BriefcaseBusiness
   const enabled = preview || access?.enabled === true
   const content = (
     <>
@@ -89,10 +99,10 @@ function ApplicationCard({ application, access, preview }: { application: Applic
   )
   const className = `workspace-app-card workspace-app-card--${application.kind}${enabled ? '' : ' workspace-app-card--unavailable'}`
 
-  if (!enabled || preview) return <article className={className}>{content}</article>
+  if (!enabled || (preview && application.id !== 'information')) return <article className={className}>{content}</article>
 
   return (
-    <a className={className} href={application.href} target={application.external ? '_blank' : undefined} rel={application.external ? 'noopener noreferrer' : undefined} aria-label={`进入${application.name}${application.external ? '（新标签页）' : ''}`}>
+    <a className={className} href={preview ? '/information?preview=1' : application.href} target={application.external ? '_blank' : undefined} rel={application.external ? 'noopener noreferrer' : undefined} aria-label={`进入${application.name}${application.external ? '（新标签页）' : ''}`}>
       {content}
     </a>
   )

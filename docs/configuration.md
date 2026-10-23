@@ -97,6 +97,12 @@ PM 回调为 `https://pm.openlims.ai/api/v1/auth/callback`，登出回跳为 `ht
 - 账号写接口使用 `platform_admin`、`pm_identity`、`kb_role`，KB 写入只接受 `manager` / `editor`；旧 `identity` 仅保留在读取响应中，旧字段写入及任意角色数组会被拒绝，避免整包覆盖平台权限。
 - PM 根据经验签令牌中的角色判定权限；复核会话不等于实时查询 IAM 最新角色，角色变更生效需结合令牌有效期与各应用续期规则。
 
+## 信息获取交互首版
+
+信息获取目前是门户内的交互首版，向有效组织成员开放界面体验，不更改 PM / KB 授权。
+无需新增 IAM 应用、模型密钥、采集配置或服务令牌；`/portal/me.identity_namespace` 只供浏览器隔离演示状态，不能用于鉴权。
+真实采集、后台监控及知识库同步尚未接入，详见[信息获取](information.md)。
+
 ## AI 配置
 
 系统管理员 / 项目负责人（`cmc_lead` / 旧 `project_lead`）在项目管理「AI设置」（`/ai-settings`）维护模型地址、密钥、默认提示词及可选 Ollama 回退；使用 PM 会话调用 `/api/v1/ai/settings`、`/api/v1/ai/models`、`/api/v1/ai/test`，Cookie 写操作要求 PM Origin。设置、模型测试、分析和历史接口实时核对 IAM 管理角色，项目成员不能调用；组合财务 AI 仍限 `admin` / `cmc_lead`，旧项目负责人的项目范围不扩大。沿用同一份 `AI_SETTINGS_PATH`，无需重填模型或密钥。旧门户 `/api/v1/portal/settings/ai*` 接口暂留兼容，新前端不再调用；旧 `/settings?tab=ai` 书签跳到 PM 的 AI设置。

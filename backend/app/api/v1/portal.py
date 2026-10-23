@@ -6,6 +6,7 @@
 
 import base64
 import hashlib
+import json
 import secrets
 import time
 from urllib.parse import urlencode
@@ -157,6 +158,8 @@ def applications(claims: dict, db: Session) -> list[PortalApplicationOut]:
             enabled=kb_enabled,
             reason=None if kb_enabled else "知识库尚未开通，请联系系统管理员",
         ),
+        # 信息获取当前为交互原型，组织成员可体验；真实采集及入库暂未接入。
+        PortalApplicationOut(id="information", enabled=True),
         # 仅决定是否显示入口；账号管理接口每次请求都向 IAM 实时核对身份
         PortalApplicationOut(
             id="accounts",
@@ -346,6 +349,13 @@ def me(request: Request, db: Session = Depends(get_db)):
     )
     return PortalMeOut(
         user=current_user(claims, db, request),
+        identity_namespace=hashlib.sha256(
+            json.dumps(
+                [claims["iss"], claims["owner"], claims["sub"]],
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest(),
         applications=applications(directory_claims, db),
         must_change_password=password_policy.change_required(db, claims["sub"]),
         can_configure_ai=pm_role(claims) in AI_MANAGERS,
