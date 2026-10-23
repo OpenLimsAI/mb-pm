@@ -1,9 +1,16 @@
 import { render, screen } from '@testing-library/react'
 import { HttpResponse, http } from 'msw'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
 import { server } from '../test/setup'
 import { usePortal } from '../store/portal'
+
+// This suite exercises authenticated portal routing, independently of a developer's
+// ignored .env.local or CI's default API-off preview configuration.
+vi.mock('../api/client', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../api/client')>(),
+  USE_API: true,
+}))
 
 afterEach(() => {
   usePortal.setState({ status: 'loading', user: null, identityNamespace: undefined, applications: [], mustChangePassword: false })
