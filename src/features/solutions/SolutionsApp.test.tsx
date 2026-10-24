@@ -3,13 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SolutionsApp from './SolutionsApp'
 import type { KnowledgeSource, Solution, SolutionClient } from './types'
 
-const seed = (): Solution => ({ id: 'one', title: '研发方案', projectName: '项目 A', productName: '研究制剂', ownerId: 'author', ownerName: '张研究员', status: 'draft', revision: 1, version: 1, updatedAt: '2026-10-23T10:00:00Z', sections: [{ id: 's1', title: '研究目标', content: '原始内容' }, { id: 's2', title: '验证安排', content: '保留条件' }], formula: [], references: [], reviewerId: null, reviewerName: '', reviewNotes: '', canEdit: true })
+const seed = (): Solution => ({ id: 'one', title: '研发报告', projectName: '项目 A', productName: '研究制剂', ownerId: 'author', ownerName: '张研究员', status: 'draft', revision: 1, version: 1, updatedAt: '2026-10-23T10:00:00Z', sections: [{ id: 's1', title: '研究目标', content: '原始内容' }, { id: 's2', title: '验证安排', content: '保留条件' }], formula: [], references: [], reviewerId: null, reviewerName: '', reviewNotes: '', canEdit: true })
 const source: KnowledgeSource = { id: 'paper-1', title: '研究资料甲', kind: 'paper', authors: '作者甲', date: '2026-10-23', projectName: '项目 A', tags: [], content: '原文中的研究条件与观察', locator: '方法章节', version: '1', url: '', updatedAt: '2026-10-23T10:00:00Z' }
 function mockClient(initial = seed()) {
   let stored = structuredClone(initial)
   const client: SolutionClient = {
-    list: vi.fn(async () => [structuredClone(stored), { ...seed(), id: 'two', title: '第二个方案' }]),
-    get: vi.fn(async id => id === 'one' ? structuredClone(stored) : { ...seed(), id: 'two', title: '第二个方案' }),
+    list: vi.fn(async () => [structuredClone(stored), { ...seed(), id: 'two', title: '第二个报告' }]),
+    get: vi.fn(async id => id === 'one' ? structuredClone(stored) : { ...seed(), id: 'two', title: '第二个报告' }),
     create: vi.fn(async input => ({ ...seed(), ...input, id: 'created' })),
     save: vi.fn(async (_id, input) => { stored = { ...stored, ...input, revision: input.revision + 1 }; return structuredClone(stored) }),
     review: vi.fn(async () => stored), versions: vi.fn(async () => []), reviewers: vi.fn(async () => [{ id: 'author', name: '张研究员' }]),
@@ -44,11 +44,11 @@ describe('knowledge solution workspace', () => {
     const client = mockClient(); await mount(client)
     vi.mocked(client.save).mockRejectedValue(Object.assign(new Error('版本冲突'), { status: 409 }))
     fireEvent.change(screen.getByRole('textbox', { name: '章节正文' }), { target: { value: '不能丢失的修改' } })
-    fireEvent.click(screen.getByRole('button', { name: '方案列表' }))
-    fireEvent.click(screen.getByRole('button', { name: '第二个方案' }))
+    fireEvent.click(screen.getByRole('button', { name: '报告列表' }))
+    fireEvent.click(screen.getByRole('button', { name: '第二个报告' }))
     await screen.findByText('当前修改尚未保存，已保留在编辑器中。请先重试保存或另存副本。')
     expect(client.get).not.toHaveBeenCalledWith('two')
-    fireEvent.click(screen.getByRole('button', { name: '方案撰写' }))
+    fireEvent.click(screen.getByRole('button', { name: '报告撰写' }))
     expect(screen.getByRole('textbox', { name: '章节正文' })).toHaveValue('不能丢失的修改')
     expect(screen.getByRole('button', { name: '比较服务器版本' })).toBeInTheDocument()
   })
@@ -75,7 +75,7 @@ describe('knowledge solution workspace', () => {
   it('keeps editor content while both main panes and knowledge subsections collapse', async () => {
     const client = mockClient(); await mount(client)
     fireEvent.change(screen.getByRole('textbox', { name: '章节正文' }), { target: { value: '折叠仍保留' } })
-    fireEvent.click(screen.getByRole('button', { name: '收起方案撰写' }))
+    fireEvent.click(screen.getByRole('button', { name: '收起报告撰写' }))
     expect(screen.queryByRole('textbox', { name: '章节正文' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '收起知识与AI' }))
     expect(screen.getByRole('textbox', { name: '章节正文' })).toHaveValue('折叠仍保留')
@@ -148,7 +148,7 @@ describe('knowledge solution workspace', () => {
     fireEvent.change(screen.getByRole('textbox', { name: '章节正文' }), { target: { value: '新正文' } })
     fireEvent.change(screen.getByRole('textbox', { name: '向AI提问' }), { target: { value: '需要保留的问题' } })
     fireEvent.click(screen.getByRole('button', { name: '发送问题' }))
-    await screen.findByText('问答未完成：当前方案尚未保存，请先处理保存失败后再提问。')
+    await screen.findByText('问答未完成：当前报告尚未保存，请先处理保存失败后再提问。')
     expect(client.ask).not.toHaveBeenCalled()
     expect(screen.getByRole('textbox', { name: '向AI提问' })).toHaveValue('需要保留的问题')
     expect(screen.getByRole('textbox', { name: '章节正文' })).toHaveValue('新正文')

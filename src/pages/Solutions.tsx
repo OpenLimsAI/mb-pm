@@ -15,7 +15,7 @@ export default function Solutions() {
     return () => window.removeEventListener('solutions:unauthorized', expired)
   }, [refresh])
   if (!preview && !applications.some(entry => entry.id === 'solutions' && entry.enabled)) {
-    return <main className="portal-panel"><h1>知识方案暂时不可用</h1><p>请返回工作台刷新登录身份。</p><Link to="/">返回应用工作台</Link></main>
+    return <main className="portal-panel"><h1>知识报告暂时不可用</h1><p>请返回工作台刷新登录身份。</p><Link to="/">返回应用工作台</Link></main>
   }
   return <SolutionsApp key={`${namespace}:${preview}`} client={client} userId={user.id} userName={user.displayName} preview={preview} />
 }

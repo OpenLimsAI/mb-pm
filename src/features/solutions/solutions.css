@@ -7,3 +7,22 @@
 .ks-source-loading{display:flex;align-items:center;gap:6px;padding:8px 4px;font-size:10px;color:#7b926d}
 /* Compact laptop workspaces keep evidence and the current answer visible together. */
 @media(min-width:721px) and (max-height:800px){.ks-topbar{height:53px}.ks-document-bar{min-height:80px;padding-top:10px;padding-bottom:11px}.ks-document-identity h1{font-size:19px}.ks-project-label{margin-bottom:2px}.ks-pane-heading{height:36px;min-height:36px}.ks-knowledge-section{flex:0 1 37%;min-height:190px}.ks-knowledge-section.is-collapsed{min-height:38px}.ks-subheading{height:38px;padding-top:5px;padding-bottom:5px}.ks-ai-section.is-collapsed,.ks-knowledge-section.is-collapsed{flex-basis:38px}.ks-knowledge-section:has(+.ks-ai-section.is-collapsed){flex:1}.ks-source-search{gap:5px}.ks-source-search .ks-search{padding-top:4px;padding-bottom:4px}.ks-knowledge-status{font-size:8px;padding-top:4px;line-height:1.4}.ks-source-tabs{padding-top:6px;padding-bottom:5px}.ks-source-card{padding-top:8px;padding-bottom:7px;margin-bottom:6px}.ks-source-card h3{margin:3px 0;line-height:1.5}.ks-source-card p{-webkit-line-clamp:1;font-size:9px}.ks-source-bottom{margin-top:3px;font-size:8px}.ks-scope-foot{min-height:23px;padding-top:2px;padding-bottom:2px;font-size:8px}.ks-conversation{padding-top:12px;padding-bottom:5px;min-height:140px}.ks-question-composer{margin-top:3px;margin-bottom:8px}.ks-context-bar{padding-top:5px;padding-bottom:5px}.ks-question-composer form>textarea{padding-top:8px;padding-bottom:2px;line-height:1.5}.ks-composer-bottom{padding-top:2px;padding-bottom:6px}.ks-send{width:25px;height:25px}.ks-ai-welcome{padding-top:0;padding-bottom:9px}.ks-ai-symbol{padding:5px;margin-bottom:9px}.ks-ai-welcome h3{font-size:12px;margin-bottom:5px}.ks-ai-welcome p{font-size:10px;line-height:1.7}.ks-question-suggestions{margin-top:10px;gap:5px}.ks-question-suggestions>button{padding-top:5px;padding-bottom:5px}.ks-notice{padding-top:5px;padding-bottom:5px}.ks-review-strip{padding-top:4px;padding-bottom:4px}}
+/* Explicit visibility states prevent collapsed panels from retaining a split height. */
+.ks-knowledge-pane[data-panels]{--ks-knowledge-share:44%;min-height:0}
+.ks-subheading-title,.ks-subheading-actions{display:flex;align-items:center;gap:7px;min-width:0}
+.ks-subheading-title{font-size:12px;white-space:nowrap}
+.ks-subheading-actions{gap:6px}
+.ks-subheading-actions>.ks-button{min-height:26px;padding:3px 5px}
+.ks-subheading-actions>.ks-panel-toggle{font-size:10px;color:#6b825e;border:1px solid #dce5d4;border-radius:4px;padding:2px 6px;gap:3px}
+.ks-knowledge-pane[data-panels]>.ks-knowledge-section,.ks-knowledge-pane[data-panels]>.ks-ai-section{min-height:0;overflow:hidden}
+.ks-knowledge-pane[data-panels="both"]>.ks-knowledge-section{flex:0 1 var(--ks-knowledge-share)}
+.ks-knowledge-pane[data-panels="both"]>.ks-ai-section,.ks-knowledge-pane[data-panels="knowledge"]>.ks-knowledge-section,.ks-knowledge-pane[data-panels="ai"]>.ks-ai-section{flex:1 1 0}
+.ks-knowledge-pane[data-panels]>.is-collapsed{flex:0 0 36px;min-height:0}
+.ks-knowledge-pane[data-panels]>.is-collapsed>.ks-subheading{height:36px;padding-top:4px;padding-bottom:4px;background:#f3f7ef;border-bottom:0}
+.ks-knowledge-pane[data-panels] .ks-conversation{min-height:0}
+.ks-knowledge-pane[data-panels] .ks-question-composer{max-height:70%;overflow:auto}
+.ks-panels-hidden-note{display:grid;place-content:center;flex:1;text-align:center;color:#91a183;font-size:11px;line-height:2;padding:20px}
+@media(min-width:1600px){.ks-knowledge-pane[data-panels]{--ks-knowledge-share:48%}}
+@media(max-width:720px){.ks-knowledge-pane[data-panels]{--ks-knowledge-share:45%}}
+@media(min-width:721px) and (max-height:800px){.ks-knowledge-pane[data-panels]{--ks-knowledge-share:37%}}
+@media(max-height:600px){.ks-app{min-height:0}.ks-knowledge-pane[data-panels]{--ks-knowledge-share:42%}.ks-subheading-actions>.ks-button{min-height:24px}}

@@ -29,7 +29,7 @@ export default function PortalSettings() {
           <ul className="portal-access-list">
             {(['pm', 'kb', 'information', 'solutions'] as const).map((id) => {
               const access = applications.find((app) => app.id === id)
-              return <li key={id}><div><strong>{id === 'solutions' ? '知识方案' : id === 'information' ? '信息获取' : id === 'pm' ? '项目管理' : '知识库'}</strong><span>{access?.enabled ? (id === 'information' ? '可体验界面，真实采集尚未接入' : '已开通应用入口') : access?.reason || '请联系管理员开通'}</span></div><span className={access?.enabled ? 'portal-access-status' : 'portal-access-status portal-access-status--pending'}>{access?.enabled ? '已开通' : '待开通'}</span></li>
+              return <li key={id}><div><strong>{id === 'solutions' ? '知识报告' : id === 'information' ? '信息获取' : id === 'pm' ? '项目管理' : '知识库'}</strong><span>{access?.enabled ? (id === 'information' ? '可体验界面，真实采集尚未接入' : '已开通应用入口') : access?.reason || '请联系管理员开通'}</span></div><span className={access?.enabled ? 'portal-access-status' : 'portal-access-status portal-access-status--pending'}>{access?.enabled ? '已开通' : '待开通'}</span></li>
             })}
           </ul>
           <Link className="portal-text-link" to={'/' + (preview ? '?preview=1' : '')}>返回工作台</Link>

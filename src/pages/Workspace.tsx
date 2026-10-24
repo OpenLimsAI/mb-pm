@@ -42,13 +42,13 @@ export interface WorkspaceProps {
 const applicationPresentations: readonly ApplicationPresentation[] = [
   {
     id: 'solutions',
-    name: '知识方案',
-    englishName: 'KNOWLEDGE STUDIO',
-    description: '在写作中查阅知识、追问依据，把论文、实践与专家判断写成可追溯的研究方案。',
+    name: '知识报告',
+    englishName: 'KNOWLEDGE REPORTS',
+    description: '在写作中查阅知识、追问依据，把论文、实践与专家判断写成可追溯的研究报告。',
     domain: '研究 · 论证 · 撰写',
     href: '/launch/solutions',
     kind: 'solutions',
-    features: ['方案撰写', '知识与 AI', '评审与版本'],
+    features: ['报告撰写', '知识与 AI', '评审与版本'],
   },
   {
     id: 'pm',

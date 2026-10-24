@@ -105,9 +105,9 @@ def get_solution(db, solution_id, claims, *, owner=False):
         select(KnowledgeSolution).where(KnowledgeSolution.id == solution_id, readable(claims))
     )
     if not row:
-        raise HTTPException(404, "方案不存在或无权访问")
+        raise HTTPException(404, "报告不存在或无权访问")
     if owner and row.owner_id != claims["sub"]:
-        raise HTTPException(403, "只有方案作者可执行此操作")
+        raise HTTPException(403, "只有报告作者可执行此操作")
     return row
 
 
@@ -294,7 +294,7 @@ def compare_and_swap(db, row, revision, values):
     if changed.rowcount != 1:
         db.rollback()
         raise HTTPException(
-            409, "方案已有新修改。请保留本地草稿并重新打开最新版本后比较，未覆盖服务器内容。"
+            409, "报告已有新修改。请保留本地草稿并重新打开最新版本后比较，未覆盖服务器内容。"
         )
     db.refresh(row)
 
@@ -351,7 +351,7 @@ def review_solution(db, row, payload: ReviewAction, claims):
     }
     allowed, target = transitions[action]
     if row.status not in allowed:
-        raise HTTPException(409, "当前状态不允许此操作，请刷新方案")
+        raise HTTPException(409, "当前状态不允许此操作，请刷新报告")
     if action in ("approve", "return", "withdraw") and not payload.note.strip():
         raise HTTPException(422, "请填写确认结论或退回、撤回原因")
     check_solution_evidence(db, row, claims)
@@ -628,7 +628,7 @@ def ask(db, row, payload: AskInput, claims):
 
 def publish(db, row, claims):
     if row.status != "final":
-        raise HTTPException(409, "只有已定稿方案可以发布到本人知识库")
+        raise HTTPException(409, "只有已定稿报告可以发布到本人知识库")
     check_solution_evidence(db, row, claims)
     key = f"{row.id}:{row.version}"
     existing = db.scalar(own_sources(db, claims).where(SolutionSource.publication_key == key))
@@ -637,7 +637,7 @@ def publish(db, row, claims):
     if row.requires_kb:
         raise HTTPException(
             409,
-            "包含知识库受限引用的定稿暂不能复制到私有知识源；请保留方案版本，避免绕过原资料权限",
+            "包含知识库受限引用的定稿暂不能复制到私有知识源；请保留报告版本，避免绕过原资料权限",
         )
     body = solution_plaintext(row)
     # Stable primary key makes a concurrent publication safely retryable.
@@ -650,9 +650,9 @@ def publish(db, row, claims):
         authors=row.owner_name,
         date=utcnow().date().isoformat(),
         project_name=row.project_name,
-        tags=["定稿方案"],
+        tags=["定稿报告"],
         content=body,
-        locator=f"知识方案 {row.id} · v{row.version}",
+        locator=f"知识报告 {row.id} · v{row.version}",
         version=str(row.version),
         url="",
         publication_key=key,
