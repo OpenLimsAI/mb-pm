@@ -52,7 +52,7 @@ class SolutionInput(Input):
     @classmethod
     def nonempty(cls, value):
         if not value.strip():
-            raise ValueError("方案标题不能为空")
+            raise ValueError("报告标题不能为空")
         return value.strip()
 
     @model_validator(mode="after")
@@ -61,7 +61,7 @@ class SolutionInput(Input):
             if len({row.id for row in rows}) != len(rows):
                 raise ValueError("章节、配方和引用标识不可重复")
         if sum(len(row.content) for row in self.sections) > 200000:
-            raise ValueError("方案正文过长，请拆分方案")
+            raise ValueError("报告正文过长，请拆分报告")
         section_ids = {row.id for row in self.sections}
         refs = {row.id for row in self.references}
         if any(ref.section_id not in section_ids for ref in self.references):

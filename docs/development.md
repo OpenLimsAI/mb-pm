@@ -131,7 +131,7 @@ python -m pytest tests/ -q --cov=app.services.accounts --cov=app.schemas.account
 信息获取从工作台卡片或 `/information` 进入，复用门户会话。仅在 `VITE_USE_API=false` 的开发预览可直接打开 `/information?preview=1`；页面常驻演示标识。
 真实 API 模式连接持久后端，并按[配置说明](configuration.md#信息获取)启用 worker 与可选 KB 桥接。原文使用独立目录，不指向客户备份。预览仅使用内存演示数据，不能写真实接口；真实接口失败不会回落到演示资料。详见[信息获取](information.md)。
 
-## 知识方案开发
+## 知识报告开发
 
 开发预览可直接打开 `/solutions?preview=1`（`VITE_USE_API=false`），不连接真实服务。正式模式需要门户登录及后端，方案使用数据库持久化。企业知识库适配另需服务端连接配置；没有模型配置时返回资料检索结果，不假装生成 AI 回答。完整范围见[应用说明](knowledge-solutions.md)。
 

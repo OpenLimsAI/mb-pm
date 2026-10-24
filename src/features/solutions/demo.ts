@@ -8,10 +8,10 @@ const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 interface DemoState { solutions: Solution[]; sources: KnowledgeSource[]; versions: Record<string, Version[]>; answers: Record<string, Answer[]> }
 
 function initialState(userId: string, userName: string): DemoState {
-  const input = emptySolution('缓冲体系选择与验证方案')
+  const input = emptySolution('缓冲体系选择与验证报告')
   input.projectName = '示例研发项目'; input.productName = '示例蛋白制剂'
   const paragraphs = [
-    '研究目标\n比较候选缓冲体系的适用条件，形成下一轮实验的验证计划。\n\n适用范围\n本方案处于研究阶段。本文及右侧资料均为交互演示内容，不对应真实药物、论文或实验结果。\n\n本轮待回答\n• 现有资料中有哪些相关观察？\n• 不同研究条件之间有哪些差异？\n• 哪些判断仍需要实验验证？',
+    '研究目标\n比较候选缓冲体系的适用条件，形成下一轮实验的验证计划。\n\n适用范围\n本报告处于研究阶段。本文及右侧资料均为交互演示内容，不对应真实药物、论文或实验结果。\n\n本轮待回答\n• 现有资料中有哪些相关观察？\n• 不同研究条件之间有哪些差异？\n• 哪些判断仍需要实验验证？',
     '文献线索\n从右侧选择论文资料，查看研究条件和结论，再将相关片段引用至本章。\n\n实践基础\n同时查看成功与失败记录，明确样品、设备和观察方法的差异。不要直接把其他条件下的观察推广至本项目。',
     '候选思路\n记录各候选体系的选择理由，区分文献记载、实践观察与专家判断。\n\n专家判断\n当前证据不足以确定最终配方。先完成资料对比，再确认实验变量与验证方法。',
     '拟研究条件\n列出影响结果的工艺因素，并说明需要保持一致的实验条件。具体参数由项目专家确认。',
@@ -46,10 +46,10 @@ export function createDemoClient(namespace: string, userId: string, userName: st
     } catch { throw new Error('预览草稿无法读取。请保留浏览器数据，联系维护者处理。') }
   }
   function write(state: DemoState) { try { storage.setItem(key, JSON.stringify(state)) } catch { throw new Error('浏览器无法保存预览草稿，可能存储空间不足。请先导出备份。') } }
-  function get(state: DemoState, id: string) { const s = state.solutions.find(item => item.id === id); if (!s) throw new Error('方案不存在'); return s }
+  function get(state: DemoState, id: string) { const s = state.solutions.find(item => item.id === id); if (!s) throw new Error('报告不存在'); return s }
   function snapshot(state: DemoState, s: Solution, note: string) { const list = state.versions[s.id] ||= []; list.unshift({ id: uid(), version: s.version, status: s.status, createdAt: now(), actorName: userName, note, snapshot: clone(s) }) }
   function changed(s: Solution) { s.revision++; s.updatedAt = now(); s.canEdit = s.status === 'draft' }
-  function verify(s: Solution, revision: number) { if (s.revision !== revision) throw Object.assign(new Error('方案已在其他页面更新，请先重新载入并比较当前草稿。'), { status: 409 }) }
+  function verify(s: Solution, revision: number) { if (s.revision !== revision) throw Object.assign(new Error('报告已在其他页面更新，请先重新载入并比较当前草稿。'), { status: 409 }) }
   function newSolution(input: SolutionInput): Solution { return { ...clone(input), id: uid(), ownerId: userId, ownerName: userName, status: 'draft', revision: 1, version: 1, updatedAt: now(), reviewerId: null, reviewerName: '', reviewNotes: '', canEdit: true } }
   const client: SolutionClient = {
     list: async () => clone(read().solutions).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
@@ -93,10 +93,10 @@ export function createDemoClient(namespace: string, userId: string, userName: st
     exportWord: async id => exportPreview(get(read(), id)),
     publish: async id => {
       const state = read(), s = get(state, id)
-      if (s.status !== 'final') throw new Error('请先完成方案定稿')
+      if (s.status !== 'final') throw new Error('请先完成报告定稿')
       const sourceId = `solution:${id}:${s.version}`, existing = state.sources.find(item => item.id === sourceId)
       if (existing) return clone(existing)
-      const source: KnowledgeSource = { id: sourceId, title: s.title, kind: 'solution', authors: userName, date: now().slice(0, 10), projectName: s.projectName, tags: ['方案', '定稿', '演示'], content: s.sections.map(section => `${section.title}\n${section.content}`).join('\n\n'), locator: `方案 v${s.version}`, version: String(s.version), url: '', updatedAt: now() }
+      const source: KnowledgeSource = { id: sourceId, title: s.title, kind: 'solution', authors: userName, date: now().slice(0, 10), projectName: s.projectName, tags: ['报告', '定稿', '演示'], content: s.sections.map(section => `${section.title}\n${section.content}`).join('\n\n'), locator: `报告 v${s.version}`, version: String(s.version), url: '', updatedAt: now() }
       state.sources.unshift(source); write(state); return clone(source)
     },
   }

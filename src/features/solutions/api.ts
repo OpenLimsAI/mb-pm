@@ -18,7 +18,7 @@ http.interceptors.response.use(response => {
     const detail = error.response?.data?.detail
     const message = typeof detail === 'string' ? detail
       : status === 422 ? '内容未通过校验，请检查必填项、内容长度和引用关联。当前草稿仍保留。'
-      : status === 409 ? '其他页面已更新此方案。请保留当前草稿，重新载入后比较。'
+      : status === 409 ? '其他页面已更新此报告。请保留当前草稿，重新载入后比较。'
         : error.code === 'ECONNABORTED' ? '服务响应超时，请稍后重试。当前内容仍保留。'
           : '暂时无法连接服务，请检查网络后重试。'
     return Promise.reject(Object.assign(new Error(message), { status }))
@@ -49,7 +49,7 @@ export const solutionApi: SolutionClient = {
   history: async id => (await http.get(`/${encodeURIComponent(id)}/history`)).data,
   exportWord: async id => {
     const { data } = await http.get(`/${encodeURIComponent(id)}/export`, { responseType: 'blob' })
-    downloadBlob(data, `知识方案-${id}.docx`)
+    downloadBlob(data, `知识报告-${id}.docx`)
   },
   publish: async id => (await http.post(`/${encodeURIComponent(id)}/publish`)).data,
 }

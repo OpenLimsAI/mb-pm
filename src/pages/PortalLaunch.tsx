@@ -14,7 +14,7 @@ export default function PortalLaunch() {
   const { refresh, preview, logout } = context
   const [problem, setProblem] = useState('')
   const valid = appId === 'pm' || appId === 'kb' || appId === 'information' || appId === 'solutions'
-  const name = appId === 'solutions' ? '知识方案' : appId === 'information' ? '信息获取' : appId === 'pm' ? '项目管理' : '知识库'
+  const name = appId === 'solutions' ? '知识报告' : appId === 'information' ? '信息获取' : appId === 'pm' ? '项目管理' : '知识库'
 
   useEffect(() => {
     if (!valid || preview) return

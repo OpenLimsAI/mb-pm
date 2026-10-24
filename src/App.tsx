@@ -58,7 +58,7 @@ export default function App() {
         {siteMode === 'pm' && <>
           <Route path="/workspace" element={<ExternalWorkspace />} />
           <Route path="/information/*" element={<ExternalRedirect to={informationUrl} message="正在打开信息获取 …" />} />
-          <Route path="/solutions/*" element={<ExternalRedirect to={solutionsUrl} message="正在打开知识方案 …" />} />
+          <Route path="/solutions/*" element={<ExternalRedirect to={solutionsUrl} message="正在打开知识报告 …" />} />
           {/* 个人设置回门户；旧 AI 标签直达项目管理 AI设置 */}
           <Route path="/settings" element={<SettingsRoute />} />
           <Route path="/org" element={<ExternalRedirect to={accountsUrl} message="正在打开账号管理 …" />} />
@@ -100,7 +100,7 @@ function RouteTitle() {
   const { pathname } = useLocation()
   useEffect(() => {
     if (pathname === '/solutions' || pathname.startsWith('/solutions/')) {
-      document.title = '知识方案 · 迈博工作空间'
+      document.title = '知识报告 · 迈博工作空间'
       return
     }
     if (pathname === '/information' || pathname.startsWith('/information/')) {
