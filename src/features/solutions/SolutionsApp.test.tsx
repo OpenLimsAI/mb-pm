@@ -72,17 +72,17 @@ describe('knowledge solution workspace', () => {
     expect(screen.queryByRole('button', { name: '删除引用1' })).not.toBeInTheDocument()
   })
 
-  it('keeps editor content while both main panes and knowledge subsections collapse', async () => {
+  it('keeps editor content when each module is hidden and restored', async () => {
     const client = mockClient(); await mount(client)
     fireEvent.change(screen.getByRole('textbox', { name: '章节正文' }), { target: { value: '折叠仍保留' } })
     fireEvent.click(screen.getByRole('button', { name: '收起报告撰写' }))
     expect(screen.queryByRole('textbox', { name: '章节正文' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '收起知识与AI' }))
-    expect(screen.getByRole('textbox', { name: '章节正文' })).toHaveValue('折叠仍保留')
-    fireEvent.click(screen.getByRole('button', { name: '展开知识与AI' }))
-    fireEvent.click(screen.getByRole('button', { name: /AI 研究助手/ }))
+    fireEvent.click(screen.getByRole('button', { name: '隐藏知识库资料' }))
+    fireEvent.click(screen.getByRole('button', { name: '隐藏AI 研究助手' }))
     expect(screen.queryByRole('textbox', { name: '向AI提问' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /AI 研究助手/ }))
+    fireEvent.click(screen.getByRole('button', { name: '展开报告撰写' }))
+    expect(screen.getByRole('textbox', { name: '章节正文' })).toHaveValue('折叠仍保留')
+    fireEvent.click(screen.getByRole('button', { name: '展开AI 研究助手' }))
     expect(screen.getByRole('textbox', { name: '向AI提问' })).toBeInTheDocument()
   })
 

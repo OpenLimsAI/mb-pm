@@ -46,3 +46,68 @@
 .ks-chapter-undo{background:#f4f3e9;color:#7c835c}
 @media(max-width:1200px){.ks-outline-link{font-size:10px!important;gap:5px;padding-left:5px}.ks-outline-item>.ks-chapter-actions-button{flex-basis:22px;padding-left:2px;padding-right:2px}}
 @media(max-width:960px){.ks-outline{width:57px;padding-left:4px;padding-right:4px}.ks-outline-item{flex-direction:column;align-items:stretch;gap:0}.ks-outline-link{justify-content:center;padding:6px 0 0;font-size:10px!important}.ks-outline-link>span:first-child{font-size:10px}.ks-outline-label{display:none}.ks-outline-item>.ks-chapter-actions-button{margin:0 3px 3px;min-height:25px;flex-basis:25px;padding:2px}.ks-outline>.ks-add-chapter{display:flex;justify-content:center;margin:8px 0 0;padding:7px 3px;min-height:34px}.ks-outline>.ks-add-chapter>span{display:none}}
+
+/* Three independent modules retain their DOM while their grid positions change. */
+.ks-layout-toolbar{display:flex;align-items:center;gap:12px;flex-shrink:0;min-height:47px;padding:7px 23px;border-top:1px solid #e0e6da;background:#f8faf5;flex-wrap:wrap}
+.ks-layout-open{border-color:#d8e2d0;background:#fff;color:#4d7350;font-size:11px;gap:7px}
+.ks-layout-name{font-size:10px;color:#94a18a}
+.ks-module-legend{display:flex;align-items:center;gap:15px;margin-left:auto;flex-wrap:wrap}
+.ks-module-legend>span,.ks-module-legend>.ks-button{display:flex;align-items:center;gap:6px;font-size:10px;color:#74896a}
+.ks-module-legend>.ks-button{border:1px dashed #c9d8bd;padding:3px 8px;min-height:28px;background:#f0f5e9}
+.ks-module-legend b,.ks-module-number{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;border-radius:4px;font-size:10px;font-weight:600;background:#e7efdf;color:#628350;flex-shrink:0}
+.ks-custom-workspace{display:grid;gap:7px;background:#e4e9df;border:7px solid #e4e9df;border-top:1px solid #e0e5dd;overflow:hidden}
+.ks-custom-workspace>.ks-workspace-module{width:auto;min-width:0;min-height:0;overflow:hidden;border:1px solid #dce4d6;border-radius:6px;display:flex;flex-direction:column;container-type:inline-size;container-name:ks-module}
+.ks-custom-workspace>.ks-knowledge-section{background:#fcfdf9}
+.ks-custom-workspace .ks-subheading{height:45px;min-height:45px;padding:8px 15px;border-bottom:1px solid #e1e6de;margin-bottom:10px;background:#f8faf6}
+.ks-custom-workspace .ks-ai-section .ks-subheading{margin-bottom:0}
+.ks-custom-workspace .ks-pane-heading{height:45px;min-height:45px;padding:0 14px}
+.ks-custom-workspace .ks-pane-heading>div:last-child>.ks-button:last-child{display:inline-flex}
+.ks-custom-workspace .ks-pane-heading strong{white-space:nowrap}
+.ks-custom-workspace .ks-pane-heading>div{min-width:0;gap:6px}
+.ks-custom-workspace .ks-pane-heading>div:last-child{gap:1px}
+.ks-custom-workspace .ks-conversation{min-height:0}
+.ks-custom-workspace .ks-question-composer{max-height:70%;overflow:auto}
+.ks-custom-workspace .ks-source-tabs{overflow-x:auto;flex-shrink:0}
+.ks-custom-workspace .ks-source-search,.ks-custom-workspace .ks-knowledge-status{flex-shrink:0}
+.ks-workspace-empty{grid-area:empty;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#f6f8f2;color:#869b77;border-radius:5px}
+.ks-workspace-empty h2{font-size:17px;font-weight:500}.ks-workspace-empty p{font-size:12px}.ks-workspace-empty>.ks-button{background:#e6efdc;color:#527641}
+.ks-custom-workspace .ks-outline{width:var(--ks-outline-width);max-width:45%;padding:20px 9px 15px;border-right:0}
+.ks-custom-workspace .ks-outline-title{display:block;padding:0 8px 13px}
+.ks-custom-workspace .ks-outline-item{flex-direction:row;align-items:center;gap:0}
+.ks-custom-workspace .ks-outline-link{justify-content:flex-start;gap:8px;padding:9px 5px;font-size:11px!important}
+.ks-custom-workspace .ks-outline-link>span:first-child{font-size:10px}
+.ks-custom-workspace .ks-outline-label{display:inline;overflow-wrap:anywhere}
+.ks-custom-workspace .ks-outline-item>.ks-chapter-actions-button{margin:0 3px 0 0;min-height:28px;flex-basis:24px;padding:3px}
+.ks-custom-workspace .ks-outline>.ks-add-chapter{display:flex;justify-content:flex-start;margin:10px 0 0;padding:7px 4px;min-height:32px}
+.ks-custom-workspace .ks-outline>.ks-add-chapter>span{display:inline}
+.ks-custom-workspace .ks-outline-bottom{display:flex}
+.ks-outline-resizer{width:7px;flex-shrink:0;cursor:col-resize;touch-action:none;display:flex;align-items:center;justify-content:center;background:#e6ecdf;border-left:1px solid #dce4d4;border-right:1px solid #dce4d4}
+.ks-outline-resizer>span{width:2px;height:32px;border-radius:2px;background:#b0c49f}
+.ks-outline-resizer:hover,.ks-outline-resizer:focus-visible{background:#cddbC2}
+.ks-custom-workspace .ks-paper-scroll{padding:20px}
+.ks-custom-workspace .ks-paper{padding:26px}
+@container ks-module (max-width:650px){
+  .ks-paper-scroll{padding:12px!important}.ks-paper{padding:20px 16px!important}
+  .ks-pane-heading .ks-muted,.ks-evidence-label{display:none}
+  .ks-source-search{flex-wrap:wrap}.ks-source-search>.ks-search{flex-basis:100%}.ks-source-search>select{width:100%;max-width:none}
+  .ks-question-composer{margin-left:10px;margin-right:10px}.ks-pane-heading{padding-left:10px!important;padding-right:8px!important}
+  .ks-pane-heading>div:first-child>svg{display:none}.ks-subheading-title{gap:5px}
+}
+@container ks-module (max-width:430px){
+  .ks-pane-heading .ks-button>span{display:none}.ks-pane-heading>div{gap:4px!important}
+  .ks-paper-scroll{padding:9px!important}.ks-paper{padding:16px 12px!important}.ks-section-title{font-size:17px!important}
+}
+@media(max-width:900px){
+  .ks-layout-toolbar{padding:7px 13px;gap:8px}.ks-layout-name{display:none}.ks-module-legend{gap:8px}
+  .ks-custom-workspace{display:flex;flex-direction:column;overflow:auto;gap:10px;padding-bottom:7px}
+  .ks-custom-workspace>.ks-workspace-module{flex:0 0 520px;min-height:420px}
+  .ks-custom-workspace>.ks-workspace-module[data-module="editor"]{flex-basis:650px}
+  .ks-custom-workspace[data-visible-count="1"]>.ks-workspace-module{flex:1 0 100%;min-height:0}
+  .ks-workspace-empty{min-height:300px;flex:1}
+}
+@media(max-width:540px){
+  .ks-layout-toolbar{gap:7px}.ks-module-legend{width:100%;margin-left:0;gap:12px}
+  .ks-module-legend>span,.ks-module-legend>.ks-button{font-size:9px}
+  .ks-custom-workspace .ks-outline{max-width:42%;padding:15px 5px}.ks-custom-workspace .ks-outline-link{gap:4px;font-size:10px!important}
+  .ks-custom-workspace .ks-pane-heading{padding-left:10px;padding-right:7px}
+}
