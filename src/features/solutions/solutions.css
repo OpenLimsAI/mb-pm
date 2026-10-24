@@ -26,3 +26,23 @@
 @media(max-width:720px){.ks-knowledge-pane[data-panels]{--ks-knowledge-share:45%}}
 @media(min-width:721px) and (max-height:800px){.ks-knowledge-pane[data-panels]{--ks-knowledge-share:37%}}
 @media(max-height:600px){.ks-app{min-height:0}.ks-knowledge-pane[data-panels]{--ks-knowledge-share:42%}.ks-subheading-actions>.ks-button{min-height:24px}}
+/* Chapter controls remain reachable with a keyboard or touch at every outline width. */
+.ks-outline-item{display:flex;align-items:flex-start;min-width:0;border:1px solid transparent;border-radius:5px;gap:1px}
+.ks-outline-item.is-active{background:#e5ece2;border-color:#dce5d6}
+.ks-outline-link{display:flex;align-items:flex-start;gap:8px;flex:1;min-width:0;border:0;background:transparent;text-align:left;color:#7c8e76;font-size:11px!important;line-height:1.7;padding:9px 4px 9px 7px;border-radius:4px}
+.ks-outline-link>span:first-child{font-family:monospace;font-size:9px;color:#9da992;line-height:19px;flex-shrink:0}
+.ks-outline-label{overflow-wrap:anywhere}
+.ks-outline-item.is-active .ks-outline-link{color:#456c50;font-weight:550}
+.ks-outline-item>.ks-chapter-actions-button{flex:0 0 24px;min-height:28px;padding:4px 3px;margin-top:4px;color:#849677;border-radius:4px}
+.ks-outline-item:hover>.ks-chapter-actions-button,.ks-outline-item:focus-within>.ks-chapter-actions-button{color:#486e3d;background:#edf3e6}
+.ks-chapter-heading{display:flex;align-items:flex-start;gap:10px;margin-bottom:18px}
+.ks-chapter-heading>.ks-section-title{flex:1;min-width:0;margin:0;overflow-wrap:anywhere}
+.ks-chapter-heading>.ks-button{flex-shrink:0;min-height:28px;padding:4px;margin-top:2px;color:#91a27f}
+.ks-chapter-dialog-title{font-size:14px;font-weight:550;color:#527348;overflow-wrap:anywhere}
+.ks-chapter-menu{display:flex;flex-direction:column;gap:8px;margin-top:18px}
+.ks-chapter-menu>.ks-button{justify-content:flex-start;min-height:42px;border:1px solid #e1e9d8;padding:9px 12px;color:#688158}
+.ks-button.ks-danger{color:#a34b3e;background:#fbedE8;border-color:#eacfc5;padding:7px 12px}
+.ks-button.ks-danger:hover:not(:disabled){background:#f6dfd7;color:#893c30}
+.ks-chapter-undo{background:#f4f3e9;color:#7c835c}
+@media(max-width:1200px){.ks-outline-link{font-size:10px!important;gap:5px;padding-left:5px}.ks-outline-item>.ks-chapter-actions-button{flex-basis:22px;padding-left:2px;padding-right:2px}}
+@media(max-width:960px){.ks-outline{width:57px;padding-left:4px;padding-right:4px}.ks-outline-item{flex-direction:column;align-items:stretch;gap:0}.ks-outline-link{justify-content:center;padding:6px 0 0;font-size:10px!important}.ks-outline-link>span:first-child{font-size:10px}.ks-outline-label{display:none}.ks-outline-item>.ks-chapter-actions-button{margin:0 3px 3px;min-height:25px;flex-basis:25px;padding:2px}.ks-outline>.ks-add-chapter{display:flex;justify-content:center;margin:8px 0 0;padding:7px 3px;min-height:34px}.ks-outline>.ks-add-chapter>span{display:none}}
