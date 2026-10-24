@@ -89,7 +89,7 @@ export default function SolutionsApp({ client, userId, userName, preview }: { cl
   useEffect(() => { try { localStorage.setItem(WORKSPACE_LAYOUT_KEY, JSON.stringify(workspaceLayout)) } catch { /* Layout persistence is optional. */ } }, [workspaceLayout])
   useEffect(() => { try { localStorage.setItem(panelStorageKey, JSON.stringify(panels)) } catch { /* Panel preferences are optional. */ } }, [panels])
   useEffect(() => { const handler = (event: BeforeUnloadEvent) => { if (dirtyRef.current) { event.preventDefault(); event.returnValue = '' } }; window.addEventListener('beforeunload', handler); return () => window.removeEventListener('beforeunload', handler) }, [])
-  useEffect(() => { answerEnd.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }) }, [answers.length])
+  useEffect(() => { const conversation = answerEnd.current?.parentElement; conversation?.scrollTo?.({ top: conversation.scrollHeight, behavior: 'smooth' }) }, [answers.length])
   useEffect(() => { if (!assistantFocusRequest) return; const frame = requestAnimationFrame(() => { questionInput.current?.focus({ preventScroll: true }); questionInput.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }) }); return () => cancelAnimationFrame(frame) }, [assistantFocusRequest])
   function toggleModule(module: WorkspaceModule) { setPanels(current => ({ ...current, visible: { ...current.visible, [module]: !current.visible[module] } })) }
   function showAssistant() { setPanels(current => ({ ...current, visible: { ...current.visible, ai: true } })); setAssistantFocusRequest(current => current + 1) }
