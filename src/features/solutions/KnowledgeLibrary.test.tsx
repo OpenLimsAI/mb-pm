@@ -1,0 +1,61 @@
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import KnowledgeLibrary from './KnowledgeLibrary'
+import { readLibraryMessage, validLibraryPath } from './libraryEmbed'
+
+afterEach(() => vi.useRealTimers())
+function mount() {
+  const onUse = vi.fn()
+  render(<KnowledgeLibrary preview editable busy={false} canAsk onUse={onUse} onAdd={() => {}} scope={<p>问答范围</p>}><p>独立报告资料</p></KnowledgeLibrary>)
+  const frame = screen.getByTitle('原知识库资料') as HTMLIFrameElement
+  const origin = new URL(frame.src).origin
+  function message(type: string, extra = {}, overrides = {}) {
+    act(() => window.dispatchEvent(new MessageEvent('message', { source: frame.contentWindow, origin, data: { type: `mberp:knowledge-library:${type}`, version: 1, preview: true, ...extra }, ...overrides })))
+  }
+  return { frame, origin, message, onUse }
+}
+
+describe('original library embedding', () => {
+  it('requires the exact frame and origin before showing the library or accepting a selection', () => {
+    const { frame, message, onUse } = mount()
+    message('ready', {}, { origin: 'https://untrusted.example' })
+    message('ready', {}, { source: window })
+    message('ready', { preview: false })
+    expect(frame).not.toHaveClass('is-ready')
+    message('ready')
+    expect(frame).toHaveClass('is-ready')
+    message('selection', { path: 'sources/../private.md', title: 'bad' })
+    expect(screen.getByRole('button', { name: '引用到章节' })).toBeDisabled()
+    message('selection', { path: 'sources/paper.md', title: '授权文献', content: 'never trusted' })
+    fireEvent.click(screen.getByRole('button', { name: '引用到章节' }))
+    expect(onUse).toHaveBeenCalledWith('sources/paper.md', 'cite')
+    message('selection', { path: null })
+    expect(screen.getByRole('button', { name: '引用到章节' })).toBeDisabled()
+  })
+
+  it('keeps the iframe mounted across tabs and resets trust on reload', () => {
+    const { frame, message } = mount()
+    message('ready'); message('selection', { path: 'sources/paper.md', title: '文献' })
+    fireEvent.click(screen.getByRole('tab', { name: '报告资料' }))
+    expect(screen.getByText('独立报告资料')).toBeVisible()
+    fireEvent.click(screen.getByRole('tab', { name: /^知识库$/ }))
+    expect(screen.getByTitle('原知识库资料')).toBe(frame)
+    fireEvent.click(screen.getByRole('button', { name: '刷新知识库' }))
+    expect(screen.getByTitle('原知识库资料')).not.toBe(frame)
+    expect(screen.getByRole('button', { name: '加入问答范围' })).toBeDisabled()
+  })
+
+  it('offers recovery when login, network or an older library prevents readiness', () => {
+    vi.useFakeTimers(); mount()
+    act(() => vi.advanceTimersByTime(8000))
+    expect(screen.getByText('资料视图暂未加载')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '在新窗口打开知识库' })).toHaveAttribute('target', '_blank')
+  })
+})
+
+it.each(['sources/../secret.md', 'sources//a.md', 'sources/a%2f.md', 'sources/a\\b.md', 'wisdom/private.md', 'sources/a\n.md', 'sources/a.pdf'])('rejects an unsafe source path %s', path => expect(validLibraryPath(path)).toBe(false))
+it('rejects unknown protocol versions and a missing frame', () => {
+  const event = new MessageEvent('message', { source: window, origin: 'https://kb.example', data: { type: 'mberp:knowledge-library:ready', version: 2 } })
+  expect(readLibraryMessage(event, window, event.origin)).toBeNull()
+  expect(readLibraryMessage(event, null, event.origin)).toBeNull()
+})

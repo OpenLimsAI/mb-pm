@@ -18,7 +18,7 @@
 | 版本更新 | `/release-notes` | 应用功能说明与历史更新，所有登录用户可查看 |
 | 使用帮助 | `/help` | 登录、权限与退出说明 |
 | 信息获取 | `/information/*` | ICH 四类真实目录检查、归档、正文检索与受控知识库收录 |
-| 知识报告 | `/solutions/*` | 报告编辑与知识问答工作台，支持自选布局、目录调宽与隐藏、章节增改删、引用、评审和导出，详见[应用说明](knowledge-solutions.md) |
+| 知识报告 | `/solutions/*` | 报告编辑与知识问答工作台，复用原知识库资料视图，支持自选布局、目录调宽、章节管理、引用与导出，详见[应用说明](knowledge-solutions.md) |
 | 应用跳转 | `/launch/pm`、`/launch/kb`、`/launch/information`、`/launch/solutions` | 验证准入后打开固定应用 |
 
 门户包含登录、工作台、我的设置、账号管理、版本更新、帮助，以及独立的信息获取应用和应用跳转页；`/workspace` 在门户兼容跳转至首页，`/account` 跳转至 `/settings`。

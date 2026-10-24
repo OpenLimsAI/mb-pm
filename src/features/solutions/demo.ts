@@ -1,6 +1,7 @@
 import type { Answer, KnowledgeSource, Solution, SolutionClient, SolutionInput, Version } from './types'
 import { emptySolution } from './template'
 import { exportPreview } from './export'
+import { libraryEmbedUrl, validLibraryPath } from './libraryEmbed'
 
 const now = () => new Date().toISOString()
 const uid = () => crypto.randomUUID()
@@ -75,10 +76,32 @@ export function createDemoClient(namespace: string, userId: string, userName: st
     reviewers: async () => [{ id: userId, name: userName }],
     versions: async id => clone(read().versions[id] || []),
     sources: async (query = '', projectName = '') => clone(read().sources.filter(s => (!projectName || s.projectName === projectName) && (!query.trim() || `${s.title} ${s.content} ${s.tags.join(' ')}`.toLowerCase().includes(query.trim().toLowerCase())))),
-    getSource: async id => { const source = read().sources.find(item => item.id === id); if (!source) throw new Error('资料不存在'); return clone(source) },
+    getSource: async id => {
+      if (id.startsWith('kb:')) {
+        const path = id.slice(3), base = libraryEmbedUrl(true)
+        if (!base || !validLibraryPath(path)) throw new Error('请选择本地预览知识库中的资料')
+        const url = new URL('/__library-preview/source', base); url.searchParams.set('path', path)
+        const response = await fetch(url, { signal: AbortSignal.timeout(10000), credentials: 'omit' })
+        if (!response.ok) throw Object.assign(new Error('预览资料已删除或暂不可读，请刷新知识库后重试'), { status: response.status })
+        const source = await response.json() as KnowledgeSource
+        if (source.id !== id || source.kind !== 'paper' || !Array.isArray(source.tags) || !source.tags.every(tag => typeof tag === 'string') || !['content', 'title', 'authors', 'date', 'projectName', 'locator', 'version', 'updatedAt', 'url'].every(key => typeof source[key as keyof KnowledgeSource] === 'string') || source.content.length > 500000) throw new Error('预览资料格式无效')
+        const state = read(); state.sources = [source, ...state.sources.filter(item => item.id !== id)]; write(state)
+        return clone(source)
+      }
+      const source = read().sources.find(item => item.id === id); if (!source) throw new Error('资料不存在'); return clone(source)
+    },
     knowledgeStatus: async () => ({ configured: false, available: false, message: '界面预览 · 示例资料仅保存在当前浏览器，未连接企业知识库或 AI 模型。' }),
     addSource: async input => { const state = read(); if (!input.title.trim() || !input.content.trim()) throw new Error('请填写资料标题与正文'); const source = { ...clone(input), id: uid(), version: '1', updatedAt: now() }; state.sources.unshift(source); write(state); return clone(source) },
     ask: async (id, input) => {
+      // Local fixture sources are refreshed as well, so removed documents cannot be cited from a stale cache.
+      const externalIds = input.sourceIds.length ? input.sourceIds.filter(value => value.startsWith('kb:')) : read().sources.filter(source => source.id.startsWith('kb:') && (!input.projectName || source.projectName === input.projectName)).map(source => source.id)
+      for (const sourceId of externalIds) {
+        try { await client.getSource(sourceId) }
+        catch (error) {
+          if (input.sourceIds.length || (error as { status?: number }).status !== 404) throw error
+          const state = read(); state.sources = state.sources.filter(source => source.id !== sourceId); write(state)
+        }
+      }
       const state = read(); get(state, id)
       if (!input.question.trim()) throw new Error('请输入问题')
       const chars = input.question.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')

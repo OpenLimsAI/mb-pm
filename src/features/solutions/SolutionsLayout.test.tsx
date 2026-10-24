@@ -30,7 +30,7 @@ function mockClient(): SolutionClient {
 }
 async function mount(client = mockClient()) {
   const result = render(<SolutionsApp client={client} userId="author" userName="研究员" preview />)
-  await screen.findByRole('textbox', { name: '章节正文' })
+  await screen.findByRole('textbox', { name: '章节正文' }); fireEvent.click(screen.getByRole('tab', { name: '报告资料' }))
   await screen.findByRole('checkbox', { name: '选择资料：研究资料甲' })
   return { ...result, client }
 }
@@ -47,7 +47,12 @@ function applyLayout(name: string, order: Module[]) {
 function expectPlacement(arrangement: string, order: Module[]) {
   const grid = screen.getByRole('region', { name: '报告工作区' })
   expect(grid).toHaveAttribute('data-arrangement', arrangement)
-  order.forEach((module, index) => expect(grid.querySelector(`[data-module="${module}"]`)).toHaveAttribute('data-slot', String(index + 1)))
+  order.forEach((module, index) => {
+    const element = grid.querySelector(`[data-module="${module}"]`)
+    expect(element).toHaveAttribute('data-slot', String(index + 1))
+    expect(element).toHaveStyle({ gridArea: `s${index + 1}`, order: String(index) })
+  })
+  expect([...grid.querySelectorAll('[data-module]')].map(element => element.getAttribute('data-module'))).toEqual(['editor', 'knowledge', 'ai'])
 }
 beforeEach(() => { localStorage.clear(); sessionStorage.clear() })
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })

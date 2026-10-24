@@ -22,6 +22,14 @@ VITE_USE_API=false npm run dev
 项目管理演示界面可从 `/dashboard` 进入；此模式不验证 IAM 登录，也不连接客户数据库。
 需要沿用 5176 端口时可执行 `VITE_USE_API=false npm run dev -- --host 127.0.0.1 --port 5176`。
 
+知识报告的原知识库资料模块需要配套 KB 的资料嵌入版本。在该 KB 仓库运行：
+
+```sh
+KB_LIBRARY_PREVIEW=1 npm run dev
+```
+
+保持两边都使用 `127.0.0.1`（或都使用 `localhost`），在门户 `/solutions?preview=1` 查看。默认知识库端口为 4322，可用 `VITE_KNOWLEDGE_PORT` 调整门户入口。该模式只在 Vite serve 显式开启，使用进程内示例资料，重启会重置文件和文件夹；不连接 IAM、Core 或模型，笔记仍使用原浏览器预览存储。正式登录联调应启动正常 KB BFF，不带预览开关。
+
 ## 连接本地后端与 IAM
 
 首次在项目根目录复制示例；已有配置时直接编辑自己的文件：

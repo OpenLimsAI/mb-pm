@@ -19,7 +19,7 @@ function mockClient(initial = seed()) {
   }
   return client
 }
-async function mount(client: SolutionClient, userId = 'author') { render(<SolutionsApp client={client} userId={userId} userName="张研究员" preview />); await screen.findByRole('textbox', { name: '章节正文' }) }
+async function mount(client: SolutionClient, userId = 'author') { render(<SolutionsApp client={client} userId={userId} userName="张研究员" preview />); await screen.findByRole('textbox', { name: '章节正文' }); fireEvent.click(screen.getByRole('tab', { name: '报告资料' })) }
 beforeEach(() => { localStorage.clear(); sessionStorage.clear() })
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
@@ -254,6 +254,44 @@ describe('knowledge solution workspace', () => {
     expect(screen.getByRole('button', { name: '章节操作：章节0' })).toBeDisabled()
     expect(screen.getByRole('button', { name: '添加章节' })).toBeDisabled()
     expect(screen.getByRole('button', { name: '添加章节' })).toHaveAttribute('title', '报告最多保留 60 个章节')
+  })
+
+  it('reads selected library evidence independently before citation and ignores a failed authorization', async () => {
+    const client = mockClient(); await mount(client)
+    fireEvent.click(screen.getByRole('tab', { name: /^知识库$/ }))
+    const frame = screen.getByTitle('原知识库资料') as HTMLIFrameElement
+    const origin = new URL(frame.src).origin
+    act(() => {
+      window.dispatchEvent(new MessageEvent('message', { source: frame.contentWindow, origin, data: { type: 'mberp:knowledge-library:ready', version: 1, preview: true } }))
+      window.dispatchEvent(new MessageEvent('message', { source: frame.contentWindow, origin, data: { type: 'mberp:knowledge-library:selection', version: 1, path: 'sources/paper.md', title: 'Frame title', content: 'Untrusted frame content' } }))
+    })
+    expect(client.getSource).not.toHaveBeenCalled()
+    vi.mocked(client.getSource).mockRejectedValueOnce(new Error('当前账号未开通知识库权限'))
+    fireEvent.click(screen.getByRole('button', { name: '引用到章节' }))
+    expect(await screen.findByText('当前账号未开通知识库权限')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: '确认采纳 · 原文引用' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '引用到章节' }))
+    const dialog = await screen.findByRole('dialog', { name: '确认采纳 · 原文引用' })
+    expect(client.getSource).toHaveBeenLastCalledWith('kb:sources/paper.md', 'one')
+    expect(within(dialog).getByRole('textbox')).toHaveValue(source.content)
+  })
+
+  it('does not apply a library read to a different report after switching', async () => {
+    const client = mockClient(); await mount(client)
+    let resolveSource!: (value: KnowledgeSource) => void
+    vi.mocked(client.getSource).mockReturnValueOnce(new Promise(resolve => { resolveSource = resolve }))
+    fireEvent.click(screen.getByRole('tab', { name: /^知识库$/ }))
+    const frame = screen.getByTitle('原知识库资料') as HTMLIFrameElement, origin = new URL(frame.src).origin
+    act(() => {
+      window.dispatchEvent(new MessageEvent('message', { source: frame.contentWindow, origin, data: { type: 'mberp:knowledge-library:ready', version: 1, preview: true } }))
+      window.dispatchEvent(new MessageEvent('message', { source: frame.contentWindow, origin, data: { type: 'mberp:knowledge-library:selection', version: 1, path: 'sources/paper.md', title: '文献' } }))
+    })
+    fireEvent.click(screen.getByRole('button', { name: '引用到章节' }))
+    fireEvent.click(screen.getByRole('button', { name: '报告列表' }))
+    fireEvent.click(screen.getByRole('button', { name: '第二个报告' }))
+    await screen.findByRole('heading', { name: '第二个报告' })
+    await act(async () => resolveSource(source))
+    expect(screen.queryByRole('dialog', { name: '确认采纳 · 原文引用' })).not.toBeInTheDocument()
   })
 
 })
