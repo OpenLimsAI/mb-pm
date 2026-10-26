@@ -102,7 +102,7 @@ export default function ProjectDetail() {
 
       <button type="button" className="px-3 py-2 rounded-lg border text-sm" disabled={!online} onClick={() => {
         void getProjectMDMLaunchUrl(project.id).then((url) => window.location.assign(url)).catch(() => setNotice('无法打开 MDM：请确认入口配置、登录及项目权限。'))
-      }}>打开 MDM 登记项目（独立登录）</button>
+      }}>打开 MDM 登记项目</button>
 
       {notice && (
         <div role="status" className="p-3 rounded-lg bg-emerald-50 text-emerald-800 text-sm flex items-center gap-2">

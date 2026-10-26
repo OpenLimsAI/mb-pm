@@ -13,6 +13,7 @@ import base64
 import hashlib
 import secrets
 import time
+from typing import Annotated
 from urllib.parse import urlencode
 
 import httpx
@@ -214,6 +215,12 @@ def callback(
         tokens = result.json()
         access = tokens["access_token"]
         claims = decode_access_token(access)
+        from app.services.oidc_logout import ensure_not_revoked
+
+        ensure_not_revoked(db, claims, settings.CASDOOR_CLIENT_ID)
+        from app.services.oidc_status import ensure_active_token
+
+        ensure_active_token(access, claims, expected_audience=settings.CASDOOR_CLIENT_ID)
         identity = decode_access_token(tokens["id_token"], access_token=access)
         if identity.get("nonce") != data["nonce"] or identity["sub"] != claims["sub"]:
             raise ValueError("identity verification failed")
@@ -249,6 +256,10 @@ def callback(
 @router.post("/logout")
 def logout(request: Request, db: Session = Depends(get_db)):
     require_same_origin(request)
+    if settings.OIDC_GLOBAL_LOGOUT_ENABLED:
+        from app.services.oidc_logout import global_logout
+
+        return global_logout(request, db)
     from app.api.v1.portal import (
         PORTAL_LOGIN_COOKIE,
         PORTAL_SESSION_COOKIE,
@@ -262,10 +273,6 @@ def logout(request: Request, db: Session = Depends(get_db)):
         "post_logout_redirect_uri": settings.pms_origin + LOGIN_PAGE,
     }
     if session:
-        try:
-            params["id_token_hint"] = unseal(session.tokens)["id_token"]
-        except (InvalidToken, ValueError, KeyError):
-            pass
         db.delete(session)
     clear_portal_state(request, db)
     db.commit()
@@ -286,3 +293,21 @@ def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
         **UserOut.model_validate(user).model_dump(),
         must_change_password=password_policy.change_required(db, identity and identity.subject),
     )
+
+
+@router.post("/backchannel-logout")
+async def backchannel_logout(request: Request, db: Annotated[Session, Depends(get_db)]):
+    from app.services.oidc_logout import read_logout_form, receive_logout
+
+    token = await read_logout_form(request)
+    receive_logout(db, token)
+    response = Response(content='{"status":"ok"}', media_type="application/json")
+    return no_cache(response)
+
+
+@router.post("/logout/local")
+def logout_local(request: Request, db: Annotated[Session, Depends(get_db)]):
+    require_same_origin(request)
+    from app.services.oidc_logout import local_logout
+
+    return local_logout(request, db)

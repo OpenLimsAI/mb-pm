@@ -21,6 +21,7 @@ from app.api.v1 import (
     baselines,
     finances,
     information,
+    mdm_integration,
     portal,
     portal_settings,
     projects,
@@ -32,12 +33,14 @@ from app.api.v1 import (
     templates,
     users,
 )
+from app.core.auth_logging import CallbackQueryFilter
 from app.core.config import settings
 from app.db.base import Base
 from app.db.session import SessionLocal, engine
 from app.models import User
 
 logging.basicConfig(level=settings.LOG_LEVEL)
+logging.getLogger("uvicorn.access").addFilter(CallbackQueryFilter())
 logger = logging.getLogger("cmc-pms")
 
 # 已构建的前端 SPA 目录（容器内为 /code/static）；存在则由后端同源托管。
@@ -214,6 +217,7 @@ app.include_router(accounts.router, prefix=API_PREFIX)
 app.include_router(account.router, prefix=API_PREFIX)
 app.include_router(users.router, prefix=API_PREFIX)
 app.include_router(projects.router, prefix=API_PREFIX)
+app.include_router(mdm_integration.router, prefix=API_PREFIX)
 app.include_router(structure.router, prefix=API_PREFIX)
 app.include_router(sub_projects.router, prefix=API_PREFIX)
 app.include_router(tasks.router, prefix=API_PREFIX)

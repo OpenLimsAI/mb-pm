@@ -19,6 +19,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user, require_role
+from app.api.v1.mdm_integration import reference_user
 from app.db.session import get_db
 from app.models import (
     Project,
@@ -82,7 +83,7 @@ def _reference_project(project_id: str, user: User, db: Session) -> Project:
 @router.get("/{project_id}/integration-reference")
 def integration_reference(
     project_id: str,
-    user: Annotated[User, Depends(get_current_user)],
+    user: Annotated[User, Depends(reference_user)],
     db: Annotated[Session, Depends(get_db)],
 ):
     project = _reference_project(project_id, user, db)
@@ -298,6 +299,12 @@ def delete_project(
     user: User = Depends(require_role("admin", "cmc_lead")),
 ):
     """删除项目，连同子项目 / 任务 / 任务依赖 / 团队关联 / 财务 / 基线 / AI 分析；不删除用户账号。"""
+    from app.models.mdm_integration import MDMProjectReceipt
+
+    if db.scalar(
+        select(MDMProjectReceipt.request_id).where(MDMProjectReceipt.project_id == project_id)
+    ):
+        raise HTTPException(409, "该项目有MDM来源创建回执，须先协调解除与数据保留，不能直接删除")
     project = db.query(Project).filter_by(id=project_id).first()
     if not project:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")

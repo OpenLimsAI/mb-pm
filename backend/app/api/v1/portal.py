@@ -136,7 +136,7 @@ def mdm_entry() -> PortalApplicationOut:
         return PortalApplicationOut(id="mdm", enabled=True)
     except HTTPException:
         return PortalApplicationOut(
-            id="mdm", enabled=False, reason="MDM 入口尚未配置；仍需独立 MDM 登录和权限"
+            id="mdm", enabled=False, reason="MDM 入口尚未配置；业务权限由主数据管理系统校验"
         )
 
 
@@ -291,6 +291,14 @@ def handle_callback(request: Request, code: str, state: str, error: str, db: Ses
         tokens = result.json()
         access = tokens["access_token"]
         claims = decode_portal_token(access)
+        from app.services.oidc_logout import ensure_not_revoked
+
+        ensure_not_revoked(db, claims, settings.portal_client_id)
+        from app.services.oidc_status import ensure_active_token
+
+        ensure_active_token(
+            access, claims, expected_audience=settings.portal_client_id, portal=True
+        )
         identity = decode_portal_token(tokens["id_token"], access_token=access)
         if identity.get("nonce") != data["nonce"] or identity["sub"] != claims["sub"]:
             raise ValueError("identity verification failed")
@@ -348,9 +356,16 @@ def session_claims(request: Request, db: Session) -> dict:
     if not session or session.expires_at <= int(time.time()):
         raise HTTPException(401, "请先登录迈博工作台")
     try:
-        claims = decode_portal_token(unseal(session.tokens)["access_token"])
+        access = unseal(session.tokens)["access_token"]
+        claims = decode_portal_token(access)
     except (InvalidToken, ValueError, KeyError, TypeError) as exc:
         raise HTTPException(401, "登录会话已失效") from exc
+    from app.services.oidc_logout import ensure_not_revoked
+
+    ensure_not_revoked(db, claims, settings.portal_client_id)
+    from app.services.oidc_status import ensure_active_token
+
+    ensure_active_token(access, claims, expected_audience=settings.portal_client_id, portal=True)
     validate_identity(claims)
     return claims
 
@@ -409,17 +424,14 @@ def change_password(payload: PasswordChange, request: Request, db: Session = Dep
 def logout(request: Request, db: Session = Depends(get_db)):
     require_configuration()
     require_same_origin(request, origin=settings.portal_origin)
+    if settings.OIDC_GLOBAL_LOGOUT_ENABLED:
+        from app.services.oidc_logout import global_logout
+
+        return global_logout(request, db, portal=True)
     params = {
         "client_id": settings.portal_client_id,
         "post_logout_redirect_uri": settings.portal_origin + "/login",
     }
-    session_id = request.cookies.get(PORTAL_SESSION_COOKIE, "")
-    session = db.get(PortalSession, digest(session_id)) if session_id else None
-    if session:
-        try:
-            params["id_token_hint"] = unseal(session.tokens)["id_token"]
-        except (InvalidToken, ValueError, KeyError, TypeError):
-            pass
     clear_portal_state(request, db)
     pm_session_id = request.cookies.get(SESSION_COOKIE, "")
     if pm_session_id:
@@ -441,3 +453,11 @@ def clear_portal_state(request: Request, db: Session) -> None:
         value = request.cookies.get(cookie, "")
         if value:
             db.execute(delete(model).where(model.id == digest(value)))
+
+
+@router.post("/logout/local")
+def logout_local(request: Request, db: Annotated[Session, Depends(get_db)]):
+    require_same_origin(request, origin=settings.portal_origin)
+    from app.services.oidc_logout import local_logout
+
+    return local_logout(request, db, portal=True)

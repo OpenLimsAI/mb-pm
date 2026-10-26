@@ -29,3 +29,5 @@ from app.models.template import Template, TemplateVersion  # noqa: F401
 from app.models.user import User  # noqa: F401
 
 from app.models.information import InformationEntry, InformationLease, InformationText  # noqa: F401
+
+from app.models.mdm_integration import MDMProjectReceipt, OIDCRevocation, OIDCLogoutReplay  # noqa: F401
