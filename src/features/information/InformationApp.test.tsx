@@ -139,3 +139,11 @@ test('示例解析重试同步资料详情并保留已保存版本', async () =>
   expect(screen.getByRole('status')).toHaveTextContent('解析重试任务已提交')
   expect(screen.getAllByText(/演示采集版/)).toHaveLength(2)
 })
+
+test('顶栏显示当前账号并提供我的设置，预览中退出保持禁用', () => {
+  mount('/information/sources?preview=1')
+  const header = within(screen.getByRole('banner'))
+  expect(header.getByText('李总管')).toBeInTheDocument()
+  expect(header.getByRole('link', { name: '李总管 · 我的设置' })).toHaveAttribute('href', '/settings?preview=1')
+  expect(header.getByRole('button', { name: '退出登录' })).toBeDisabled()
+})

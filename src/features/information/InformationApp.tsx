@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Activity, ArrowRight, Bell, Bookmark, Check, CheckCheck, ChevronRight, Clock3, ExternalLink, FileText, Folder, FolderDown, Inbox, LayoutGrid, Library, LoaderCircle, Pause, Play, Plus, Radio, RefreshCw, Search, ShieldCheck, X } from 'lucide-react'
+import { Activity, ArrowRight, Bell, Bookmark, Check, CheckCheck, ChevronRight, Clock3, ExternalLink, FileText, Folder, FolderDown, Inbox, LayoutGrid, Library, LoaderCircle, LogOut, Pause, Play, Plus, Radio, RefreshCw, Search, ShieldCheck, X } from 'lucide-react'
 import { usePortalContext } from '../../components/portal/context'
 import { asAPIError } from '../../api/client'
 import { getInformation, changeInformation, searchInformation } from './api'
@@ -41,7 +41,7 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 }
 
 export default function InformationApp() {
-  const { user, preview } = usePortalContext()
+  const { user, preview, logout } = usePortalContext()
   const pages = preview ? demoPages : realPages
   const location = useLocation()
   const navigate = useNavigate()
@@ -105,8 +105,23 @@ export default function InformationApp() {
   const nav = (key: Page, label: string, icon: ReactNode, count?: number) => <NavLink key={key} to={`/information/${key}${suffix}`} className={`if-nav ${page === key ? 'is-active' : ''}`} aria-current={page === key ? 'page' : undefined}>{icon}<span>{label}</span>{!!count && <span className="if-nav-count">{count}</span>}</NavLink>
   return <div className="information-app">
     <a className="if-skip" href="#information-content">跳至信息获取内容</a>
-    <header className="if-header"><Link to={'/' + suffix} className="if-brand"><img src="/brand/maibo-pharma-logo.png" alt="迈博药业" /><strong>MBERP</strong></Link><span className="if-app-name">信息获取</span><span className="if-header-note"><ShieldCheck size={14} aria-hidden="true" />{preview ? '界面体验 · 演示数据' : '官方来源 · 实际采集'}</span><Link className="if-workbench" to={'/' + suffix}><LayoutGrid size={17} aria-hidden="true" />应用工作台</Link></header>
-    <div className="if-shell"><aside className="if-sidebar"><nav aria-label="信息获取导航"><p className="if-nav-group">个人工作空间</p>{nav('home', '工作台', <LayoutGrid size={19} />)}{nav('inbox', '情报收件箱', <Inbox size={19} />, unread)}<p className="if-nav-group">资料与来源</p>{nav('import', '批量收录', <FolderDown size={19} />)}{nav('library', '知识资料', <Library size={19} />)}{nav('sources', '信息源', <Radio size={19} />)}<p className="if-nav-group">关注与运行</p>{nav('following', '我的关注', <Bookmark size={19} />)}{nav('runs', '运行与费用', <Activity size={19} />, data?.jobs.filter(job => job.failed > 0).length)}{data && data.folders.length > 0 && <div className="if-side-folders"><p className="if-nav-group">知识库文件夹</p>{data.folders.map(folder => <Link key={folder.id} to={`/information/library?folder=${encodeURIComponent(folder.id)}${preview ? "&preview=1" : ""}`} className="if-nav"><Folder size={18} /><span>{folder.name}</span><span className="if-nav-count">{data.documents.filter(doc => doc.folderIds.includes(folder.id)).length}</span></Link>)}</div>}</nav><div className="if-profile"><span className="if-avatar">{Array.from(name)[0]}</span><div><strong>{name}</strong><span>{preview ? '界面预览身份' : '当前登录账号'}</span></div></div></aside>
+    <header className="if-header">
+      <Link to={'/' + suffix} className="if-brand" aria-label="迈博药业应用工作台首页">
+        <img src="/brand/maibo-pharma-logo.png" alt="迈博药业" width={44} height={44} />
+        <span className="if-brand-copy"><strong>迈博药业</strong><span>数字化工作空间</span></span>
+      </Link>
+      <span className="if-app-name">信息获取</span>
+      <div className="if-header-actions">
+        <span className="if-header-note"><ShieldCheck size={14} aria-hidden="true" />{preview ? '界面体验 · 演示数据' : '官方来源 · 实际采集'}</span>
+        <Link className="if-workbench" to={'/' + suffix}><LayoutGrid size={17} aria-hidden="true" /><span>应用工作台</span></Link>
+        <Link className="if-account" to={'/settings' + suffix} aria-label={`${name} · 我的设置`} title={`${name} · 我的设置`}>
+          <span className="if-avatar" aria-hidden="true">{Array.from(name)[0]}</span>
+          <span className="if-account-copy"><strong>{name}</strong><span>{preview ? '界面预览账号' : '当前登录账号'}</span></span>
+        </Link>
+        <button type="button" className="if-logout" onClick={logout} disabled={preview} aria-label="退出登录" title={preview ? '界面预览无登录会话' : '退出登录'}><LogOut size={17} aria-hidden="true" /><span>退出登录</span></button>
+      </div>
+    </header>
+    <div className="if-shell"><aside className="if-sidebar"><nav aria-label="信息获取导航"><p className="if-nav-group">个人工作空间</p>{nav('home', '工作台', <LayoutGrid size={19} />)}{nav('inbox', '情报收件箱', <Inbox size={19} />, unread)}<p className="if-nav-group">资料与来源</p>{nav('import', '批量收录', <FolderDown size={19} />)}{nav('library', '知识资料', <Library size={19} />)}{nav('sources', '信息源', <Radio size={19} />)}<p className="if-nav-group">关注与运行</p>{nav('following', '我的关注', <Bookmark size={19} />)}{nav('runs', '运行与费用', <Activity size={19} />, data?.jobs.filter(job => job.failed > 0).length)}{data && data.folders.length > 0 && <div className="if-side-folders"><p className="if-nav-group">知识库文件夹</p>{data.folders.map(folder => <Link key={folder.id} to={`/information/library?folder=${encodeURIComponent(folder.id)}${preview ? "&preview=1" : ""}`} className="if-nav"><Folder size={18} /><span>{folder.name}</span><span className="if-nav-count">{data.documents.filter(doc => doc.folderIds.includes(folder.id)).length}</span></Link>)}</div>}</nav></aside>
       <main className="if-main" id="information-content"><div className="if-titlebar"><div><p className="if-eyebrow">{heading[0]}</p><h1>{heading[1]}</h1><p className="if-caption">{heading[2]}</p></div><div className="if-actions">{page === 'sources' && data?.canManage && <Button primary onClick={() => setAddOpen(true)}><Plus size={17} />添加来源</Button>}<Button onClick={() => { void refresh() }} busy={loading} disabled={!!busy} aria-label="刷新"><RefreshCw size={16} />刷新</Button></div></div>
         {error && <div role="alert" className="if-message is-error">{error}</div>}{notice && <div role="status" className="if-message is-notice"><CheckCheck size={17} />{notice}<button type="button" onClick={() => setNotice('')} aria-label="关闭通知"><X size={16} /></button></div>}
         {data && (preview || data.integration.status !== 'ready') && <div className="if-message is-info"><ShieldCheck size={17} /><span>{data.integration.message}</span></div>}

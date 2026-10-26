@@ -8,13 +8,15 @@ import InformationApp from './InformationApp'
 import { demoSeed } from './demo'
 import type { InformationSnapshot } from './api'
 let state: InformationSnapshot
+const logout = vi.fn()
 beforeEach(() => {
+  logout.mockClear()
   const seed=demoSeed()
   state={...seed,canManage:true,documents:[],events:[],runs:[],jobs:[],folders:[],sources:[{...seed.sources[0],enabled:false,status:'unchecked',scopeStatus:{}}],integration:{status:'ready',message:'Live fixture',kbUrl:'https://kb.example'},note:''}
   server.use(http.get('*/api/v1/information/snapshot',()=>HttpResponse.json(state)))
 })
 function mount(path='/information/sources') {
- return render(<MemoryRouter initialEntries={[path]}><Routes><Route element={<Outlet context={{user:{id:'actual-person',username:'actual',displayName:'Actual User'},preview:false,identityNamespace:'c'.repeat(64)}} />}><Route path="/information/*" element={<InformationApp/>}/></Route></Routes></MemoryRouter>)
+ return render(<MemoryRouter initialEntries={[path]}><Routes><Route element={<Outlet context={{user:{id:'actual-person',username:'actual',displayName:'Actual User'},preview:false,identityNamespace:'c'.repeat(64),logout}} />}><Route path="/information/*" element={<InformationApp/>}/></Route></Routes></MemoryRouter>)
 }
 test('production reads durable API state and never creates demo papers or reset controls',async()=>{
  mount();expect(await screen.findByRole('heading',{name:'ICH 官方指导原则'})).toBeInTheDocument()
@@ -76,4 +78,11 @@ test('paused directory checks have a real resume control for managers',async()=>
  mount('/information/runs');await screen.findByRole('heading',{name:'来源检查记录'})
  await userEvent.click(screen.getByRole('button',{name:'继续检查'}))
  await waitFor(()=>expect(resumed).toHaveBeenCalledWith({action:'resume'}))
+})
+
+test('the unified account header uses the existing portal settings and logout flow',async()=>{
+ mount();await screen.findByRole('heading',{name:'ICH 官方指导原则'})
+ expect(screen.getByRole('link',{name:'Actual User · 我的设置'})).toHaveAttribute('href','/settings')
+ await userEvent.click(screen.getByRole('button',{name:'退出登录'}))
+ expect(logout).toHaveBeenCalledTimes(1)
 })
