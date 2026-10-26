@@ -73,6 +73,9 @@ class Settings(BaseSettings):
     PMS_PUBLIC_URL: str = "http://localhost:5175"
     # Explicit MDM root including deployment path; blank disables launch. No identity in URL.
     MDM_PUBLIC_URL: str = ""
+    MDM_DELEGATION_CLIENT_ID: str = ""
+    MDM_SOURCE_NAMESPACE: str = "mdm"
+    OIDC_GLOBAL_LOGOUT_ENABLED: bool = False
     IAM_SESSION_SECONDS: int = 3600
     IAM_COOKIE_SECURE: bool = False  # HTTPS 部署必须设为 true
 

@@ -21,7 +21,9 @@ COPY scripts/build-release-notes.mjs ./scripts/build-release-notes.mjs
 COPY docs/releases/notes.json docs/releases/style.css ./docs/releases/
 
 # 同源部署：前端调用后端相对路径 /api/v1，并启用真实 API（非 mock）
-ENV VITE_USE_API=true \
+ARG VITE_APP_MODE
+ENV VITE_APP_MODE=$VITE_APP_MODE \
+    VITE_USE_API=true \
     VITE_API_URL=/api/v1
 RUN npm run build          # 产物 → /web/dist
 

@@ -51,6 +51,12 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "登录会话已失效") from exc
     # 每次请求都重新验签并校验组织 / 账号启用状态；须先改临时密码的账号只放行改密 / 查询身份 / 退出。
     claims = decode_access_token(token)
+    from app.services.oidc_logout import ensure_not_revoked
+
+    ensure_not_revoked(db, claims, settings.CASDOOR_CLIENT_ID)
+    from app.services.oidc_status import ensure_active_token
+
+    ensure_active_token(token, claims, expected_audience=settings.CASDOOR_CLIENT_ID)
     user = resolve_identity(claims, db)
     password_policy.enforce(db, claims["sub"], request.url.path)
     return user

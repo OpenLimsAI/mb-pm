@@ -107,3 +107,12 @@ PM 回调为 `https://pm.openlims.ai/api/v1/auth/callback`，登出回跳为 `ht
 知识库收录另需 `INFORMATION_KB_URL` 指向内部 BFF，并将新生成的至少 32 字符密钥分别配置为 PM `INFORMATION_KB_SECRET`、KB `INFORMATION_BRIDGE_SECRET`。密钥按环境独立，0600 保存；不要复制已有 Core 令牌到 PM。仅连接三个应用容器的内部专用网络，不发布桥接端口。
 
 默认 ICH 来源关闭监控。先检查官方清单，再批量收录到原文归档或真实知识库文件夹；手动开启监控后默认每日检查。详见[信息获取使用与部署](information.md)。
+
+
+## MDM 委托创建与统一退出（默认关闭）
+
+`MDM_DELEGATION_CLIENT_ID` 仅用于专门的用户委托创建/查询接口，须与 PM、门户及 MDM 登录客户端分离；空值时拒绝该功能。`MDM_SOURCE_NAMESPACE` 固定登记来源，不能由浏览器选择。PM 权限仍取已绑定用户的 PM 角色，MDM 角色不授予 PM 创建权。
+
+`OIDC_GLOBAL_LOGOUT_ENABLED=true` 启用已验签的 `/api/v1/auth/backchannel-logout`，PM 和门户客户端分别登记同一地址，按精确 audience 撤销；还强制每次请求以对应应用客户端 Basic 认证调用 Casdoor 标准 introspection，active=false 拒绝、不可达 503，防止漏通知继续使用旧会话。委托 token 用 PM 自身客户端查状态，固定 Casdoor 3.152.0 要求同证书；不同证书安全拒绝，不共享 MDM secret。
+
+带 sub 的已验签事件保守撤销本应用该主体的全部既有会话。统一退出调用 IdP logoutAll=true，影响该身份其他设备；局部退出仅结束当前应用浏览器会话。详见[第二阶段契约与限制](mdm-phase2.md)。此处描述代码行为，真实环境配置与浏览器验收由独立报告记录。

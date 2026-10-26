@@ -11,6 +11,7 @@ import '../styles/login.css'
 // 后端回调失败时以 ?error=<code> 回到本页
 const errors: Record<string, string> = {
   state: '登录请求已过期或无效，请重新登录。',
+  logout_incomplete: '本应用已退出，统一身份退出未完成。其他应用可能仍已登录，请重试统一退出或联系管理员。',
   cancelled: '登录已取消，请重试。',
   role: '此 IAM 账号暂时无法进入项目管理。请联系管理员确认账号和角色，或切换账号。',
   provider: 'IAM 登录验证未通过，请重试；如持续失败，请联系管理员检查服务配置。',
@@ -24,6 +25,8 @@ export default function Login() {
   const location = useLocation()
   const [params] = useSearchParams()
   const errorCode = params.get('error') ?? ''
+  const localLogout = params.get('local') === '1'
+  const localProject = localLogout && params.get('app') === 'pm'
   const [error, setError] = useState<string | undefined>(errors[errorCode])
   const [pending, setPending] = useState(false)
   const [username, setUsername] = useState('')
@@ -33,10 +36,10 @@ export default function Login() {
   // 浏览器里已有 IAM 登录会话（如刚在项目管理登录过）：直接单点登录，不再要求输入密码
   const [ssoRedirect, setSsoRedirect] = useState(false)
   const from = (location.state as { from?: unknown } | null)?.from
-  const returnTo = safeReturnPath(from, siteMode === 'pm' ? '/dashboard' : '/')
+  const returnTo = safeReturnPath(from, localProject || siteMode === 'pm' ? '/dashboard' : '/')
   // 本地组合预览兼容 PM 深链接；www 只使用门户会话，pm 只使用业务会话。
   // 门户页面（App.tsx 中 PortalGate 下的路由）须列在这里，否则组合预览会在登录页与门户页之间来回跳转。
-  const isProjectReturn = loginUsesProjectSession(returnTo)
+  const isProjectReturn = localProject || loginUsesProjectSession(returnTo)
   const { status, refresh, login, logout } = isProjectReturn ? project : portal
   const checking = USE_API && status === 'loading'
   const visibleError = error || (status === 'error' ? (isProjectReturn ? project.error : portal.error) || '暂时无法确认登录身份，请重新登录。' : undefined)
@@ -48,7 +51,7 @@ export default function Login() {
   const kind = isProjectReturn ? 'pm' : 'portal'
   useEffect(() => {
     // 登录出错回到本页时（?error=）不自动登录，避免反复跳转
-    if (!USE_API || status !== 'anonymous' || errorCode) return
+    if (!USE_API || status !== 'anonymous' || errorCode || localLogout) return
     let active = true
     void hasIamSession(kind).then(async (signedIn) => {
       if (!active || !signedIn) return
@@ -61,9 +64,9 @@ export default function Login() {
       }
     })
     return () => { active = false }
-  }, [status, errorCode, kind, returnTo])
+  }, [status, errorCode, localLogout, kind, returnTo])
 
-  if (status === 'ready' && !errorCode) return <Navigate to={returnTo} replace />
+  if (status === 'ready' && !errorCode && !localLogout) return <Navigate to={returnTo} replace />
 
   // 用户名 / 密码直接在这里登录（提交到迈博 IAM，不经过本系统后端），不再跳到 IAM 登录页面
   const handleLogin = async (event: FormEvent) => {
