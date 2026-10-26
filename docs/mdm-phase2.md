@@ -128,3 +128,25 @@ PM新增本人token前置与后置证明：先以本应用标准客户端Basic i
 官方3.154.4真实验证已经确认全局token失效、signed backchannel成功及MDM/PM/门户旧会话拒绝，但server SsoLogout删掉IdP会话后再让浏览器GET /api/logout不再有当前用户，会返回JSON ok而不跳转。因此成功路径直接返回配置的本应用公共/login，不再依赖第二次IdP GET，也不把任何token放URL或交给浏览器。partial失败仍显示警告，局部退出语义不变。
 
 本次两条成功URL断言先red（仍去IdP）后green，56项创建/身份单元回归通过。一次编辑命令目录错误未改测试，未算red；随后正确运行的两项失败才是有效red。完整隔离PG回归469 passed（87.09s），原CI覆盖93.72%，空库001→007通过；新生产镜像cmc-pm-phase2-e2e:local为sha256:cb2aee79a87023e7c22a9e3e5303c65a39ec4dbb2a0a84dd90e92eba87f29124，combined+真实API，未由本子任务替换运行态。Self兼容检查暂保持原样，待真实禁用证据后的独立决定，不混在这个UX修复里。
+
+## 最终验收状态（2026-10-26，覆盖前述阶段待办）
+
+本轮真实环境已采用官方3.154.4（固定digest见CMC验收报告），无需自定义Casdoor补丁。
+额外本人状态核验和Self可见性门槛保留为本实现显式配置契约；不要求应用管理员密钥或组织用户枚举。
+没有把旧3.152的introspection限制泛化到新版本，也不自动配置正式组织。
+
+实际浏览器与真实数据库已通过：门户→MDM免重复输入、两组PM创建并一对一关联、双击不重复创建、
+远端成功/本地提交失败后同UUID恢复、双向上下文、签名原MDM密码再次认证、错误/未映射/无权限拒绝。
+PM的cmc_lead映射MDM只读仍不能调用MDM创建前置接口，返回403，不自动提权。
+
+官方3.154.4上实际禁用creator后，旧MDM/PM/门户会话与新登录均拒绝；恢复身份后旧MDM cookie仍失效，
+必须重新认证。该真实版本的禁用会撤销token，前述未撤销有效token可恢复的模拟测试仅为守卫边界，
+不能解释为本轮真实禁用后旧会话复活。业务角色变化仍按各端实际会话/重新认证契约，不宣称即时同步。
+
+从MDM统一退出和从PM反向退出都触发实际签名通知/撤销标记，旧应用请求401；PM直接返回本应用login。
+IdP故障时业务拒绝，MDM明确提示部分退出，恢复后可重新核验。MDM前端固定本应用回跳的最终误警告也已修复复验。
+
+真实证据、50次截图捕获（45种内容，5静态重复明确排除独立证明）、最终运行镜像/源码hash、清理及发布回执：
+[CMC phase2-sso report](https://github.com/OpenLimsAI/cmc-platform/blob/feat/mdm-casdoor-phase2/cmab-mdm-platform/docs/verification/phase2-sso/report.md)。
+PM最终运行镜像cb2aee79…，功能提交6c9dd42；本次文档收敛后仍须核对PR最新head的全部CI，不能用旧head代替。
+本仓未自动部署生产或修改正式身份权限。
