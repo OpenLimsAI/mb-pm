@@ -56,7 +56,7 @@ PM 持久化唯一请求 UUID、唯一 source_id+source_project_id、唯一 proj
 
 启用开关后，所有 PM/门户 cookie 与普通 bearer、专用委托 API、登录回调在本地 JWT 校验后逐次调用 `POST /api/login/oauth/introspect`，传 form token 和 token_type_hint=access_token，使用对应 PM/门户客户端 HTTP Basic。要求 active=true、实际 client_id=预期受众、sub 一致；不可达或服务格式错误 503，inactive/错主体/错客户端 401。不缓存 active，补上异步回调漏送的窗口。委托使用 PM 自己客户端查询：固定版本以查询应用证书验签，测试环境同证书可行；不同证书安全拒绝，不共享 MDM secret、不增加管理 API 权限。此检查不等于角色实时同步，业务授权仍按现有 PM 角色契约。
 
-`/auth/logout` 或 `/portal/logout` 用服务端当前用户 access POST IdP `/api/sso-logout?logoutAll=true`，随后浏览器到不含 token 的 `/api/logout?client_id=...&post_logout_redirect_uri=固定login` 清 IdP 浏览器会话，同时撤销本服务该主体 PM/门户旧会话。该动作保守影响该身份其他设备。上游失败/畸形响应仍清本地并回 `error=logout_incomplete`，明确提醒其他应用可能仍登录，不宣称全局成功。
+`/auth/logout` 或 `/portal/logout` 用服务端当前用户 access POST IdP `/api/sso-logout?logoutAll=true`，仅当标准 introspection 证明同一 token 从 active 变为 inactive 后，浏览器直接返回固定本应用公共 `/login`，同时撤销本服务该主体 PM/门户旧会话。该动作保守影响该身份其他设备。IdP 服务端会话失效后遗留的浏览器 Cookie 不等于有效 SSO，会在真实验收中确认再次登录需要凭据；不宣称物理删除所有跨域 Cookie。上游失败/畸形响应或后置不能确认仍清本地并回 `error=logout_incomplete`，明确提醒其他应用可能仍登录，不宣称全局成功。
 
 `/auth/logout/local`、`/portal/logout/local` 只清当前浏览器对应应用会话，不调用 IdP、不清另一应用 cookie；回 `login?local=1&app=...`，避免立即自动 SSO 重新进入。统一退出与局部退出都要求正确 Origin。回调和退出响应 no-store/no-referrer；访问日志剔除 PM/门户授权回调 query，避免记录 code/state。
 
@@ -121,3 +121,10 @@ PM新增本人token前置与后置证明：先以本应用标准客户端Basic i
 本轮决定优先使用官方固定3.154.4在新隔离IdP实例验收，保留旧测试实例/库可回退；不fork身份产品、不换数据库来掩盖问题、不自动升级任何既有正式环境。生产启用前必须具备含该PG修复的受支持固定依赖及完整SSO/注销验收，未知正式环境保持功能默认关闭。实际镜像digest与真实新版本验证由整体验收报告记录，不能把源码修复当已部署证据。
 
 3.154.4还包含官方禁用修复：introspection调用Token.IsUserActive读取当前User，forbidden/deleted/已移除用户返回inactive；用户禁用/删除触发terminateUserAccess撤销token和会话。该能力与3.152.0不同，不能继续把旧版本“introspection不读User”扩展到新版本，也不等于业务角色同步。额外Self字段兼容门槛的最终适用范围须随选定provider版本与真实禁用验收核定，不能为了绕过审批静默开启字段可见性。
+
+
+## 官方服务端注销后的本应用回跳
+
+官方3.154.4真实验证已经确认全局token失效、signed backchannel成功及MDM/PM/门户旧会话拒绝，但server SsoLogout删掉IdP会话后再让浏览器GET /api/logout不再有当前用户，会返回JSON ok而不跳转。因此成功路径直接返回配置的本应用公共/login，不再依赖第二次IdP GET，也不把任何token放URL或交给浏览器。partial失败仍显示警告，局部退出语义不变。
+
+本次两条成功URL断言先red（仍去IdP）后green，56项创建/身份单元回归通过。一次编辑命令目录错误未改测试，未算red；随后正确运行的两项失败才是有效red。完整隔离PG回归469 passed（87.09s），原CI覆盖93.72%，空库001→007通过；新生产镜像cmc-pm-phase2-e2e:local为sha256:cb2aee79a87023e7c22a9e3e5303c65a39ec4dbb2a0a84dd90e92eba87f29124，combined+真实API，未由本子任务替换运行态。Self兼容检查暂保持原样，待真实禁用证据后的独立决定，不混在这个UX修复里。

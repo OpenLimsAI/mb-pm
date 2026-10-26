@@ -7,7 +7,7 @@ the server session; no identity or bearer token is placed in a browser URL.
 import hashlib
 import json
 import time
-from urllib.parse import parse_qs, urlencode
+from urllib.parse import parse_qs
 
 import httpx
 from cryptography.fernet import InvalidToken
@@ -278,11 +278,9 @@ def global_logout(request: Request, db: Session, *, portal: bool = False):
     db.commit()
     origin = settings.portal_origin if portal else settings.pms_origin
     if succeeded:
-        params = {
-            "client_id": settings.portal_client_id if portal else settings.CASDOOR_CLIENT_ID,
-            "post_logout_redirect_uri": origin + "/login",
-        }
-        destination = settings.casdoor_issuer + "/api/logout?" + urlencode(params)
+        # SsoLogout already destroyed the provider's server sessions. Casdoor's
+        # subsequent cookie-less /api/logout returns JSON instead of redirecting.
+        destination = origin + "/login"
     else:
         destination = origin + "/login?error=logout_incomplete"
     response = RedirectResponse(destination, 303)
