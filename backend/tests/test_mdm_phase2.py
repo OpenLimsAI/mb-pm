@@ -334,6 +334,7 @@ def test_global_logout_uses_server_token_and_reports_partial_failure(
         )
         db.commit()
     seen = []
+    status_checks = []
 
     class Provider:
         def __init__(self, **kwargs):
@@ -345,7 +346,17 @@ def test_global_logout_uses_server_token_and_reports_partial_failure(
         def __exit__(self, *args):
             return False
 
-        def post(self, url, params, headers):
+        def post(self, url, params=None, headers=None, **kwargs):
+            if url.endswith("/api/login/oauth/introspect"):
+                status_checks.append(True)
+                return httpx.Response(
+                    200,
+                    json={
+                        "active": len(status_checks) == 1,
+                        "client_id": settings.CASDOOR_CLIENT_ID,
+                        "sub": uid,
+                    },
+                )
             seen.append(
                 {
                     "url": url,
@@ -514,3 +525,66 @@ def test_invalid_notification_and_other_subject_do_not_revoke_caller(
     assert response.status_code == 200
     response = client.get("/api/v1/auth/me", headers=headers)
     assert response.status_code == 200
+
+
+@pytest.mark.parametrize("case", ["still_active", "status_outage", "wrong_subject", "inactive"])
+def test_global_logout_requires_active_preflight_and_inactive_postcondition(
+    case, client, iam_user, token_factory, monkeypatch
+):
+    import httpx
+
+    uid = iam_user("p2-global-verify", "cmc_lead")
+    monkeypatch.setattr(settings, "OIDC_GLOBAL_LOGOUT_ENABLED", True)
+    access = token_factory("cmc_lead", sub=uid, name=uid, iat=int(time.time()) - 5)
+    with SessionLocal() as db:
+        db.add(
+            IAMSession(
+                id=digest("p2-verify-cookie"),
+                tokens=seal({"access_token": access}),
+                expires_at=int(time.time()) + 100,
+            )
+        )
+        db.commit()
+    checks = []
+
+    class Provider:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def post(self, url, **kwargs):
+            if url.endswith("/api/login/oauth/introspect"):
+                checks.append(True)
+                if len(checks) == 2:
+                    if case == "status_outage":
+                        raise httpx.ReadTimeout("synthetic timeout")
+                    if case == "inactive":
+                        return httpx.Response(200, json={"active": False})
+                return httpx.Response(
+                    200,
+                    json={
+                        "active": True,
+                        "client_id": settings.CASDOOR_CLIENT_ID,
+                        "sub": "another-subject" if case == "wrong_subject" else uid,
+                    },
+                )
+            assert url.endswith("/api/sso-logout")
+            return httpx.Response(200, json={"status": "ok"})
+
+    monkeypatch.setattr("app.services.oidc_logout.httpx.Client", Provider)
+    client.cookies.set("mbpm_iam_session", "p2-verify-cookie")
+    response = client.post(
+        "/api/v1/auth/logout", headers={"Origin": settings.pms_origin}, follow_redirects=False
+    )
+    assert response.status_code == 303
+    location = response.headers["location"]
+    if case == "inactive":
+        assert location.startswith(settings.casdoor_issuer + "/api/logout?")
+    else:
+        assert location == settings.pms_origin + "/login?error=logout_incomplete"
+    assert len(checks) == (1 if case == "wrong_subject" else 2)

@@ -198,6 +198,29 @@ async def read_logout_form(request: Request) -> str:
         raise HTTPException(400, "退出通知格式错误") from None
 
 
+def _logout_token_state(client, access: str, audience: str, subject: str, *, portal: bool):
+    """No cached status: a successful global action must change this exact token."""
+    client_id = settings.portal_client_id if portal else settings.CASDOOR_CLIENT_ID
+    secret = settings.portal_client_secret if portal else settings.CASDOOR_CLIENT_SECRET
+    if not client_id or not secret:
+        raise ValueError("logout verification client unavailable")
+    response = client.post(
+        settings.casdoor_internal_url + "/api/login/oauth/introspect",
+        auth=httpx.BasicAuth(client_id, secret),
+        data={"token": access, "token_type_hint": "access_token"},
+    )
+    if response.status_code != 200:
+        raise ValueError("logout status unavailable")
+    body = response.json()
+    if not isinstance(body, dict) or not isinstance(body.get("active"), bool):
+        raise ValueError("logout status format")
+    if body["active"] is False:
+        return False
+    if body.get("client_id") != audience or body.get("sub") != subject:
+        raise ValueError("logout status identity mismatch")
+    return True
+
+
 def global_logout(request: Request, db: Session, *, portal: bool = False):
     from app.api.v1.portal import PORTAL_LOGIN_COOKIE, PORTAL_SESSION_COOKIE
     from app.core.security import LOGIN_COOKIE, SESSION_COOKIE
@@ -218,17 +241,23 @@ def global_logout(request: Request, db: Session, *, portal: bool = False):
                 jwks_url=settings.PORTAL_JWKS_URL or None if portal else None,
             )
             with httpx.Client(timeout=8, trust_env=False, follow_redirects=False) as client:
+                if not _logout_token_state(client, access, audience, claims["sub"], portal=portal):
+                    raise ValueError("global logout requires an active own-user token")
                 result = client.post(
                     settings.casdoor_internal_url + "/api/sso-logout",
                     params={"logoutAll": "true"},
                     headers={"Authorization": "Bearer " + access},
                 )
-            payload = result.json()
-            succeeded = (
-                result.status_code == 200
-                and isinstance(payload, dict)
-                and payload.get("status") == "ok"
-            )
+                payload = result.json()
+                acknowledged = (
+                    result.status_code == 200
+                    and isinstance(payload, dict)
+                    and payload.get("status") == "ok"
+                )
+                if acknowledged:
+                    succeeded = not _logout_token_state(
+                        client, access, audience, claims["sub"], portal=portal
+                    )
         except (InvalidToken, httpx.HTTPError, HTTPException, ValueError, TypeError, KeyError):
             succeeded = False
     if claims:

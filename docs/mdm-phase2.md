@@ -84,3 +84,40 @@ PM 持久化唯一请求 UUID、唯一 source_id+source_project_id、唯一 proj
 10. 新 E2E 镜像 cmc-pm-phase2-e2e:local 构建通过，VITE_APP_MODE=combined、VITE_USE_API=true，镜像 sha256:0b9a71a44aad877048c20ba43f424badf7db2abeb6b95a17abd53f1d98f3aa93。该构建不代表真实 E2E 已完成；运行、配置和清理由主任务统筹。
 
 本阶段完整浏览器证据、测试数据范围、脱敏截图/哈希、PR 最新 head CI、合并 SHA 及验收环境清理仍由整体验收追加。没有这些证据前，不将本文件的自动测试结果宣称为已完成用户端到端目标。
+
+## 本人状态核验补强
+
+固定 Casdoor v3.152.0 的 introspection 只验证 token 记录与签名/时间，不读取当前 User 的 isForbidden/isDeleted；标准 userinfo 响应也没有这两个状态字段。因此 active=true 不等于账号当前启用，更不等于业务角色实时同步。
+
+现增加第二道只读本人门槛：在本地验签、撤销 marker 和 introspection 通过后，以同一用户当前应用的 access token Header 调用 GET /api/get-user，参数只能是固定 CASDOOR_ORG 与已验 sub 对应的 userId。响应必须 status=ok、data.id 精确等于 sub、data.owner 精确等于固定组织，isForbidden/isDeleted 都须是原生布尔值；缺失/错主体/错组织/非布尔拒绝401，禁用或删除403，服务失败/超时503。不会获取全组织用户、不使用管理员客户端读取、不按用户名或邮箱重绑，不导入角色，也不保存/记录完整 User 响应。
+
+本人 get-user 在固定版本控制器只读 User 与组织规则，不调用 GetAccessTokenByUser；刻意不用 get-account，因为后者没有已有 IdP session token 时会生成并返回新 token。调用禁止跳转、禁用环境代理，不把 token 放入 URL 或转发给浏览器。
+
+新增 CASDOOR_ACCOUNT_STATUS_VISIBLE 默认 false。OIDC_GLOBAL_LOGOUT_ENABLED=true 但该确认 false 时，请求在联系 IdP 前503；global=false 保持兼容。该字段是部署者的明确配置确认，不是程序自动证明：Casdoor GetFilteredUser 可将组织 AccountItems 中 Admin-only 的字段置零，普通用户看见的 false 可能是遮蔽值。因此开启前必须验证本组织两字段对 Self/Public 可见，并以真正禁用的普通合成身份确认接口返回真实状态和应用拒绝旧会话；未知正式组织仍保持默认关闭。变更字段可见性后需要关闭确认并重新验收，禁止静默降级到旧 JWT 状态、管理员权限或 get-account。
+
+此门槛是逐请求动态拒绝，没有 positive cache。禁用时旧会话立即被拒绝；若随后恢复账号，原 token 尚未过期且没有被全局退出撤销时可恢复使用。这不等于永久吊销旧会话。执行统一退出留下的撤销 marker 仍然生效，恢复账号不能使已撤销 token 重新有效。真实验收须分别记录恢复后的旧会话、新登录和全局退出效果。
+
+2026-10-26 补强 TDD：本人状态9项、未确认可见性1项先实际red；第一次生产修改被自动审批按早期范围拒绝，确认未执行，获得拒绝后新的明确授权后仅重试原操作一次并成功。原拒绝没有通过拆分、换工具或管理凭据绕过。随后green49项，追加超时与PM/门户独立cookie禁用恢复回归后52项通过；这些是传输替身单测，不是浏览器E2E。当前整体验收身份配置与实际禁用仍由主任务在获准范围完成。
+
+
+补强最终本地回归：Linux Python3.11 + 全新隔离PostgreSQL16 465 passed（65.58s），原CI范围覆盖率93.72%，空库001→007再次通过。测试数据库和网络已清理；新增52项均包含在全量中。91个app文件格式及新增状态模块lint通过。本轮没有前端源码变动，因此不重复无变化的前端测试；原276项通过，新生产镜像构建仍运行tsc/Vite。最新镜像 cmc-pm-phase2-e2e:local，sha256:4e4c7846d036a3682138cb83e6c164062731ec5a819f45e6822bc16cc2cf620d，combined+真实API。构建没有启动运行环境；Self可见性配置及真实禁用/恢复仍由主任务在另行获批后验收。
+
+## 真实统一退出 no-op 与成功后置条件
+
+主任务真实浏览器发现第一次全局退出仅使IdP浏览器要求重新登录，门户旧会话仍200。脱敏快照 snapshot-20261026T150848Z-global-logout-first.json 显示同一合成用户五个应用token仍expires_in=3600，PM撤销/重放计数0；不能把IdP登录页当各应用已退出证明。固定源码的 SsoLogout logoutAll=true 应按organization+username过期全部token，空user却返回ok，因此200/status=ok不是充分成功条件。官方source过滤链没有跳过Bearer sso-logout，后续已定位PostgreSQL保留字根因，见“PostgreSQL 根因与官方修复版本”；没有改用管理员权限。
+
+PM新增本人token前置与后置证明：先以本应用标准客户端Basic introspection核对active=true、client_id、sub；再server Bearer调用SsoLogout；仅当同一token再次标准introspection明确active=false才走成功路径。仍active、错主体、超时或无法核验均本地清理并返回logout_incomplete，不再假报全局成功；不把token下放浏览器或放URL，不新增管理权限。此后置仅防误报，不能代替真实跨应用全部失效验收，no-op真正原因和有效全局路径仍需解决。
+
+4项新case先实际red（still_active/status_outage/wrong_subject/inactive），实现后新增回归56项green。Linux全量新隔离PostgreSQL469 passed（58.16s），原CI覆盖93.72%，空库001→007通过，格式/新增服务lint通过。前端源码无变化，生产镜像构建仍包含原tsc/Vite。该修复未重启真实环境；新镜像构建结果另记录，不能使用旧镜像宣称此后置已在运行。
+
+新镜像正常重试构建通过：cmc-pm-phase2-e2e:local，sha256:91ed81bc7c0176d73284798a1e6b972757171f23110b9d46c9a71a95bf3e7b5f，combined+真实API；未替换运行容器。第一次Docker官方语法前端下载EOF已记录为失败，随后同命令重试成功，没有修改网络或安全配置。
+
+## PostgreSQL 根因与官方修复版本
+
+真实验收与独立临时库SELECT复现已经定位：Casdoor 3.152.0 在 GetActiveTokensByUser、ExpireTokenByUser 及通知 GetTokensByUser 的手写WHERE使用未引用的 user。PostgreSQL把裸 USER 解释为 current_user，不是表的"user"列，因此同组织目标用户命中0条、无回调、令牌未过期，但SSO接口仍可返回ok。这不是授权码主体不同、client_credentials或Bearer路由不支持；脱敏IdP审计证明实际actor是测试用户。没有手工把真实token改成0或替代真实注销验收。
+
+官方已在[edfbb9323be4e6ac3a507f08d49fae025431c52f（#5740）](https://github.com/casdoor/casdoor/commit/edfbb9323be4e6ac3a507f08d49fae025431c52f)修复，新增quoteColumn调用当前dialect的Engine.Quote，并修正三个查询。首次正式发布为[3.154.4，2026-08-18](https://github.com/casdoor/casdoor/releases/tag/v3.154.4)；前一3.154.3仍有裸user条件，3.154.4和后续官方版本已修。Cols("expires_in")明确指定零值更新，问题是WHERE误命中，不是0被忽略。[PostgreSQL官方说明USER等于current_user](https://www.postgresql.org/docs/16/functions-info.html)。
+
+本轮决定优先使用官方固定3.154.4在新隔离IdP实例验收，保留旧测试实例/库可回退；不fork身份产品、不换数据库来掩盖问题、不自动升级任何既有正式环境。生产启用前必须具备含该PG修复的受支持固定依赖及完整SSO/注销验收，未知正式环境保持功能默认关闭。实际镜像digest与真实新版本验证由整体验收报告记录，不能把源码修复当已部署证据。
+
+3.154.4还包含官方禁用修复：introspection调用Token.IsUserActive读取当前User，forbidden/deleted/已移除用户返回inactive；用户禁用/删除触发terminateUserAccess撤销token和会话。该能力与3.152.0不同，不能继续把旧版本“introspection不读User”扩展到新版本，也不等于业务角色同步。额外Self字段兼容门槛的最终适用范围须随选定provider版本与真实禁用验收核定，不能为了绕过审批静默开启字段可见性。

@@ -116,3 +116,6 @@ PM 回调为 `https://pm.openlims.ai/api/v1/auth/callback`，登出回跳为 `ht
 `OIDC_GLOBAL_LOGOUT_ENABLED=true` 启用已验签的 `/api/v1/auth/backchannel-logout`，PM 和门户客户端分别登记同一地址，按精确 audience 撤销；还强制每次请求以对应应用客户端 Basic 认证调用 Casdoor 标准 introspection，active=false 拒绝、不可达 503，防止漏通知继续使用旧会话。委托 token 用 PM 自身客户端查状态，固定 Casdoor 3.152.0 要求同证书；不同证书安全拒绝，不共享 MDM secret。
 
 带 sub 的已验签事件保守撤销本应用该主体的全部既有会话。统一退出调用 IdP logoutAll=true，影响该身份其他设备；局部退出仅结束当前应用浏览器会话。详见[第二阶段契约与限制](mdm-phase2.md)。此处描述代码行为，真实环境配置与浏览器验收由独立报告记录。
+
+
+统一退出开启还要求 CASDOOR_ACCOUNT_STATUS_VISIBLE=true：这是部署者确认本组织 isForbidden/isDeleted 对本人未被字段规则遮蔽；默认 false，未确认时503，不自动授予权限。每次请求在 introspection 后用本人的同一access Header只读 get-user，固定组织+sub，不读全组织、不调用会生成token的get-account；禁用/删除403，状态缺失或错主体401，失败/超时503，无active缓存。该门槛不自动同步角色，也不等于永久撤销旧token；恢复/退出的精确边界见[本人状态补强](mdm-phase2.md#本人状态核验补强)。正式组织未验收保持默认关闭。

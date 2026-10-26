@@ -76,6 +76,7 @@ class Settings(BaseSettings):
     MDM_DELEGATION_CLIENT_ID: str = ""
     MDM_SOURCE_NAMESPACE: str = "mdm"
     OIDC_GLOBAL_LOGOUT_ENABLED: bool = False
+    CASDOOR_ACCOUNT_STATUS_VISIBLE: bool = False
     IAM_SESSION_SECONDS: int = 3600
     IAM_COOKIE_SECURE: bool = False  # HTTPS 部署必须设为 true
 
