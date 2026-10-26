@@ -23,6 +23,7 @@ import { ProjectStructureEditor } from '../components/project/ProjectStructureEd
 import { TaskDrawer } from '../components/task/TaskDrawer'
 import { EmptyState } from '../components/ui'
 import { cn } from '../lib/cn'
+import { getProjectMDMLaunchUrl } from '../api/projects'
 
 // Tab 顺序：概览 → 里程碑 → WBS → 延迟推演 → 基线 → 团队 → AI 分析（仅管理者）
 type Tab = 'overview' | 'milestones' | 'wbs' | 'delay' | 'baseline' | 'team' | 'ai'
@@ -98,6 +99,10 @@ export default function ProjectDetail() {
         onEdit={startEditing}
         editDisabledReason={online ? undefined : '离线演示模式不支持修改项目'}
       />
+
+      <button type="button" className="px-3 py-2 rounded-lg border text-sm" disabled={!online} onClick={() => {
+        void getProjectMDMLaunchUrl(project.id).then((url) => window.location.assign(url)).catch(() => setNotice('无法打开 MDM：请确认入口配置、登录及项目权限。'))
+      }}>打开 MDM 登记项目（独立登录）</button>
 
       {notice && (
         <div role="status" className="p-3 rounded-lg bg-emerald-50 text-emerald-800 text-sm flex items-center gap-2">

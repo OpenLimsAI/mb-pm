@@ -55,6 +55,11 @@ export async function listProjects(params: ProjectsListParams = {}): Promise<Pag
   return data
 }
 
+export async function getProjectMDMLaunchUrl(id: string): Promise<string> {
+  const { data } = await api.get<{ url: string }>(`/projects/${encodeURIComponent(id)}/mdm-launch`)
+  return data.url
+}
+
 export async function getProject(id: string): Promise<ProjectDTO> {
   const { data } = await api.get<ProjectDTO>(`/projects/${id}`)
   return data

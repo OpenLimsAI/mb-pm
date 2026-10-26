@@ -8,7 +8,7 @@ export interface PortalUser {
 }
 
 export interface PortalApplication {
-  id: 'pm' | 'kb' | 'accounts'
+  id: 'pm' | 'kb' | 'accounts' | 'mdm'
   enabled: boolean
   reason?: string
 }
@@ -37,6 +37,12 @@ export async function fetchPortalIdentity(): Promise<PortalIdentity> {
 export async function getPortalLoginUrl(): Promise<string> {
   const { data } = await portalApi.get('/config')
   return camelize<{ loginUrl: string }>(data).loginUrl
+}
+
+/** Protected configured URL; no caller-controlled return URL or credentials. */
+export async function getMDMLaunchUrl(): Promise<string> {
+  const { data } = await portalApi.get<{ url: string }>('/applications/mdm/launch')
+  return data.url
 }
 
 export const portalLogoutUrl = `${API_BASE}/portal/logout`
