@@ -33,7 +33,7 @@ export function financeDraftState(draft: FinanceDraft, spent = 0) {
   const totalMissing = !draft.totalBudget.trim()
   const invalid = totalMissing || total === null || committed === null || partsInvalid
     || draft.fiscalYear.trim().length > 20 || draft.notes.trim().length > 200
-    || /[\x00-\x1f\x7f]/.test(draft.fiscalYear.trim() + draft.notes.trim())
+    || Array.from(draft.fiscalYear.trim() + draft.notes.trim()).some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)
   const remaining = (total ?? 0) - spent - (committed ?? 0)
   const value: ProjectFinanceInput = {
     totalBudget: total ?? 0, committed: committed ?? 0,
