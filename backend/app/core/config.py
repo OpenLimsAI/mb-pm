@@ -71,6 +71,8 @@ class Settings(BaseSettings):
     # 回调 {PMS_PUBLIC_URL}/api/v1/auth/callback 与登出回跳 {PMS_PUBLIC_URL}/login
     # 须登记在 Casdoor 应用的 redirectUris 中（localhost / 127.0.0.1 由 Casdoor 免登记放行）。
     PMS_PUBLIC_URL: str = "http://localhost:5175"
+    # Explicit MDM root including deployment path; blank disables launch. No identity in URL.
+    MDM_PUBLIC_URL: str = ""
     IAM_SESSION_SECONDS: int = 3600
     IAM_COOKIE_SECURE: bool = False  # HTTPS 部署必须设为 true
 

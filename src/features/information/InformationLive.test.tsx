@@ -5,6 +5,7 @@ import { beforeEach, expect, test, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { server } from '../../test/setup'
 import InformationApp from './InformationApp'
+import * as informationAPI from './api'
 import { demoSeed } from './demo'
 import type { InformationSnapshot } from './api'
 let state: InformationSnapshot
@@ -85,4 +86,19 @@ test('the unified account header uses the existing portal settings and logout fl
  expect(screen.getByRole('link',{name:'Actual User · 我的设置'})).toHaveAttribute('href','/settings')
  await userEvent.click(screen.getByRole('button',{name:'退出登录'}))
  expect(logout).toHaveBeenCalledTimes(1)
+})
+
+
+test('an immediately closed information page does not start a queued initial request', async () => {
+  vi.useFakeTimers()
+  const read = vi.spyOn(informationAPI, 'getInformation')
+  try {
+    const view = mount()
+    view.unmount()
+    await vi.runOnlyPendingTimersAsync()
+    expect(read).not.toHaveBeenCalled()
+  } finally {
+    read.mockRestore()
+    vi.useRealTimers()
+  }
 })

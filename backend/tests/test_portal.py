@@ -560,3 +560,20 @@ def test_portal_uses_its_configured_jwks(independent_portal, token_factory, monk
     response = complete(client, db, token_factory, monkeypatch)
     assert response.headers["location"].endswith("/workspace")
     assert client.get("/api/v1/portal/me").status_code == 200
+
+
+def test_mdm_launch_requires_portal_session(portal_fixture, token_factory, monkeypatch):
+    client, db = portal_fixture
+    monkeypatch.setattr(settings, "MDM_PUBLIC_URL", "")
+    assert client.get("/api/v1/portal/applications/mdm/launch").status_code == 401
+    complete(client, db, token_factory, monkeypatch)
+    assert app_map(client)["mdm"]["enabled"] is False
+    assert client.get("/api/v1/portal/applications/mdm/launch").status_code == 503
+    monkeypatch.setattr(settings, "MDM_PUBLIC_URL", "http://localhost:5188/mdm/")
+    assert app_map(client)["mdm"]["enabled"] is True
+    response = client.get("/api/v1/portal/applications/mdm/launch", params={"return_to": "https://evil.test?token=evil"})
+    assert response.status_code == 200
+    assert response.json() == {"url": "http://localhost:5188/mdm/projects"}
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["referrer-policy"] == "no-referrer"
+    assert db.query(IAMIdentity).count() == 0

@@ -81,9 +81,9 @@ export default function InformationApp() {
   }, [running, preview])
   useEffect(() => {
     mounted.current = true
-    if (!preview) void refresh()
+    const initial = preview ? undefined : window.setTimeout(() => { void refresh() }, 0)
     const timer = preview ? undefined : window.setInterval(() => { if (!document.hidden) void refresh() }, 10000)
-    return () => { mounted.current = false; request.current?.abort(); window.clearInterval(timer) }
+    return () => { mounted.current = false; request.current?.abort(); window.clearTimeout(initial); window.clearInterval(timer) }
   }, [preview, refresh])
   async function mutate(key: string, method: 'post' | 'patch' | 'put', path: string, body: unknown, message: string) {
     if (busy) return false

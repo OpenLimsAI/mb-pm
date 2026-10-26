@@ -10,6 +10,7 @@
     PUT    /api/v1/projects/{id}/members     全量替换团队成员（仍有任务的人不能移出，见 services/team.py）
 """
 
+from typing import Annotated
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -38,6 +39,7 @@ from app.schemas.project import (
     ProjectOut,
     ProjectUpdate,
 )
+from app.services.mdm_links import mdm_url
 from app.services.project_copy import copy_project
 from app.services.rollup import live_health, live_span
 from app.services.scope import visible_project_ids_for
@@ -68,6 +70,39 @@ def _scoped_filter(stmt, user: User, db: Session):
         return stmt
     visible = visible_project_ids_for(user, db)
     return stmt.where(Project.id.in_(visible))
+
+
+def _reference_project(project_id: str, user: User, db: Session) -> Project:
+    project = db.scalar(_scoped_filter(select(Project).where(Project.id == project_id), user, db))
+    if project is None:
+        raise HTTPException(404, "项目不存在或无权访问")
+    return project
+
+
+@router.get("/{project_id}/integration-reference")
+def integration_reference(
+    project_id: str,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+):
+    project = _reference_project(project_id, user, db)
+    return {
+        "id": project.id,
+        "code": project.code,
+        "name": project.name,
+        "status": project.status,
+        "bindable": project.status in {"活跃", "暂停"},
+    }
+
+
+@router.get("/{project_id}/mdm-launch")
+def project_mdm_launch(
+    project_id: str,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+):
+    project = _reference_project(project_id, user, db)
+    return {"url": mdm_url(project.id)}
 
 
 @router.get("", response_model=Page[ProjectOut])

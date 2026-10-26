@@ -9,12 +9,13 @@ import hashlib
 import json
 import secrets
 import time
+from typing import Annotated
 from urllib.parse import urlencode
 
 import httpx
 from cryptography.fernet import InvalidToken
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import delete, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -127,6 +128,18 @@ def enabled_roles(claims: dict) -> set[str]:
     }
 
 
+def mdm_entry() -> PortalApplicationOut:
+    from app.services.mdm_links import mdm_base
+
+    try:
+        mdm_base()
+        return PortalApplicationOut(id="mdm", enabled=True)
+    except HTTPException:
+        return PortalApplicationOut(
+            id="mdm", enabled=False, reason="MDM 入口尚未配置；仍需独立 MDM 登录和权限"
+        )
+
+
 def applications(claims: dict, db: Session) -> list[PortalApplicationOut]:
     """项目管理默认对组织内所有人开放（首次进入时自动建成员）；知识库看 KB 角色。"""
     roles = enabled_roles(claims)
@@ -153,6 +166,7 @@ def applications(claims: dict, db: Session) -> list[PortalApplicationOut]:
     # KB 原生应用仍是最终权限边界。没有明确 KB 角色时，不猜测默认阅读授权。
     return [
         PortalApplicationOut(id="pm", enabled=pm_reason is None, reason=pm_reason),
+        mdm_entry(),
         PortalApplicationOut(
             id="kb",
             enabled=kb_enabled,
@@ -339,6 +353,15 @@ def session_claims(request: Request, db: Session) -> dict:
         raise HTTPException(401, "登录会话已失效") from exc
     validate_identity(claims)
     return claims
+
+
+@router.get("/applications/mdm/launch")
+def mdm_launch(request: Request, db: Annotated[Session, Depends(get_db)]):
+    from app.services.mdm_links import mdm_url
+
+    claims = session_claims(request, db)
+    password_policy.enforce(db, claims["sub"], request.url.path)
+    return no_cache(JSONResponse({"url": mdm_url()}))
 
 
 @router.get("/me", response_model=PortalMeOut, response_model_exclude_none=True)

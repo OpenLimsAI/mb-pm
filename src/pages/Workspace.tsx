@@ -12,13 +12,13 @@ export interface WorkspaceUser {
 }
 
 export interface WorkspaceApplication {
-  id: 'pm' | 'kb' | 'information' | 'solutions' | 'accounts'
+  id: 'pm' | 'kb' | 'information' | 'solutions' | 'accounts' | 'mdm'
   enabled: boolean
   reason?: string
 }
 
 interface ApplicationPresentation {
-  id: 'pm' | 'kb' | 'information' | 'solutions'
+  id: 'pm' | 'kb' | 'information' | 'solutions' | 'mdm'
   name: string
   englishName: string
   description: string
@@ -49,6 +49,12 @@ const applicationPresentations: readonly ApplicationPresentation[] = [
     href: '/launch/solutions',
     kind: 'solutions',
     features: ['报告撰写', '知识与 AI', '评审与版本'],
+  },
+  {
+    id: 'mdm', name: '主数据管理', englishName: 'MASTER DATA MANAGEMENT',
+    description: '管理分子、药物资产与项目登记治理；执行计划在关联的 PM 项目中维护。',
+    domain: '独立 MDM 登录', href: '/launch/mdm', external: true, kind: 'projects',
+    features: ['分子与药物资产', '项目登记治理', '一对一执行关联'],
   },
   {
     id: 'pm',
