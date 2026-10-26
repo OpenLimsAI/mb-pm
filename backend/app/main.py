@@ -20,9 +20,11 @@ from app.api.v1 import (
     auth,
     baselines,
     finances,
+    information,
     portal,
     portal_settings,
     projects,
+    solutions,
     structure,
     sub_projects,
     task_dependencies,
@@ -155,7 +157,17 @@ async def lifespan(_: FastAPI):
     _backfill_task_order()
     # 项目团队：有任务的人补入团队名单（幂等）
     _backfill_team_members()
-    yield
+    worker = None
+    if settings.INFORMATION_WORKER_ENABLED:
+        from app.services.information.worker import start_worker
+
+        worker = start_worker()
+    try:
+        yield
+    finally:
+        if worker:
+            worker[0].set()
+            worker[1].join(timeout=5)
 
 
 app = FastAPI(
@@ -197,6 +209,7 @@ API_PREFIX = "/api/v1"
 app.include_router(auth.router, prefix=API_PREFIX)
 app.include_router(portal.router, prefix=API_PREFIX)
 app.include_router(portal_settings.router, prefix=API_PREFIX)
+app.include_router(information.router, prefix=API_PREFIX)
 app.include_router(accounts.router, prefix=API_PREFIX)
 app.include_router(account.router, prefix=API_PREFIX)
 app.include_router(users.router, prefix=API_PREFIX)
@@ -209,6 +222,7 @@ app.include_router(templates.router, prefix=API_PREFIX)
 app.include_router(finances.router, prefix=API_PREFIX)
 app.include_router(baselines.router, prefix=API_PREFIX)
 app.include_router(ai.router, prefix=API_PREFIX)
+app.include_router(solutions.router, prefix=API_PREFIX)
 
 
 # 页面与文件名不带哈希的静态文件（index.html、release-notes.html 等）：每次向服务器确认是否有新版本，

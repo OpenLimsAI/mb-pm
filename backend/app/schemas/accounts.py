@@ -11,7 +11,7 @@ from app.schemas.account import check_password, check_username
 
 Identity = Literal["admin", "lead", "staff"]
 PMIdentity = Literal["lead", "staff"]
-KBRole = Literal["viewer", "editor", "unassigned"]
+KBRole = Literal["manager", "viewer", "editor", "unassigned"]
 ActorTier = Literal["admin", "lead"]
 # 与前端 src/mock/dictionaries.ts 的 specialtyGroups 一致
 SpecialtyGroup = Literal["上游", "下游", "制剂", "分析", "稳定性", "工艺验证", "CMC综合"]
@@ -95,7 +95,7 @@ class AccountCreate(BaseModel):
     email: EmailStr | None = None
     platform_admin: StrictBool = False
     pm_identity: PMIdentity = "staff"
-    kb_role: Literal["editor"] = "editor"
+    kb_role: Literal["manager", "editor"] = "editor"
     specialty_group: SpecialtyGroup | None = None
     weekly_hours: int = Field(40, ge=0, le=80)
 
@@ -124,7 +124,7 @@ class AccountUpdate(BaseModel):
     enabled: bool | None = None
     platform_admin: StrictBool | None = None
     pm_identity: PMIdentity | None = None
-    kb_role: Literal["editor"] | None = None
+    kb_role: Literal["manager", "editor"] | None = None
     specialty_group: SpecialtyGroup | Literal[""] | None = None
     weekly_hours: int | None = Field(None, ge=0, le=80)
 

@@ -1,5 +1,7 @@
 # 配置与权限
 
+知识报告使用门户会话与独立的报告所有权。企业知识库连接和模型调用的配置边界见[知识报告说明](knowledge-solutions.md#企业知识库连接)，后端令牌不得写入前端环境或源码。
+
 [返回 README](../README.md) · [本地开发](development.md) · [功能说明](features.md)
 
 ## 配置入口
@@ -92,13 +94,16 @@ PM 回调为 `https://pm.openlims.ai/api/v1/auth/callback`，登出回跳为 `ht
 - 项目管理默认开放；系统管理员 / 项目负责人（`cmc_lead`）看全部，旧角色项目负责人（`project_lead`）看自己负责或参与的项目。
 - 研发 / 生产人员看参与或有本人任务的项目，任务级仍限制在本人负责或协作任务；QA/QC 另含跨项目「分析方法 / 稳定性」任务。
 - 财务与基线按可见项目收窄，服务端执行授权，界面隐藏入口不能替代鉴权。
-- 系统管理员是单独的平台管理身份，对应 `admin`；PM 业务角色对应员工（默认 `rd`）或负责人 `cmc_lead`。修改 PM 角色不移除 `admin`；取消平台身份后回落到保留的业务角色。它不等同于 Casdoor 的 `isAdmin` 组织管理员属性。
-- KB 准入仍识别启用的 `kb_viewer` / `kb_editor`；账号管理仅允许授予 `kb_editor`，「仅阅读」置灰，已有阅读者保留原角色。新建默认编辑，待分配账号须在编辑面板明确选择，修复其他问题不补发 KB 权限。相应 IAM 角色必须存在且启用。
-- 账号写接口使用 `platform_admin`、`pm_identity`、`kb_role`，KB 写入只接受 `editor`；旧 `identity` 仅保留在读取响应中，旧字段写入及任意角色数组会被拒绝，避免整包覆盖平台权限。
+- 系统管理员是单独的平台管理身份，对应 `admin`；PM 业务角色对应项目成员（默认 `rd`）或负责人 `cmc_lead`。修改 PM 角色不移除 `admin`；取消平台身份后回落到保留的业务角色。它不等同于 Casdoor 的 `isAdmin` 组织管理员属性。
+- KB 准入识别启用的 `kb_manager` / `kb_editor` / `kb_viewer`。账号管理可选知识库负责人（`kb_manager`）或知识库用户（`kb_editor`），负责人选项在前；历史 `kb_viewer` 保留只读，只有明确选择角色并保存才升级。相应 IAM 角色须先创建并启用；平台管理员不自动获得 KB 负责人身份。配套服务与代理要求见[知识库权限交接](../deploy/knowledge-permissions/README.md)。
+- 账号写接口使用 `platform_admin`、`pm_identity`、`kb_role`，KB 写入只接受 `manager` / `editor`；旧 `identity` 仅保留在读取响应中，旧字段写入及任意角色数组会被拒绝，避免整包覆盖平台权限。
 - PM 根据经验签令牌中的角色判定权限；复核会话不等于实时查询 IAM 最新角色，角色变更生效需结合令牌有效期与各应用续期规则。
 
-## AI 配置
+## 信息获取
 
-系统管理员 / 项目负责人（`cmc_lead`）在项目管理「AI设置」（`/ai-settings`）维护模型地址、密钥、默认提示词及可选 Ollama 回退；使用 PM 会话调用 `/api/v1/ai/settings`、`/api/v1/ai/models`、`/api/v1/ai/test`，Cookie 写操作要求 PM Origin，配置请求实时核对 IAM 状态与管理角色。沿用同一份 `AI_SETTINGS_PATH`，无需重填模型或密钥。旧门户 `/api/v1/portal/settings/ai*` 接口暂留兼容，新前端不再调用；旧 `/settings?tab=ai` 书签跳到 PM 的 AI设置。
-API Key 存在后端 `AI_SETTINGS_PATH` 指向的受保护文件中，生产使用持久卷；前端仅看到是否已设置。
-留空保留原密钥，修改服务地址清除旧密钥。模型接收的数据范围、分析入口和报告行为见 [AI 功能说明](features.md#ai-设置与项目--财务分析)。
+有效门户成员可浏览和订阅；系统管理员（`admin`）与知识库负责人（`kb_manager`）可管理来源、检查、收录及重试，后台每步实时核对 IAM。不会因此创建 PM 成员或授予普通知识库上传权限。
+
+配置 `INFORMATION_WORKER_ENABLED=true`、持久化 `INFORMATION_DATA_DIR`（容器为 `/data/information`），`INFORMATION_MAX_ARCHIVE_MB` 默认 5120。两个 PM 实例必须共享相同数据卷和数据库，全局租约避免重复采集。
+知识库收录另需 `INFORMATION_KB_URL` 指向内部 BFF，并将新生成的至少 32 字符密钥分别配置为 PM `INFORMATION_KB_SECRET`、KB `INFORMATION_BRIDGE_SECRET`。密钥按环境独立，0600 保存；不要复制已有 Core 令牌到 PM。仅连接三个应用容器的内部专用网络，不发布桥接端口。
+
+默认 ICH 来源关闭监控。先检查官方清单，再批量收录到原文归档或真实知识库文件夹；手动开启监控后默认每日检查。详见[信息获取使用与部署](information.md)。

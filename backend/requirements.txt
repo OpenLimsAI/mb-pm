@@ -28,3 +28,6 @@ alembic==1.13.3
 
 # —— 可选（按需安装）——
 # 开发/测试：             pytest==8.3.3  ruff==0.7.0（见 requirements-dev.txt）
+
+# 公开 PDF 正文解析（独立受限进程；扫描件明确待 OCR）
+pypdf==6.21.2

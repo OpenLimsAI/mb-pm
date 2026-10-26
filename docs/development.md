@@ -70,6 +70,24 @@ API 文档位于 `http://127.0.0.1:8000/docs`。
 Vite 设置了 `strictPort`，前端端口被占用时会报错；改端口时同步 origin 配置及 IAM 回调。
 IAM 换码及公钥拉取的内部地址可用 `CASDOOR_INTERNAL_URL` 覆盖，issuer 仍使用公网地址。
 
+## 本地知识库入口
+
+从本机开发工作台点击知识库，默认进入同一主机的 4322 端口，例如
+`http://localhost:5185` → `http://localhost:4322/`。卡片同步显示本地地址，
+不再跳到客户的 `kb.openlims.ai`。生产构建及正式域名始终使用生产知识库入口。
+如本地知识库使用其他端口，在门户 `.env.local` 设置 `VITE_KNOWLEDGE_PORT` 后重启 Vite。
+
+本工作区的独立知识库前端启动命令：
+
+```sh
+cd ../integrations/dikw-mbweb-customer
+npm run dev
+```
+
+该开发前端仅提供本地界面，不代表已启动 Core、配置 IAM 或模型服务。
+本地没有 Core 时不能读取论文，完整的权限、翻译及问答联调需要另行配置知识库后端；
+不会通过这个本地入口自动复制或连接客户生产数据库和密钥。
+
 ## 构建与测试
 
 前端构建及门户路由核对（项目根目录）：
@@ -83,6 +101,10 @@ node scripts/test-portal-routing.mjs
 构建会先生成版本更新 HTML，再做 TypeScript 检查及 Vite 编译。
 门户脚本核对域名分流、固定应用目标、深链接和不安全返回地址，不访问真实 IAM。
 Vitest 使用 jsdom、Testing Library 和 MSW 测试真实界面及 HTTP 客户端。账号权限覆盖范围包括 `src/components/accounts/`、`PortalAccounts.tsx`、`accountAdmin.ts`、`api/accounts.ts`，逐文件要求语句、行、函数、分支均不低于 90%；报告输出到 `coverage/`。其他业务模块不计入该新功能门槛。
+
+`ProjectCreate.test.tsx` 覆盖空白与模板创建切换、无模板时创建、预算校验和失败重试；后端 `tests/test_blank_project.py` 使用独立测试库核对零任务保存、后续添加首个任务及创建权限，不写入本地业务库或客户生产数据。
+
+`Tasks.test.tsx` 和 `taskOrder.test.ts` 覆盖跨项目 WBS 排序、日期相同或逆序、旧数据兜底、筛选后相对顺序、权限范围及数据同步后的顺序更新。
 
 后端测试依赖需额外安装；`run.sh` 只安装运行依赖。在 `backend` 目录执行：
 
@@ -103,6 +125,17 @@ python -m pytest tests/ -q --cov=app.services.accounts --cov=app.schemas.account
 
 该命令需要 `requirements-dev.txt` 中的 `pytest-cov`，门槛统计上述模块，JSON 保留行与分支明细。Windows 的虚拟环境解释器为 `.venv\Scripts\python.exe`。真实 IAM / KB 登录验收不由这些替身接口测试替代。
 设置 `TEST_DATABASE_URL` 可改用专用测试 PostgreSQL；测试会重建表，只能指向可清空的测试库。
+
+## 信息获取本地使用
+
+信息获取从工作台卡片或 `/information` 进入，复用门户会话。仅在 `VITE_USE_API=false` 的开发预览可直接打开 `/information?preview=1`；页面常驻演示标识。
+真实 API 模式连接持久后端，并按[配置说明](configuration.md#信息获取)启用 worker 与可选 KB 桥接。原文使用独立目录，不指向客户备份。预览仅使用内存演示数据，不能写真实接口；真实接口失败不会回落到演示资料。详见[信息获取](information.md)。
+
+## 知识报告开发
+
+开发预览可直接打开 `/solutions?preview=1`（`VITE_USE_API=false`），不连接真实服务。正式模式需要门户登录及后端，方案使用数据库持久化。企业知识库适配另需服务端连接配置；没有模型配置时返回资料检索结果，不假装生成 AI 回答。完整范围见[应用说明](knowledge-solutions.md)。
+
+针对性检查：`npx vitest run src/features/solutions src/pages/Workspace.test.tsx`、`node scripts/test-portal-routing.mjs`；后端在 `backend` 执行 `python -m pytest tests/test_solutions.py tests/test_solution_knowledge.py -q`。Node 26 的实验性 Web Storage 会干扰 jsdom，建议使用与 CI 一致的 Node 20 或稳定的 Node 24。
 
 ## CI 与验收范围
 

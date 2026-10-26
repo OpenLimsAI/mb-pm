@@ -14,15 +14,15 @@ const account = {
   pmMember: { id: 'member-1', username: 'zhang.ming', active: true, bound: true, specialtyGroup: '分析', weeklyHours: 40 },
 } as Account
 
-test('平台身份独立设置，知识库只能选择可编辑', () => {
+test('平台身份独立设置，知识库分别显示负责人和用户', () => {
   render(<AccountDialog account={account} available={['admin', 'cmc_lead', 'kb_editor']} onClose={vi.fn()} onSaved={vi.fn()} onPasswordReset={vi.fn()} />)
   const platform = screen.getByRole('group', { name: '平台管理身份' })
   expect(within(platform).getByRole('radio', { name: /系统管理员/ })).toBeEnabled()
   const pm = screen.getByRole('group', { name: '项目管理' })
   expect(within(pm).queryByRole('radio', { name: /系统管理员/ })).not.toBeInTheDocument()
   const kb = screen.getByRole('group', { name: '知识库' })
-  expect(within(kb).getByRole('radio', { name: /仅阅读/ })).toBeDisabled()
-  expect(within(kb).getByRole('radio', { name: /可编辑/ })).toBeChecked()
+  expect(within(kb).getByRole('radio', { name: '知识库负责人' })).toBeDisabled()
+  expect(within(kb).getByRole('radio', { name: '知识库用户' })).toBeChecked()
 })
 
 test('只提交明确选择的知识库编辑权限', async () => {
@@ -34,7 +34,7 @@ test('只提交明确选择的知识库编辑权限', async () => {
   }))
   render(<AccountDialog account={{ ...account, kbRole: 'viewer', kbRoles: ['kb_viewer'] }} available={['admin', 'cmc_lead', 'kb_editor']} onClose={vi.fn()} onSaved={saved} onPasswordReset={vi.fn()} />)
   expect(screen.getByRole('button', { name: '保存' })).toBeDisabled()
-  await userEvent.click(screen.getByRole('radio', { name: '可编辑' }))
+  await userEvent.click(screen.getByRole('radio', { name: '知识库用户' }))
   await userEvent.click(screen.getByRole('button', { name: '保存' }))
   await waitFor(() => expect(saved).toHaveBeenCalled())
   expect(submitted).toEqual({ kb_role: 'editor' })
@@ -81,7 +81,7 @@ test('平台身份提升独立提交并锁定继承的 PM 角色', async () => {
   server.use(http.patch('*/portal/accounts/subject-1', async ({ request }) => { body = await request.json(); return new HttpResponse(null, { status: 204 }) }))
   const { onSaved } = showDialog()
   await userEvent.click(screen.getByRole('radio', { name: '系统管理员' }))
-  expect(screen.getByRole('radio', { name: '员工' })).toBeDisabled()
+  expect(screen.getByRole('radio', { name: '项目成员' })).toBeDisabled()
   expect(screen.getByRole('radio', { name: '项目负责人' })).toBeChecked()
   await userEvent.click(screen.getByRole('button', { name: '保存' }))
   await waitFor(() => expect(onSaved).toHaveBeenCalled())
@@ -94,7 +94,7 @@ test('取消其他人的管理员身份提示回落范围并可调整业务角�
   const { onSaved } = showDialog({ platformAdmin: true, pmEffectiveRole: 'admin' })
   await userEvent.click(screen.getByRole('radio', { name: '普通成员' }))
   expect(screen.getByText('取消管理员后，项目管理回落为项目负责人。')).toBeInTheDocument()
-  await userEvent.click(screen.getByRole('radio', { name: '员工' }))
+  await userEvent.click(screen.getByRole('radio', { name: '项目成员' }))
   await userEvent.selectOptions(screen.getByRole('combobox'), '')
   fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '32' } })
   await userEvent.click(screen.getByRole('button', { name: '保存' }))
@@ -123,7 +123,7 @@ test('缺少启用角色时不可新增对应授权', () => {
   showDialog({ pmIdentity: 'staff', kbRole: 'unassigned' }, 'profile', [])
   expect(screen.getByRole('radio', { name: '系统管理员' })).toBeDisabled()
   expect(screen.getByRole('radio', { name: '项目负责人' })).toBeDisabled()
-  expect(screen.getByRole('radio', { name: '可编辑' })).toBeDisabled()
+  expect(screen.getByRole('radio', { name: '知识库用户' })).toBeDisabled()
   expect(screen.getByText(/缺少已启用的 kb_editor/)).toBeInTheDocument()
 })
 
@@ -273,4 +273,23 @@ test('关闭或切换页签前确认未保存修改', async () => {
   await userEvent.click(screen.getByRole('tab', { name: '用户名' }))
   await userEvent.click(screen.getByRole('button', { name: '放弃修改' }))
   expect(screen.getByRole('button', { name: '修改用户名' })).toBeInTheDocument()
+})
+
+test('管理员和负责人排在前面，知识库负责人独立提交', async () => {
+  let body: unknown
+  const saved = vi.fn()
+  server.use(http.patch('*/portal/accounts/subject-1', async ({ request }) => {
+    body = await request.json(); return new HttpResponse(null, { status: 204 })
+  }))
+  render(<AccountDialog account={account} available={['admin', 'cmc_lead', 'kb_manager', 'kb_editor']} onClose={vi.fn()} onSaved={saved} onPasswordReset={vi.fn()} />)
+  const platform = within(screen.getByRole('group', { name: '平台管理身份' })).getAllByRole('radio')
+  expect(platform.map((r) => r.getAttribute('aria-label'))).toEqual(['系统管理员', '普通成员'])
+  const pm = within(screen.getByRole('group', { name: '项目管理' })).getAllByRole('radio')
+  expect(pm.map((r) => r.getAttribute('aria-label'))).toEqual(['项目负责人', '项目成员'])
+  await userEvent.click(screen.getByRole('radio', { name: '知识库负责人' }))
+  expect(screen.getByRole('radio', { name: '项目负责人' })).toBeChecked()
+  expect(screen.getByRole('radio', { name: '普通成员' })).toBeChecked()
+  await userEvent.click(screen.getByRole('button', { name: '保存' }))
+  await waitFor(() => expect(saved).toHaveBeenCalled())
+  expect(body).toEqual({ kb_role: 'manager' })
 })

@@ -4,7 +4,13 @@ export const projectPublicUrl = 'https://pm.openlims.ai'
 export const knowledgePublicUrl = 'https://kb.openlims.ai'
 // 论文知识库（dikw-mbweb）自 2026-10-06 起独立部署在 knowledgePublicUrl 根地址，入口不再需要 #mb-web；
 // 旧链接 /#mb-web 仍会打开论文知识库。管理工作台不经此域名访问。
-export const knowledgeLaunchUrl = `${knowledgePublicUrl}/`
+const localDevelopment = import.meta.env.DEV && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
+const configuredKnowledgePort = Number(import.meta.env.VITE_KNOWLEDGE_PORT || 4322)
+const knowledgeDevelopmentPort = Number.isInteger(configuredKnowledgePort) && configuredKnowledgePort > 0 && configuredKnowledgePort <= 65535
+  ? configuredKnowledgePort : 4322
+const knowledgeDevelopmentUrl = new URL(window.location.origin)
+knowledgeDevelopmentUrl.port = String(knowledgeDevelopmentPort)
+export const knowledgeLaunchUrl = localDevelopment ? `${knowledgeDevelopmentUrl.origin}/` : `${knowledgePublicUrl}/`
 
 type SiteMode = 'portal' | 'pm' | 'combined'
 const configuredMode = import.meta.env.VITE_APP_MODE
@@ -15,6 +21,9 @@ export const siteMode: SiteMode = ['portal', 'pm', 'combined'].includes(configur
       : 'portal'
 
 export const workspaceUrl = siteMode === 'combined' ? '/' : portalPublicUrl
+/** 信息获取作为工作台独立应用，共用门户登录，不依赖项目管理会话。 */
+export const informationUrl = siteMode === 'pm' ? `${portalPublicUrl}/information` : '/information'
+export const solutionsUrl = siteMode === 'pm' ? `${portalPublicUrl}/solutions` : '/solutions'
 /** 门户「账号管理」：成员与账号的唯一修改入口（与 IAM 同步），也是组织名单（仅系统管理员 / 项目负责人可见）。 */
 export const accountsUrl = siteMode === 'combined' ? '/accounts' : `${portalPublicUrl}/accounts`
 /** 门户「我的设置」：个人身份、用户名 / 密码及应用访问。 */
@@ -52,4 +61,12 @@ export function projectApplicationUrl(returnTo = '/dashboard'): string {
   const url = new URL('/api/v1/auth/login', base)
   url.searchParams.set('return_to', safeReturnPath(returnTo, '/dashboard'))
   return url.toString()
+}
+
+
+/** 组合开发模式中，门户页面始终验证门户会话，避免被仍有效的 PM 会话来回重定向。 */
+export function loginUsesProjectSession(returnTo: string): boolean {
+  const path = returnTo.split(/[?#]/)[0].replace(/\/+$/, '') || '/'
+  const portalPaths = ['/', '/workspace', '/account', '/accounts', '/settings', '/help', '/release-notes']
+  return siteMode === 'pm' || (siteMode === 'combined' && !portalPaths.includes(path) && !path.startsWith('/launch/') && path !== '/information' && !path.startsWith('/information/') && path !== '/solutions' && !path.startsWith('/solutions/'))
 }

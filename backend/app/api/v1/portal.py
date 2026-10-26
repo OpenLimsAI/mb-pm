@@ -6,6 +6,7 @@
 
 import base64
 import hashlib
+import json
 import secrets
 import time
 from typing import Annotated
@@ -110,7 +111,7 @@ def session_data(request: Request, db: Session) -> dict:
 
 
 # 工作台「设置 › AI 分析」可修改的角色（与项目管理 ai.config 一致）
-AI_MANAGERS = ("admin", "cmc_lead")
+AI_MANAGERS = ("admin", "cmc_lead", "project_lead")
 
 
 def enabled_roles(claims: dict) -> set[str]:
@@ -160,7 +161,7 @@ def applications(claims: dict, db: Session) -> list[PortalApplicationOut]:
             pm_reason = "项目管理中已有同名成员，请联系系统管理员核对"
         elif user and not user.is_active:
             pm_reason = "项目管理账号已停用，请联系系统管理员"
-    kb_enabled = bool(roles & {"kb_viewer", "kb_editor"})
+    kb_enabled = bool(roles & {"kb_manager", "kb_viewer", "kb_editor"})
     managers = bool(roles & {"admin", "cmc_lead", "project_lead"})
     # KB 原生应用仍是最终权限边界。没有明确 KB 角色时，不猜测默认阅读授权。
     return [
@@ -171,6 +172,10 @@ def applications(claims: dict, db: Session) -> list[PortalApplicationOut]:
             enabled=kb_enabled,
             reason=None if kb_enabled else "知识库尚未开通，请联系系统管理员",
         ),
+        # 信息获取供组织成员浏览；管理与后台采集另行实时核对 admin / kb_manager。
+        PortalApplicationOut(id="information", enabled=True),
+        # 方案应用面向组织成员；方案所有权与知识来源权限由其接口独立检查。
+        PortalApplicationOut(id="solutions", enabled=True),
         # 仅决定是否显示入口；账号管理接口每次请求都向 IAM 实时核对身份
         PortalApplicationOut(
             id="accounts",
@@ -369,6 +374,13 @@ def me(request: Request, db: Session = Depends(get_db)):
     )
     return PortalMeOut(
         user=current_user(claims, db, request),
+        identity_namespace=hashlib.sha256(
+            json.dumps(
+                [claims["iss"], claims["owner"], claims["sub"]],
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest(),
         applications=applications(directory_claims, db),
         must_change_password=password_policy.change_required(db, claims["sub"]),
         can_configure_ai=pm_role(claims) in AI_MANAGERS,

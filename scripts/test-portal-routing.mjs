@@ -9,9 +9,9 @@ const code = ts.transpileModule(source.replaceAll('import.meta.env', 'testEnviro
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
 }).outputText
 
-function site(hostname, DEV = false, VITE_APP_MODE = undefined) {
+function site(hostname, DEV = false, VITE_APP_MODE = undefined, VITE_KNOWLEDGE_PORT = undefined) {
   const context = {
-    exports: {}, URL, URLSearchParams, testEnvironment: { DEV, VITE_APP_MODE },
+    exports: {}, URL, URLSearchParams, testEnvironment: { DEV, VITE_APP_MODE, VITE_KNOWLEDGE_PORT },
     window: { location: { hostname, origin: DEV ? `http://${hostname}:5176` : `https://${hostname}` } },
   }
   vm.runInNewContext(code, context)
@@ -39,6 +39,9 @@ assert.equal(local.settingsUrl, '/settings')
 assert.equal(portal.releaseNotesUrl, '/release-notes')
 assert.equal(pm.releaseNotesUrl, 'https://www.openlims.ai/release-notes')
 assert.equal(local.releaseNotesUrl, '/release-notes')
+assert.equal(local.solutionsUrl, '/solutions')
+assert.equal(portal.solutionsUrl, '/solutions')
+assert.equal(pm.solutionsUrl, 'https://www.openlims.ai/solutions')
 // 个人设置留在门户，AI 配置回 PM；旧书签在三种域名模式下均不能形成循环。
 assert.equal(portal.aiSettingsUrl, 'https://pm.openlims.ai/ai-settings')
 assert.equal(pm.aiSettingsUrl, '/ai-settings')
@@ -59,6 +62,18 @@ assert.equal(local.projectApplicationUrl(), 'http://127.0.0.1:5176/api/v1/auth/l
 assert.equal(portal.knowledgePublicUrl, 'https://kb.openlims.ai')
 // 论文知识库独立部署在根地址，入口不再带 #mb-web。
 assert.equal(portal.knowledgeLaunchUrl, 'https://kb.openlims.ai/')
+// 只有本机开发跳到本地知识库，生产构建不会带入本地端口。
+assert.equal(local.knowledgeLaunchUrl, 'http://127.0.0.1:4322/')
+assert.equal(site('localhost', true).knowledgeLaunchUrl, 'http://localhost:4322/')
+assert.equal(site('[::1]', true).knowledgeLaunchUrl, 'http://[::1]:4322/')
+assert.equal(site('localhost', true, 'portal', '4321').knowledgeLaunchUrl, 'http://localhost:4321/')
+for (const port of ['invalid', '0', '-1', '65536', '4321.5']) {
+  assert.equal(site('localhost', true, undefined, port).knowledgeLaunchUrl, 'http://localhost:4322/')
+}
+for (const host of ['localhost', '127.0.0.1', 'www.openlims.ai', 'pm.openlims.ai']) {
+  assert.equal(site(host, false, undefined, '4321').knowledgeLaunchUrl, 'https://kb.openlims.ai/')
+}
+assert.equal(site('www.openlims.ai', true, undefined, '4321').knowledgeLaunchUrl, 'https://kb.openlims.ai/')
 const deep = '/projects/project-123?tab=tasks#task-1'
 assert.equal(new URL(portal.projectApplicationUrl(deep)).searchParams.get('return_to'), deep)
 assert.equal(portal.safeReturnPath('/launch/kb'), '/launch/kb')
@@ -72,3 +87,12 @@ for (const invalid of [undefined, null, {}, 'https://evil.example', '//evil.exam
   assert.equal(target.searchParams.has('access_token'), false)
 }
 console.log('Portal routing checks passed: domain modes, fixed app targets, deep links, unsafe return paths.')
+
+// 门户匿名、PM 会话仍有效时，版本更新不可选用 PM 会话，否则会与 PortalGate 循环跳转。
+for (const route of ['/release-notes', '/release-notes/?x=1#latest', '/accounts', '/settings', '/help', '/launch/kb', '/information', '/information/sources', '/information/inbox?unread=1', '/launch/information', '/solutions', '/solutions/example?tab=knowledge', '/launch/solutions']) {
+  assert.equal(local.loginUsesProjectSession(route), false)
+  assert.equal(portal.loginUsesProjectSession(route), false)
+  assert.equal(pm.loginUsesProjectSession(route), true)
+}
+assert.equal(local.loginUsesProjectSession('/projects/p1'), true)
+assert.equal(local.loginUsesProjectSession('/ai-settings'), true)

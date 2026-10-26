@@ -3,8 +3,8 @@ import type { Account, PMIdentity, KBRole } from '../api/accounts'
 
 export { specialtyGroups } from '../mock/dictionaries'
 
-export const pmIdentityLabel = (identity: PMIdentity) => identity === 'lead' ? '项目负责人' : '员工'
-export const kbRoleLabel = (role: KBRole) => ({ viewer: '仅阅读（历史）', editor: '可编辑', unassigned: '待分配' })[role]
+export const pmIdentityLabel = (identity: PMIdentity) => identity === 'lead' ? '项目负责人' : '项目成员'
+export const kbRoleLabel = (role: KBRole) => ({ manager: '知识库负责人', viewer: '知识库用户（历史只读）', editor: '知识库用户', unassigned: '待分配' })[role]
 export const legacyPMNote = (account: Account) => account.pmRoles
   .filter((r) => ['project_lead', 'production', 'qa_qc'].includes(r))
   .map((r) => ({ project_lead: '项目负责人（本人项目）', production: '生产支持', qa_qc: 'QA/QC' })[r]).join('、')

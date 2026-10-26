@@ -16,6 +16,16 @@ from app.models.iam import (  # noqa: F401
 )
 from app.models.portal import PortalLogin, PortalSession  # noqa: F401
 from app.models.project import Project, ProjectMember  # noqa: F401
+from app.models.solution import (  # noqa: F401
+    KnowledgeSolution,
+    SolutionActor,
+    SolutionAnswer,
+    SolutionEvent,
+    SolutionSource,
+    SolutionVersion,
+)
 from app.models.task import SubProject, Task, TaskDependency  # noqa: F401
 from app.models.template import Template, TemplateVersion  # noqa: F401
 from app.models.user import User  # noqa: F401
+
+from app.models.information import InformationEntry, InformationLease, InformationText  # noqa: F401

@@ -33,6 +33,13 @@ class Settings(BaseSettings):
     # 部署时指向持久化、受保护的目录。
     AI_SETTINGS_PATH: str = ".local/ai-settings.json"
 
+    # —— 信息获取（真实采集与受保护的原文归档）—— #
+    INFORMATION_DATA_DIR: str = ".local/information"
+    INFORMATION_MAX_ARCHIVE_MB: int = 5120
+    INFORMATION_WORKER_ENABLED: bool = False
+    INFORMATION_KB_URL: str = ""
+    INFORMATION_KB_SECRET: str = ""
+
     # —— 应用 —— #
     APP_ENV: str = "development"
     # 同时作为 IAM 会话令牌的加密密钥：须为 ≥32 字符的随机值，否则 IAM 登录返回 503。

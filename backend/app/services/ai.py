@@ -235,7 +235,7 @@ def list_models(provider: str, cfg: dict) -> list[str]:
     ][:300]
 
 
-def chat(provider: str, cfg: dict, messages: list, *, probe=False):
+def chat(provider: str, cfg: dict, messages: list, *, probe=False, timeout=None):
     if not cfg["model"]:
         raise AIError("请先填写或选择模型名称")
     body = {"model": cfg["model"], "messages": messages, "stream": False}
@@ -248,7 +248,13 @@ def chat(provider: str, cfg: dict, messages: list, *, probe=False):
                 "num_predict": 64 if probe else 4096,
             }
         )
-        result = request(provider, cfg, "/api/chat", body, timeout=120 if probe else 300)
+        result = request(
+            provider,
+            cfg,
+            "/api/chat",
+            body,
+            timeout=timeout if timeout is not None else (120 if probe else 300),
+        )
         message = result.get("message") or {}
         content = message.get("content", "") if isinstance(message, dict) else ""
         if not probe and result.get("done_reason") == "length":
@@ -260,7 +266,13 @@ def chat(provider: str, cfg: dict, messages: list, *, probe=False):
     else:
         if provider == "minimax":
             body.update(temperature=1.0, max_tokens=8192)
-        result = request(provider, cfg, "/chat/completions", body, timeout=120)
+        result = request(
+            provider,
+            cfg,
+            "/chat/completions",
+            body,
+            timeout=timeout if timeout is not None else 120,
+        )
         choices = result.get("choices")
         if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
             raise AIError("模型没有返回有效回答，请检查模型是否支持对话")

@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, ArrowUpRight, BookOpen, BriefcaseBusiness, Check, ChevronRight, History, LayoutGrid, LockKeyhole, RefreshCw, ShieldCheck, UsersRound } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, BookOpen, BriefcaseBusiness, Check, ChevronRight, FilePenLine, History, LayoutGrid, LockKeyhole, Radar, RefreshCw, ShieldCheck, UsersRound } from 'lucide-react'
 import PortalLayout from '../components/portal/PortalLayout'
 import { usePortalContext } from '../components/portal/context'
+import { knowledgeLaunchUrl } from '../lib/site'
 
 export interface WorkspaceUser {
   id: string
@@ -11,13 +12,13 @@ export interface WorkspaceUser {
 }
 
 export interface WorkspaceApplication {
-  id: 'pm' | 'kb' | 'accounts' | 'mdm'
+  id: 'pm' | 'kb' | 'information' | 'solutions' | 'accounts' | 'mdm'
   enabled: boolean
   reason?: string
 }
 
 interface ApplicationPresentation {
-  id: 'pm' | 'kb' | 'mdm'
+  id: 'pm' | 'kb' | 'information' | 'solutions' | 'mdm'
   name: string
   englishName: string
   description: string
@@ -25,7 +26,7 @@ interface ApplicationPresentation {
   domain: string
   href: string
   external?: boolean
-  kind: 'projects' | 'knowledge'
+  kind: 'projects' | 'knowledge' | 'information' | 'solutions'
   features: readonly string[]
 }
 
@@ -39,6 +40,16 @@ export interface WorkspaceProps {
 }
 
 const applicationPresentations: readonly ApplicationPresentation[] = [
+  {
+    id: 'solutions',
+    name: '知识报告',
+    englishName: 'KNOWLEDGE REPORTS',
+    description: '在写作中查阅知识、追问依据，把论文、实践与专家判断写成可追溯的研究报告。',
+    domain: '研究 · 论证 · 撰写',
+    href: '/launch/solutions',
+    kind: 'solutions',
+    features: ['报告撰写', '知识与 AI', '评审与版本'],
+  },
   {
     id: 'mdm', name: '主数据管理', englishName: 'MASTER DATA MANAGEMENT',
     description: '管理分子、药物资产与项目登记治理；执行计划在关联的 PM 项目中维护。',
@@ -60,16 +71,26 @@ const applicationPresentations: readonly ApplicationPresentation[] = [
     name: '知识库',
     englishName: 'KNOWLEDGE BASE',
     description: '连接团队的知识与经验，让需要的信息更容易找到，让积累持续产生价值。',
-    domain: 'kb.openlims.ai',
+    domain: new URL(knowledgeLaunchUrl).host,
     href: '/launch/kb',
     external: true,
     kind: 'knowledge',
     features: ['知识检索', '内容阅读', '经验沉淀'],
   },
+  {
+    id: 'information',
+    name: '信息获取',
+    englishName: 'INFORMATION ACQUISITION',
+    description: '管理医药信息源，收集重要资料，让网站更新与知识积累连接起来。',
+    domain: 'ICH · Q / S / E / M',
+    href: '/launch/information',
+    kind: 'information',
+    features: ['信息源监控', '批量收录', '更新与关注'],
+  },
 ]
 
 function ApplicationCard({ application, access, preview }: { application: ApplicationPresentation; access?: WorkspaceApplication; preview: boolean }) {
-  const Icon = application.kind === 'knowledge' ? BookOpen : BriefcaseBusiness
+  const Icon = application.kind === 'solutions' ? FilePenLine : application.kind === 'information' ? Radar : application.kind === 'knowledge' ? BookOpen : BriefcaseBusiness
   const enabled = preview || access?.enabled === true
   const content = (
     <>
@@ -94,10 +115,10 @@ function ApplicationCard({ application, access, preview }: { application: Applic
   )
   const className = `workspace-app-card workspace-app-card--${application.kind}${enabled ? '' : ' workspace-app-card--unavailable'}`
 
-  if (!enabled || preview) return <article className={className}>{content}</article>
+  if (!enabled || (preview && !['information', 'solutions'].includes(application.id))) return <article className={className}>{content}</article>
 
   return (
-    <a className={className} href={application.href} target={application.external ? '_blank' : undefined} rel={application.external ? 'noopener noreferrer' : undefined} aria-label={`进入${application.name}${application.external ? '（新标签页）' : ''}`}>
+    <a className={className} href={preview ? `/${application.id}?preview=1` : application.href} target={application.external ? '_blank' : undefined} rel={application.external ? 'noopener noreferrer' : undefined} aria-label={`进入${application.name}${application.external ? '（新标签页）' : ''}`}>
       {content}
     </a>
   )

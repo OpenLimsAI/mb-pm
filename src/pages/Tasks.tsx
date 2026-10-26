@@ -14,6 +14,7 @@ import { updateTasksBatch, type TaskProgressPatch } from '../data/bootstrap'
 import { can } from '../lib/permissions'
 import { getScope, filterProjects, filterTasks, scopeLabel } from '../lib/scope'
 import { isTaskDone } from '../lib/schedule'
+import { sortTasksByProjectWbsOrder } from '../lib/taskOrder'
 import { Button, Card, Tag, StatusTag, PriorityTag, Avatar, EmptyState } from '../components/ui'
 import { TaskDrawer } from '../components/task/TaskDrawer'
 import { cn } from '../lib/cn'
@@ -50,9 +51,9 @@ export default function Tasks() {
 
   // 运行时数组在数据同步时原地替换内容：每个数据版本取一份新数组，下游 useMemo 才会随之重算
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const visibleTasks = useMemo(() => [...filterTasks(allTasks, userScope)], [userScope, version])
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const visibleProjects = useMemo(() => [...filterProjects(allProjects, userScope)], [userScope, version])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const visibleTasks = useMemo(() => sortTasksByProjectWbsOrder(filterTasks(allTasks, userScope), visibleProjects, subProjects), [userScope, visibleProjects, version])
   const owners = useMemo(() => {
     const ids = new Set(visibleTasks.map((t) => t.ownerId))
     return users.filter((u) => ids.has(u.id)).sort((a, b) => a.displayName.localeCompare(b.displayName, 'zh'))
@@ -104,6 +105,7 @@ export default function Tasks() {
           {userScope.isAll ? '全部项目' : '可见范围内'}的任务 · 可见 <span className="font-medium">{visibleTasks.length}</span> 个，
           匹配 <span className="font-medium text-brand-600">{filtered.length}</span> 个
           {isOwnTaskOnly && '（仅显示我负责的任务）'}
+          {' · 按项目结构排序'}
         </p>
       </div>
 

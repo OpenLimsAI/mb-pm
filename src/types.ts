@@ -57,8 +57,8 @@ export interface Project {
   health: Health
   plannedStart: string
   plannedEnd: string
-  templateId: string
-  templateVersion: string
+  templateId: string | null       // 空白项目不关联模板
+  templateVersion: string | null
   description?: string
   progress: number
 }
