@@ -4,7 +4,7 @@ import { useDataStore } from '../../store/data'
 import { roleLabels } from '../../lib/permissions'
 import { Avatar } from '../ui/Avatar'
 import { USE_API } from '../../api/client'
-import { settingsUrl, workspaceUrl } from '../../lib/site'
+import { feedbackUrl, settingsUrl, workspaceUrl } from '../../lib/site'
 
 export function TopBar() {
   const user = useAuth((s) => s.currentUser)
@@ -36,6 +36,8 @@ export function TopBar() {
         <Grid2X2 className="w-4 h-4" />
         <span className="hidden sm:inline">应用工作台</span>
       </a>
+
+      <a href={import.meta.env.DEV && !USE_API ? '/feedback?preview=1' : feedbackUrl} className="text-sm text-blue-100 hover:text-white px-2 py-1.5">回音壁</a>
 
       {/* 当前登录身份（角色取自 IAM）；点击进入工作台「我的设置」 */}
       {user && (

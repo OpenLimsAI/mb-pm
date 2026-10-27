@@ -58,6 +58,7 @@ a.workspace-app-card:hover { border-color: #afc8d8; box-shadow: 0 12px 24px rgb(
 .workspace-app-icon { width: 57px; height: 57px; display: flex; align-items: center; justify-content: center; border-radius: 13px; background: #eaf0f6; color: var(--workspace-blue); border: 1px solid #e0e9f1; }
 .workspace-app-card--knowledge .workspace-app-icon { background: #eaf3f3; border-color: #e0ecec; color: #326b78; }
 .workspace-app-card--information .workspace-app-icon { background: #e5f2ef; border-color: #d6eae4; color: #176f76; }
+.workspace-app-card--feedback .workspace-app-icon { background: #eaf3f3; border-color: #d8eae8; color: #326b78; }
 .workspace-app-card--solutions .workspace-app-icon { background: #eaf0f8; border-color: #dce6f3; color: #294c73; }
 .workspace-app-domain { font-size: 12px; letter-spacing: .15px; color: #738798; }
 .workspace-app-copy { margin-top: 28px; }
