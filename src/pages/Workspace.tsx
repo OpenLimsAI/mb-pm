@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, ArrowUpRight, BookOpen, BriefcaseBusiness, Check, ChevronRight, FilePenLine, History, LayoutGrid, LockKeyhole, Radar, RefreshCw, ShieldCheck, UsersRound } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, BookOpen, BriefcaseBusiness, Check, ChevronRight, FilePenLine, History, LayoutGrid, LockKeyhole, MessageSquareText, Radar, RefreshCw, ShieldCheck, UsersRound } from 'lucide-react'
 import PortalLayout from '../components/portal/PortalLayout'
 import { usePortalContext } from '../components/portal/context'
 import { knowledgeLaunchUrl } from '../lib/site'
@@ -12,13 +12,13 @@ export interface WorkspaceUser {
 }
 
 export interface WorkspaceApplication {
-  id: 'pm' | 'kb' | 'information' | 'solutions' | 'accounts' | 'mdm'
+  id: 'pm' | 'kb' | 'information' | 'solutions' | 'feedback' | 'accounts' | 'mdm'
   enabled: boolean
   reason?: string
 }
 
 interface ApplicationPresentation {
-  id: 'pm' | 'kb' | 'information' | 'solutions' | 'mdm'
+  id: 'pm' | 'kb' | 'information' | 'solutions' | 'feedback' | 'mdm'
   name: string
   englishName: string
   description: string
@@ -26,7 +26,7 @@ interface ApplicationPresentation {
   domain: string
   href: string
   external?: boolean
-  kind: 'projects' | 'knowledge' | 'information' | 'solutions'
+  kind: 'projects' | 'knowledge' | 'information' | 'solutions' | 'feedback'
   features: readonly string[]
 }
 
@@ -87,10 +87,16 @@ const applicationPresentations: readonly ApplicationPresentation[] = [
     kind: 'information',
     features: ['信息源监控', '批量收录', '更新与关注'],
   },
+  {
+    id: 'feedback', name: '回音壁', englishName: 'FEEDBACK',
+    description: '反馈使用中遇到的问题和新功能建议，查看处理状态。',
+    domain: '问题 · 建议 · 改进', href: '/launch/feedback', kind: 'feedback',
+    features: ['问题反馈', '图片说明', '修复状态'],
+  },
 ]
 
 function ApplicationCard({ application, access, preview }: { application: ApplicationPresentation; access?: WorkspaceApplication; preview: boolean }) {
-  const Icon = application.kind === 'solutions' ? FilePenLine : application.kind === 'information' ? Radar : application.kind === 'knowledge' ? BookOpen : BriefcaseBusiness
+  const Icon = application.kind === 'feedback' ? MessageSquareText : application.kind === 'solutions' ? FilePenLine : application.kind === 'information' ? Radar : application.kind === 'knowledge' ? BookOpen : BriefcaseBusiness
   const enabled = preview || access?.enabled === true
   const content = (
     <>
@@ -115,7 +121,7 @@ function ApplicationCard({ application, access, preview }: { application: Applic
   )
   const className = `workspace-app-card workspace-app-card--${application.kind}${enabled ? '' : ' workspace-app-card--unavailable'}`
 
-  if (!enabled || (preview && !['information', 'solutions'].includes(application.id))) return <article className={className}>{content}</article>
+  if (!enabled || (preview && !['information', 'solutions', 'feedback'].includes(application.id))) return <article className={className}>{content}</article>
 
   return (
     <a className={className} href={preview ? `/${application.id}?preview=1` : application.href} target={application.external ? '_blank' : undefined} rel={application.external ? 'noopener noreferrer' : undefined} aria-label={`进入${application.name}${application.external ? '（新标签页）' : ''}`}>

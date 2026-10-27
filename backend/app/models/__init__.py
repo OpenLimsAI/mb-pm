@@ -31,3 +31,5 @@ from app.models.user import User  # noqa: F401
 from app.models.information import InformationEntry, InformationLease, InformationText  # noqa: F401
 
 from app.models.mdm_integration import MDMProjectReceipt, OIDCRevocation, OIDCLogoutReplay  # noqa: F401
+
+from app.models.feedback import Feedback, FeedbackImage  # noqa: F401

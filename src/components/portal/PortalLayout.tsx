@@ -25,6 +25,7 @@ export default function PortalLayout({ user, logout, preview = false, children }
         <nav className="portal-navigation" aria-label="门户导航">
           <NavLink to={'/' + suffix} end>工作台</NavLink>
           {user && !preview && accountsEnabled && <NavLink to="/accounts">账号管理</NavLink>}
+          {user && <NavLink to={'/feedback' + suffix}>回音壁</NavLink>}
           {user && <NavLink to={'/settings' + suffix}>我的设置</NavLink>}
           {user && <NavLink to={'/release-notes' + suffix}>版本更新</NavLink>}
           <NavLink to="/help">使用帮助</NavLink>

@@ -39,6 +39,8 @@ assert.equal(local.settingsUrl, '/settings')
 assert.equal(portal.releaseNotesUrl, '/release-notes')
 assert.equal(pm.releaseNotesUrl, 'https://www.openlims.ai/release-notes')
 assert.equal(local.releaseNotesUrl, '/release-notes')
+assert.equal(local.feedbackUrl, '/feedback')
+assert.equal(pm.feedbackUrl, 'https://www.openlims.ai/feedback')
 assert.equal(local.solutionsUrl, '/solutions')
 assert.equal(portal.solutionsUrl, '/solutions')
 assert.equal(pm.solutionsUrl, 'https://www.openlims.ai/solutions')
@@ -89,7 +91,7 @@ for (const invalid of [undefined, null, {}, 'https://evil.example', '//evil.exam
 console.log('Portal routing checks passed: domain modes, fixed app targets, deep links, unsafe return paths.')
 
 // 门户匿名、PM 会话仍有效时，版本更新不可选用 PM 会话，否则会与 PortalGate 循环跳转。
-for (const route of ['/release-notes', '/release-notes/?x=1#latest', '/accounts', '/settings', '/help', '/launch/kb', '/information', '/information/sources', '/information/inbox?unread=1', '/launch/information', '/solutions', '/solutions/example?tab=knowledge', '/launch/solutions']) {
+for (const route of ['/feedback', '/release-notes', '/release-notes/?x=1#latest', '/accounts', '/settings', '/help', '/launch/kb', '/information', '/information/sources', '/information/inbox?unread=1', '/launch/information', '/solutions', '/solutions/example?tab=knowledge', '/launch/solutions', '/launch/feedback']) {
   assert.equal(local.loginUsesProjectSession(route), false)
   assert.equal(portal.loginUsesProjectSession(route), false)
   assert.equal(pm.loginUsesProjectSession(route), true)

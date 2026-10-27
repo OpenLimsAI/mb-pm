@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import Login from './pages/Login'
 import { WorkspacePage } from './pages/Workspace'
 import PortalGate from './components/portal/PortalGate'
-import { accountsUrl, informationUrl, solutionsUrl, releaseNotesUrl, settingsRedirect, siteMode, workspaceUrl } from './lib/site'
+import { accountsUrl, feedbackUrl, informationUrl, solutionsUrl, releaseNotesUrl, settingsRedirect, siteMode, workspaceUrl } from './lib/site'
 import { RequirePerm } from './components/auth/RequirePerm'
 import { BootSplash } from './components/auth/AuthStatus'
 
@@ -30,6 +30,7 @@ const PortalHelp = lazy(() => import('./pages/PortalHelp'))
 const PortalLaunch = lazy(() => import('./pages/PortalLaunch'))
 const Information = lazy(() => import('./pages/Information'))
 const Solutions = lazy(() => import('./pages/Solutions'))
+const Feedback = lazy(() => import('./pages/Feedback'))
 
 // www 域名只开放门户页面；pm 保留业务路由与独立鉴权；本地 combined 同时预览两者。
 export default function App() {
@@ -51,12 +52,14 @@ export default function App() {
             <Route path="/accounts" element={<PortalAccounts />} />
             <Route path="/release-notes" element={<ReleaseNotes />} />
             <Route path="/launch/:appId" element={<PortalLaunch />} />
+            <Route path="/feedback" element={<Feedback />} />
             <Route path="/information/*" element={<Information />} />
             <Route path="/solutions/*" element={<Solutions />} />
           </Route>
         </>}
         {siteMode === 'pm' && <>
           <Route path="/workspace" element={<ExternalWorkspace />} />
+          <Route path="/feedback" element={<ExternalRedirect to={feedbackUrl} message="正在打开回音壁 …" />} />
           <Route path="/information/*" element={<ExternalRedirect to={informationUrl} message="正在打开信息获取 …" />} />
           <Route path="/solutions/*" element={<ExternalRedirect to={solutionsUrl} message="正在打开知识报告 …" />} />
           {/* 个人设置回门户；旧 AI 标签直达项目管理 AI设置 */}
@@ -99,6 +102,7 @@ export default function App() {
 function RouteTitle() {
   const { pathname } = useLocation()
   useEffect(() => {
+    if (pathname === '/feedback') { document.title = '回音壁 · 迈博工作空间'; return }
     if (pathname === '/solutions' || pathname.startsWith('/solutions/')) {
       document.title = '知识报告 · 迈博工作空间'
       return
