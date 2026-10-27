@@ -75,6 +75,10 @@ describe('多项目甘特图时间轴缩放', () => {
     expect(slider).toHaveValue('5')
     expect(parseFloat(canvas.style.width)).toBeGreaterThan(originalWidth * 0.6 / 8)
 
+    // 全部时间已在屏幕内时，再放大应以时间轴中心为锚点，而非空白区域。
+    fireEvent.change(slider, { target: { value: '33' } })
+    expect(timeline.scrollLeft).toBeCloseTo((originalWidth / 8 / 2) * 3 - 250)
+
     fireEvent.change(slider, { target: { value: '100' } })
     expect(parseFloat(canvas.style.width)).toBeCloseTo(originalWidth * 18 / 8)
     expect(parseFloat(task.style.width)).toBeCloseTo(originalTaskWidth * 18 / 8)

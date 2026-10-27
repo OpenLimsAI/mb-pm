@@ -173,21 +173,6 @@ export function MultiProjectGantt({ projects, version }: { projects: Project[]; 
   const dayWidth = dayWidthForZoom(zoom)
   const scale = scaleForDayWidth(dayWidth)
 
-  const changeZoom = (next: number) => {
-    next = Math.max(0, Math.min(100, next))
-    if (next === zoom) return
-    const el = scrollRef.current
-    if (el) centerDayRef.current = (el.scrollLeft + el.clientWidth / 2) / dayWidth
-    setZoom(next)
-  }
-
-  useLayoutEffect(() => {
-    const el = scrollRef.current
-    if (!el || centerDayRef.current === null) return
-    el.scrollLeft = Math.max(0, centerDayRef.current * dayWidth - el.clientWidth / 2)
-    centerDayRef.current = null
-  }, [dayWidth])
-
   // 全局时间范围
   const range = useMemo(() => {
     const allTasks = projects.flatMap((p) => getProjectTasks(p.id))
@@ -199,6 +184,25 @@ export function MultiProjectGantt({ projects, version }: { projects: Project[]; 
     return { start, end, totalDays: differenceInCalendarDays(end, start) + 1 }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projects, version])
+
+  const totalWidth = range.totalDays * dayWidth
+  const changeZoom = (next: number) => {
+    next = Math.max(0, Math.min(100, next))
+    if (next === zoom) return
+    const el = scrollRef.current
+    if (el) {
+      const visibleWidth = Math.min(el.clientWidth, Math.max(0, totalWidth - el.scrollLeft))
+      centerDayRef.current = (el.scrollLeft + visibleWidth / 2) / dayWidth
+    }
+    setZoom(next)
+  }
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (!el || centerDayRef.current === null) return
+    el.scrollLeft = Math.max(0, centerDayRef.current * dayWidth - el.clientWidth / 2)
+    centerDayRef.current = null
+  }, [dayWidth])
 
   // 行结构：项目头 + 每个 sub 的所有 task
   type Row = { type: 'project'; project: Project } | { type: 'task'; task: Task; project: Project }
@@ -228,7 +232,6 @@ export function MultiProjectGantt({ projects, version }: { projects: Project[]; 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projects, version])
 
-  const totalWidth = range.totalDays * dayWidth
   const todayX = differenceInCalendarDays(TODAY, range.start) * dayWidth
   const xOf = (d: Date | string) => {
     const dd = typeof d === 'string' ? parseISO(d) : d
