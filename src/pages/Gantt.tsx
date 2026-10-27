@@ -3,12 +3,12 @@
 // 多项目模式：所有活跃项目堆叠展示（紧凑视图，跨项目时间轴）
 // 管理者看组合全景；执行者（rd / production / qa_qc）固定单项目视图，只见自己参与的项目。
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useLayoutEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   GanttChartSquare, Flame, Diamond, Layers, FolderKanban, ExternalLink, Eye,
 } from 'lucide-react'
-import { addDays, differenceInCalendarDays, format, isWeekend, parseISO, startOfMonth } from 'date-fns'
+import { addDays, addMonths, addYears, differenceInCalendarDays, format, isWeekend, parseISO, startOfMonth, startOfYear } from 'date-fns'
 import { Card, CardHeader, CardBody, Tag, HealthTag, Avatar } from '../components/ui'
 import { Gantt } from '../components/project/Gantt'
 import { TaskDrawer } from '../components/task/TaskDrawer'
@@ -137,13 +137,33 @@ export default function GanttPage() {
 
 // ====== 多项目联合甘特图 ======
 
-const DAY_WIDTH = 8
+type TimelineZoom = 'year' | 'month' | 'week' | 'day'
+const DAY_WIDTH: Record<TimelineZoom, number> = { year: 0.6, month: 3, week: 8, day: 18 }
 const ROW_H = 22
 const HEADER_H = 48
 const LABEL_W = 280
 const PROJECT_HEADER_H = 32
 
-function MultiProjectGantt({ projects, version }: { projects: Project[]; version: number }) {
+export function MultiProjectGantt({ projects, version }: { projects: Project[]; version: number }) {
+  const [zoom, setZoom] = useState<TimelineZoom>('week')
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const centerDayRef = useRef<number | null>(null)
+  const dayWidth = DAY_WIDTH[zoom]
+
+  const changeZoom = (next: TimelineZoom) => {
+    if (next === zoom) return
+    const el = scrollRef.current
+    if (el) centerDayRef.current = (el.scrollLeft + el.clientWidth / 2) / dayWidth
+    setZoom(next)
+  }
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (!el || centerDayRef.current === null) return
+    el.scrollLeft = Math.max(0, centerDayRef.current * dayWidth - el.clientWidth / 2)
+    centerDayRef.current = null
+  }, [dayWidth])
+
   // 全局时间范围
   const range = useMemo(() => {
     const allTasks = projects.flatMap((p) => getProjectTasks(p.id))
@@ -184,23 +204,26 @@ function MultiProjectGantt({ projects, version }: { projects: Project[]; version
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projects, version])
 
-  const totalWidth = range.totalDays * DAY_WIDTH
-  const todayX = differenceInCalendarDays(TODAY, range.start) * DAY_WIDTH
+  const totalWidth = range.totalDays * dayWidth
+  const todayX = differenceInCalendarDays(TODAY, range.start) * dayWidth
   const xOf = (d: Date | string) => {
     const dd = typeof d === 'string' ? parseISO(d) : d
-    return differenceInCalendarDays(dd, range.start) * DAY_WIDTH
+    return differenceInCalendarDays(dd, range.start) * dayWidth
   }
 
-  // 月份带
-  const months = useMemo(() => {
-    const m: { label: string; x: number }[] = []
-    let cur = startOfMonth(range.start)
+  // 缩小时使用年份带，其他比例使用月份带；首尾按实际范围裁切。
+  const bands = useMemo(() => {
+    const result: { label: string; left: number; width: number }[] = []
+    let cur = zoom === 'year' ? startOfYear(range.start) : startOfMonth(range.start)
     while (cur <= range.end) {
-      m.push({ label: format(cur, 'yyyy-MM'), x: differenceInCalendarDays(cur, range.start) * DAY_WIDTH })
-      cur = startOfMonth(addDays(cur, 32))
+      const next = zoom === 'year' ? addYears(cur, 1) : addMonths(cur, 1)
+      const left = Math.max(0, differenceInCalendarDays(cur, range.start) * dayWidth)
+      const right = Math.min(totalWidth, differenceInCalendarDays(next, range.start) * dayWidth)
+      result.push({ label: format(cur, zoom === 'year' ? 'yyyy' : 'yyyy-MM'), left, width: right - left })
+      cur = next
     }
-    return m
-  }, [range.start, range.end])
+    return result
+  }, [range.start, range.end, zoom, dayWidth, totalWidth])
 
   // 计算每行 y 偏移（项目头比 task 高一些）
   let yCursor = 0
@@ -219,8 +242,9 @@ function MultiProjectGantt({ projects, version }: { projects: Project[]; version
   return (
     <Card className="overflow-hidden">
       <CardHeader
+        className="flex-wrap gap-3"
         title={
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-2">
             <Layers className="w-4 h-4 text-brand-600" />
             多项目联合甘特图
             <Tag tone="blue">{projects.length} 项目</Tag>
@@ -230,6 +254,23 @@ function MultiProjectGantt({ projects, version }: { projects: Project[]; version
           </span>
         }
         subtitle={`${format(range.start, 'yyyy-MM-dd')} ~ ${format(range.end, 'yyyy-MM-dd')} · 共 ${range.totalDays} 天`}
+        action={
+          <div className="flex items-center gap-2 text-xs text-ink-700" role="group" aria-label="时间轴缩放">
+            <span>时间缩放</span>
+            <div className="inline-flex overflow-hidden rounded-md border border-ink-300 bg-white">
+              {([['year', '年'], ['month', '月'], ['week', '周'], ['day', '日']] as const).map(([value, label], index) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-label={`按${label}显示`}
+                  aria-pressed={zoom === value}
+                  onClick={() => changeZoom(value)}
+                  className={cn('px-2.5 py-1.5 transition-colors', index > 0 && 'border-l border-ink-300', zoom === value ? 'bg-brand-50 text-brand-700 font-medium' : 'text-ink-700 hover:bg-ink-100')}
+                >{label}</button>
+              ))}
+            </div>
+          </div>
+        }
       />
       <CardBody className="p-0">
         <div className="flex border-t border-ink-300/40">
@@ -279,16 +320,16 @@ function MultiProjectGantt({ projects, version }: { projects: Project[]; version
           </div>
 
           {/* 右：时间轴 + 条形 */}
-          <div className="flex-1 overflow-x-auto relative">
+          <div ref={scrollRef} role="region" aria-label="甘特图时间轴" tabIndex={0} className="flex-1 min-w-0 overflow-x-auto relative">
             <div style={{ width: totalWidth, position: 'relative' }}>
               {/* 头部 */}
               <div className="bg-ink-100 sticky top-0 z-10 border-b border-ink-300/40" style={{ height: HEADER_H }}>
                 <div className="absolute inset-x-0 top-0 h-6">
-                  {months.map((m) => (
+                  {bands.map((m) => (
                     <div
                       key={m.label}
-                      className="absolute top-0 h-full text-xs flex items-center px-1.5 text-ink-700 font-medium border-r border-ink-300/60 bg-ink-100"
-                      style={{ left: m.x }}
+                      className="absolute top-0 h-full text-xs flex items-center px-1.5 text-ink-700 font-medium border-r border-ink-300/60 bg-ink-100 overflow-hidden whitespace-nowrap"
+                      style={{ left: m.left, width: m.width }}
                     >
                       {m.label}
                     </div>
@@ -297,15 +338,18 @@ function MultiProjectGantt({ projects, version }: { projects: Project[]; version
                 <div className="absolute inset-x-0 bottom-0 h-6 border-t border-ink-300/40">
                   {Array.from({ length: range.totalDays }).map((_, i) => {
                     const d = addDays(range.start, i)
-                    const x = i * DAY_WIDTH
-                    if (d.getDate() !== 1 && d.getDay() !== 1) return null
+                    const x = i * dayWidth
+                    const show = zoom === 'day' || (zoom === 'week' && d.getDay() === 1) ||
+                      (zoom === 'month' && (d.getDate() === 1 || d.getDate() === 15)) ||
+                      (zoom === 'year' && d.getDate() === 1 && d.getMonth() % 3 === 0)
+                    if (!show) return null
                     return (
                       <div
                         key={i}
                         className="absolute top-0 h-full text-[9px] text-ink-500 px-0.5 leading-none pt-1.5 border-l border-ink-300/40"
                         style={{ left: x }}
                       >
-                        {d.getDate() === 1 ? format(d, 'M月') : format(d, 'd')}
+                        {zoom === 'year' ? `Q${Math.floor(d.getMonth() / 3) + 1}` : zoom === 'week' ? format(d, 'M/d') : format(d, 'd')}
                       </div>
                     )
                   })}
@@ -317,22 +361,22 @@ function MultiProjectGantt({ projects, version }: { projects: Project[]; version
                 {/* 周末背景 */}
                 {Array.from({ length: range.totalDays }).map((_, i) => {
                   const d = addDays(range.start, i)
-                  if (!isWeekend(d)) return null
+                  if (zoom === 'year' || zoom === 'month' || !isWeekend(d)) return null
                   return (
                     <div
                       key={i}
                       className="absolute top-0 bottom-0 bg-amber-50/30"
-                      style={{ left: i * DAY_WIDTH, width: DAY_WIDTH }}
+                      style={{ left: i * dayWidth, width: dayWidth }}
                     />
                   )
                 })}
 
                 {/* 月份分隔线 */}
-                {months.map((m) => (
+                {bands.map((m) => (
                   <div
                     key={m.label}
                     className="absolute top-0 bottom-0 border-l border-ink-300/30"
-                    style={{ left: m.x }}
+                    style={{ left: m.left }}
                   />
                 ))}
 
@@ -341,6 +385,8 @@ function MultiProjectGantt({ projects, version }: { projects: Project[]; version
                   <div
                     className="absolute top-0 bottom-0 w-px bg-red-500/70 z-10"
                     style={{ left: todayX }}
+                    role="img"
+                    aria-label={`今日 ${format(TODAY, 'yyyy-MM-dd')}`}
                   />
                 )}
 
@@ -358,7 +404,7 @@ function MultiProjectGantt({ projects, version }: { projects: Project[]; version
                   }
                   const t = r.task
                   const left = xOf(t.plannedStart)
-                  const w = Math.max(t.isMilestone ? 14 : 4, differenceInCalendarDays(parseISO(t.plannedEnd), parseISO(t.plannedStart)) * DAY_WIDTH)
+                  const w = Math.max(t.isMilestone ? 14 : 4, differenceInCalendarDays(parseISO(t.plannedEnd), parseISO(t.plannedStart)) * dayWidth)
                   const barTop = top + (ROW_H - 12) / 2
                   const isCritical = cpmByProject.get(r.project.id)?.criticalPathIds.has(t.id) || false
                   if (t.isMilestone) {
