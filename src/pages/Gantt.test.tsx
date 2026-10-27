@@ -25,7 +25,7 @@ vi.mock('../mock', async (importOriginal) => ({
 }))
 
 describe('多项目甘特图时间轴缩放', () => {
-  it('同步缩放任务、里程碑、今日线和跨年刻度，并保留可见时间位置', () => {
+  it('连续缩放任务、里程碑、今日线和跨年刻度，并保留可见时间位置', () => {
     render(<MemoryRouter><MultiProjectGantt projects={[fixture.project as Project]} version={0} /></MemoryRouter>)
     const timeline = screen.getByRole('region', { name: '甘特图时间轴' })
     Object.defineProperty(timeline, 'clientWidth', { configurable: true, value: 500 })
@@ -39,11 +39,13 @@ describe('多项目甘特图时间轴缩放', () => {
     const daysToMilestone = differenceInCalendarDays(parseISO('2027-04-01'), start)
     const originalWidth = parseFloat(canvas.style.width)
     const originalTaskWidth = parseFloat(task.style.width)
-    expect(screen.getByRole('button', { name: '按周显示' })).toHaveAttribute('aria-pressed', 'true')
+    const slider = screen.getByRole('slider', { name: '时间轴缩放' })
+    expect(slider).toHaveValue('66')
+    expect(slider).toHaveAttribute('aria-valuetext', '周视图，缩放位置 66 / 100')
     expect(parseFloat(today.style.left)).toBe(daysToToday * 8)
 
-    fireEvent.click(screen.getByRole('button', { name: '按月显示' }))
-    expect(screen.getByRole('button', { name: '按月显示' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.change(slider, { target: { value: '33' } })
+    expect(slider).toHaveAttribute('aria-valuetext', '月视图，缩放位置 33 / 100')
     expect(parseFloat(canvas.style.width)).toBeCloseTo(originalWidth * 3 / 8)
     expect(parseFloat(task.style.width)).toBeCloseTo(originalTaskWidth * 3 / 8)
     expect(parseFloat(milestone.style.left)).toBeCloseTo(daysToMilestone * 3 - 6)
@@ -51,16 +53,37 @@ describe('多项目甘特图时间轴缩放', () => {
     expect(timeline.scrollLeft).toBeCloseTo((800 + 250) / 8 * 3 - 250)
     expect(within(timeline).getByText('2026-01')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: '按年显示' }))
+    const monthWidth = parseFloat(canvas.style.width)
+    fireEvent.change(slider, { target: { value: '45' } })
+    const intermediateWidth = parseFloat(canvas.style.width)
+    expect(intermediateWidth).toBeGreaterThan(monthWidth)
+    expect(intermediateWidth).toBeLessThan(originalWidth)
+    expect(parseFloat(task.style.width) / originalTaskWidth).toBeCloseTo(intermediateWidth / originalWidth)
+    expect(parseFloat(today.style.left) / daysToToday).toBeCloseTo(intermediateWidth / (originalWidth / 8))
+    expect(timeline.scrollLeft).toBeCloseTo((800 + 250) / 8 * (intermediateWidth / (originalWidth / 8)) - 250)
+    fireEvent.change(slider, { target: { value: '46' } })
+    expect(parseFloat(canvas.style.width)).toBeGreaterThan(intermediateWidth)
+
+    fireEvent.change(slider, { target: { value: '0' } })
     expect(parseFloat(canvas.style.width)).toBeCloseTo(originalWidth * 0.6 / 8)
     expect(parseFloat(today.style.left)).toBe(daysToToday * 0.6)
     expect(within(timeline).getByText('2026')).toBeInTheDocument()
     expect(within(timeline).getAllByText('Q1').length).toBeGreaterThan(0)
     expect(timeline.scrollLeft).toBe(0)
+    expect(screen.getByRole('button', { name: '缩小时间轴' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: '放大时间轴' }))
+    expect(slider).toHaveValue('5')
+    expect(parseFloat(canvas.style.width)).toBeGreaterThan(originalWidth * 0.6 / 8)
 
-    fireEvent.click(screen.getByRole('button', { name: '按日显示' }))
+    // 全部时间已在屏幕内时，再放大应以时间轴中心为锚点，而非空白区域。
+    fireEvent.change(slider, { target: { value: '33' } })
+    expect(timeline.scrollLeft).toBeCloseTo((originalWidth / 8 / 2) * 3 - 250)
+
+    fireEvent.change(slider, { target: { value: '100' } })
     expect(parseFloat(canvas.style.width)).toBeCloseTo(originalWidth * 18 / 8)
     expect(parseFloat(task.style.width)).toBeCloseTo(originalTaskWidth * 18 / 8)
     expect(parseFloat(today.style.left)).toBe(daysToToday * 18)
+    expect(slider).toHaveAttribute('aria-valuetext', '日视图，缩放位置 100 / 100')
+    expect(screen.getByRole('button', { name: '放大时间轴' })).toBeDisabled()
   })
 })

@@ -6,7 +6,7 @@
 import { useState, useMemo, useRef, useLayoutEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  GanttChartSquare, Flame, Diamond, Layers, FolderKanban, ExternalLink, Eye,
+  GanttChartSquare, Flame, Diamond, Layers, FolderKanban, ExternalLink, Eye, Minus, Plus,
 } from 'lucide-react'
 import { addDays, addMonths, addYears, differenceInCalendarDays, format, isWeekend, parseISO, startOfMonth, startOfYear } from 'date-fns'
 import { Card, CardHeader, CardBody, Tag, HealthTag, Avatar } from '../components/ui'
@@ -138,31 +138,40 @@ export default function GanttPage() {
 // ====== 多项目联合甘特图 ======
 
 type TimelineZoom = 'year' | 'month' | 'week' | 'day'
-const DAY_WIDTH: Record<TimelineZoom, number> = { year: 0.6, month: 3, week: 8, day: 18 }
+const ZOOM_STOPS = [
+  { position: 0, dayWidth: 0.6 },
+  { position: 33, dayWidth: 3 },
+  { position: 66, dayWidth: 8 },
+  { position: 100, dayWidth: 18 },
+]
+const ZOOM_LABELS: Record<TimelineZoom, string> = { year: '年', month: '月', week: '周', day: '日' }
+
+function dayWidthForZoom(position: number): number {
+  const stop = ZOOM_STOPS.findIndex((item) => item.position >= position)
+  if (stop <= 0) return ZOOM_STOPS[0].dayWidth
+  const previous = ZOOM_STOPS[stop - 1]
+  const next = ZOOM_STOPS[stop]
+  const progress = (position - previous.position) / (next.position - previous.position)
+  return previous.dayWidth * (next.dayWidth / previous.dayWidth) ** progress
+}
+
+function scaleForDayWidth(dayWidth: number): TimelineZoom {
+  if (dayWidth < 2) return 'year'
+  if (dayWidth < 5) return 'month'
+  if (dayWidth < 14) return 'week'
+  return 'day'
+}
 const ROW_H = 22
 const HEADER_H = 48
 const LABEL_W = 280
 const PROJECT_HEADER_H = 32
 
 export function MultiProjectGantt({ projects, version }: { projects: Project[]; version: number }) {
-  const [zoom, setZoom] = useState<TimelineZoom>('week')
+  const [zoom, setZoom] = useState(66)
   const scrollRef = useRef<HTMLDivElement>(null)
   const centerDayRef = useRef<number | null>(null)
-  const dayWidth = DAY_WIDTH[zoom]
-
-  const changeZoom = (next: TimelineZoom) => {
-    if (next === zoom) return
-    const el = scrollRef.current
-    if (el) centerDayRef.current = (el.scrollLeft + el.clientWidth / 2) / dayWidth
-    setZoom(next)
-  }
-
-  useLayoutEffect(() => {
-    const el = scrollRef.current
-    if (!el || centerDayRef.current === null) return
-    el.scrollLeft = Math.max(0, centerDayRef.current * dayWidth - el.clientWidth / 2)
-    centerDayRef.current = null
-  }, [dayWidth])
+  const dayWidth = dayWidthForZoom(zoom)
+  const scale = scaleForDayWidth(dayWidth)
 
   // 全局时间范围
   const range = useMemo(() => {
@@ -175,6 +184,25 @@ export function MultiProjectGantt({ projects, version }: { projects: Project[]; 
     return { start, end, totalDays: differenceInCalendarDays(end, start) + 1 }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projects, version])
+
+  const totalWidth = range.totalDays * dayWidth
+  const changeZoom = (next: number) => {
+    next = Math.max(0, Math.min(100, next))
+    if (next === zoom) return
+    const el = scrollRef.current
+    if (el) {
+      const visibleWidth = Math.min(el.clientWidth, Math.max(0, totalWidth - el.scrollLeft))
+      centerDayRef.current = (el.scrollLeft + visibleWidth / 2) / dayWidth
+    }
+    setZoom(next)
+  }
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (!el || centerDayRef.current === null) return
+    el.scrollLeft = Math.max(0, centerDayRef.current * dayWidth - el.clientWidth / 2)
+    centerDayRef.current = null
+  }, [dayWidth])
 
   // 行结构：项目头 + 每个 sub 的所有 task
   type Row = { type: 'project'; project: Project } | { type: 'task'; task: Task; project: Project }
@@ -204,7 +232,6 @@ export function MultiProjectGantt({ projects, version }: { projects: Project[]; 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projects, version])
 
-  const totalWidth = range.totalDays * dayWidth
   const todayX = differenceInCalendarDays(TODAY, range.start) * dayWidth
   const xOf = (d: Date | string) => {
     const dd = typeof d === 'string' ? parseISO(d) : d
@@ -214,16 +241,21 @@ export function MultiProjectGantt({ projects, version }: { projects: Project[]; 
   // 缩小时使用年份带，其他比例使用月份带；首尾按实际范围裁切。
   const bands = useMemo(() => {
     const result: { label: string; left: number; width: number }[] = []
-    let cur = zoom === 'year' ? startOfYear(range.start) : startOfMonth(range.start)
+    let cur = scale === 'year' ? startOfYear(range.start) : startOfMonth(range.start)
     while (cur <= range.end) {
-      const next = zoom === 'year' ? addYears(cur, 1) : addMonths(cur, 1)
+      const next = scale === 'year' ? addYears(cur, 1) : addMonths(cur, 1)
       const left = Math.max(0, differenceInCalendarDays(cur, range.start) * dayWidth)
       const right = Math.min(totalWidth, differenceInCalendarDays(next, range.start) * dayWidth)
-      result.push({ label: format(cur, zoom === 'year' ? 'yyyy' : 'yyyy-MM'), left, width: right - left })
+      result.push({ label: format(cur, scale === 'year' ? 'yyyy' : 'yyyy-MM'), left, width: right - left })
       cur = next
     }
     return result
-  }, [range.start, range.end, zoom, dayWidth, totalWidth])
+  }, [range.start, range.end, scale, dayWidth, totalWidth])
+
+  const dates = useMemo(
+    () => Array.from({ length: range.totalDays }, (_, i) => addDays(range.start, i)),
+    [range.start, range.totalDays],
+  )
 
   // 计算每行 y 偏移（项目头比 task 高一些）
   let yCursor = 0
@@ -256,19 +288,24 @@ export function MultiProjectGantt({ projects, version }: { projects: Project[]; 
         subtitle={`${format(range.start, 'yyyy-MM-dd')} ~ ${format(range.end, 'yyyy-MM-dd')} · 共 ${range.totalDays} 天`}
         action={
           <div className="flex items-center gap-2 text-xs text-ink-700" role="group" aria-label="时间轴缩放">
-            <span>时间缩放</span>
-            <div className="inline-flex overflow-hidden rounded-md border border-ink-300 bg-white">
-              {([['year', '年'], ['month', '月'], ['week', '周'], ['day', '日']] as const).map(([value, label], index) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-label={`按${label}显示`}
-                  aria-pressed={zoom === value}
-                  onClick={() => changeZoom(value)}
-                  className={cn('px-2.5 py-1.5 transition-colors', index > 0 && 'border-l border-ink-300', zoom === value ? 'bg-brand-50 text-brand-700 font-medium' : 'text-ink-700 hover:bg-ink-100')}
-                >{label}</button>
-              ))}
+            <span className="shrink-0">时间缩放</span>
+            <button type="button" aria-label="缩小时间轴" title="缩小时间轴" disabled={zoom === 0} onClick={() => changeZoom(zoom - 5)} className="rounded p-1 hover:bg-ink-100 disabled:opacity-40">
+              <Minus className="h-4 w-4" />
+            </button>
+            <div className="w-40 sm:w-48">
+              <input
+                type="range" min="0" max="100" step="1" value={zoom}
+                aria-label="时间轴缩放" aria-valuetext={`${ZOOM_LABELS[scale]}视图，缩放位置 ${zoom} / 100`}
+                onChange={(event) => changeZoom(Number(event.target.value))}
+                className="block h-4 w-full cursor-pointer accent-brand-600"
+              />
+              <div className="flex justify-between text-[10px] leading-4 text-ink-500" aria-hidden="true">
+                <span>年</span><span>月</span><span>周</span><span>日</span>
+              </div>
             </div>
+            <button type="button" aria-label="放大时间轴" title="放大时间轴" disabled={zoom === 100} onClick={() => changeZoom(zoom + 5)} className="rounded p-1 hover:bg-ink-100 disabled:opacity-40">
+              <Plus className="h-4 w-4" />
+            </button>
           </div>
         }
       />
@@ -336,12 +373,11 @@ export function MultiProjectGantt({ projects, version }: { projects: Project[]; 
                   ))}
                 </div>
                 <div className="absolute inset-x-0 bottom-0 h-6 border-t border-ink-300/40">
-                  {Array.from({ length: range.totalDays }).map((_, i) => {
-                    const d = addDays(range.start, i)
+                  {dates.map((d, i) => {
                     const x = i * dayWidth
-                    const show = zoom === 'day' || (zoom === 'week' && d.getDay() === 1) ||
-                      (zoom === 'month' && (d.getDate() === 1 || d.getDate() === 15)) ||
-                      (zoom === 'year' && d.getDate() === 1 && d.getMonth() % 3 === 0)
+                    const show = scale === 'day' || (scale === 'week' && d.getDay() === 1) ||
+                      (scale === 'month' && (d.getDate() === 1 || d.getDate() === 15)) ||
+                      (scale === 'year' && d.getDate() === 1 && d.getMonth() % 3 === 0)
                     if (!show) return null
                     return (
                       <div
@@ -349,7 +385,7 @@ export function MultiProjectGantt({ projects, version }: { projects: Project[]; 
                         className="absolute top-0 h-full text-[9px] text-ink-500 px-0.5 leading-none pt-1.5 border-l border-ink-300/40"
                         style={{ left: x }}
                       >
-                        {zoom === 'year' ? `Q${Math.floor(d.getMonth() / 3) + 1}` : zoom === 'week' ? format(d, 'M/d') : format(d, 'd')}
+                        {scale === 'year' ? `Q${Math.floor(d.getMonth() / 3) + 1}` : scale === 'week' ? format(d, 'M/d') : format(d, 'd')}
                       </div>
                     )
                   })}
@@ -359,9 +395,8 @@ export function MultiProjectGantt({ projects, version }: { projects: Project[]; 
               {/* 主体 */}
               <div className="relative" style={{ height: totalH }}>
                 {/* 周末背景 */}
-                {Array.from({ length: range.totalDays }).map((_, i) => {
-                  const d = addDays(range.start, i)
-                  if (zoom === 'year' || zoom === 'month' || !isWeekend(d)) return null
+                {dates.map((d, i) => {
+                  if (scale === 'year' || scale === 'month' || !isWeekend(d)) return null
                   return (
                     <div
                       key={i}
