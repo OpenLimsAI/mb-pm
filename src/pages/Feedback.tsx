@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import axios from 'axios'
-import { AlertCircle, ArrowUpRight, Bug, Check, CheckCircle2, ChevronRight, CircleDot, ImagePlus, LayoutGrid, Lightbulb, LogOut, MessageSquareText, Plus, RefreshCw, Search, ShieldCheck, X } from 'lucide-react'
+import { AlertCircle, ArrowUpRight, Bug, Check, CheckCircle2, ChevronRight, CircleDot, ImagePlus, LayoutGrid, Lightbulb, LogOut, MessageSquareText, Plus, RefreshCw, Search, ShieldCheck, Trash2, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { usePortalContext } from '../components/portal/context'
 import { API_BASE } from '../api/client'
@@ -9,14 +9,14 @@ import '../styles/feedback.css'
 
 type Category = 'bug' | 'feature'
 type FeedbackStatus = 'open' | 'fixed'
-type FeedbackItem = { id: string; category: Category; description: string; status: FeedbackStatus; author_name: string; created_at: string; images: string[] }
+type FeedbackItem = { id: string; category: Category; description: string; status: FeedbackStatus; author_name: string; created_at: string; images: string[]; can_delete: boolean }
 type Attachment = { id: string; file: File; url: string }
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp']
 const client = axios.create({ baseURL: `${API_BASE}/feedback`, withCredentials: true, timeout: 30000 })
 const demoItems: FeedbackItem[] = [
-  { id: 'demo-1', category: 'bug', description: '项目列表页面在切换筛选条件后显示不完整。', status: 'open', author_name: '演示成员', created_at: '2026-10-25T09:30:00Z', images: [] },
-  { id: 'demo-2', category: 'feature', description: '希望可以在任务列表中按负责人快速筛选。', status: 'fixed', author_name: '演示成员', created_at: '2026-10-24T09:30:00Z', images: [] },
+  { id: 'demo-1', category: 'bug', description: '项目列表页面在切换筛选条件后显示不完整。', status: 'open', author_name: '演示成员', created_at: '2026-10-25T09:30:00Z', images: [], can_delete: true },
+  { id: 'demo-2', category: 'feature', description: '希望可以在任务列表中按负责人快速筛选。', status: 'fixed', author_name: '演示成员', created_at: '2026-10-24T09:30:00Z', images: [], can_delete: true },
 ]
 function errorMessage(error: unknown) {
   if (axios.isAxiosError(error) && typeof error.response?.data?.detail === 'string') return error.response.data.detail
@@ -50,11 +50,17 @@ export default function Feedback() {
   const [attachmentError, setAttachmentError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [updating, setUpdating] = useState<Set<string>>(() => new Set())
+  const [deleteTarget, setDeleteTarget] = useState<FeedbackItem | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
   const urls = useRef(new Set<string>())
   const dialogRef = useRef<HTMLDivElement>(null)
   const openButtonRef = useRef<HTMLButtonElement>(null)
   const descriptionRef = useRef<HTMLTextAreaElement>(null)
   const continueEditingRef = useRef<HTMLButtonElement>(null)
+  const deleteDialogRef = useRef<HTMLDivElement>(null)
+  const deleteCancelRef = useRef<HTMLButtonElement>(null)
+  const deleteTriggerRef = useRef<HTMLButtonElement | null>(null)
 
   const revoke = useCallback((url: string) => { if (urls.current.delete(url)) URL.revokeObjectURL(url) }, [])
   useEffect(() => {
@@ -118,6 +124,39 @@ export default function Feedback() {
     // The handler should reflect the current draft and submission state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [composerOpen, confirmDiscard, description, attachments, category, submitting])
+  useEffect(() => {
+    if (!deleteTarget) return
+    if (!deleting) deleteCancelRef.current?.focus()
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !deleting) {
+        event.preventDefault(); setDeleteTarget(null); setDeleteError(''); deleteTriggerRef.current?.focus(); return
+      }
+      if (event.key !== 'Tab') return
+      const nodes = deleteDialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled])')
+      if (!nodes?.length) return
+      const first = nodes[0], last = nodes[nodes.length - 1]
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [deleteTarget, deleting])
+  const closeDelete = () => {
+    if (deleting) return
+    setDeleteTarget(null); setDeleteError(''); deleteTriggerRef.current?.focus()
+  }
+  const deleteFeedback = async () => {
+    if (!deleteTarget || deleting) return
+    setDeleting(true); setDeleteError('')
+    try {
+      if (!preview) await client.delete(`/${deleteTarget.id}`)
+      else deleteTarget.images.filter((id) => id.startsWith('blob:')).forEach(revoke)
+      setItems((current) => current.filter((item) => item.id !== deleteTarget.id))
+      setDeleteTarget(null); setNotice(preview ? '演示反馈已删除，正式数据未受影响。' : '反馈已删除。'); setActionError('')
+      openButtonRef.current?.focus()
+    } catch (error) { setDeleteError(reportError(error)) }
+    finally { setDeleting(false) }
+  }
   const addImages = (selected: File[]) => {
     if (!selected.length) return
     if (attachments.length + selected.length > 3) { setAttachmentError('最多上传 3 张图片，请先移除多余的图片。'); return }
@@ -138,7 +177,7 @@ export default function Feedback() {
     try {
       let item: FeedbackItem
       if (preview) {
-        item = { id: `demo-${Date.now()}`, category, description: description.trim(), status: 'open', author_name: name, created_at: new Date().toISOString(), images: attachments.map((attachment) => attachment.url) }
+        item = { id: `demo-${Date.now()}`, category, description: description.trim(), status: 'open', author_name: name, created_at: new Date().toISOString(), images: attachments.map((attachment) => attachment.url), can_delete: true }
       } else {
         const data = new FormData(); data.append('category', category); data.append('description', description.trim())
         attachments.forEach((attachment) => data.append('images', attachment.file))
@@ -194,12 +233,17 @@ export default function Feedback() {
           <div className="feedback-item-top"><div className="feedback-item-tags"><span className={`feedback-category feedback-category--${item.category}`}>{item.category === 'bug' ? <Bug size={13} /> : <Lightbulb size={13} />}{item.category === 'bug' ? 'Bug 问题' : '新功能建议'}</span><span className={`feedback-status feedback-status--${item.status}`}><i className={`feedback-dot feedback-dot--${item.status}`} />{item.status === 'fixed' ? '已修复' : '待处理'}</span></div><time dateTime={item.created_at}>{formatDate(item.created_at)}</time></div>
           <p className="feedback-description">{item.description}</p>
           {item.images.length > 0 && <div className="feedback-images">{item.images.map((id, index) => <a key={id} href={imageUrl(id)} target="_blank" rel="noreferrer" aria-label={`查看图片 ${index + 1}（新窗口打开）`}><img src={imageUrl(id)} alt={`反馈图片 ${index + 1}`} loading="lazy" /><span><ArrowUpRight size={14} /></span></a>)}</div>}
-          <div className="feedback-item-bottom"><div className="feedback-author"><span className="feedback-author-avatar" aria-hidden="true">{Array.from(item.author_name || '同')[0]}</span><span>{item.author_name}</span></div><button type="button" className="feedback-status-button" disabled={updating.has(item.id)} onClick={() => { void changeStatus(item) }}>{updating.has(item.id) ? '正在更新…' : item.status === 'open' ? <><Check size={15} />标记为已修复</> : <><CircleDot size={15} />重新打开</>}</button></div>
+          <div className="feedback-item-bottom"><div className="feedback-author"><span className="feedback-author-avatar" aria-hidden="true">{Array.from(item.author_name || '同')[0]}</span><span>{item.author_name}</span></div><div className="feedback-item-actions">{item.can_delete && <button type="button" className="feedback-delete-button" disabled={updating.has(item.id)} onClick={(event) => { deleteTriggerRef.current = event.currentTarget; setDeleteError(''); setDeleteTarget(item) }}><Trash2 size={15} />删除反馈</button>}<button type="button" className="feedback-status-button" disabled={updating.has(item.id)} onClick={() => { void changeStatus(item) }}>{updating.has(item.id) ? '正在更新…' : item.status === 'open' ? <><Check size={15} />标记为已修复</> : <><CircleDot size={15} />重新打开</>}</button></div></div>
         </article>)}</div>}
         {!loading && !loadError && !isEmpty && <div className="feedback-board-footer">{filtersActive ? `显示 ${visible.length} 条，全部 ${items.length} 条` : `共 ${items.length} 条反馈`}<span>反馈对组织内成员可见</span></div>}
       </section>
       <footer className="feedback-footer"><span>迈博药业 · 回音壁{preview ? ' · 界面体验' : ''}</span><span>{preview ? '演示数据仅保留在当前页面' : '反馈和图片保存在系统中'}</span></footer>
     </main></div>
+    {deleteTarget && <div className="feedback-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeDelete() }}><div className="feedback-dialog feedback-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="feedback-delete-title" aria-describedby="feedback-delete-warning" ref={deleteDialogRef}>
+      <span className="feedback-delete-icon"><Trash2 size={22} /></span><h2 id="feedback-delete-title">删除这条反馈？</h2><p id="feedback-delete-warning">删除后无法恢复，图片也会被删除。</p><div className="feedback-delete-excerpt">{deleteTarget.description}</div>
+      {deleteError && <div className="feedback-form-error" role="alert"><AlertCircle size={15} /><span>{deleteError}</span></div>}
+      <div className="feedback-dialog-actions"><button ref={deleteCancelRef} type="button" className="feedback-outline-button" disabled={deleting} onClick={closeDelete}>取消</button><button type="button" className="feedback-danger-button" disabled={deleting} onClick={() => { void deleteFeedback() }}>{deleting ? '正在删除…' : '确认删除'}</button></div>
+    </div></div>}
     {composerOpen && <div className="feedback-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeComposer() }}><div className="feedback-dialog" role="dialog" aria-modal="true" aria-labelledby="feedback-dialog-title" ref={dialogRef}>
       {confirmDiscard ? <div className="feedback-discard"><span className="feedback-dialog-icon"><AlertCircle size={23} /></span><h2 id="feedback-dialog-title">放弃这条反馈？</h2><p>你填写的内容和已选图片还没有提交，关闭后将不会保存。</p><div className="feedback-dialog-actions"><button ref={continueEditingRef} type="button" className="feedback-outline-button" onClick={() => setConfirmDiscard(false)}>继续编辑</button><button type="button" className="feedback-danger-button" onClick={discardComposer}>放弃并关闭</button></div></div> : <><div className="feedback-dialog-header"><div><div className="feedback-dialog-kicker">SHARE YOUR FEEDBACK</div><h2 id="feedback-dialog-title">提交反馈</h2><p>说说你遇到的问题，或分享让系统更好用的想法。</p></div><button type="button" className="feedback-icon-button" aria-label="关闭" disabled={submitting} onClick={closeComposer}><X size={20} /></button></div>
       <form onSubmit={(event) => { void submit(event) }} className="feedback-dialog-form"><fieldset className="feedback-category-picker"><legend>反馈分类</legend><button type="button" aria-pressed={category === 'bug'} className={category === 'bug' ? 'is-selected' : ''} onClick={() => setCategory('bug')}><span><Bug size={18} /></span><div><strong>Bug 问题</strong><small>遇到故障或异常</small></div>{category === 'bug' && <CheckCircle2 size={17} />}</button><button type="button" aria-pressed={category === 'feature'} className={category === 'feature' ? 'is-selected' : ''} onClick={() => setCategory('feature')}><span><Lightbulb size={18} /></span><div><strong>新功能建议</strong><small>分享需求或想法</small></div>{category === 'feature' && <CheckCircle2 size={17} />}</button></fieldset>

@@ -96,3 +96,12 @@
 .feedback-form-error > button { margin-left: auto; border: 0; background: transparent; color: inherit; text-decoration: underline; white-space: nowrap; font-size: 11px; }
 
 .feedback-dialog-footer { position: sticky; bottom: 0; z-index: 2; background: var(--if-panel); padding-bottom: 10px; }
+.feedback-item-actions { display: flex; align-items: center; justify-content: flex-end; gap: 7px; flex-wrap: wrap; }
+.feedback-delete-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 7px 9px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #a36f68; font-size: 12px!important; }
+.feedback-delete-button:hover:not(:disabled) { color: #9f443a; background: #fff2ef; border-color: #f2d9d4; }
+.feedback-delete-dialog { max-width: 440px; padding: 27px; }
+.feedback-delete-icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 10px; background: #fff1ee; color: #ae594d; margin-bottom: 15px; }
+.feedback-delete-dialog > p { color: var(--fb-muted); font-size: 13px; margin-top: 9px!important; }
+.feedback-delete-excerpt { margin-top: 17px; padding: 12px 14px; border: 1px solid var(--fb-border); border-radius: 7px; background: var(--if-bg); color: var(--if-ink); white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font-size: 12px; line-height: 1.7; }
+.feedback-delete-dialog .feedback-dialog-actions { margin-top: 23px; }
+@media (max-width: 480px) { .feedback-item-bottom { align-items: flex-start; flex-wrap: wrap; }.feedback-item-actions { margin-left: auto; } }

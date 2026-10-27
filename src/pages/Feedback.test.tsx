@@ -10,8 +10,8 @@ vi.mock('../api/client', async (importOriginal) => ({ ...await importOriginal<ty
 
 const NativeURL = URL
 const viewer = { id: 'person', username: 'reader', display_name: '李同事' }
-const existingItem = { id: 'old', category: 'bug', description: '列表加载缓慢', status: 'fixed', author_name: '王同事', created_at: '2026-10-26T12:00:00Z', images: [] }
-const newItem = { id: 'abc', category: 'feature', description: '建议增加筛选', status: 'open', author_name: '李同事', created_at: '2026-10-27T12:00:00Z', images: ['img1'] }
+const existingItem = { id: 'old', category: 'bug', description: '列表加载缓慢', status: 'fixed', author_name: '王同事', created_at: '2026-10-26T12:00:00Z', images: [], can_delete: false }
+const newItem = { id: 'abc', category: 'feature', description: '建议增加筛选', status: 'open', author_name: '李同事', created_at: '2026-10-27T12:00:00Z', images: ['img1'], can_delete: true }
 
 beforeEach(() => {
   let imageNumber = 0
@@ -198,4 +198,51 @@ it('protects an unfinished draft and restores focus after it is discarded', asyn
   await userEvent.click(within(dialog).getByRole('button', { name: '放弃并关闭' }))
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   expect(screen.getAllByRole('button', { name: '提交反馈' })[0]).toHaveFocus()
+})
+
+
+it('only shows delete for authorized feedback, cancels without a request, and deletes after confirmation', async () => {
+  let deletions = 0
+  server.use(
+    http.get('*/api/v1/feedback', () => HttpResponse.json([newItem, existingItem])),
+    http.delete('*/api/v1/feedback/abc', () => { deletions++; return new HttpResponse(null, { status: 204 }) }),
+  )
+  mountFeedback()
+  const own = (await screen.findByText('建议增加筛选')).closest('article')!
+  const other = screen.getByText('列表加载缓慢').closest('article')!
+  expect(within(own).getByRole('button', { name: '删除反馈' })).toBeInTheDocument()
+  expect(within(other).queryByRole('button', { name: '删除反馈' })).not.toBeInTheDocument()
+
+  await userEvent.click(within(own).getByRole('button', { name: '删除反馈' }))
+  let dialog = screen.getByRole('dialog')
+  expect(within(dialog).getByText(/删除后无法恢复，图片也会被删除/)).toBeInTheDocument()
+  await userEvent.click(within(dialog).getByRole('button', { name: '取消' }))
+  expect(deletions).toBe(0)
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(screen.getByText('建议增加筛选')).toBeInTheDocument()
+
+  await userEvent.click(within(own).getByRole('button', { name: '删除反馈' }))
+  dialog = screen.getByRole('dialog')
+  await userEvent.click(within(dialog).getByRole('button', { name: '确认删除' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(deletions).toBe(1)
+  expect(screen.queryByText('建议增加筛选')).not.toBeInTheDocument()
+  expect(screen.getByText('列表加载缓慢')).toBeInTheDocument()
+})
+
+it('keeps the feedback and displays an error in the confirmation dialog when deletion fails', async () => {
+  let deletions = 0
+  server.use(
+    http.get('*/api/v1/feedback', () => HttpResponse.json([newItem])),
+    http.delete('*/api/v1/feedback/abc', () => { deletions++; return HttpResponse.json({ detail: '删除失败，请稍后重试' }, { status: 503 }) }),
+  )
+  mountFeedback()
+  const own = (await screen.findByText('建议增加筛选')).closest('article')!
+  await userEvent.click(within(own).getByRole('button', { name: '删除反馈' }))
+  const dialog = screen.getByRole('dialog')
+  await userEvent.click(within(dialog).getByRole('button', { name: '确认删除' }))
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent('删除失败，请稍后重试')
+  expect(deletions).toBe(1)
+  expect(within(own).getByText('建议增加筛选')).toBeInTheDocument()
+  expect(within(dialog).getByRole('button', { name: '确认删除' })).toBeEnabled()
 })

@@ -10,15 +10,24 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.api.v1 import portal
 from app.api.v1.solutions import identity
 from app.db.session import get_db
 from app.models.feedback import Feedback, FeedbackImage
+from app.services import accounts
+from app.services.iam_admin import IAMError
 
 router = APIRouter(prefix="/feedback", tags=["feedback"])
 MAX_IMAGE = 5 * 1024 * 1024
 
 
-def output(row):
+def can_delete(row: Feedback, claims: dict) -> bool:
+    return row.issuer == claims["iss"] and (
+        row.author_id == claims["sub"] or "admin" in portal.enabled_roles(claims)
+    )
+
+
+def output(row, claims):
     return {
         "id": row.id,
         "category": row.category,
@@ -27,6 +36,7 @@ def output(row):
         "author_name": row.author_name,
         "created_at": row.created_at.isoformat(),
         "images": [image.id for image in row.images],
+        "can_delete": can_delete(row, claims),
     }
 
 
@@ -48,7 +58,7 @@ def listing(db: Session = Depends(get_db), claims: dict = Depends(identity)):
         .where(Feedback.issuer == claims["iss"])
         .order_by(Feedback.created_at.desc(), Feedback.id.desc())
     ).all()
-    return [output(row) for row in rows]
+    return [output(row, claims) for row in rows]
 
 
 @router.post("", status_code=201)
@@ -86,7 +96,7 @@ async def create(
     db.add(row)
     db.commit()
     db.refresh(row)
-    return output(row)
+    return output(row, claims)
 
 
 class StatusInput(BaseModel):
@@ -105,7 +115,7 @@ def update(
         raise HTTPException(404, "反馈不存在")
     row.status = payload.status
     db.commit()
-    return output(row)
+    return output(row, claims)
 
 
 @router.get("/images/{image_id}")
@@ -125,3 +135,26 @@ def image(image_id: str, db: Session = Depends(get_db), claims: dict = Depends(i
             "Content-Security-Policy": "default-src 'none'",
         },
     )
+
+
+@router.delete("/{feedback_id}", status_code=204)
+def delete_feedback(
+    feedback_id: str,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    row = db.get(Feedback, feedback_id)
+    if not row or row.issuer != claims["iss"]:
+        raise HTTPException(404, "反馈不存在")
+    if not can_delete(row, claims):
+        raise HTTPException(403, "只有反馈提交人或系统管理员可以删除")
+    if row.author_id != claims["sub"]:
+        try:
+            roles = accounts.live_roles(claims["sub"])
+        except IAMError as exc:
+            raise HTTPException(503, "暂时无法确认管理员权限，请稍后重试") from exc
+        if "admin" not in roles:
+            raise HTTPException(403, "只有反馈提交人或系统管理员可以删除")
+    db.delete(row)
+    db.commit()
+    return Response(status_code=204)
