@@ -12,7 +12,7 @@ class PortalUserOut(BaseModel):
 
 
 class PortalApplicationOut(BaseModel):
-    id: Literal["pm", "kb", "information", "solutions", "accounts"]
+    id: Literal["pm", "kb", "information", "solutions", "notes", "accounts", "assistant"]
     enabled: bool
     reason: str | None = None
 

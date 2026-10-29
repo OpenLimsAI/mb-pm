@@ -1,0 +1,45 @@
+/* Status and focus controls keep their own intrinsic widths. */
+.ks-app .ks-pane-heading .ks-writing-actions { display: flex; align-items: center; flex: 0 0 auto; gap: 6px !important; }
+.ks-app .ks-writing-actions > * { flex-shrink: 0; }
+.ks-app .ks-writing-actions .ks-save-status { flex: 0 0 auto; width: auto; min-width: min-content; padding: 4px 6px; line-height: 1.4; }
+.ks-app .ks-writing-actions .ks-save-status > span { overflow: hidden; text-overflow: ellipsis; }
+.ks-app .ks-writing-actions .ks-focus-switch { margin-left: 2px; }
+
+/* The final editable paragraph fills the unused paper area and still grows with text. */
+.ks-app .ks-custom-workspace .ks-paper-scroll { display: flex; flex-direction: column; padding: 8px; }
+.ks-app .ks-custom-workspace .ks-paper { display: flex; flex: 1 0 auto; flex-direction: column; width: 100%; max-width: none; min-height: 100%; padding: 16px 20px; }
+.ks-app .ks-paper > .ks-inline-editor { display: flex; flex: 1 0 auto; flex-direction: column; width: 100%; min-height: 0; }
+.ks-app .ks-inline-editor > .ks-body-segment { flex-shrink: 0; min-width: 0; }
+.ks-app .ks-inline-editor > .ks-body-segment[data-final-segment='true'] { display: flex; flex: 1 0 auto; flex-direction: column; }
+.ks-app .ks-body-segment[data-final-segment='true'] > .ks-body-editor { flex: 1 0 auto; }
+.ks-app .ks-paper > .ks-paper-meta { margin-bottom: 8px; }
+.ks-app .ks-chapter-heading { margin-top: 8px; }
+.ks-app .ks-paper .ks-section-title { margin-bottom: 10px; }
+.ks-app .ks-paper > .ks-writing-toolbar { margin-bottom: 6px; }
+.ks-app .ks-paper .ks-writing-footnote { flex-shrink: 0; margin-top: 10px; padding: 7px 0; }
+.ks-app .ks-paper .ks-document-actions { margin-top: 6px; padding-top: 6px; }
+.ks-app .ks-paper .ks-references { padding-top: 6px; }
+.ks-app .ks-references-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 34px; padding: 4px 0; color: #536c7d; }
+.ks-app .ks-references-toggle > span:first-child { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; }
+.ks-app .ks-references-toggle > span:last-child { display: inline-flex; align-items: center; gap: 8px; }
+
+.ks-conversation-toolbar { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; padding: 9px 14px; border-bottom: 1px solid #dfe7ed; background: #f7fafc; }
+.ks-conversation-toolbar > label { display: flex; flex: 1; align-items: center; gap: 7px; min-width: 0; color: #536c7d; font-size: 11px; }
+.ks-conversation-toolbar label > span { flex-shrink: 0; }
+.ks-conversation-toolbar select { flex: 1; width: 0; min-width: 0; height: 31px; padding: 4px 24px 4px 8px; border: 1px solid #cfdee9; border-radius: 5px; background: #fff; color: #23486f; text-overflow: ellipsis; }
+.ks-app .ks-new-conversation { flex-shrink: 0; border: 1px solid #c6dce9; background: #e8f4ff; color: #23486f; font-size: 11px; font-weight: 600; }
+.ks-app .ks-new-conversation:hover { background: #d9edfb; }
+.ks-app .ks-answer-actions { gap: 7px; flex-wrap: wrap; }
+.ks-app .ks-answer-actions .ks-insert-report { border: 1px solid #087b9c; background: #087b9c; color: #fff; font-weight: 600; }
+.ks-app .ks-answer-actions .ks-insert-report:hover:not(:disabled) { background: #096b87; color: #fff; }
+.ks-topic-waiting { padding: 8px 14px; color: #617b8b; background: #eff6fa; font-size: 11px; }
+@container ks-module (max-width: 850px) { .ks-app .ks-writing-actions .ks-save-status > span { display: none; } }
+@container ks-module (max-width: 440px) {
+  .ks-app .ks-conversation-toolbar { padding: 8px 10px; flex-wrap: wrap; }
+  .ks-conversation-toolbar > label { flex-basis: calc(100% - 100px); }
+  .ks-conversation-toolbar label > span { display: none; }
+}
+@media (max-width: 720px) { .ks-app .ks-custom-workspace .ks-paper { padding: 12px !important; }.ks-app .ks-custom-workspace .ks-paper-scroll { padding: 5px !important; } }
+
+.ks-report-home-short { display: none; }
+@media (max-width: 720px) { .ks-app .ks-topbar-title > .ks-app-name { display: none; }.ks-report-home-label { display: none; }.ks-report-home-short { display: inline; } }

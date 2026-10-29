@@ -27,10 +27,13 @@ export interface KnowledgeSource {
 }
 export type SourceInput = Omit<KnowledgeSource, 'id' | 'version' | 'updatedAt'>
 export interface Answer {
+  conversationId?: string | null
   id: string; question: string; content: string; createdAt: string; mode: 'ai' | 'retrieval'
   references: Reference[]; context: string; scope: string; model?: string
 }
-export interface AskInput { question: string; context: string; sourceIds: string[]; projectName: string; sectionId: string }
+export interface AskInput { question: string; context: string; sourceIds: string[]; projectName: string; sectionId: string; modelProfileId?: string; conversationId?: string }
+export interface PolishInput { text: string; instruction: string; sectionId: string; modelProfileId?: string }
+export interface PolishResult { content: string; model: string; mode: 'ai' | 'preview' }
 export interface Version {
   id: string; version: number; status: SolutionStatus; createdAt: string; actorName: string
   note: string; snapshot: Solution
@@ -53,6 +56,7 @@ export interface SolutionClient {
   knowledgeStatus(): Promise<{ configured: boolean; available: boolean; message: string }>
   addSource(input: SourceInput): Promise<KnowledgeSource>
   ask(id: string, input: AskInput): Promise<Answer>
+  polish?(id: string, input: PolishInput): Promise<PolishResult>
   history(id: string): Promise<Answer[]>
   exportWord(id: string): Promise<void>
   publish(id: string): Promise<KnowledgeSource>

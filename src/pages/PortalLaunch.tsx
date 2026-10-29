@@ -10,11 +10,12 @@ export default function PortalLaunch() {
   const { appId } = useParams()
   const [params] = useSearchParams()
   const returnTo = params.get('return_to') || '/dashboard'
+  const notes = appId === 'kb' && params.get('view') === 'notes'
   const context = usePortalContext()
   const { refresh, preview, logout } = context
   const [problem, setProblem] = useState('')
   const valid = appId === 'pm' || appId === 'kb' || appId === 'information' || appId === 'solutions'
-  const name = appId === 'solutions' ? '知识报告' : appId === 'information' ? '信息获取' : appId === 'pm' ? '项目管理' : '知识库'
+  const name = appId === 'solutions' ? '研究报告' : appId === 'information' ? '行业信息' : appId === 'pm' ? '项目管理' : notes ? '我的笔记' : '知识库'
 
   useEffect(() => {
     if (!valid || preview) return
@@ -29,11 +30,11 @@ export default function PortalLaunch() {
         setProblem(access?.reason || '尚未开通此应用，请联系管理员。')
       } else {
         // 固定应用地址，不接收任意外部 URL，也不通过 URL 携带身份令牌。
-        window.location.replace(appId === 'solutions' ? solutionsUrl : appId === 'information' ? informationUrl : appId === 'pm' ? projectApplicationUrl(returnTo) : knowledgeLaunchUrl)
+        window.location.replace(appId === 'solutions' ? solutionsUrl : appId === 'information' ? informationUrl : appId === 'pm' ? projectApplicationUrl(returnTo) : notes ? knowledgeLaunchUrl + '#notes' : knowledgeLaunchUrl)
       }
     })
     return () => { cancelled = true }
-  }, [appId, valid, preview, refresh, returnTo])
+  }, [appId, valid, preview, refresh, returnTo, notes])
 
   const message = !valid ? '没有找到这个应用，请返回工作台选择应用。' : preview ? '当前为界面预览，不会进入真实应用。' : problem
   return <PortalLayout user={context.user} logout={logout} preview={preview}>

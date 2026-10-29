@@ -1,0 +1,281 @@
+/* Focus mode changes presentation only; research panels keep their existing DOM. */
+.ks-app.ks-focus-writing {
+  --ks-focus-tools-width: 56px;
+  --ks-focus-header-height: 92px;
+  min-height: 0;
+  background: #fff;
+}
+
+.ks-focus-writing .ks-rail,
+.ks-focus-writing .ks-document-bar,
+.ks-focus-writing .ks-layout-toolbar,
+.ks-focus-writing .ks-review-strip {
+  display: none;
+}
+
+.ks-focus-writing .ks-topbar {
+  height: 44px;
+  min-height: 44px;
+  padding: 0 16px;
+  gap: 12px;
+  background: #fafbf9;
+}
+
+.ks-focus-writing .ks-topbar-title { min-width: 0; gap: 10px; }
+.ks-focus-writing .ks-app-name { font-size: 14px; letter-spacing: .3px; white-space: nowrap; }
+.ks-focus-writing .ks-topbar-title > .ks-muted { font-size: 10px; }
+.ks-focus-writing .ks-top-actions { flex-shrink: 0; gap: 4px; }
+.ks-focus-writing .ks-top-actions .ks-button { min-height: 28px; padding: 4px 7px; font-size: 11px; }
+.ks-focus-writing .ks-top-actions .ks-primary { padding: 4px 10px; }
+.ks-focus-writing .ks-demo-badge { line-height: 19px; }
+
+.ks-focus-toolbar {
+  display: flex;
+  flex: 0 0 48px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 16px;
+  gap: 18px;
+  border-bottom: 1px solid #e5e9e3;
+  background: #fff;
+}
+
+.ks-focus-report,
+.ks-focus-chapter { display: flex; align-items: center; min-width: 0; gap: 9px; }
+.ks-focus-report { flex: 1 1 45%; }
+.ks-focus-chapter { flex: 0 1 50%; justify-content: flex-end; }
+.ks-focus-report h1,
+.ks-focus-report > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
+.ks-focus-report .ks-status,
+.ks-focus-report .ks-save-status { flex-shrink: 0; }
+.ks-focus-report .ks-save-status { font-size: 10px; }
+.ks-focus-chapter > strong,
+.ks-focus-chapter > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: #66776b; }
+.ks-focus-chapter > .ks-button { flex-shrink: 0; min-height: 29px; font-size: 10px; padding: 4px 6px; }
+.ks-focus-chapter > select { flex: 0 1 180px; width: 180px; min-width: 62px; max-width: 180px; height: 29px; padding: 3px 22px 3px 7px; overflow: hidden; text-overflow: ellipsis; border: 1px solid #e2e8dc; border-radius: 5px; background: #fafbf8; color: #526b4f; font-size: 11px; }
+.ks-focus-toolbar .ks-editor-tabs { flex-shrink: 0; background: #f6f8f4; }
+.ks-focus-toolbar .ks-editor-tabs button { min-height: 24px; padding: 2px 10px; }
+.ks-focus-writing .ks-notice { padding: 5px 16px; font-size: 10px; }
+
+.ks-focus-writing .ks-focus-workspace {
+  display: block;
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  padding: 0 var(--ks-focus-tools-width) 0 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+}
+
+.ks-focus-writing .ks-focus-workspace > .ks-workspace-module {
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  border-radius: 0;
+}
+
+.ks-focus-writing .ks-focus-workspace > [data-module="editor"] {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex: none;
+  border: 0;
+  container-type: normal;
+  overflow: visible;
+  background: #fff;
+}
+
+.ks-focus-writing .ks-editor-pane > .ks-pane-heading,
+.ks-focus-writing .ks-paper > .ks-paper-meta,
+.ks-focus-writing .ks-paper > .ks-chapter-heading,
+.ks-focus-writing .ks-paper > .ks-section-title,
+.ks-focus-writing .ks-paper > .ks-writing-toolbar,
+.ks-focus-writing .ks-paper > .ks-document-actions { display: none; }
+.ks-focus-writing .ks-writing-area { position: relative; min-height: 0; height: 100%; background: #fff; }
+.ks-focus-writing .ks-paper-scroll { display: flex; flex-direction: column; min-height: 0; width: 100%; padding: 0 !important; overscroll-behavior: contain; }
+.ks-focus-writing .ks-paper {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  width: 100%;
+  max-width: none;
+  min-height: 100%;
+  margin: 0;
+  padding: 18px 24px 8px !important;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.ks-focus-writing .ks-inline-editor { display: flex; flex: 1; flex-direction: column; min-height: 0; width: 100%; }
+.ks-focus-writing .ks-inline-editor > .ks-body-segment { flex-shrink: 0; min-width: 0; }
+.ks-focus-writing .ks-inline-editor > .ks-body-segment:last-child { display: flex; flex: 1; flex-direction: column; }
+.ks-focus-writing .ks-body-editor { flex: 1; display: block; min-height: 320px; resize: none; color: #354b3f; font-size: 14px !important; line-height: 2; }
+.ks-focus-writing .ks-inline-editor .ks-body-fragment { min-height: 48px; padding: 4px 0; }
+.ks-focus-writing .ks-reading-content { flex: 1; min-height: 0; }
+.ks-focus-writing .ks-reading-content .ks-markdown { color: #354b3f; font-size: 14px; }
+.ks-focus-writing .ks-writing-footnote { flex-shrink: 0; margin: 10px 0 0; padding: 6px 0 0; border-top: 1px solid #f0f2ed; border-bottom: 0; color: #94a08f; }
+.ks-focus-writing .ks-inline-question { flex-shrink: 0; }
+.ks-focus-writing .ks-slash-menu { z-index: 24; }
+
+.ks-focus-writing .ks-outline {
+  position: absolute;
+  z-index: 30;
+  inset: 0 auto 0 0;
+  width: var(--ks-outline-width, 190px);
+  max-width: calc(100% - 40px);
+  min-height: 0;
+  padding: 15px 9px;
+  background: #fafcf8;
+  border-right: 1px solid #dce5d6;
+  box-shadow: 10px 0 24px #1e382712;
+}
+.ks-focus-writing .ks-outline-title { display: flex; }
+.ks-focus-writing .ks-outline-resizer { position: absolute; z-index: 31; top: 0; bottom: 0; left: min(var(--ks-outline-width, 190px), calc(100% - 40px)); width: 6px; }
+
+.ks-focus-writing .ks-focus-workspace > [data-module="knowledge"],
+.ks-focus-writing .ks-focus-workspace > [data-module="ai"] {
+  position: absolute;
+  z-index: 40;
+  top: 0;
+  right: var(--ks-focus-tools-width);
+  bottom: 0;
+  width: min(100% - var(--ks-focus-tools-width), max(480px, 45vw));
+  height: auto;
+  min-height: 0;
+  flex: none;
+  overflow: hidden;
+  border: 0;
+  border-left: 1px solid #dbe3d5;
+  background: #fff;
+  box-shadow: -12px 0 32px #19362416;
+}
+.ks-focus-writing .ks-focus-workspace > [data-module="knowledge"] { width: min(100% - var(--ks-focus-tools-width), max(560px, 50vw)); }
+.ks-focus-writing .ks-focus-workspace .ks-subheading { height: 40px; min-height: 40px; padding: 7px 14px; margin-bottom: 0; background: #f8faf6; }
+.ks-focus-writing .ks-focus-workspace .ks-subheading-title { font-size: 12px; }
+.ks-focus-writing .ks-focus-workspace .ks-module-number { display: none; }
+.ks-focus-writing .ks-conversation { min-height: 0; padding: 16px 16px 8px; }
+.ks-focus-writing .ks-question-composer { margin: 5px 12px 12px; }
+.ks-focus-writing .ks-workspace-empty { display: none; }
+
+.ks-focus-tools {
+  position: absolute;
+  z-index: 50;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  width: var(--ks-focus-tools-width, 56px);
+  padding: 10px 5px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-left: 1px solid #e4e9df;
+  background: #fafbf8;
+}
+.ks-focus-tools > button { display: flex; flex: 0 0 auto; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 100%; min-height: 48px; padding: 7px 1px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: #778673; font-size: 10px; line-height: 1.25; }
+.ks-focus-tools > button svg { width: 18px; height: 18px; }
+.ks-focus-tools > button:hover:not(:disabled) { background: #edf3e9; color: #335e43; }
+.ks-focus-tools > button[aria-pressed="true"],
+.ks-focus-tools > button.is-active { background: #e8f0e1; border-color: #d6e3cc; color: #315d40; }
+.ks-focus-tools > .ks-divider { width: 22px; height: 1px; margin: 3px auto; background: #e0e7da; }
+.ks-focus-tools > button:last-child { margin-top: auto; }
+
+.ks-supplement-panel,
+.ks-supplement-content { display: contents; }
+.ks-supplement-heading { display: none; }
+.ks-focus-writing .ks-supplement-panel {
+  position: fixed;
+  z-index: 60;
+  top: var(--ks-focus-panel-top, var(--ks-focus-header-height));
+  right: var(--ks-focus-tools-width);
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  width: min(calc(100vw - var(--ks-focus-tools-width)), max(560px, 50vw));
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid #dce5d5;
+  border-bottom: 0;
+  background: #fff;
+  box-shadow: -12px 0 32px #19362416;
+}
+.ks-focus-writing .ks-supplement-heading { display: flex; flex: 0 0 42px; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; padding: 6px 14px; border-bottom: 1px solid #e2e9dc; background: #f8faf5; }
+.ks-focus-writing .ks-supplement-heading h2,
+.ks-focus-writing .ks-supplement-heading h3,
+.ks-focus-writing .ks-supplement-heading > strong { font-size: 13px; font-weight: 600; color: #496c47; }
+.ks-focus-writing .ks-supplement-heading .ks-button { min-height: 28px; padding: 4px; }
+.ks-focus-writing .ks-supplement-content { display: block; flex: 1; min-height: 0; overflow: auto; padding: 18px; overscroll-behavior: contain; }
+.ks-focus-writing .ks-supplement-content .ks-formula { margin: 0; }
+.ks-focus-writing .ks-supplement-content .ks-references { border-top: 0; padding-top: 0; }
+.ks-focus-writing .ks-supplement-content .ks-table-scroll { margin-top: 12px; }
+.ks-focus-writing .ks-supplement-content .ks-document-actions { margin-top: 16px; }
+.ks-focus-report-info h3 { margin-bottom: 18px; color: #375a3c; font-size: 17px; line-height: 1.65; overflow-wrap: anywhere; }
+.ks-focus-report-info dl { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 12px 16px; margin: 0 0 22px; font-size: 12px; }
+.ks-focus-report-info dt { color: #8d9d80; }
+.ks-focus-report-info dd { min-width: 0; margin: 0; color: #5c7550; overflow-wrap: anywhere; }
+.ks-focus-report-info > .ks-button { margin-right: 5px; border-color: #e0e8d7; font-size: 11px; }
+.ks-focus-review-note { margin-bottom: 20px; padding: 13px; border: 1px solid #e0e8d8; border-radius: 6px; background: #f7faf3; color: #667f57; }
+.ks-focus-review-note > strong { font-size: 11px; }
+.ks-focus-review-note > p { margin-top: 8px; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+@media (max-width: 900px) {
+  .ks-focus-writing .ks-focus-workspace > .ks-workspace-module { flex: none; min-height: 0; }
+  .ks-focus-writing .ks-focus-workspace > [data-module="editor"] { height: 100%; flex: none; min-height: 0; }
+  .ks-focus-writing .ks-topbar-title > .ks-muted,
+  .ks-focus-writing .ks-topbar-title > .ks-divider { display: none; }
+  .ks-focus-toolbar { gap: 10px; padding: 0 12px; }
+  .ks-focus-report { gap: 6px; }
+  .ks-focus-chapter { gap: 5px; }
+  .ks-focus-chapter > .ks-button > span { display: none; }
+  .ks-focus-chapter > select { flex-basis: 130px; width: 130px; max-width: 130px; }
+  .ks-focus-report h1,
+  .ks-focus-report > strong { font-size: 12px; }
+  .ks-focus-chapter > strong,
+  .ks-focus-chapter > span { max-width: 120px; }
+}
+
+@media (max-width: 600px) {
+  .ks-app.ks-focus-writing { --ks-focus-tools-width: 48px; }
+  .ks-focus-writing .ks-topbar { padding: 0 10px; gap: 7px; }
+  .ks-focus-writing .ks-topbar-title { gap: 7px; }
+  .ks-focus-writing .ks-app-name { font-size: 13px; }
+  .ks-focus-writing .ks-demo-badge { font-size: 8px; padding: 0 4px; }
+  .ks-focus-writing .ks-top-actions { gap: 1px; }
+  .ks-focus-writing .ks-top-actions .ks-button { padding: 4px; font-size: 10px; }
+  .ks-focus-toolbar { gap: 5px; padding: 0 10px; }
+  .ks-focus-report { flex: 1 1 35%; flex-wrap: wrap; gap: 1px 5px; }
+  .ks-focus-report h1,
+  .ks-focus-report > strong { flex-basis: 100%; font-size: 11px; }
+  .ks-focus-report .ks-status { font-size: 8px; line-height: 14px; padding: 0 4px; }
+  .ks-focus-report .ks-save-status { font-size: 8px; padding: 0; gap: 3px; }
+  .ks-focus-report .ks-save-status svg { width: 11px; height: 11px; }
+  .ks-focus-chapter { flex: 0 1 58%; gap: 3px; }
+  .ks-focus-chapter > strong,
+  .ks-focus-chapter > span { max-width: 70px; font-size: 10px; }
+  .ks-focus-chapter > .ks-button { padding: 3px; font-size: 9px; }
+  .ks-focus-chapter > select { flex-basis: 90px; width: 90px; min-width: 38px; max-width: 90px; padding-right: 13px; padding-left: 4px; font-size: 10px; }
+  .ks-focus-toolbar .ks-editor-tabs button { padding: 2px 6px; font-size: 9px; }
+  .ks-focus-writing .ks-paper { padding: 14px 14px 8px !important; }
+  .ks-focus-writing .ks-body-editor,
+  .ks-focus-writing .ks-reading-content .ks-markdown { font-size: 13px !important; }
+  .ks-focus-tools { padding: 8px 3px; gap: 3px; }
+  .ks-focus-tools > button { font-size: 9px; min-height: 45px; }
+  .ks-focus-tools > button svg { width: 17px; height: 17px; }
+  .ks-focus-writing .ks-supplement-content { padding: 14px; }
+}
+
+@media (max-height: 600px) {
+  .ks-focus-tools { padding-top: 5px; padding-bottom: 5px; gap: 2px; }
+  .ks-focus-tools > button { min-height: 39px; gap: 3px; padding-top: 4px; padding-bottom: 4px; }
+  .ks-focus-writing .ks-body-editor { min-height: 220px; }
+  .ks-focus-writing .ks-inline-editor .ks-body-fragment { min-height: 48px; }
+  .ks-focus-writing .ks-paper { padding-top: 12px !important; }
+}

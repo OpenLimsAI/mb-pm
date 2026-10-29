@@ -1,0 +1,93 @@
+"""Personal AI task conversations authenticated by the portal."""
+# ruff: noqa: B008
+
+from datetime import UTC, datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy.orm import Session
+
+from app.api.deps import require_same_origin
+from app.api.v1 import portal
+from app.core.config import settings
+from app.db.session import get_db
+from app.schemas.assistant import TaskCreate, TaskQuestion, TaskRevision, TaskSave
+from app.services import assistant as service
+from app.services import password_policy
+
+router = APIRouter(prefix="/assistant/tasks", tags=["ai-assistant"])
+
+
+def identity(request: Request, db: Session = Depends(get_db)):
+    if request.method not in ("GET", "HEAD", "OPTIONS"):
+        require_same_origin(request, origin=settings.portal_origin)
+    claims = portal.session_claims(request, db)
+    password_policy.enforce(db, claims["sub"], request.url.path)
+    return claims
+
+
+@router.get("")
+def listing(
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+    search: str = Query(default="", max_length=200),
+    project: str | None = Query(default=None, max_length=200),
+    trashed: bool = False,
+    offset: int = Query(default=0, ge=0, le=1000000),
+):
+    return service.listing(db, claims, search, project, trashed, offset)
+
+
+@router.post("", status_code=201)
+def create(payload: TaskCreate, db: Session = Depends(get_db), claims: dict = Depends(identity)):
+    return service.create(db, claims, payload)
+
+
+@router.get("/{task_id}")
+def detail(task_id: str, db: Session = Depends(get_db), claims: dict = Depends(identity)):
+    return service.detail(db, service.get_task(db, task_id, claims))
+
+
+@router.put("/{task_id}")
+def save(
+    task_id: str, payload: TaskSave, db: Session = Depends(get_db), claims: dict = Depends(identity)
+):
+    task = service.get_task(db, task_id, claims)
+    service.active(task)
+    return service.change(
+        db, claims, task, payload.revision, payload.model_dump(exclude={"revision"})
+    )
+
+
+@router.post("/{task_id}/messages")
+def question(
+    task_id: str,
+    payload: TaskQuestion,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    return service.question(db, claims, service.get_task(db, task_id, claims), payload)
+
+
+@router.post("/{task_id}/trash")
+def trash(
+    task_id: str,
+    payload: TaskRevision,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    task = service.get_task(db, task_id, claims)
+    service.active(task)
+    return service.change(db, claims, task, payload.revision, {"deleted_at": datetime.now(UTC)})
+
+
+@router.post("/{task_id}/restore")
+def restore(
+    task_id: str,
+    payload: TaskRevision,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    task = service.get_task(db, task_id, claims)
+    if task.deleted_at is None:
+        raise HTTPException(409, "任务已恢复")
+    return service.change(db, claims, task, payload.revision, {"deleted_at": None})

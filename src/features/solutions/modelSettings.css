@@ -1,0 +1,59 @@
+.ks-model-settings { color: #304b5b; }
+.ks-model-intro { color: #607786; font-size: 12px; line-height: 1.8; }
+.ks-model-banner,.ks-model-security { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0 18px; font-size: 11px; line-height: 1.8; }
+.ks-model-banner { padding: 10px 12px; border: 1px solid #dce7ed; border-radius: 6px; background: #f0f6fa; color: #466c83; }
+.ks-model-banner svg,.ks-model-security svg { flex-shrink: 0; margin-top: 2px; }
+.ks-model-security { color: #738895; }
+.ks-model-loading { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 230px; color: #6b8593; }
+.ks-model-config-heading { display: flex; align-items: center; justify-content: space-between; padding-bottom: 10px; color: #778d9a; font-size: 11px; }
+.ks-model-config-heading small { color: #957e42; }
+.ks-model-config-heading .ks-button { color: #166e91; background: #edf5f9; border-color: #d8e7ef; }
+.ks-model-grid { display: grid; grid-template-columns: 195px minmax(0, 1fr); min-height: 350px; border: 1px solid #dfe7ed; border-radius: 8px; overflow: hidden; }
+.ks-model-list { padding: 9px; border-right: 1px solid #e0e8ee; background: #f5f8fa; max-height: 640px; overflow-y: auto; }
+.ks-model-list > button { display: flex; align-items: center; gap: 9px; width: 100%; margin-bottom: 5px; padding: 10px 9px; border: 1px solid transparent; border-radius: 6px; background: none; text-align: left; color: #607c8e; }
+.ks-model-list > button.is-selected { border-color: #c9dfe9; background: #e9f3f8; color: #176b91; }
+.ks-model-list > button > span { flex: 1; min-width: 0; }
+.ks-model-list strong,.ks-model-list small { display: block; overflow-wrap: anywhere; }
+.ks-model-list strong { font-size: 12px; font-weight: 600; }
+.ks-model-list small { margin-top: 3px; color: #7f95a3; font-size: 10px; }
+.ks-model-editor { min-width: 0; padding: 18px; background: #fff; }
+.ks-model-editor fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+.ks-model-editor-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
+.ks-model-editor-heading h3 { font-size: 14px; font-weight: 600; color: #294f65; overflow-wrap: anywhere; }
+.ks-model-editor-heading .ks-button { color: #8b6c64; font-size: 11px; padding: 3px 5px; }
+.ks-model-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.ks-model-settings .ks-field { color: #506d7e; font-size: 11px; margin-bottom: 13px; gap: 6px; }
+.ks-model-settings .ks-field input,.ks-model-settings .ks-field select { color: #304e60; background: #fff; border-color: #dbe5ec; border-radius: 5px; font-size: 12px; padding: 8px 9px; }
+.ks-model-settings .ks-field input:disabled { background: #f3f6f8; color: #8ca0ad; }
+.ks-model-settings input::placeholder { color: #9aadb8; }
+.ks-model-settings .ks-model-help { font-size: 10px; line-height: 1.8; color: #8296a3; margin: -4px 0 14px; }
+.ks-model-key-state { display: flex; gap: 6px; align-items: flex-start; color: #7d92a0; font-size: 10px; margin: -5px 0 10px; }
+.ks-model-key-state svg { margin-top: 2px; }
+.ks-model-settings .ks-model-warning { margin: 9px 0; padding: 9px 10px; border-radius: 5px; border: 1px solid #eadfc5; background: #faf7ed; color: #8b7444; font-size: 10px; line-height: 1.8; }
+.ks-model-checkbox { display: flex; align-items: center; gap: 7px; margin: 10px 0; color: #617d8e; font-size: 11px; }
+.ks-model-checkbox input { accent-color: #136b91; }
+.ks-model-test { display: flex; align-items: center; gap: 10px; margin-top: 18px; }
+.ks-model-test .ks-button { flex-shrink: 0; border: 1px solid #d3e1e9; color: #196b90; font-size: 11px; }
+.ks-model-test small { color: #8c9eaa; font-size: 10px; line-height: 1.7; }
+.ks-model-empty,.ks-model-start { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 230px; text-align: center; color: #8a9da9; padding: 18px; }
+.ks-model-empty small { font-size: 10px; line-height: 1.8; }
+.ks-model-start h3 { font-size: 15px; color: #54778d; font-weight: 500; }
+.ks-model-start p { font-size: 11px; line-height: 1.8; max-width: 270px; }
+.ks-model-settings .ks-primary { background: #126d92; border-color: #126d92; color: #fff; }
+.ks-model-settings .ks-primary:hover:not(:disabled) { background: #0c597a; }
+.ks-model-error,.ks-model-success { display: flex; align-items: flex-start; gap: 7px; margin-top: 12px; padding: 10px 12px; border-radius: 5px; font-size: 11px; line-height: 1.8; overflow-wrap: anywhere; }
+.ks-model-error { background: #fff3ee; border: 1px solid #efddd4; color: #a26452; }
+.ks-model-success { background: #edf7f8; border: 1px solid #d5e8eb; color: #4b7c89; }
+.ks-model-error svg,.ks-model-success svg { margin-top: 3px; flex-shrink: 0; }
+.ks-model-settings .ks-model-footer { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 20px; padding-top: 15px; border-top: 1px solid #e0e8ee; }
+.ks-model-footer > span { margin-right: auto; color: #8b9daa; font-size: 10px; }
+@media (max-width: 620px) {
+  .ks-model-grid { grid-template-columns: 1fr; }
+  .ks-model-list { display: flex; gap: 6px; max-height: 130px; overflow-x: auto; border-right: 0; border-bottom: 1px solid #e0e8ee; }
+  .ks-model-list > button { flex: 0 0 160px; margin: 0; }
+  .ks-model-empty { min-height: 100px; width: 100%; padding: 8px; }
+  .ks-model-empty > small { display: none; }
+  .ks-model-editor { padding: 14px; }
+  .ks-model-test { align-items: flex-start; }
+  .ks-model-fields { grid-template-columns: 1fr; gap: 0; }
+}

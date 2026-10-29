@@ -6,7 +6,7 @@ export type WorkspaceLayout = {
 }
 
 export const moduleLabels: Record<WorkspaceModule, string> = {
-  editor: '报告撰写',
+  editor: '撰写报告',
   knowledge: '知识库资料',
   ai: 'AI 研究助手',
 }

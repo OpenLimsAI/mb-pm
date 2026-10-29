@@ -104,13 +104,23 @@ export function createDemoClient(namespace: string, userId: string, userName: st
       }
       const state = read(); get(state, id)
       if (!input.question.trim()) throw new Error('请输入问题')
-      const chars = input.question.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+      const topicQuestions = input.conversationId ? (state.answers[id] || []).filter(answer => (answer.conversationId || answer.id) === input.conversationId).slice(-6).map(answer => answer.question.slice(0, 500)).join(' ').slice(-1500) : ''
+      const chars = `${input.question} ${input.context} ${topicQuestions}`.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
       const terms = Array.from(new Set(Array.from({ length: Math.max(0, chars.length - 1) }, (_, i) => chars.slice(i, i + 2))))
       const candidates = state.sources.filter(s => (!input.sourceIds.length || input.sourceIds.includes(s.id)) && (!input.projectName || s.projectName === input.projectName))
       const ranked = candidates.map(source => ({ source, score: terms.reduce((n, term) => n + (`${source.title} ${source.content}`.toLowerCase().includes(term) ? 1 : 0), 0) })).filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, 4)
       const references = ranked.map(({ source }) => ({ id: uid(), sourceId: source.id, title: source.title, excerpt: source.content.slice(0, 800), locator: source.locator, sourceVersion: source.version, sectionId: input.sectionId }))
-      const answer: Answer = { id: uid(), question: input.question, context: input.context, scope: input.sourceIds.length ? `选定 ${input.sourceIds.length} 份资料` : input.projectName || '全部演示资料', createdAt: now(), mode: 'retrieval', references, content: references.length ? `找到 ${references.length} 份相关演示资料。以下是原文摘录，请核对条件后再采纳。\n\n${references.map((ref, i) => `[${i + 1}] ${ref.title}\n${ref.excerpt}`).join('\n\n')}\n\n待验证事项：这些为交互演示资料，未形成真实配方结论。` : '当前检索范围内未找到相关知识。可调整关键词、扩大所选资料范围或添加实践记录。' }
+      const answer: Answer = { id: uid(), conversationId: input.conversationId || uid(), question: input.question, context: input.context, scope: input.sourceIds.length ? `选定 ${input.sourceIds.length} 份资料` : input.projectName || '全部演示资料', createdAt: now(), mode: 'retrieval', references, content: references.length ? `找到 ${references.length} 份相关演示资料。以下是原文摘录，请核对条件后再采纳。\n\n${references.map((ref, i) => `[${i + 1}] ${ref.title}\n${ref.excerpt}`).join('\n\n')}\n\n待验证事项：这些为交互演示资料，未形成真实配方结论。` : '当前检索范围内未找到相关知识。可调整关键词、扩大所选资料范围或添加实践记录。' }
       ;(state.answers[id] ||= []).push(answer); write(state); return clone(answer)
+    },
+    polish: async (id, input) => {
+      const report = get(read(), id)
+      if (!report.canEdit || report.status !== 'draft') throw new Error('当前报告不可编辑')
+      if (!report.sections.some(section => section.id === input.sectionId)) throw new Error('润色章节不存在')
+      if (!input.text.trim() || input.text.length > 5000) throw new Error('请选择 1–5,000 字进行润色')
+      // This local preview only demonstrates text cleanup, never a generated model response.
+      const content = input.text.trim().replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').replace(/([\p{Script=Han}]),(?=[\p{Script=Han}])/gu, '$1，').replace(/([\p{Script=Han}]);(?=[\p{Script=Han}])/gu, '$1；')
+      return { content, model: '本地文字整理演示', mode: 'preview' }
     },
     history: async id => clone(read().answers[id] || []),
     exportWord: async id => exportPreview(get(read(), id)),

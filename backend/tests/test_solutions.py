@@ -483,11 +483,19 @@ def test_migration_schema_matches_models_and_is_idempotent():
     spec = importlib.util.spec_from_file_location("solution_migration", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    topic_path = (
+        Path(__file__).parents[1] / "alembic/versions/2026_10_25_0100-008_solution_conversations.py"
+    )
+    topic_spec = importlib.util.spec_from_file_location("topic_migration", topic_path)
+    topic_module = importlib.util.module_from_spec(topic_spec)
+    topic_spec.loader.exec_module(topic_module)
     engine = create_engine("sqlite://")
     with engine.begin() as connection:
         with Operations.context(MigrationContext.configure(connection)):
             module.upgrade()
             module.upgrade()
+            topic_module.upgrade()
+            topic_module.upgrade()
             inspector = inspect(connection)
             for name in [*module.SCHEMAS, "solution_actors"]:
                 actual = {column["name"]: column for column in inspector.get_columns(name)}
@@ -495,6 +503,10 @@ def test_migration_schema_matches_models_and_is_idempotent():
                 assert set(actual) == set(expected.columns.keys())
                 for column in expected.columns:
                     assert actual[column.name]["nullable"] == column.nullable
+            assert "ix_solution_answers_solution_conversation" in {
+                index["name"] for index in inspector.get_indexes("solution_answers")
+            }
+            topic_module.downgrade()
             module.downgrade()
             assert not inspect(connection).get_table_names()
     engine.dispose()

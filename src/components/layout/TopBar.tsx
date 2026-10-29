@@ -29,9 +29,9 @@ export function TopBar() {
 
       <a
         href={import.meta.env.DEV && !USE_API ? '/?preview=1' : workspaceUrl}
-        className="flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-md border border-amber-200 bg-amber-100 text-amber-950 text-sm font-medium shadow-sm transition-colors hover:bg-amber-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(35,72,111)]"
-        title="返回应用工作台"
-        aria-label="返回应用工作台"
+        className="app-workbench-link"
+        title="应用工作台"
+        aria-label="应用工作台"
       >
         <Grid2X2 className="w-4 h-4" />
         <span className="hidden sm:inline">应用工作台</span>

@@ -8,6 +8,16 @@ describe('knowledge solution preview persistence and workflow', () => {
   afterEach(() => vi.unstubAllGlobals())
   const make = (scope = 'person-a') => createDemoClient(scope, scope, '研发专家')
 
+  it('previews polish without external calls or changing the saved report', async () => {
+    const client = make(), report = (await client.list())[0]
+    const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher)
+    const result = await client.polish!(report.id, { sectionId: report.sections[0].id, text: '  条件,仍需验证 pH 5.5 和 10 mg [1]。  ', instruction: '更简洁' })
+    expect(result).toEqual({ mode: 'preview', model: '本地文字整理演示', content: '条件，仍需验证 pH 5.5 和 10 mg [1]。' })
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(await client.get(report.id)).toEqual(report)
+    await expect(client.polish!(report.id, { sectionId: 'missing', text: '正文', instruction: '' })).rejects.toThrow('章节不存在')
+  })
+
   it('persists edits while isolating accounts and rejects outdated saves', async () => {
     const client = make(), item = (await client.list())[0]
     const input = { ...item, title: '修改后的报告' }

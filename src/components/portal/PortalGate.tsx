@@ -16,12 +16,13 @@ export default function PortalGate() {
     void refresh()
     const onFocus = () => { void refresh() }
     window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
+    window.addEventListener('portal:unauthorized', onFocus)
+    return () => { window.removeEventListener('focus', onFocus); window.removeEventListener('portal:unauthorized', onFocus) }
   }, [preview, refresh])
 
   if (preview) return <Outlet context={{
     user: { id: 'preview', username: 'preview', displayName: '同事' },
-    applications: [{ id: 'pm', enabled: true }, { id: 'kb', enabled: true }, { id: 'information', enabled: true }, { id: 'solutions', enabled: true }],
+    applications: [{ id: 'pm', enabled: true }, { id: 'kb', enabled: true }, { id: 'information', enabled: true }, { id: 'solutions', enabled: true }, { id: 'notes', enabled: true }, { id: 'assistant', enabled: true }],
     preview: true, refresh: async () => {}, logout: () => {},
   } satisfies PortalContext} />
   if (!USE_API || status === 'anonymous') return <Navigate to="/login" state={{ from: location.pathname + location.search }} replace />

@@ -72,7 +72,8 @@
 .ks-workspace-empty{grid-area:empty;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#f6f8f2;color:#869b77;border-radius:5px}
 .ks-workspace-empty h2{font-size:17px;font-weight:500}.ks-workspace-empty p{font-size:12px}.ks-workspace-empty>.ks-button{background:#e6efdc;color:#527641}
 .ks-custom-workspace .ks-outline{width:var(--ks-outline-width);max-width:45%;padding:20px 9px 15px;border-right:0}
-.ks-custom-workspace .ks-outline-title{display:block;padding:0 8px 13px}
+.ks-custom-workspace .ks-outline-title{display:flex;align-items:center;justify-content:space-between;gap:4px;padding:0 3px 13px 8px;letter-spacing:1px}
+.ks-outline-title>.ks-button{font-size:10px;min-height:26px;padding:3px;gap:3px;letter-spacing:0;color:#627d59}
 .ks-custom-workspace .ks-outline-item{flex-direction:row;align-items:center;gap:0}
 .ks-custom-workspace .ks-outline-link{justify-content:flex-start;gap:8px;padding:9px 5px;font-size:11px!important}
 .ks-custom-workspace .ks-outline-link>span:first-child{font-size:10px}

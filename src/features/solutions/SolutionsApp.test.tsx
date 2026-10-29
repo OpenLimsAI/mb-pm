@@ -20,7 +20,7 @@ function mockClient(initial = seed()) {
   return client
 }
 async function mount(client: SolutionClient, userId = 'author') { render(<SolutionsApp client={client} userId={userId} userName="张研究员" preview />); await screen.findByRole('textbox', { name: '章节正文' }); fireEvent.click(screen.getByRole('tab', { name: '报告资料' })) }
-beforeEach(() => { localStorage.clear(); sessionStorage.clear() })
+beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-writing-mode', 'split'); sessionStorage.clear() })
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
 describe('knowledge solution workspace', () => {
@@ -48,7 +48,7 @@ describe('knowledge solution workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: '第二个报告' }))
     await screen.findByText('当前修改尚未保存，已保留在编辑器中。请先重试保存或另存副本。')
     expect(client.get).not.toHaveBeenCalledWith('two')
-    fireEvent.click(screen.getByRole('button', { name: '报告撰写' }))
+    fireEvent.click(screen.getByRole('button', { name: '撰写报告' }))
     expect(screen.getByRole('textbox', { name: '章节正文' })).toHaveValue('不能丢失的修改')
     expect(screen.getByRole('button', { name: '比较服务器版本' })).toBeInTheDocument()
   })
@@ -75,12 +75,12 @@ describe('knowledge solution workspace', () => {
   it('keeps editor content when each module is hidden and restored', async () => {
     const client = mockClient(); await mount(client)
     fireEvent.change(screen.getByRole('textbox', { name: '章节正文' }), { target: { value: '折叠仍保留' } })
-    fireEvent.click(screen.getByRole('button', { name: '收起报告撰写' }))
+    fireEvent.click(screen.getByRole('button', { name: '收起撰写报告' }))
     expect(screen.queryByRole('textbox', { name: '章节正文' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '隐藏知识库资料' }))
     fireEvent.click(screen.getByRole('button', { name: '隐藏AI 研究助手' }))
     expect(screen.queryByRole('textbox', { name: '向AI提问' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '展开报告撰写' }))
+    fireEvent.click(screen.getByRole('button', { name: '展开撰写报告' }))
     expect(screen.getByRole('textbox', { name: '章节正文' })).toHaveValue('折叠仍保留')
     fireEvent.click(screen.getByRole('button', { name: '展开AI 研究助手' }))
     expect(screen.getByRole('textbox', { name: '向AI提问' })).toBeInTheDocument()
@@ -101,27 +101,19 @@ describe('knowledge solution workspace', () => {
     expect(screen.queryByRole('textbox', { name: '向AI提问' })).not.toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: '章节正文' })).toBeDisabled()
   })
-  it('binds formula evidence to adopted references and clears those bindings when a citation is deleted', async () => {
+  it('removes the formula editor while preserving stored bindings and clears a deleted citation binding on save', async () => {
     const initial = seed()
-    initial.formula = [{ id: 'formula-a', material: '候选物料', purpose: '', specification: '', amount: '', unit: '', basis: '', range: '', rationale: '', evidenceIds: [], verification: 'pending' }]
+    initial.references = [{ id: 'ref-existing', sourceId: 'paper-1', title: source.title, excerpt: source.content, locator: '', sourceVersion: '1', sectionId: 's1' }]
+    initial.formula = [{ id: 'formula-a', material: '候选物料', purpose: '', specification: '', amount: '', unit: '', basis: '', range: '', rationale: '', evidenceIds: ['ref-existing'], verification: 'pending' }]
     const client = mockClient(initial)
-    vi.mocked(client.getSource).mockResolvedValue({ ...source, locator: '' })
     await mount(client)
-    fireEvent.click(await screen.findByRole('button', { name: /研究资料甲.*查看原文/ }))
-    const sourceDialog = await screen.findByRole('dialog', { name: '知识资料 · 原文预览' })
-    fireEvent.click(within(sourceDialog).getByRole('button', { name: '引用到当前章节' }))
-    fireEvent.click(screen.getByRole('button', { name: '确认插入并保留引用' }))
-    fireEvent.click(screen.getByRole('button', { name: '展开候选物料依据' }))
-    const select = screen.getByLabelText('关联依据') as HTMLSelectElement
-    expect(select.options.length).toBe(1)
-    const referenceId = select.options[0].value
-    expect(referenceId).not.toBe('paper-1')
-    select.options[0].selected = true
-    fireEvent.change(select)
+    expect(screen.queryByText('候选配方表')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByRole('textbox', { name: '章节正文' }), { target: { value: '正文改写，配方数据保持' } })
     fireEvent.click(screen.getByRole('button', { name: '有修改 · 将自动保存' }))
-    await waitFor(() => expect(client.save).toHaveBeenCalled())
-    expect(client.save).toHaveBeenLastCalledWith('one', expect.objectContaining({ references: [expect.objectContaining({ id: referenceId, sourceId: 'paper-1', locator: '' })], formula: [expect.objectContaining({ evidenceIds: [referenceId] })] }))
+    await waitFor(() => expect(client.save).toHaveBeenCalledTimes(1))
+    expect(client.save).toHaveBeenLastCalledWith('one', expect.objectContaining({ formula: initial.formula }))
     vi.spyOn(window, 'confirm').mockReturnValue(true)
+    fireEvent.click(screen.getByRole('button', { name: /本章节参考依据/ }))
     fireEvent.click(screen.getByRole('button', { name: '删除引用1' }))
     fireEvent.click(screen.getByRole('button', { name: '有修改 · 将自动保存' }))
     await waitFor(() => expect(client.save).toHaveBeenCalledTimes(2))
@@ -138,7 +130,7 @@ describe('knowledge solution workspace', () => {
     expect(savedInput.sections).toHaveLength(3)
     expect(client.ask).toHaveBeenCalledWith('one', expect.objectContaining({ sectionId: savedInput.sections[2].id }))
     expect(vi.mocked(client.save).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(client.ask).mock.invocationCallOrder[0])
-    fireEvent.click(await screen.findByRole('button', { name: '插入章节' }))
+    fireEvent.click(await screen.findByRole('button', { name: '插入报告' }))
     expect(screen.getByRole('dialog', { name: '确认采纳 · 知识摘录' })).toBeInTheDocument()
   })
 
@@ -154,6 +146,28 @@ describe('knowledge solution workspace', () => {
     expect(screen.getByRole('textbox', { name: '章节正文' })).toHaveValue('新正文')
   })
 
+  it('edits the chapter heading directly and keeps empty or cancelled drafts out of the saved document', async () => {
+    const client = mockClient(); await mount(client)
+    const body = screen.getByRole('textbox', { name: '章节正文' })
+    const title = screen.getByRole('textbox', { name: '章节标题' })
+    expect(screen.queryByRole('button', { name: '修改当前章节名称' })).not.toBeInTheDocument()
+    fireEvent.change(title, { target: { value: '直接修改研究目标' } })
+    fireEvent.blur(title)
+    expect(screen.getByRole('button', { name: '打开章节：直接修改研究目标' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: '章节正文' })).toBe(body)
+    expect(body).toHaveValue('原始内容')
+    fireEvent.change(title, { target: { value: '   ' } })
+    fireEvent.blur(title)
+    expect(title).toHaveValue('直接修改研究目标')
+    fireEvent.change(title, { target: { value: '取消这次修改' } })
+    fireEvent.keyDown(title, { key: 'Escape' })
+    fireEvent.blur(title)
+    expect(title).toHaveValue('直接修改研究目标')
+    fireEvent.click(screen.getByRole('button', { name: '有修改 · 将自动保存' }))
+    await waitFor(() => expect(client.save).toHaveBeenCalled())
+    expect(client.save).toHaveBeenLastCalledWith('one', expect.objectContaining({ sections: [expect.objectContaining({ title: '直接修改研究目标', content: '原始内容' }), expect.anything()] }))
+  })
+
   it('renames a chapter through a validated dialog without changing its content and supports cancelling', async () => {
     const client = mockClient(); await mount(client)
     fireEvent.click(screen.getByRole('button', { name: '章节操作：研究目标' }))
@@ -163,7 +177,8 @@ describe('knowledge solution workspace', () => {
     fireEvent.change(name, { target: { value: '不保存的名称' } })
     fireEvent.click(screen.getByRole('button', { name: '取消' }))
     expect(screen.getByRole('button', { name: '打开章节：研究目标' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '修改当前章节名称' }))
+    fireEvent.click(screen.getByRole('button', { name: '章节操作：研究目标' }))
+    fireEvent.click(screen.getByRole('button', { name: '修改名称' }))
     fireEvent.change(screen.getByRole('textbox', { name: '新章节名称' }), { target: { value: '   ' } })
     expect(screen.getByRole('button', { name: '保存名称' })).toBeDisabled()
     fireEvent.change(screen.getByRole('textbox', { name: '新章节名称' }), { target: { value: '  修订研究目标  ' } })
@@ -188,16 +203,15 @@ describe('knowledge solution workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: '确认删除章节' }))
     expect(screen.queryByRole('button', { name: '打开章节：研究目标' })).not.toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: '章节正文' })).toHaveValue('保留条件')
-    expect(screen.getByRole('combobox', { name: '候选物料验证状态' })).toHaveValue('pending')
     fireEvent.click(screen.getByRole('button', { name: '有修改 · 将自动保存' }))
     await waitFor(() => expect(client.save).toHaveBeenCalledTimes(1))
     expect(client.save).toHaveBeenLastCalledWith('one', expect.objectContaining({ references: [], formula: [expect.objectContaining({ evidenceIds: [], verification: 'pending' })] }))
     fireEvent.change(screen.getByRole('textbox', { name: '章节正文' }), { target: { value: '删除后补充的验证安排' } })
     fireEvent.click(screen.getByRole('button', { name: '撤销删除' }))
     expect(screen.getByRole('textbox', { name: '章节正文' })).toHaveValue('删除后补充的验证安排')
-    expect(screen.getByRole('combobox', { name: '候选物料验证状态' })).toHaveValue('confirmed')
     fireEvent.click(screen.getByRole('button', { name: '打开章节：研究目标' }))
     expect(screen.getByRole('textbox', { name: '章节正文' })).toHaveValue('原始内容')
+    fireEvent.click(screen.getByRole('button', { name: /本章节参考依据/ }))
     expect(screen.getByRole('button', { name: '删除引用1' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '有修改 · 将自动保存' }))
     await waitFor(() => expect(client.save).toHaveBeenCalledTimes(2))

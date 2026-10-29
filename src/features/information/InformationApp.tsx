@@ -1,15 +1,22 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Activity, ArrowRight, Bell, Bookmark, Check, CheckCheck, ChevronRight, Clock3, ExternalLink, FileText, Folder, FolderDown, Inbox, LayoutGrid, Library, LoaderCircle, Pause, Play, Plus, Radio, RefreshCw, Search, ShieldCheck, X } from 'lucide-react'
+import { Activity, ArrowRight, Bell, Bookmark, Check, CheckCheck, ChevronRight, Clock3, ExternalLink, FileText, Folder, FolderDown, Inbox, LayoutGrid, Library, LoaderCircle, NotebookPen, Pause, Play, Plus, Radio, RefreshCw, Search, ShieldCheck, X } from 'lucide-react'
 import { usePortalContext } from '../../components/portal/context'
 import { asAPIError } from '../../api/client'
 import { getInformation, changeInformation, searchInformation } from './api'
 import { SCOPE_NAMES, type InformationDocument, type InformationJob, type InformationSnapshot, type InformationSource } from './api'
 import { demoMutation, demoSeed, demoTick, persistDemo, restoreDemo } from './demo'
+import NotesWorkspace from '../notes/NotesWorkspace'
+import NoteEditor from '../notes/NoteEditor'
+import { newNote } from '../notes/draft'
+import type { NoteDraft } from '../notes/draft'
+import NoteSelectionCapture from '../notes/NoteSelectionCapture'
+import { createPreviewNotesClient, notesApi, noteSourceUrl } from '../notes/client'
 import LiveDocumentDetail from './LiveDocumentDetail'
 import './information.css'
+import './informationTheme.css'
 
-const demoPages = { home: ['OVERVIEW', '工作台', '体验从来源发现、情报阅读到资料收录的完整流程。'], inbox: ['INTELLIGENCE INBOX', '情报收件箱', '来源变更与收录结果集中查看，个人已读状态单独保存。'], import: ['INITIAL COLLECTION', '批量收录', '用示例清单体验选择文件夹、确认资料与批量收录。'], library: ['KNOWLEDGE MATERIALS', '知识资料', '通过示例资料体验原文、版本和问答状态，不读取生产知识库。'], sources: ['INFORMATION SOURCES', '信息源', '一个 ICH 来源管理四个监控范围，体验分类管理与批量收录。'], following: ['YOUR FOLLOWING', '我的关注', '按来源或分类关注更新，个人偏好与团队监控分别管理。'], runs: ['OPERATIONS', '运行与费用', '体验逐文件进度、来源检查与费用估算，全部为演示。'] } as const
+const demoPages = { notes: ['MY NOTES', '我的笔记', '收藏行业摘录，整理研究观察与个人思考。'], home: ['OVERVIEW', '工作台', '体验从来源发现、情报阅读到资料收录的完整流程。'], inbox: ['INTELLIGENCE INBOX', '情报收件箱', '来源变更与收录结果集中查看，个人已读状态单独保存。'], import: ['INITIAL COLLECTION', '批量收录', '用示例清单体验选择文件夹、确认资料与批量收录。'], library: ['KNOWLEDGE MATERIALS', '知识资料', '通过示例资料体验原文、版本和问答状态，不读取生产知识库。'], sources: ['INFORMATION SOURCES', '信息源', '一个 ICH 来源管理四个监控范围，体验分类管理与批量收录。'], following: ['YOUR FOLLOWING', '我的关注', '按来源或分类关注更新，个人偏好与团队监控分别管理。'], runs: ['OPERATIONS', '运行与费用', '体验逐文件进度、来源检查与费用估算，全部为演示。'] } as const
 type Page = keyof typeof demoPages
 const realPages: Record<Page, readonly [string, string, string]> = { ...demoPages, home: ['OVERVIEW','工作台','查看官方资料、来源检查与团队收录进度。'], import: ['INITIAL COLLECTION','批量收录','从官方网站发现真实文件，选择归档或知识库目标。'], library: ['KNOWLEDGE MATERIALS','知识资料','查阅已发现资料、归档原文、解析正文及历史版本。'], sources: ['INFORMATION SOURCES','信息源','管理 ICH Q/S/E/M 四类真实监控、归档和知识库目标。'], runs: ['OPERATIONS','运行与费用','后台任务持续运行，逐项显示结果及失败原因。'] }
 const statusNames: Record<string, string> = { unchecked: '尚未检查', ok: '检查成功', partial: '部分完成', error: '失败', unsupported: '待适配', running: '执行中', pending: '等待处理', queued: '等待处理', paused: '已暂停', cancelled: '已取消', complete: '已完成', completed: '已完成', done: '已完成', discovered: '待收录', archived: '原文已保存', ready: '可用于问答', stored: '原文已保存', saved: '原文已保存', failed: '失败', skipped: '已跳过', linked: '已关联', success: '成功', unavailable: '尚不可用', not_requested: '未要求解析', 'download-failed': '下载失败', 'parse-failed': '原文已保存 · 解析失败', 'retry-pending': '等待重试' }
@@ -21,27 +28,33 @@ function Empty({ icon = <Inbox size={26} />, title, children }: { icon?: ReactNo
 function Button({ children, primary, busy, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { primary?: boolean; busy?: boolean }) { return <button type="button" {...props} disabled={props.disabled || busy} className={`if-button ${primary ? 'is-primary' : ''} ${props.className || ''}`}>{busy && <LoaderCircle size={16} className="if-spin" aria-hidden="true" />}{children}</button> }
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null)
+  const ref = useRef<HTMLDivElement>(null), closeRef = useRef(onClose)
+  useEffect(() => { closeRef.current = onClose })
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null
-    ref.current?.querySelector<HTMLElement>('input,button,select')?.focus()
+    const initial = ref.current?.querySelector<HTMLElement>('input:not([disabled]):not([hidden]),textarea:not([disabled]),select:not([disabled])')
+    ;(initial || ref.current)?.focus({ preventScroll: true })
     const handle = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') { event.preventDefault(); closeRef.current(); return }
       if (event.key !== 'Tab') return
-      const nodes = ref.current?.querySelectorAll<HTMLElement>('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled])')
+      const nodes = ref.current?.querySelectorAll<HTMLElement>('a[href],button:not([disabled]),input:not([disabled]):not([hidden]),textarea:not([disabled]),select:not([disabled])')
       if (!nodes?.length) return
       const first = nodes[0], last = nodes[nodes.length - 1]
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === ref.current)) { event.preventDefault(); last.focus() }
+      else if (!event.shiftKey && (document.activeElement === last || document.activeElement === ref.current)) { event.preventDefault(); first.focus() }
     }
     document.addEventListener('keydown', handle)
-    return () => { document.removeEventListener('keydown', handle); previous?.focus() }
-  }, [onClose])
-  return <div className="if-modal-backdrop"><div className="if-modal" role="dialog" aria-modal="true" aria-label={title} ref={ref}><div className="if-section-head"><h2>{title}</h2><Button onClick={onClose} aria-label="关闭"><X size={18} /></Button></div>{children}</div></div>
+    return () => { document.removeEventListener('keydown', handle); if (previous?.isConnected) previous.focus({ preventScroll: true }) }
+  }, [])
+  return <div className="if-modal-backdrop"><div className="if-modal" role="dialog" aria-modal="true" aria-label={title} ref={ref} tabIndex={-1}><header className="if-modal-header"><span className="if-modal-mark"><Radio size={19} aria-hidden="true" /></span><h2>{title}</h2><Button onClick={onClose} aria-label="关闭"><X size={18} /></Button></header><div className="if-modal-body">{children}</div></div></div>
 }
 
 export default function InformationApp() {
-  const { user, preview } = usePortalContext()
+  const { user, identityNamespace, preview } = usePortalContext()
+  const notesNamespace = `${identityNamespace || user.id}:${user.id}`
+  const notesClient = useMemo(() => preview ? createPreviewNotesClient(notesNamespace) : notesApi, [notesNamespace, preview])
+  const noteRoot = useRef<HTMLDivElement>(null)
+  const [noteDraft, setNoteDraft] = useState<NoteDraft | null>(null)
   const pages = preview ? demoPages : realPages
   const location = useLocation()
   const navigate = useNavigate()
@@ -68,7 +81,7 @@ export default function InformationApp() {
     } catch (failure) {
       if (!controller.signal.aborted && mounted.current) {
         const detail = asAPIError(failure).detail
-        setError(typeof detail === 'string' ? detail : '读取信息获取服务失败，请稍后重试。')
+        setError(typeof detail === 'string' ? detail : '读取行业信息服务失败，请稍后重试。')
       }
     } finally { if (!controller.signal.aborted && mounted.current) setLoading(false) }
   }, [preview])
@@ -81,10 +94,10 @@ export default function InformationApp() {
   }, [running, preview])
   useEffect(() => {
     mounted.current = true
-    if (!preview) void refresh()
-    const timer = preview ? undefined : window.setInterval(() => { if (!document.hidden) void refresh() }, 10000)
-    return () => { mounted.current = false; request.current?.abort(); window.clearInterval(timer) }
-  }, [preview, refresh])
+    const initial = !preview && page !== 'notes' ? window.setTimeout(() => { void refresh() }, 0) : undefined
+    const timer = preview || page === 'notes' ? undefined : window.setInterval(() => { if (!document.hidden) void refresh() }, 10000)
+    return () => { mounted.current = false; request.current?.abort(); window.clearTimeout(initial); window.clearInterval(timer) }
+  }, [preview, refresh, page])
   async function mutate(key: string, method: 'post' | 'patch' | 'put', path: string, body: unknown, message: string) {
     if (busy) return false
     setBusy(key); setError(''); setNotice('')
@@ -103,14 +116,14 @@ export default function InformationApp() {
   const heading = pages[page]
   const unread = data?.events.filter(event => !event.read).length || 0
   const nav = (key: Page, label: string, icon: ReactNode, count?: number) => <NavLink key={key} to={`/information/${key}${suffix}`} className={`if-nav ${page === key ? 'is-active' : ''}`} aria-current={page === key ? 'page' : undefined}>{icon}<span>{label}</span>{!!count && <span className="if-nav-count">{count}</span>}</NavLink>
-  return <div className="information-app">
-    <a className="if-skip" href="#information-content">跳至信息获取内容</a>
-    <header className="if-header"><Link to={'/' + suffix} className="if-brand"><img src="/brand/maibo-pharma-logo.png" alt="迈博药业" /><strong>MBERP</strong></Link><span className="if-app-name">信息获取</span><span className="if-header-note"><ShieldCheck size={14} aria-hidden="true" />{preview ? '界面体验 · 演示数据' : '官方来源 · 实际采集'}</span><Link className="if-workbench" to={'/' + suffix}><LayoutGrid size={17} aria-hidden="true" />应用工作台</Link></header>
-    <div className="if-shell"><aside className="if-sidebar"><nav aria-label="信息获取导航"><p className="if-nav-group">个人工作空间</p>{nav('home', '工作台', <LayoutGrid size={19} />)}{nav('inbox', '情报收件箱', <Inbox size={19} />, unread)}<p className="if-nav-group">资料与来源</p>{nav('import', '批量收录', <FolderDown size={19} />)}{nav('library', '知识资料', <Library size={19} />)}{nav('sources', '信息源', <Radio size={19} />)}<p className="if-nav-group">关注与运行</p>{nav('following', '我的关注', <Bookmark size={19} />)}{nav('runs', '运行与费用', <Activity size={19} />, data?.jobs.filter(job => job.failed > 0).length)}{data && data.folders.length > 0 && <div className="if-side-folders"><p className="if-nav-group">知识库文件夹</p>{data.folders.map(folder => <Link key={folder.id} to={`/information/library?folder=${encodeURIComponent(folder.id)}${preview ? "&preview=1" : ""}`} className="if-nav"><Folder size={18} /><span>{folder.name}</span><span className="if-nav-count">{data.documents.filter(doc => doc.folderIds.includes(folder.id)).length}</span></Link>)}</div>}</nav><div className="if-profile"><span className="if-avatar">{Array.from(name)[0]}</span><div><strong>{name}</strong><span>{preview ? '界面预览身份' : '当前登录账号'}</span></div></div></aside>
-      <main className="if-main" id="information-content"><div className="if-titlebar"><div><p className="if-eyebrow">{heading[0]}</p><h1>{heading[1]}</h1><p className="if-caption">{heading[2]}</p></div><div className="if-actions">{page === 'sources' && data?.canManage && <Button primary onClick={() => setAddOpen(true)}><Plus size={17} />添加来源</Button>}<Button onClick={() => { void refresh() }} busy={loading} disabled={!!busy} aria-label="刷新"><RefreshCw size={16} />刷新</Button></div></div>
-        {error && <div role="alert" className="if-message is-error">{error}</div>}{notice && <div role="status" className="if-message is-notice"><CheckCheck size={17} />{notice}<button type="button" onClick={() => setNotice('')} aria-label="关闭通知"><X size={16} /></button></div>}
-        {data && (preview || data.integration.status !== 'ready') && <div className="if-message is-info"><ShieldCheck size={17} /><span>{data.integration.message}</span></div>}
-        {!data ? <Empty title={loading ? '正在读取信息获取服务…' : '暂时无法加载信息'} icon={loading ? <LoaderCircle className="if-spin" /> : <Radio />}>来源、资料和运行结果将在连接成功后显示。</Empty> : <>
+  return <div className="information-app" ref={noteRoot}>
+    <a className="if-skip" href="#information-content">跳至行业信息内容</a>
+    <header className="if-header"><div className="if-header-identity"><span className="if-app-mark"><Radio size={21} aria-hidden="true" /></span><strong className="if-app-name">行业信息</strong><span className="if-app-subtitle">医药情报工作空间</span><span className="if-header-note"><ShieldCheck size={12} aria-hidden="true" />{preview ? '界面体验 · 演示数据' : '官方来源 · 实际采集'}</span></div><Link className="if-workbench app-workbench-link" to={'/' + suffix}><LayoutGrid size={16} aria-hidden="true" />应用工作台</Link></header>
+    <div className="if-shell"><aside className="if-sidebar"><nav aria-label="行业信息导航"><p className="if-nav-group">个人工作空间</p>{nav('home', '工作台', <LayoutGrid size={19} />)}{nav('inbox', '情报收件箱', <Inbox size={19} />, unread)}{nav('notes', '我的笔记', <NotebookPen size={19} />)}<p className="if-nav-group">资料与来源</p>{nav('import', '批量收录', <FolderDown size={19} />)}{nav('library', '知识资料', <Library size={19} />)}{nav('sources', '信息源', <Radio size={19} />)}<p className="if-nav-group">关注与运行</p>{nav('following', '我的关注', <Bookmark size={19} />)}{nav('runs', '运行与费用', <Activity size={19} />, data?.jobs.filter(job => job.failed > 0).length)}{data && data.folders.length > 0 && <div className="if-side-folders"><p className="if-nav-group">知识库文件夹</p>{data.folders.map(folder => <Link key={folder.id} to={`/information/library?folder=${encodeURIComponent(folder.id)}${preview ? "&preview=1" : ""}`} className="if-nav"><Folder size={18} /><span>{folder.name}</span><span className="if-nav-count">{data.documents.filter(doc => doc.folderIds.includes(folder.id)).length}</span></Link>)}</div>}</nav><div className="if-profile"><span className="if-avatar">{Array.from(name)[0]}</span><div><strong>{name}</strong><span>{preview ? '界面预览身份' : '当前登录账号'}</span></div></div></aside>
+      <main className="if-main" id="information-content"><div className="if-titlebar"><div><p className="if-eyebrow">{heading[0]}</p><h1>{heading[1]}</h1><p className="if-caption">{heading[2]}</p></div><div className="if-actions">{page === 'sources' && data?.canManage && <Button primary onClick={() => setAddOpen(true)}><Plus size={17} />添加来源</Button>}{page !== 'notes' && <Button onClick={() => { void refresh() }} busy={loading} disabled={!!busy} aria-label="刷新"><RefreshCw size={16} />刷新</Button>}</div></div>
+        {page !== 'notes' && error && <div role="alert" className="if-message is-error">{error}</div>}{notice && <div role="status" className="if-message is-notice"><CheckCheck size={17} />{notice}<button type="button" onClick={() => setNotice('')} aria-label="关闭通知"><X size={16} /></button></div>}
+        {page !== 'notes' && data && (preview || data.integration.status !== 'ready') && <div className="if-message is-info"><ShieldCheck size={17} /><span>{data.integration.message}</span></div>}
+        {page === 'notes' ? <NotesWorkspace key={notesNamespace} client={notesClient} /> : !data ? <Empty title={loading ? '正在读取行业信息服务…' : '暂时无法加载信息'} icon={loading ? <LoaderCircle className="if-spin" /> : <Radio />}>来源、资料和运行结果将在连接成功后显示。</Empty> : <>
           {page === 'sources' && <Sources data={data} busy={busy} mutate={mutate} onImport={id => navigate(`/information/import${suffix}`, { state: { sourceId: id } })} onRuns={() => go('runs')} />}
           {page === 'home' && <Dashboard data={data} go={go} />}
           {page === 'inbox' && <EventInbox data={data} busy={busy} mutate={mutate} />}
@@ -119,8 +132,14 @@ export default function InformationApp() {
           {page === 'following' && <Following data={data} busy={busy} mutate={mutate} preview={preview} />}
           {page === 'runs' && <Runs data={data} busy={busy} mutate={mutate} />}
         </>}
-        <footer className="if-footer"><span>迈博药业 · 信息获取{preview ? ' · 交互演示' : ''}</span>{preview ? <><Button onClick={() => { setData(demoSeed()); navigate(`/information/sources${suffix}`); setNotice('演示数据已重置。真实业务数据不受影响。'); setError('') }}>重置演示数据</Button><span>演示状态仅在本机保留</span></> : <span>团队资料由服务端保存，已读与关注按登录身份隔离</span>}</footer>
+        <footer className="if-footer"><span>迈博药业 · 行业信息{preview ? ' · 交互演示' : ''}</span>{preview && page !== 'notes' ? <><Button onClick={() => { setData(demoSeed()); navigate(`/information/sources${suffix}`); setNotice('演示数据已重置。真实业务数据不受影响。'); setError('') }}>重置演示数据</Button><span>演示状态仅在本机保留</span></> : <span>{preview ? '笔记在本机浏览器独立保存' : page === 'notes' ? '笔记按登录身份独立保存' : '团队资料由服务端保存，已读与关注按登录身份隔离'}</span>}</footer>
       </main></div>
+    <NoteSelectionCapture root={noteRoot} selector=".if-document-detail,.if-browser-detail" onCapture={(text, element) => {
+      const origin = element.closest<HTMLElement>('[data-note-title]')
+      const sourceTitle = origin?.dataset.noteTitle || element.querySelector('h2')?.textContent || '行业信息摘录'
+      setNoteDraft(newNote({ title: `${sourceTitle}摘录`.slice(0, 200), content: text, sourceApp: 'information', sourceTitle: sourceTitle.slice(0, 500), sourceUrl: noteSourceUrl(origin?.dataset.noteUrl || '') || '/information/library' }))
+    }} />
+    {noteDraft && <NoteEditor key={noteDraft.id} client={notesClient} draft={noteDraft} onClose={() => setNoteDraft(null)} onSaved={() => { setNoteDraft(null); setNotice('已存入我的笔记。') }} />}
     {addOpen && data?.canManage && <AddSource folders={data.folders} busy={busy} mutate={mutate} onClose={closeAdd} />}
   </div>
 }
@@ -166,7 +185,7 @@ function Dashboard({ data, go }: { data: InformationSnapshot; go: (page: Page) =
 
 function DocumentDetail(props: { doc: InformationDocument; onRetry?: () => void }) {
   const { preview } = usePortalContext()
-  return preview ? <DemoDocumentDetail {...props} /> : <LiveDocumentDetail {...props} />
+  return <div data-note-title={props.doc.title} data-note-url={props.doc.url}>{preview ? <DemoDocumentDetail {...props} /> : <LiveDocumentDetail {...props} />}</div>
 }
 
 function DemoDocumentDetail({ doc, onRetry }: { doc: InformationDocument; onRetry?: () => void }) {

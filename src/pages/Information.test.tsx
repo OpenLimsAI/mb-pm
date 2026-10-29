@@ -50,7 +50,7 @@ describe('information portal integration', () => {
     })))
     window.history.replaceState({}, '', '/information')
     render(<App />)
-    expect(await screen.findByRole('heading', { name: '信息获取暂时不可用' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '行业信息暂时不可用' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'ICH 官方指导原则' })).not.toBeInTheDocument()
   })
 })

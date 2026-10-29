@@ -2,7 +2,17 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -81,10 +91,14 @@ class SolutionVersion(Base):
 
 class SolutionAnswer(Base):
     __tablename__ = "solution_answers"
+    __table_args__ = (
+        Index("ix_solution_answers_solution_conversation", "solution_id", "conversation_id"),
+    )
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     solution_id: Mapped[str] = mapped_column(ForeignKey("knowledge_solutions.id"), index=True)
     issuer: Mapped[str] = mapped_column(String(255), nullable=False)
     owner_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    conversation_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
     question: Mapped[str] = mapped_column(Text, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     mode: Mapped[str] = mapped_column(String(20), nullable=False)
