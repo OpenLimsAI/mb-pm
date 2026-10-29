@@ -11,10 +11,13 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from app.api.deps import get_current_user, require_role
 from app.db.session import get_db
-from app.models import AuditLog, Project, SubProject, Task, User
+from app.models import AuditLog, Project, ProjectMember, ProjectAIAnalysis, SubProject, Task, User
+from app.core.config import settings
+from app.services.scope import visible_project_ids_for
 from app.schemas.user import UserCreate, UserOut, UserUpdate
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -30,6 +33,13 @@ def list_users(
     _user: User = Depends(get_current_user),
 ):
     q = db.query(User)
+    if settings.IAM_ENABLED and _user.role not in ("admin", "cmc_lead"):
+        project_ids = visible_project_ids_for(_user, db)
+        visible_users = {_user.id}
+        visible_users.update(db.scalars(select(ProjectMember.user_id).where(ProjectMember.project_id.in_(project_ids))))
+        visible_users.update(db.scalars(select(Project.owner_id).where(Project.id.in_(project_ids))))
+        visible_users.update(db.scalars(select(Task.owner_id).join(SubProject).where(SubProject.project_id.in_(project_ids))))
+        q = q.filter(User.id.in_(visible_users))
     if role:
         q = q.filter(User.role == role)
     if specialty_group:
@@ -48,6 +58,8 @@ def create_user(
     db: Session = Depends(get_db),
     _user: User = Depends(require_role("admin", "cmc_lead")),
 ):
+    if settings.IAM_ENABLED:
+        raise HTTPException(409, "请通过 IAM 注册创建账号；首次登录后自动加入成员目录")
     if db.query(User).filter(User.username == payload.username).first():
         raise HTTPException(status.HTTP_409_CONFLICT, f"用户名 {payload.username!r} 已存在")
     if db.query(User).filter(User.email == payload.email).first():
@@ -77,6 +89,8 @@ def update_user(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "user not found")
 
     data = payload.model_dump(exclude_unset=True)
+    if settings.IAM_ENABLED and "role" in data:
+        raise HTTPException(409, "请由 IAM 管理员分配业务角色，重新登录后生效")
     if "email" in data and data["email"] != obj.email:
         if db.query(User).filter(User.email == data["email"]).first():
             raise HTTPException(status.HTTP_409_CONFLICT, f"邮箱 {data['email']!r} 已存在")
@@ -105,7 +119,8 @@ def delete_user(
     owns_task = db.query(Task).filter_by(owner_id=user_id).count()
     owns_sub = db.query(SubProject).filter_by(owner_id=user_id).count()
     has_audit = db.query(AuditLog).filter_by(actor_id=user_id).count()
-    if owns_proj or owns_task or owns_sub or has_audit:
+    has_analysis = db.query(ProjectAIAnalysis).filter_by(created_by=user_id).count()
+    if owns_proj or owns_task or owns_sub or has_audit or has_analysis:
         parts = []
         if owns_proj:
             parts.append(f"{owns_proj} 个项目")
@@ -113,7 +128,7 @@ def delete_user(
             parts.append(f"{owns_task} 个任务")
         if owns_sub:
             parts.append(f"{owns_sub} 个子项目")
-        detail = "、".join(parts) if parts else "审计记录"
+        detail = "、".join(parts) if parts else "审计或 AI 分析记录"
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             f"该成员仍负责 {detail}，请先停用或将负责人转移给他人后再删除。",

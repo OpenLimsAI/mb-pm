@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.security import create_access_token
+from app.core.config import settings
 from app.db.session import get_db
 from app.models import User
 from app.schemas.auth import LoginRequest, TokenResponse
@@ -19,6 +20,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
+    if settings.IAM_ENABLED:
+        raise HTTPException(410, "请使用 IAM 登录，用户名免密登录已关闭")
     user = db.query(User).filter_by(username=payload.username, is_active=True).first()
     if not user:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "user not found or inactive")

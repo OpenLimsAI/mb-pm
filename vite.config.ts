@@ -8,5 +8,6 @@ export default defineConfig({
   server: {
     port: 5175,
     strictPort: true,  // 端口被占用时报错，不要自动跳到下一个
+    proxy: { '/api/v1': { target: 'http://127.0.0.1:8015', changeOrigin: false } },
   },
 })

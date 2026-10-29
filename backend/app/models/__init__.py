@@ -5,6 +5,8 @@ CTO Lite 版仅保留组合管理所需的核心实体：用户 / 项目 / 子�
 """
 
 from app.models.audit_log import AuditLog  # noqa: F401
+from app.models.ai import ProjectAIAnalysis  # noqa: F401
+from app.models.iam import IAMIdentity, IAMLogin, IAMSession  # noqa: F401
 from app.models.baseline import ProjectBaseline  # noqa: F401
 from app.models.finance import ProjectFinance  # noqa: F401
 from app.models.project import Project, ProjectMember  # noqa: F401

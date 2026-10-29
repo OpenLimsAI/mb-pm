@@ -1,10 +1,13 @@
-import { Search } from 'lucide-react'
+import { Search, LogOut } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { API_BASE } from '../../api/client'
 import { useAuth } from '../../store/auth'
 import { roleLabels } from '../../lib/permissions'
 import { Avatar } from '../ui/Avatar'
 
 export function TopBar() {
   const user = useAuth((s) => s.currentUser)
+  const iamEnabled = useAuth(s => s.iamEnabled)
 
   return (
     <header className="h-14 bg-white border-b border-ink-300/40 px-4 flex items-center gap-4 shrink-0">
@@ -20,13 +23,14 @@ export function TopBar() {
       <div className="flex-1" />
 
       {/* CTO 身份 */}
-      <div className="flex items-center gap-2 px-2 py-1">
+      <Link to="/account" className="flex items-center gap-2 px-2 py-1" title="我的账号">
         <Avatar user={user} size="sm" />
         <div className="text-left">
           <div className="text-sm font-medium text-ink-900 leading-tight">{user.displayName}</div>
           <div className="text-[10px] text-ink-500 leading-tight">{roleLabels[user.role]} · 决策视图</div>
         </div>
-      </div>
+      </Link>
+      {iamEnabled && <form method="post" action={`${API_BASE}/auth/logout`}><button className="btn-ghost text-xs" type="submit"><LogOut className="w-3.5 h-3.5" />退出</button></form>}
     </header>
   )
 }

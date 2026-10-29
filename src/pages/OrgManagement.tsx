@@ -4,6 +4,7 @@
 // 提示先停用或转移负责人）。写操作走 data/bootstrap（API：后端持久化；离线：本地 mock）。
 
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   Users, Search, UserPlus, Power, Trash2, Loader2, AlertTriangle, X, ShieldCheck, BadgeCheck,
 } from 'lucide-react'
@@ -20,9 +21,10 @@ import { cn } from '../lib/cn'
 const ROLES = Object.keys(roleLabels) as Role[]
 
 export default function OrgManagement() {
-  useDataStore((s) => s.version)
+  const version = useDataStore((s) => s.version)
   const mode = useDataStore((s) => s.mode)
   const currentUser = useAuth((s) => s.currentUser)
+  const iamEnabled = useAuth(s => s.iamEnabled)
   const role = currentUser?.role
   const canManage = can(role, 'template.edit') // admin / cmc_lead
 
@@ -43,7 +45,7 @@ export default function OrgManagement() {
     tasks.forEach((t) => { s.add(t.ownerId); t.collaboratorIds?.forEach((c) => s.add(c)) })
     return s
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [useDataStore.getState().version])
+  }, [version])
 
   const filtered = useMemo(() => {
     const kw = keyword.trim().toLowerCase()
@@ -58,7 +60,7 @@ export default function OrgManagement() {
       })
       .sort((a, b) => Number(b.isActive) - Number(a.isActive) || a.displayName.localeCompare(b.displayName))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [keyword, roleFilter, groupFilter, activeFilter, useDataStore.getState().version])
+  }, [keyword, roleFilter, groupFilter, activeFilter, version])
 
   const activeCount = users.filter((u) => u.isActive).length
 
@@ -98,11 +100,12 @@ export default function OrgManagement() {
             组织成员目录 —— 共 <b className="text-ink-700">{users.length}</b> 人（在职 {activeCount}）。可新增、停用/启用、删除成员。
           </p>
         </div>
-        {canManage && (
+        {canManage && !iamEnabled && (
           <Button variant="primary" icon={<UserPlus className="w-4 h-4" />} onClick={() => setAddOpen(true)} className="shrink-0">
             添加成员
           </Button>
         )}
+        {canManage && iamEnabled && <Link className="btn-primary" to="/account">注册与账号管理</Link>}
       </div>
 
       <Card>

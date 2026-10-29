@@ -36,4 +36,18 @@
   .input {
     @apply w-full px-3 py-1.5 rounded-md border border-ink-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500;
   }
+  .ai-report { @apply text-sm leading-7 text-ink-700 break-words; }
+  .ai-report h1, .ai-report h2 { @apply text-lg font-semibold text-ink-900 mt-7 mb-3; }
+  .ai-report h3, .ai-report h4 { @apply font-semibold text-ink-900 mt-5 mb-2; }
+  .ai-report p { @apply my-3; }
+  .ai-report ul { @apply list-disc pl-6 my-3; }
+  .ai-report ol { @apply list-decimal pl-6 my-3; }
+  .ai-report li { @apply my-1; }
+  .ai-report strong { @apply font-semibold text-ink-900; }
+  .ai-report table { @apply block overflow-x-auto w-full my-4 border-collapse text-xs; }
+  .ai-report th { @apply bg-ink-100 font-medium; }
+  .ai-report th, .ai-report td { @apply border border-ink-300/60 px-3 py-2 text-left; }
+  .ai-report blockquote { @apply border-l-4 border-brand-200 pl-4 text-ink-500; }
+  .ai-report pre { @apply bg-ink-100 rounded-md p-3 overflow-auto; }
+  .ai-report a { @apply text-brand-700 underline; }
 }

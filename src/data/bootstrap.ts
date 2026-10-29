@@ -5,7 +5,7 @@
 //
 // Mutations（创建项目 / 录入任务进展）：API 模式走后端并重新同步；mock 模式本地更新。
 
-import { USE_API, setToken } from '../api/client'
+import { USE_API, setToken, asAPIError } from '../api/client'
 import * as authApi from '../api/auth'
 import * as projectsApi from '../api/projects'
 import * as subProjectsApi from '../api/subProjects'
@@ -87,6 +87,7 @@ export async function bootstrap(): Promise<void> {
   const ds = useDataStore.getState()
 
   if (!USE_API) {
+    useAuth.setState({ status: 'ready' })
     hydrateCreatedIntoMock() // 离线：复用本地持久化的新建项目
     ds.setMode('mock')
     ds.setReady(true)
@@ -94,18 +95,26 @@ export async function bootstrap(): Promise<void> {
   }
 
   try {
-    const tok = await authApi.login({ username: CTO_USERNAME })
-    setToken(tok.accessToken)
-    useAuth.setState({ currentUser: tok.user as unknown as User })
+    const config = await authApi.fetchIAMConfig()
+    useAuth.setState({ iamEnabled: config.enabled })
+    if (config.enabled) {
+      setToken(null)
+      const user = await authApi.fetchMe()
+      useAuth.setState({ currentUser: user as unknown as User, status: 'ready', error: '' })
+    } else {
+      const tok = await authApi.login({ username: CTO_USERNAME })
+      setToken(tok.accessToken)
+      useAuth.setState({ currentUser: tok.user as unknown as User, status: 'ready' })
+    }
     await refreshAllData()
     ds.setMode('api')
     ds.setReady(true)
   } catch (e) {
-    console.warn('[bootstrap] 后端不可用，回退到离线 mock 数据：', e)
-    hydrateCreatedIntoMock()
-    ds.setMode('mock')
-    ds.setNotice('后端未连接 —— 当前为离线只读演示数据。启动后端后刷新即可持久化。')
+    // Never turn authentication/network failure into a privileged demo session.
+    const detail = asAPIError(e)
+    useAuth.setState({ status: detail.status === 401 ? 'anonymous' : 'error', error: typeof detail.detail === 'string' ? detail.detail : '服务暂不可用' })
     ds.setReady(true)
+    return
   }
 }
 

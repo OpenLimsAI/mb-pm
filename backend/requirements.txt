@@ -18,6 +18,7 @@ python-multipart==0.0.12
 # 业务
 openpyxl==3.1.5                   # 模板 Excel 导入/导出
 python-dateutil==2.9.0
+httpx==0.27.2                    # IAM OIDC token exchange and JWKS
 
 # PostgreSQL 驱动（部署默认数据库；binary 轮子自带 libpq，无需系统依赖）
 # SQLite 仍是默认本地后端，装上它不影响 SQLite 运行。

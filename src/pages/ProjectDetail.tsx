@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
-  LayoutGrid, Diamond, FolderTree, Users, GanttChartSquare, Rows3, Table2, Flag,
+  LayoutGrid, Diamond, FolderTree, Users, GanttChartSquare, Rows3, Table2, Flag, Sparkles,
 } from 'lucide-react'
 import { findProject, findTask } from '../mock'
 import { useDataStore } from '../store/data'
+import { useAuth } from '../store/auth'
 import { ProjectHeader } from '../components/project/ProjectHeader'
+import { ProjectAIAnalysis } from '../components/project/ProjectAIAnalysis'
 import { WBSTree } from '../components/project/WBSTree'
 import { WBSTable } from '../components/project/WBSTable'
 import { Gantt } from '../components/project/Gantt'
@@ -19,12 +21,13 @@ import { EmptyState } from '../components/ui'
 import { cn } from '../lib/cn'
 
 // Tab 顺序：概览 → 里程碑 → WBS → 基线 → 团队
-type Tab = 'overview' | 'milestones' | 'wbs' | 'baseline' | 'team'
+type Tab = 'overview' | 'milestones' | 'wbs' | 'baseline' | 'team' | 'ai'
 // WBS 子视图：表格（行内编辑，主工作面）/ 树形 / 甘特图
 type WbsView = 'table' | 'tree' | 'gantt'
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>()
+  const role = useAuth(s => s.currentUser.role)
   // 订阅数据版本：任务进展保存后重算并刷新本页（含抽屉、WBS、里程碑）
   useDataStore((s) => s.version)
   const project = findProject(id || '')
@@ -58,6 +61,7 @@ export default function ProjectDetail() {
         <TabBtn current={tab} v="wbs"         icon={<FolderTree className="w-4 h-4" />}        label="WBS" onClick={setTab} />
         <TabBtn current={tab} v="baseline"    icon={<Flag className="w-4 h-4" />}              label="基线" onClick={setTab} />
         <TabBtn current={tab} v="team"        icon={<Users className="w-4 h-4" />}             label="团队" onClick={setTab} />
+        {['admin', 'cmc_lead', 'project_lead'].includes(role) && <TabBtn current={tab} v="ai" icon={<Sparkles className="w-4 h-4" />} label="AI 分析" onClick={setTab} />}
       </div>
 
       {/* 概览：里程碑路线图（横向置顶，宏观）→ 预算与成本 → 三级 WBS（下方） */}
@@ -93,6 +97,7 @@ export default function ProjectDetail() {
       {tab === 'baseline' && <BaselinePanel project={project} />}
 
       {tab === 'team' && <TeamPanel project={project} />}
+      {tab === 'ai' && <ProjectAIAnalysis key={project.id} projectId={project.id} projectName={project.name} />}
 
       <TaskDrawer
         task={drawerTaskId ? findTask(drawerTaskId) || null : null}

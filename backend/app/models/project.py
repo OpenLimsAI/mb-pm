@@ -41,6 +41,7 @@ class Project(Base, TimestampMixin):
         "SubProject", back_populates="project", cascade="all, delete-orphan"
     )
     template = relationship("Template")
+    ai_analyses = relationship("ProjectAIAnalysis", cascade="all, delete-orphan")
 
 
 class ProjectMember(Base):

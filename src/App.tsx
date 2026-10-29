@@ -11,6 +11,10 @@ import TemplateEditor from './pages/TemplateEditor'
 import TemplatePreview from './pages/TemplatePreview'
 import Finance from './pages/Finance'
 import OrgManagement from './pages/OrgManagement'
+import Settings from './pages/Settings'
+import Account from './pages/Account'
+import Login from './pages/Login'
+import { useAuth } from './store/auth'
 import { AppLayout } from './components/layout/AppLayout'
 import { bootstrap } from './data/bootstrap'
 import { useDataStore } from './store/data'
@@ -18,12 +22,14 @@ import { useDataStore } from './store/data'
 // CTO Lite：仅三大模块 —— 首页（项目组合总览）/ 项目 / 模板。
 export default function App() {
   const ready = useDataStore((s) => s.ready)
+  const authStatus = useAuth(s => s.status)
 
   useEffect(() => {
     bootstrap()
   }, [])
 
   if (!ready) return <BootSplash />
+  if (authStatus !== 'ready') return <Login />
 
   return (
     <BrowserRouter>
@@ -39,6 +45,9 @@ export default function App() {
           <Route path="/templates/:id/preview" element={<TemplatePreview />} />
           <Route path="/finance"              element={<Finance />} />
           <Route path="/org"                  element={<OrgManagement />} />
+          <Route path="/settings"             element={<Settings />} />
+          <Route path="/account"              element={<Account />} />
+          <Route path="/login"                element={<Navigate to="/" replace />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, FolderKanban, Wallet, Users, Beaker, type LucideIcon } from 'lucide-react'
+import { LayoutDashboard, FolderKanban, Wallet, Users, Beaker, Settings2, UserRound, type LucideIcon } from 'lucide-react'
+import { useAuth } from '../../store/auth'
 import { cn } from '../../lib/cn'
 
 interface NavItem {
@@ -15,9 +16,12 @@ const navItems: NavItem[] = [
   { to: '/projects',  label: '项目',   icon: FolderKanban },
   { to: '/finance',   label: '财务',   icon: Wallet },
   { to: '/org',       label: '组织',   icon: Users },
+  { to: '/settings',  label: '设置',   icon: Settings2 },
+  { to: '/account',   label: '我的账号', icon: UserRound },
 ]
 
 export function Sidebar() {
+  const role = useAuth(s => s.currentUser.role)
   return (
     <aside className="w-56 shrink-0 bg-white border-r border-ink-300/40 flex flex-col">
       {/* Logo */}
@@ -38,7 +42,7 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
-        {navItems.map((it) => (
+        {navItems.filter(it => it.to !== '/settings' || ['admin', 'cmc_lead'].includes(role)).map((it) => (
           <NavLink
             key={it.to}
             to={it.to}

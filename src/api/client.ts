@@ -12,7 +12,7 @@ const TOKEN_KEY = 'cmc-pms-lite-jwt'  // Lite 版独立 token key
 /** 是否启用后端 API。env 未设置 / false → 用 mock 数据。 */
 export const USE_API = import.meta.env.VITE_USE_API === 'true'
 
-const baseURL = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000/api/v1'
+export const API_BASE = (import.meta.env.VITE_API_URL as string) || '/api/v1'
 
 // ============= snake_case <-> camelCase =============
 
@@ -45,7 +45,8 @@ export function setToken(token: string | null) {
 // ============= Axios 实例 =============
 
 export const api = axios.create({
-  baseURL,
+  baseURL: API_BASE,
+  withCredentials: true,
   timeout: 15000,
 })
 
@@ -74,6 +75,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       // token 失效 → 清掉，业务侧捕获后跳登录页
       setToken(null)
+      window.dispatchEvent(new Event('pms-lite:unauthorized'))
     }
     if (error.response?.data) {
       error.response.data = camelize(error.response.data)

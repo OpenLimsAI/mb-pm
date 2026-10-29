@@ -4,13 +4,14 @@
 set -e
 cd "$(dirname "$0")"
 
-PORT="${PORT:-8000}"
+PORT="${PORT:-8015}"
+VENV_DIR="${VENV_DIR:-.venv-runtime}"
 
-if [ ! -d .venv ]; then
+if [ ! -x "$VENV_DIR/bin/python" ]; then
   echo "首次运行：创建虚拟环境并安装依赖 ..."
   if command -v uv >/dev/null 2>&1; then
-    uv venv --python 3.11 .venv
-    uv pip install --python .venv -r requirements.txt
+    uv venv --python 3.11 "$VENV_DIR"
+    uv pip install --python "$VENV_DIR/bin/python" -r requirements.txt
   else
     # 退化路径：寻找 3.11+ 解释器
     PY=""
@@ -18,11 +19,11 @@ if [ ! -d .venv ]; then
       command -v "$c" >/dev/null 2>&1 && { PY="$c"; break; }
     done
     [ -z "$PY" ] && { echo "需要 Python 3.11+（或安装 uv）"; exit 1; }
-    "$PY" -m venv .venv
-    .venv/bin/pip install --upgrade pip
-    .venv/bin/pip install -r requirements.txt
+    "$PY" -m venv --copies "$VENV_DIR"
+    "$VENV_DIR/bin/python" -m pip install --upgrade pip
+    "$VENV_DIR/bin/python" -m pip install -r requirements.txt
   fi
 fi
 
 echo "启动后端： http://127.0.0.1:${PORT}  （文档 /docs）"
-exec .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port "${PORT}" --reload
+exec "$VENV_DIR/bin/python" -m uvicorn app.main:app --host 127.0.0.1 --port "${PORT}" --reload

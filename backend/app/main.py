@@ -14,6 +14,8 @@ from fastapi.staticfiles import StaticFiles
 
 import app.models  # noqa: F401  确保所有 ORM 表注册到 Base.metadata
 from app.api.v1 import (
+    ai,
+    iam,
     auth,
     baselines,
     finances,
@@ -150,6 +152,8 @@ app.include_router(task_dependencies.router, prefix=API_PREFIX)
 app.include_router(templates.router, prefix=API_PREFIX)
 app.include_router(finances.router, prefix=API_PREFIX)
 app.include_router(baselines.router, prefix=API_PREFIX)
+app.include_router(ai.router, prefix=API_PREFIX)
+app.include_router(iam.router, prefix=API_PREFIX)
 
 
 @app.get("/", include_in_schema=False)

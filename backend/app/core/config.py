@@ -27,6 +27,27 @@ class Settings(BaseSettings):
     # 设为已构建的 SPA 目录（含 index.html）即由后端同源托管前端；
     # 留空则纯 API 模式（本地 dev 用 Vite 独立跑前端）。容器镜像里指向 /code/static。
     STATIC_DIR: str = ""
+    # Server-local settings and secrets; override with a persistent path in deployments.
+    AI_SETTINGS_PATH: str = ".local/ai-settings.json"
+    # Activate only after the application's callback and signup are configured in IAM.
+    IAM_ENABLED: bool = False
+    CASDOOR_ENDPOINT: str = "http://localhost:8001"
+    CASDOOR_JWKS_URL: str = ""
+    CASDOOR_CLIENT_ID: str = ""
+    CASDOOR_CLIENT_SECRET: str = ""
+    CASDOOR_APPLICATION: str = "mp-pm-lite"
+    CASDOOR_ORGANIZATION: str = "mabpharm"
+    PMS_PUBLIC_URL: str = "http://localhost:5175"
+    IAM_SESSION_SECONDS: int = 3600
+    IAM_COOKIE_SECURE: bool = False
+
+    @property
+    def casdoor_jwks_url(self) -> str:
+        return self.CASDOOR_JWKS_URL or self.CASDOOR_ENDPOINT + "/.well-known/jwks"
+
+    @property
+    def iam_callback_url(self) -> str:
+        return self.PMS_PUBLIC_URL + "/api/v1/auth/callback"
 
     # —— 应用 —— #
     APP_ENV: str = "development"

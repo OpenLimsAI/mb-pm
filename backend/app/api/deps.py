@@ -1,14 +1,16 @@
 """FastAPI 通用依赖：DB 会话 + 当前用户。"""
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.security import decode_access_token
+from app.core.config import settings
 from app.db.session import get_db
 from app.models import User
 
 
 def get_current_user(
+    request: Request,
     authorization: str = Header(default="", alias="Authorization"),
     db: Session = Depends(get_db),
 ) -> User:
@@ -16,6 +18,9 @@ def get_current_user(
 
     演示模式可绕过：传 `X-Demo-User: <username>` 头部直接登录该用户。
     """
+    if settings.IAM_ENABLED:
+        from app.api.iam_deps import get_current_user as iam_user
+        return iam_user(request, db)
     # 演示快捷登录（不能上线）
     # 注意：真实项目应去掉以下分支
     return _resolve_demo_or_jwt(authorization, db)
