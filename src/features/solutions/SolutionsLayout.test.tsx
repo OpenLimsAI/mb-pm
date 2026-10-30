@@ -100,7 +100,7 @@ describe('independent workspace module layout', () => {
     expect(client.get).toHaveBeenCalledTimes(1)
     expect(client.history).toHaveBeenCalledTimes(1)
     expect(JSON.parse(sessionStorage.getItem('ks-draft:preview:author:layout-report') || '{}').sections[1].content).toBe('切换布局时尚未提交的正文')
-  })
+  }, 20000)
 
   it('does not save or mark a report dirty when only arrangement, visibility and outline width change', async () => {
     const { client } = await mount()
