@@ -8,6 +8,7 @@ const source: KnowledgeSource = { id: 'paper-1', title: '研究资料甲', kind:
 function mockClient(initial = seed()) {
   let stored = structuredClone(initial)
   const client: SolutionClient = {
+    trash: vi.fn(async () => []), remove: vi.fn(async () => {}), restore: vi.fn(async () => seed()),
     list: vi.fn(async () => [structuredClone(stored), { ...seed(), id: 'two', title: '第二个报告' }]),
     get: vi.fn(async id => id === 'one' ? structuredClone(stored) : { ...seed(), id: 'two', title: '第二个报告' }),
     create: vi.fn(async input => ({ ...seed(), ...input, id: 'created' })),

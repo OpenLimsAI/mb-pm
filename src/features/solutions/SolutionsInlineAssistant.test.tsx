@@ -13,6 +13,7 @@ function mockClient() {
   const stored = new Map(['one', 'two'].map(id => [id, seed(id)]))
   let count = 0
   const client: SolutionClient = {
+    trash: vi.fn(async () => []), remove: vi.fn(async () => {}), restore: vi.fn(async () => seed()),
     list: vi.fn(async () => structuredClone([...stored.values()])),
     get: vi.fn(async id => structuredClone(stored.get(id)!)),
     create: vi.fn(async input => ({ ...seed('created'), ...input })),

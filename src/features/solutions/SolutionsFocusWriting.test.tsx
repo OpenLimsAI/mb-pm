@@ -25,6 +25,7 @@ const existingAnswer: Answer = {
 function mockClient(): SolutionClient {
   let stored = seed()
   return {
+    trash: vi.fn(async () => []), remove: vi.fn(async () => {}), restore: vi.fn(async () => seed()),
     list: vi.fn(async () => [structuredClone(stored)]), get: vi.fn(async () => structuredClone(stored)),
     create: vi.fn(async input => ({ ...seed(), ...input, id: 'created' })),
     save: vi.fn(async (_id, input) => { stored = { ...stored, ...structuredClone(input), revision: input.revision + 1 }; return structuredClone(stored) }),

@@ -35,6 +35,9 @@ export function downloadBlob(blob: Blob, filename: string) {
 
 export const solutionApi: SolutionClient = {
   list: async () => (await http.get('')).data,
+  trash: async () => (await http.get('/trash')).data,
+  remove: async (id, revision) => { await http.post(`/${encodeURIComponent(id)}/trash`, { revision }) },
+  restore: async (id, revision) => (await http.post(`/trash/${encodeURIComponent(id)}/restore`, { revision })).data,
   create: async input => (await http.post('', input)).data,
   get: async id => (await http.get(`/${encodeURIComponent(id)}`)).data,
   save: async (id, input) => (await http.put(`/${encodeURIComponent(id)}`, input)).data,

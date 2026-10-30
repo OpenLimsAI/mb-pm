@@ -489,6 +489,12 @@ def test_migration_schema_matches_models_and_is_idempotent():
     topic_spec = importlib.util.spec_from_file_location("topic_migration", topic_path)
     topic_module = importlib.util.module_from_spec(topic_spec)
     topic_spec.loader.exec_module(topic_module)
+    trash_path = (
+        Path(__file__).parents[1] / "alembic/versions/2026_10_30_0000-011_solution_trash.py"
+    )
+    trash_spec = importlib.util.spec_from_file_location("trash_migration", trash_path)
+    trash_module = importlib.util.module_from_spec(trash_spec)
+    trash_spec.loader.exec_module(trash_module)
     engine = create_engine("sqlite://")
     with engine.begin() as connection:
         with Operations.context(MigrationContext.configure(connection)):
@@ -496,6 +502,8 @@ def test_migration_schema_matches_models_and_is_idempotent():
             module.upgrade()
             topic_module.upgrade()
             topic_module.upgrade()
+            trash_module.upgrade()
+            trash_module.upgrade()
             inspector = inspect(connection)
             for name in [*module.SCHEMAS, "solution_actors"]:
                 actual = {column["name"]: column for column in inspector.get_columns(name)}
@@ -506,6 +514,7 @@ def test_migration_schema_matches_models_and_is_idempotent():
             assert "ix_solution_answers_solution_conversation" in {
                 index["name"] for index in inspector.get_indexes("solution_answers")
             }
+            trash_module.downgrade()
             topic_module.downgrade()
             module.downgrade()
             assert not inspect(connection).get_table_names()
@@ -581,3 +590,98 @@ def test_generic_question_uses_context_for_retrieval_but_not_evidence(
     assert all(ref["excerpt"] in record["content"] for ref in answer["references"])
     if external:
         assert queries == [generic, generic + " 研究 Trehalose。作者待证假设：保证全部稳定。"]
+
+
+def test_owner_trashes_and_restores_report_without_losing_history(solution_client):
+    f = solution_client
+    report = create(f)
+    report_id = report["id"]
+    answer = question(f, report)
+    assert answer.status_code == 200
+    # A rejected cross-origin mutation must leave the report intact.
+    assert (
+        f.client.post(
+            f"{PREFIX}/{report_id}/trash",
+            json={"revision": report["revision"]},
+            headers={"Origin": "https://evil.example"},
+        ).status_code
+        == 403
+    )
+    assert f.client.post(f"{PREFIX}/{report_id}/trash", json={"revision": 99}).status_code == 409
+    assert (
+        f.client.post(
+            f"{PREFIX}/{report_id}/trash", json={"revision": report["revision"]}
+        ).status_code
+        == 204
+    )
+    assert f.client.get(PREFIX).json() == []
+    assert f.client.get(f"{PREFIX}/{report_id}").status_code == 404
+    trash = f.client.get(f"{PREFIX}/trash").json()
+    assert len(trash) == 1 and trash[0]["id"] == report_id
+    assert (
+        f.client.post(
+            f"{PREFIX}/trash/{report_id}/restore", json={"revision": report["revision"]}
+        ).status_code
+        == 409
+    )
+    f.login("other")
+    assert f.client.get(f"{PREFIX}/trash").json() == []
+    assert (
+        f.client.post(
+            f"{PREFIX}/trash/{report_id}/restore", json={"revision": trash[0]["revision"]}
+        ).status_code
+        == 404
+    )
+    f.login("author")
+    restored = f.client.post(
+        f"{PREFIX}/trash/{report_id}/restore", json={"revision": trash[0]["revision"]}
+    )
+    assert restored.status_code == 200
+    assert restored.json()["sections"] == report["sections"]
+    assert len(f.client.get(f"{PREFIX}/{report_id}/history").json()) == 1
+    assert f.client.get(f"{PREFIX}/trash").json() == []
+    actions = f.db.scalars(
+        select(SolutionEvent.action).where(SolutionEvent.solution_id == report_id)
+    ).all()
+    assert "trash" in actions and "restore_trash" in actions
+
+
+def test_reviewer_cannot_trash_authors_report(solution_client):
+    f = solution_client
+    report = create(f)
+    f.login("reviewer")
+    f.login("author")
+    response = review(f, report, "submit", reviewer_id="reviewer")
+    assert response.status_code == 200
+    f.login("reviewer")
+    assert (
+        f.client.post(
+            f"{PREFIX}/{report['id']}/trash", json={"revision": response.json()["revision"]}
+        ).status_code
+        == 403
+    )
+    f.login("author")
+    assert f.client.get(f"{PREFIX}/{report['id']}").status_code == 200
+
+
+def test_startup_adds_trash_column_to_existing_report_table(tmp_path, monkeypatch):
+    from sqlalchemy import text
+    import app.main as main
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'legacy-report.db'}")
+    with engine.begin() as conn:
+        conn.execute(
+            text("CREATE TABLE knowledge_solutions (id VARCHAR(64) PRIMARY KEY, title TEXT)")
+        )
+        conn.execute(text("INSERT INTO knowledge_solutions VALUES ('old', 'old report')"))
+    monkeypatch.setattr(main, "engine", engine)
+    main._ensure_schema()
+    main._ensure_schema()
+    assert "deleted_at" in {
+        col["name"] for col in inspect(engine).get_columns("knowledge_solutions")
+    }
+    with engine.connect() as conn:
+        assert conn.execute(
+            text("SELECT id, title, deleted_at FROM knowledge_solutions")
+        ).one() == ("old", "old report", None)
+    engine.dispose()

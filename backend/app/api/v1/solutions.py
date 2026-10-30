@@ -20,6 +20,7 @@ from app.schemas.solution import (
     PolishInput,
     ReviewAction,
     SolutionInput,
+    SolutionRevision,
     SolutionSave,
     SourceInput,
 )
@@ -105,6 +106,69 @@ def listing(db: Session = Depends(get_db), claims: dict = Depends(identity)):
 @router.post("/", status_code=201)
 def create(payload: SolutionInput, db: Session = Depends(get_db), claims: dict = Depends(identity)):
     return service.create_solution(db, payload, claims)
+
+
+@router.get("/trash")
+def trash_listing(db: Session = Depends(get_db), claims: dict = Depends(identity)):
+    rows = db.scalars(
+        select(KnowledgeSolution)
+        .where(
+            KnowledgeSolution.issuer == claims["iss"],
+            KnowledgeSolution.owner_id == claims["sub"],
+            KnowledgeSolution.deleted_at.is_not(None),
+        )
+        .order_by(KnowledgeSolution.deleted_at.desc())
+    ).all()
+    result = []
+    for row in rows:
+        try:
+            service.check_solution_evidence(db, row, claims)
+        except HTTPException as exc:
+            if exc.status_code in (403, 404):
+                continue
+            raise
+        result.append(
+            {
+                "id": row.id,
+                "title": row.title,
+                "revision": row.revision,
+                "deleted_at": row.deleted_at,
+            }
+        )
+    return result
+
+
+@router.post("/trash/{solution_id}/restore")
+def restore_trash(
+    solution_id: str,
+    payload: SolutionRevision,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    row = db.scalar(
+        select(KnowledgeSolution).where(
+            KnowledgeSolution.id == solution_id,
+            KnowledgeSolution.issuer == claims["iss"],
+            KnowledgeSolution.owner_id == claims["sub"],
+            KnowledgeSolution.deleted_at.is_not(None),
+        )
+    )
+    if not row:
+        raise HTTPException(404, "报告不存在或无权访问")
+    service.check_solution_evidence(db, row, claims)
+    return service.restore_trashed_solution(db, row, payload.revision, claims)
+
+
+@router.post("/{solution_id}/trash", status_code=204)
+def trash(
+    solution_id: str,
+    payload: SolutionRevision,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    row = service.get_solution(db, solution_id, claims, owner=True)
+    service.trash_solution(db, row, payload.revision, claims)
+    return Response(status_code=204)
 
 
 @router.get("/reviewers")

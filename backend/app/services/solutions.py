@@ -90,6 +90,7 @@ def reviewers(db, claims):
 def readable(claims):
     return and_(
         KnowledgeSolution.issuer == claims["iss"],
+        KnowledgeSolution.deleted_at.is_(None),
         or_(
             KnowledgeSolution.owner_id == claims["sub"],
             and_(
@@ -298,6 +299,19 @@ def compare_and_swap(db, row, revision, values):
             409, "报告已有新修改。请保留本地草稿并重新打开最新版本后比较，未覆盖服务器内容。"
         )
     db.refresh(row)
+
+
+def trash_solution(db, row, revision, claims):
+    compare_and_swap(db, row, revision, {"deleted_at": utcnow()})
+    event(db, row, claims, "trash")
+    db.commit()
+
+
+def restore_trashed_solution(db, row, revision, claims):
+    compare_and_swap(db, row, revision, {"deleted_at": None})
+    event(db, row, claims, "restore_trash")
+    db.commit()
+    return solution_out(row, claims)
 
 
 def create_solution(db: Session, payload: SolutionInput, claims):

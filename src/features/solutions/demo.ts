@@ -6,7 +6,7 @@ import { libraryEmbedUrl, validLibraryPath } from './libraryEmbed'
 const now = () => new Date().toISOString()
 const uid = () => crypto.randomUUID()
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T
-interface DemoState { solutions: Solution[]; sources: KnowledgeSource[]; versions: Record<string, Version[]>; answers: Record<string, Answer[]> }
+interface DemoState { trash?: { solution: Solution; deletedAt: string }[]; solutions: Solution[]; sources: KnowledgeSource[]; versions: Record<string, Version[]>; answers: Record<string, Answer[]> }
 
 function initialState(userId: string, userName: string): DemoState {
   const input = emptySolution('缓冲体系选择与验证报告')
@@ -54,6 +54,9 @@ export function createDemoClient(namespace: string, userId: string, userName: st
   function newSolution(input: SolutionInput): Solution { return { ...clone(input), id: uid(), ownerId: userId, ownerName: userName, status: 'draft', revision: 1, version: 1, updatedAt: now(), reviewerId: null, reviewerName: '', reviewNotes: '', canEdit: true } }
   const client: SolutionClient = {
     list: async () => clone(read().solutions).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+    trash: async () => clone((read().trash || []).map(({ solution, deletedAt }) => ({ id: solution.id, title: solution.title, revision: solution.revision, deletedAt }))),
+    remove: async (id, revision) => { const state = read(), s = get(state, id); if (s.ownerId !== userId) throw new Error('只有报告作者可删除'); verify(s, revision); s.revision++; (state.trash ||= []).unshift({ solution: s, deletedAt: now() }); state.solutions = state.solutions.filter(item => item.id !== id); write(state) },
+    restore: async (id, revision) => { const state = read(), item = (state.trash || []).find(entry => entry.solution.id === id); if (!item || item.solution.ownerId !== userId) throw new Error('报告不存在或无权访问'); verify(item.solution, revision); item.solution.revision++; item.solution.updatedAt = now(); state.solutions.unshift(item.solution); state.trash = (state.trash || []).filter(entry => entry.solution.id !== id); write(state); return clone(item.solution) },
     create: async input => { const state = read(), s = newSolution(input); state.solutions.unshift(s); write(state); return clone(s) },
     get: async id => clone(get(read(), id)),
     save: async (id, input) => { const state = read(), s = get(state, id); verify(s, input.revision); if (s.status !== 'draft') throw new Error('仅草稿可以编辑'); Object.assign(s, clone(input)); changed(s); write(state); return clone(s) },
