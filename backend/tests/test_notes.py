@@ -81,6 +81,61 @@ def test_independent_crud_and_trash_restore(note_client, monkeypatch):
     assert not PersonalNote.__table__.foreign_keys
 
 
+def test_knowledge_source_is_private_and_filterable(note_client):
+    f = note_client
+    row = create(f, source_app="knowledge", source_title="论文摘录", content="相关内容")
+    assert (
+        f.client.get(PREFIX, params={"source_app": "knowledge"}).json()["items"][0]["id"]
+        == row["id"]
+    )
+    f.login("another-person")
+    assert f.client.get(PREFIX, params={"source_app": "knowledge"}).json()["total"] == 0
+    assert f.client.put(f"{PREFIX}/{row['id']}", json=save_body(row)).status_code == 404
+
+
+def test_knowledge_origin_requires_matching_session_identity(note_client):
+    f = note_client
+    headers = {
+        "Origin": notes.settings.KNOWLEDGE_NOTES_ORIGIN,
+        "X-Notes-Issuer": notes.settings.casdoor_issuer,
+        "X-Notes-Subject": "author",
+    }
+    assert f.client.get(PREFIX, headers=headers).status_code == 200
+    assert (
+        f.client.post(PREFIX, json=body(source_app="knowledge"), headers=headers).status_code == 201
+    )
+    assert f.client.get(PREFIX, headers=headers | {"X-Notes-Subject": "other"}).status_code == 403
+    assert (
+        f.client.get(PREFIX, headers=headers | {"X-Notes-Issuer": "https://other"}).status_code
+        == 403
+    )
+    assert f.client.get(PREFIX, headers={"X-Notes-Identity": "wrong"}).status_code == 403
+
+
+def test_knowledge_cors_is_limited_to_notes():
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    origin = notes.settings.KNOWLEDGE_NOTES_ORIGIN
+    headers = {
+        "Origin": origin,
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "content-type,x-notes-issuer,x-notes-subject",
+    }
+    # Do not run the production application lifespan against the developer's database.
+    client = TestClient(app)
+    response = client.options(PREFIX, headers=headers)
+    assert response.status_code == 204
+    assert response.headers["access-control-allow-origin"] == origin
+    assert response.headers["access-control-allow-credentials"] == "true"
+    response = client.options("/api/v1/portal/me", headers=headers)
+    assert response.headers.get("access-control-allow-origin") != origin
+    response = client.options(PREFIX, headers=headers | {"Origin": "https://evil.example"})
+    assert response.headers.get("access-control-allow-origin") != "https://evil.example"
+    client.close()
+
+
 def test_owner_and_issuer_isolation(note_client):
     f = note_client
     row = create(f)

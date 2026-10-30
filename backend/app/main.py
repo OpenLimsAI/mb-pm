@@ -20,8 +20,8 @@ from app.api.v1 import (
     assistant,
     auth,
     baselines,
-    finances,
     feedback,
+    finances,
     information,
     mdm_integration,
     notes,
@@ -181,9 +181,17 @@ async def lifespan(_: FastAPI):
         from app.services.information.worker import start_worker
 
         worker = start_worker()
+    notes_worker = None
+    if settings.NOTES_WISDOM_WORKER_ENABLED:
+        from app.services.note_sync import start_worker
+
+        notes_worker = start_worker()
     try:
         yield
     finally:
+        if notes_worker:
+            notes_worker[0].set()
+            notes_worker[1].join(timeout=5)
         if worker:
             worker[0].set()
             worker[1].join(timeout=5)
@@ -205,6 +213,33 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def knowledge_notes_cors(request, call_next):
+    """The knowledge origin receives CORS access to notes only, never other APIs."""
+    from starlette.responses import Response
+
+    path = request.url.path
+    allowed = (
+        path == "/api/v1/notes" or path.startswith("/api/v1/notes/")
+    ) and request.headers.get("origin") == settings.KNOWLEDGE_NOTES_ORIGIN
+    if not allowed:
+        return await call_next(request)
+    if request.method == "OPTIONS":
+        response = Response(status_code=204)
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = (
+            "Content-Type, X-Notes-Issuer, X-Notes-Subject"
+        )
+        response.headers["Access-Control-Max-Age"] = "600"
+    else:
+        response = await call_next(request)
+    response.headers["Access-Control-Allow-Origin"] = settings.KNOWLEDGE_NOTES_ORIGIN
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers.append("Vary", "Origin")
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.middleware("http")

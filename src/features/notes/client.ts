@@ -1,9 +1,10 @@
 import axios from 'axios'
 import { API_BASE, camelize, snakeize } from '../../api/client'
 
-export type NoteSource = 'manual' | 'solutions' | 'information'
+export type NoteSource = 'manual' | 'solutions' | 'information' | 'knowledge'
 export interface NoteInput { title: string; content: string; sourceApp: NoteSource; sourceTitle: string; sourceUrl: string }
-export interface PersonalNote extends NoteInput { id: string; revision: number; createdAt: string; updatedAt: string; deletedAt: string | null }
+export interface NoteWisdom { enabled: boolean; status: string; error: string }
+export interface PersonalNote extends NoteInput { wisdom?: NoteWisdom; id: string; revision: number; createdAt: string; updatedAt: string; deletedAt: string | null }
 export interface NoteQuery { search?: string; sourceApp?: NoteSource; trashed?: boolean; offset?: number }
 export interface NotesClient {
   list(query?: NoteQuery): Promise<{ items: PersonalNote[]; total: number }>
@@ -11,8 +12,9 @@ export interface NotesClient {
   save(note: PersonalNote, input: NoteInput): Promise<PersonalNote>
   trash(note: PersonalNote): Promise<PersonalNote>
   restore(note: PersonalNote): Promise<PersonalNote>
+  share?(note: PersonalNote, enabled: boolean): Promise<PersonalNote>
 }
-export const noteSourceNames: Record<NoteSource, string> = { manual: '个人记录', solutions: '研究报告', information: '行业信息' }
+export const noteSourceNames: Record<NoteSource, string> = { manual: '个人记录', solutions: '研究报告', information: '行业信息', knowledge: '知识库' }
 export function noteSourceUrl(value: string): string | undefined {
   if (!value || value.includes('\\') || [...value].some(char => char.charCodeAt(0) < 32)) return undefined
   if (value.startsWith('/') && !value.startsWith('//')) return value
@@ -23,20 +25,24 @@ export function validateNote(input: NoteInput): void {
   if (!input.content.trim() || input.content.length > 50000) throw new Error('请输入 1–50,000 字的笔记正文。')
   if (!Object.hasOwn(noteSourceNames, input.sourceApp) || input.sourceTitle.length > 500 || input.sourceUrl.length > 2000 || input.sourceUrl && !noteSourceUrl(input.sourceUrl)) throw new Error('笔记来源信息无效，请检查后重试。')
 }
+export function createNotesApi(expectedIdentity?: string): NotesClient {
 const http = axios.create({ baseURL: `${API_BASE}/notes`, withCredentials: true, timeout: 20000 })
-http.interceptors.request.use(config => { if (config.data) config.data = snakeize(config.data); if (config.params) config.params = snakeize(config.params); return config })
+http.interceptors.request.use(config => { if (expectedIdentity) config.headers.set('X-Notes-Identity', expectedIdentity); if (config.data) config.data = snakeize(config.data); if (config.params) config.params = snakeize(config.params); return config })
 http.interceptors.response.use(response => { response.data = camelize(response.data); return response }, (error: unknown) => {
   const status = axios.isAxiosError(error) ? error.response?.status : undefined
   if (status === 401) window.dispatchEvent(new Event('portal:unauthorized'))
-  return Promise.reject(Object.assign(new Error(status === 409 ? '笔记已在其他页面更新，请保留当前内容并重新打开核对。' : status === 401 ? '登录已失效，请重新登录。' : status === 422 ? '笔记未通过校验，请检查标题、正文长度及来源链接。' : '笔记操作未完成，请检查连接后重试。'), { status }))
+  return Promise.reject(Object.assign(new Error(status === 409 ? '笔记已在其他页面更新，请保留当前内容并重新打开核对。' : status === 401 ? '登录已失效，请重新登录。' : status === 403 && expectedIdentity ? '工作台和知识库登录的账号不一致，请重新登录。' : status === 422 ? '笔记未通过校验，请检查标题、正文长度及来源链接。' : '笔记操作未完成，请检查连接后重试。'), { status }))
 })
-export const notesApi: NotesClient = {
+return {
   list: async query => (await http.get('', { params: query })).data,
   create: async (id, input) => { validateNote(input); return (await http.post('', { ...input, id })).data },
   save: async (note, input) => { validateNote(input); return (await http.put(`/${encodeURIComponent(note.id)}`, { ...input, revision: note.revision })).data },
   trash: async note => (await http.post(`/${encodeURIComponent(note.id)}/trash`, { revision: note.revision })).data,
+  share: async (note, enabled) => (await http.post(`/${encodeURIComponent(note.id)}/wisdom`, { revision: note.revision, enabled })).data,
   restore: async note => (await http.post(`/${encodeURIComponent(note.id)}/restore`, { revision: note.revision })).data,
 }
+}
+export const notesApi = createNotesApi()
 
 export function createPreviewNotesClient(namespace: string, storage: Storage = localStorage): NotesClient {
   const key = `mberp:personal-notes:preview:v1:${encodeURIComponent(namespace)}`

@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowUpRight, FileText, FolderOpen, Link2, LoaderCircle, NotebookPen, PencilLine, Plus, Radio, RefreshCw, RotateCcw, Search, ShieldCheck, Trash2 } from 'lucide-react'
+import { ArrowUpRight, BookOpen, FileText, FolderOpen, Link2, LoaderCircle, NotebookPen, PencilLine, Plus, Radio, RefreshCw, RotateCcw, Search, ShieldCheck, Trash2 } from 'lucide-react'
 import type { NotesClient, NoteSource, PersonalNote } from './client'
 import { noteSourceNames } from './client'
 import type { NoteDraft } from './draft'
 import NoteEditor from './NoteEditor'
 import { newNote } from './draft'
+import { knowledgeLaunchUrl } from '../../lib/site'
 import './notes.css'
 
-export default function NotesWorkspace({ client, mode = 'embedded', userName }: { client: NotesClient; mode?: 'app' | 'embedded'; userName?: string }) {
+export default function NotesWorkspace({ client, mode = 'embedded', userName, acceptParentRefresh = false }: { client: NotesClient; mode?: 'app' | 'embedded'; userName?: string; acceptParentRefresh?: boolean }) {
   const [items, setItems] = useState<PersonalNote[]>([]), [total, setTotal] = useState(0), [search, setSearch] = useState(''), [source, setSource] = useState<NoteSource | ''>(''), [trashed, setTrashed] = useState(false)
   const [offset, setOffset] = useState(0), [reload, setReload] = useState(0), [loading, setLoading] = useState(true), [error, setError] = useState(''), [notice, setNotice] = useState('')
   const [editing, setEditing] = useState<PersonalNote | NoteDraft | null>(null), [busy, setBusy] = useState(false), [undo, setUndo] = useState<PersonalNote | null>(null)
@@ -26,6 +27,29 @@ export default function NotesWorkspace({ client, mode = 'embedded', userName }: 
     return () => { active = false; clearTimeout(timer) }
   }, [client, search, source, trashed, offset, reload])
   const refresh = () => { setOffset(0); setReload(value => value + 1) }
+  useEffect(() => {
+    if (!acceptParentRefresh || window.parent === window) return
+    const handler = (event: MessageEvent) => {
+      if (event.source === window.parent && event.origin === new URL(knowledgeLaunchUrl).origin && event.data?.type === 'mberp:notes:refresh') refresh()
+    }
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [acceptParentRefresh])
+  useEffect(() => {
+    const update = () => { if (document.visibilityState !== 'hidden') { setOffset(0); setReload(value => value + 1) } }
+    const timer = window.setInterval(update, 15000)
+    window.addEventListener('focus', update)
+    return () => { window.clearInterval(timer); window.removeEventListener('focus', update) }
+  }, [client])
+  async function share(note: PersonalNote) {
+    if (!client.share || busy) return
+    const enabled = !note.wisdom?.enabled
+    if (enabled && !window.confirm('共享后，知识库成员可以在检索和 AI 问答中使用这条笔记。是否继续？')) return
+    setBusy(true); setError('')
+    try { await client.share(note, enabled); setNotice(enabled ? '已安排共享到知识库检索。' : '已安排撤下检索副本。'); refresh() }
+    catch (reason) { setError(reason instanceof Error ? reason.message : '共享操作未完成。') }
+    finally { setBusy(false) }
+  }
   function filter(action: () => void) { request.current++; setItems([]); setTotal(0); setOffset(0); setLoading(true); action() }
   async function move(note: PersonalNote, restore: boolean) {
     if (busy) return
@@ -40,7 +64,7 @@ export default function NotesWorkspace({ client, mode = 'embedded', userName }: 
   }
   const app = mode === 'app'
   const heading = trashed ? '回收站' : source ? noteSourceNames[source] : '全部笔记'
-  const SourceIcon = { manual: NotebookPen, solutions: FileText, information: Radio }
+  const SourceIcon = { manual: NotebookPen, solutions: FileText, information: Radio, knowledge: BookOpen }
   function browse(nextSource: NoteSource | '', nextTrashed = false) { if (source === nextSource && trashed === nextTrashed) return; filter(() => { setSource(nextSource); setTrashed(nextTrashed) }) }
   const createButton = <button type="button" className="pn-button pn-primary" onClick={() => setEditing(newNote())}><Plus size={16} aria-hidden="true" />新建笔记</button>
   const Content = app ? 'main' : 'div'
@@ -67,7 +91,8 @@ export default function NotesWorkspace({ client, mode = 'embedded', userName }: 
         <div className="pn-card-meta"><span className="pn-source-badge"><Icon size={13} aria-hidden="true" />{noteSourceNames[note.sourceApp]}</span><time dateTime={note.updatedAt} title={new Date(note.updatedAt).toLocaleString('zh-CN')}>{new Date(note.updatedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</time></div>
         <button type="button" className="pn-open-note" onClick={() => setEditing(note)} disabled={!!note.deletedAt}><span className="pn-card-title"><h3>{note.title}</h3><ArrowUpRight size={16} aria-hidden="true" /></span><p>{note.content}</p></button>
         {note.sourceTitle && <small className="pn-source-title"><Link2 size={13} aria-hidden="true" /><span>来源：{note.sourceTitle}</span></small>}
-        <footer><span className="pn-word-count">{note.content.length.toLocaleString()} 字</span>{note.deletedAt ? <button className="pn-button pn-text-button" type="button" disabled={busy} onClick={() => void move(note, true)}><RotateCcw size={14} aria-hidden="true" />恢复笔记</button> : <><button className="pn-button pn-text-button" type="button" onClick={() => setEditing(note)}><PencilLine size={13} aria-hidden="true" />编辑笔记</button><button className="pn-button pn-text-button pn-trash-action" type="button" disabled={busy} aria-label={`移至回收站：${note.title}`} onClick={() => void move(note, false)}><Trash2 size={13} aria-hidden="true" />移至回收站</button></>}</footer>
+        {note.wisdom && <small className="pn-sync-status" role="status">{note.wisdom.status === 'synced' ? '已共享到知识库检索' : note.wisdom.status === 'pending' ? '检索副本同步中…' : note.wisdom.status === 'error' ? note.wisdom.error : '仅本人可见'}</small>}
+        <footer>{client.share && !note.deletedAt && <button className="pn-button pn-text-button" type="button" disabled={busy} onClick={() => void share(note)}>{note.wisdom?.enabled ? '撤下共享' : '共享到知识库检索'}</button>}<span className="pn-word-count">{note.content.length.toLocaleString()} 字</span>{note.deletedAt ? <button className="pn-button pn-text-button" type="button" disabled={busy} onClick={() => void move(note, true)}><RotateCcw size={14} aria-hidden="true" />恢复笔记</button> : <><button className="pn-button pn-text-button" type="button" onClick={() => setEditing(note)}><PencilLine size={13} aria-hidden="true" />编辑笔记</button><button className="pn-button pn-text-button pn-trash-action" type="button" disabled={busy} aria-label={`移至回收站：${note.title}`} onClick={() => void move(note, false)}><Trash2 size={13} aria-hidden="true" />移至回收站</button></>}</footer>
       </article> })}</div>
       {items.length < total && <button type="button" className="pn-button pn-load-more" disabled={loading} onClick={() => setOffset(items.length)}>加载更多笔记</button>}
     </Content>

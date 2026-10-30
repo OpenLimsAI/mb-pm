@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     AI_SETTINGS_PATH: str = ".local/ai-settings.json"
 
     # —— 信息获取（真实采集与受保护的原文归档）—— #
+    KNOWLEDGE_NOTES_ORIGIN: str = "https://kb.openlims.ai"
+    NOTES_WISDOM_CORE_URL: str = ""
+    NOTES_WISDOM_TOKEN: str = ""
+    NOTES_WISDOM_WORKER_ENABLED: bool = False
+
     INFORMATION_DATA_DIR: str = ".local/information"
     INFORMATION_MAX_ARCHIVE_MB: int = 5120
     INFORMATION_WORKER_ENABLED: bool = False
