@@ -1,17 +1,16 @@
-import { useCallback, useMemo, useState, useRef, useEffect } from 'react'
+import { useCallback, useMemo, useState, useRef, useEffect, useLayoutEffect } from 'react'
 import {
   GanttChartSquare, Flame, Diamond, ChevronDown, ChevronRight, GitBranch,
 } from 'lucide-react'
-import { addDays, differenceInCalendarDays, format, parseISO, startOfMonth, isWeekend } from 'date-fns'
+import { addDays, addMonths, addYears, differenceInCalendarDays, format, parseISO, startOfMonth, startOfYear, isWeekend } from 'date-fns'
 import type { Project, SubProject, Task } from '../../types'
 import { Card, CardHeader, CardBody, Tag, Avatar } from '../ui'
 import { findUser, getProjectSubs, getSubTasks, taskDependencies, TODAY } from '../../mock'
 import { computeCPM } from '../../lib/cpm'
 import { cn } from '../../lib/cn'
+import { dayWidthForZoom, scaleForDayWidth } from '../../lib/ganttZoom'
+import { TimelineZoomControl } from './TimelineZoomControl'
 
-type ZoomLevel = 'day' | 'week' | 'month'
-
-const DAY_WIDTH: Record<ZoomLevel, number> = { day: 28, week: 14, month: 6 }
 const ROW_H = 34
 const HEADER_H = 56
 const LABEL_W = 320
@@ -23,7 +22,7 @@ interface Props {
 }
 
 export function Gantt({ project, selectedTaskId, onSelectTask }: Props) {
-  const [zoom, setZoom] = useState<ZoomLevel>('week')
+  const [zoom, setZoom] = useState(66)
   const [showCP, setShowCP] = useState(true)
   const [showDeps, setShowDeps] = useState(true)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
@@ -45,7 +44,8 @@ export function Gantt({ project, selectedTaskId, onSelectTask }: Props) {
     return { start, end, totalDays: differenceInCalendarDays(end, start) + 1 }
   }, [allTasks])
 
-  const dayW = DAY_WIDTH[zoom]
+  const dayW = dayWidthForZoom(zoom)
+  const scale = scaleForDayWidth(dayW)
   const totalWidth = range.totalDays * dayW
 
   // 渲染顺序：sub → tasks
@@ -68,16 +68,20 @@ export function Gantt({ project, selectedTaskId, onSelectTask }: Props) {
   const todayX = xOf(today)
   const isTodayInRange = todayX >= 0 && todayX <= totalWidth
 
-  // 标尺
-  const months = useMemo(() => {
-    const m: { date: Date; label: string; x: number }[] = []
-    let cur = startOfMonth(range.start)
+  // 年视图使用年份带，其余视图使用月份带，首尾裁切到时间范围。
+  const bands = useMemo(() => {
+    const result: { label: string; left: number; width: number }[] = []
+    let cur = scale === 'year' ? startOfYear(range.start) : startOfMonth(range.start)
     while (cur <= range.end) {
-      m.push({ date: cur, label: format(cur, 'yyyy-MM'), x: xOf(cur) })
-      cur = startOfMonth(addDays(cur, 32))
+      const next = scale === 'year' ? addYears(cur, 1) : addMonths(cur, 1)
+      const left = Math.max(0, differenceInCalendarDays(cur, range.start) * dayW)
+      const right = Math.min(totalWidth, differenceInCalendarDays(next, range.start) * dayW)
+      result.push({ label: format(cur, scale === 'year' ? 'yyyy' : 'yyyy-MM'), left, width: right - left })
+      cur = next
     }
-    return m
-  }, [range.start, range.end, xOf])
+    return result
+  }, [range.start, range.end, scale, dayW, totalWidth])
+  const dates = useMemo(() => Array.from({ length: range.totalDays }, (_, i) => addDays(range.start, i)), [range.start, range.totalDays])
 
   // sub 的范围
   const subRange = (sub: SubProject) => {
@@ -96,18 +100,35 @@ export function Gantt({ project, selectedTaskId, onSelectTask }: Props) {
 
   // 同步水平滚动：toolbar 信息只读
   const scrollRef = useRef<HTMLDivElement>(null)
+  const centerDayRef = useRef<number | null>(null)
+  const changeZoom = (value: number) => {
+    const el = scrollRef.current
+    if (el) {
+      const visibleWidth = Math.min(el.clientWidth, Math.max(0, totalWidth - el.scrollLeft))
+      centerDayRef.current = (el.scrollLeft + visibleWidth / 2) / dayW
+    }
+    setZoom(Math.max(0, Math.min(100, value)))
+  }
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (!el || centerDayRef.current === null) return
+    el.scrollLeft = Math.max(0, centerDayRef.current * dayW - el.clientWidth / 2)
+    centerDayRef.current = null
+  }, [dayW])
+  const xOfRef = useRef(xOf)
+  useLayoutEffect(() => { xOfRef.current = xOf }, [xOf])
   useEffect(() => {
     if (!selectedTaskId) return
     const el = scrollRef.current
     if (!el) return
     const t = cpm.byId.get(selectedTaskId)
     if (!t) return
-    const tx = xOf(parseISO(t.plannedStart))
+    const tx = xOfRef.current(parseISO(t.plannedStart))
     const target = tx - 80
     if (target < el.scrollLeft || target > el.scrollLeft + el.clientWidth - 200) {
       el.scrollTo({ left: target, behavior: 'smooth' })
     }
-  }, [selectedTaskId, cpm.byId, xOf])
+  }, [selectedTaskId, cpm.byId])
 
   return (
     <Card className="overflow-hidden">
@@ -126,14 +147,10 @@ export function Gantt({ project, selectedTaskId, onSelectTask }: Props) {
         }
         subtitle={`项目周期 ${format(range.start, 'yyyy-MM-dd')} ~ ${format(range.end, 'yyyy-MM-dd')} · 共 ${range.totalDays} 天`}
         action={
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center justify-end gap-1">
             <ToggleButton active={showCP} onClick={() => setShowCP((v) => !v)} icon={<Flame className="w-3.5 h-3.5" />} label="关键路径" />
             <ToggleButton active={showDeps} onClick={() => setShowDeps((v) => !v)} icon={<GitBranch className="w-3.5 h-3.5" />} label="依赖" />
-            <div className="inline-flex rounded-md border border-ink-300 ml-1">
-              <button onClick={() => setZoom('month')} className={cn('px-2 py-1 text-xs', zoom === 'month' ? 'bg-brand-50 text-brand-700' : 'text-ink-700 hover:bg-ink-100')}>月</button>
-              <button onClick={() => setZoom('week')} className={cn('px-2 py-1 text-xs border-l border-ink-300', zoom === 'week' ? 'bg-brand-50 text-brand-700' : 'text-ink-700 hover:bg-ink-100')}>周</button>
-              <button onClick={() => setZoom('day')} className={cn('px-2 py-1 text-xs border-l border-ink-300', zoom === 'day' ? 'bg-brand-50 text-brand-700' : 'text-ink-700 hover:bg-ink-100')}>日</button>
-            </div>
+            <TimelineZoomControl zoom={zoom} onChange={changeZoom} />
           </div>
         }
       />
@@ -181,37 +198,24 @@ export function Gantt({ project, selectedTaskId, onSelectTask }: Props) {
           </div>
 
           {/* 右侧时间轴 + 甘特条 */}
-          <div ref={scrollRef} className="flex-1 overflow-x-auto overflow-y-visible relative">
+          <div ref={scrollRef} role="region" aria-label="甘特图时间轴" tabIndex={0} className="flex-1 min-w-0 overflow-x-auto overflow-y-visible relative">
             <div style={{ width: totalWidth, position: 'relative' }}>
               {/* 头部时间轴 */}
               <div className="bg-ink-100 border-b border-ink-300/40 sticky top-0 z-10" style={{ height: HEADER_H }}>
                 {/* 月份带 */}
                 <div className="absolute inset-x-0 top-0 h-6">
-                  {months.map((m) => (
-                    <div key={m.label} className="absolute top-0 h-full text-xs flex items-center px-1.5 text-ink-700 font-medium border-r border-ink-300/60 bg-ink-100" style={{ left: m.x }}>
-                      {m.label}
-                    </div>
+                  {bands.map((band) => (
+                    <div key={band.label} className="absolute top-0 h-full text-xs flex items-center px-1.5 text-ink-700 font-medium border-r border-ink-300/60 bg-ink-100 overflow-hidden whitespace-nowrap" style={{ left: band.left, width: band.width }}>{band.label}</div>
                   ))}
                 </div>
                 {/* 天/周刻度 */}
                 <div className="absolute inset-x-0 bottom-0 h-7 border-t border-ink-300/40">
-                  {Array.from({ length: range.totalDays }).map((_, i) => {
-                    const d = addDays(range.start, i)
-                    const x = i * dayW
-                    const isWE = isWeekend(d)
-                    const showLabel =
-                      zoom === 'day' ? true :
-                      zoom === 'week' ? d.getDay() === 1 :
-                      d.getDate() === 1
-                    return (
-                      <div key={i} className={cn('absolute top-0 h-full', isWE && 'bg-amber-50/50')} style={{ left: x, width: dayW }}>
-                        {showLabel && (
-                          <div className="text-[10px] text-ink-500 px-0.5 leading-none pt-1.5 border-l border-ink-300/40 h-full">
-                            {zoom === 'day' ? format(d, 'd') : zoom === 'week' ? format(d, 'M/d') : format(d, 'M月')}
-                          </div>
-                        )}
-                      </div>
-                    )
+                  {dates.map((d, i) => {
+                    const show = scale === 'day' || (scale === 'week' && d.getDay() === 1) ||
+                      (scale === 'month' && (d.getDate() === 1 || d.getDate() === 15)) ||
+                      (scale === 'year' && d.getDate() === 1 && d.getMonth() % 3 === 0)
+                    if (!show) return null
+                    return <div key={i} className="absolute top-0 h-full text-[10px] text-ink-500 px-0.5 leading-none pt-1.5 border-l border-ink-300/40" style={{ left: i * dayW }}>{scale === 'year' ? `Q${Math.floor(d.getMonth() / 3) + 1}` : scale === 'week' ? format(d, 'M/d') : format(d, 'd')}</div>
                   })}
                 </div>
               </div>
@@ -219,9 +223,8 @@ export function Gantt({ project, selectedTaskId, onSelectTask }: Props) {
               {/* 主体网格 + bars */}
               <div className="relative" style={{ height: rows.length * ROW_H }}>
                 {/* 周末背景 */}
-                {Array.from({ length: range.totalDays }).map((_, i) => {
-                  const d = addDays(range.start, i)
-                  if (!isWeekend(d) || zoom === 'month') return null
+                {dates.map((d, i) => {
+                  if (!isWeekend(d) || scale === 'month' || scale === 'year') return null
                   return (
                     <div key={i} className="absolute top-0 bottom-0 bg-amber-50/30" style={{ left: i * dayW, width: dayW }} />
                   )
