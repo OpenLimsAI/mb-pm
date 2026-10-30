@@ -6,11 +6,13 @@
 import { useState, useMemo, useRef, useLayoutEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  GanttChartSquare, Flame, Diamond, Layers, FolderKanban, ExternalLink, Eye, Minus, Plus,
+  GanttChartSquare, Flame, Diamond, Layers, FolderKanban, ExternalLink, Eye,
 } from 'lucide-react'
 import { addDays, addMonths, addYears, differenceInCalendarDays, format, isWeekend, parseISO, startOfMonth, startOfYear } from 'date-fns'
 import { Card, CardHeader, CardBody, Tag, HealthTag, Avatar } from '../components/ui'
 import { Gantt } from '../components/project/Gantt'
+import { TimelineZoomControl } from '../components/project/TimelineZoomControl'
+import { dayWidthForZoom, scaleForDayWidth } from '../lib/ganttZoom'
 import { TaskDrawer } from '../components/task/TaskDrawer'
 import { useAuth } from '../store/auth'
 import { useDataStore } from '../store/data'
@@ -137,30 +139,6 @@ export default function GanttPage() {
 
 // ====== 多项目联合甘特图 ======
 
-type TimelineZoom = 'year' | 'month' | 'week' | 'day'
-const ZOOM_STOPS = [
-  { position: 0, dayWidth: 0.6 },
-  { position: 33, dayWidth: 3 },
-  { position: 66, dayWidth: 8 },
-  { position: 100, dayWidth: 18 },
-]
-const ZOOM_LABELS: Record<TimelineZoom, string> = { year: '年', month: '月', week: '周', day: '日' }
-
-function dayWidthForZoom(position: number): number {
-  const stop = ZOOM_STOPS.findIndex((item) => item.position >= position)
-  if (stop <= 0) return ZOOM_STOPS[0].dayWidth
-  const previous = ZOOM_STOPS[stop - 1]
-  const next = ZOOM_STOPS[stop]
-  const progress = (position - previous.position) / (next.position - previous.position)
-  return previous.dayWidth * (next.dayWidth / previous.dayWidth) ** progress
-}
-
-function scaleForDayWidth(dayWidth: number): TimelineZoom {
-  if (dayWidth < 2) return 'year'
-  if (dayWidth < 5) return 'month'
-  if (dayWidth < 14) return 'week'
-  return 'day'
-}
 const ROW_H = 22
 const HEADER_H = 48
 const LABEL_W = 280
@@ -287,26 +265,7 @@ export function MultiProjectGantt({ projects, version }: { projects: Project[]; 
         }
         subtitle={`${format(range.start, 'yyyy-MM-dd')} ~ ${format(range.end, 'yyyy-MM-dd')} · 共 ${range.totalDays} 天`}
         action={
-          <div className="flex items-center gap-2 text-xs text-ink-700" role="group" aria-label="时间轴缩放">
-            <span className="shrink-0">时间缩放</span>
-            <button type="button" aria-label="缩小时间轴" title="缩小时间轴" disabled={zoom === 0} onClick={() => changeZoom(zoom - 5)} className="rounded p-1 hover:bg-ink-100 disabled:opacity-40">
-              <Minus className="h-4 w-4" />
-            </button>
-            <div className="w-40 sm:w-48">
-              <input
-                type="range" min="0" max="100" step="1" value={zoom}
-                aria-label="时间轴缩放" aria-valuetext={`${ZOOM_LABELS[scale]}视图，缩放位置 ${zoom} / 100`}
-                onChange={(event) => changeZoom(Number(event.target.value))}
-                className="block h-4 w-full cursor-pointer accent-brand-600"
-              />
-              <div className="flex justify-between text-[10px] leading-4 text-ink-500" aria-hidden="true">
-                <span>年</span><span>月</span><span>周</span><span>日</span>
-              </div>
-            </div>
-            <button type="button" aria-label="放大时间轴" title="放大时间轴" disabled={zoom === 100} onClick={() => changeZoom(zoom + 5)} className="rounded p-1 hover:bg-ink-100 disabled:opacity-40">
-              <Plus className="h-4 w-4" />
-            </button>
-          </div>
+          <TimelineZoomControl zoom={zoom} onChange={changeZoom} />
         }
       />
       <CardBody className="p-0">
