@@ -263,3 +263,7 @@
 .aa-data-sources strong, .aa-data-sources small { display: block; }
 .aa-data-sources strong { color: #315671; font-size: 13px; }
 .aa-data-sources small { margin-top: 5px; color: #78909f; font-size: 11px; }
+
+.aa-delete-title { margin: 4px 0 20px; color: #294457; line-height: 1.6; overflow-wrap: anywhere; }
+.aa-button.aa-delete-confirm { color: #fff; background: #bc4541; border-color: #bc4541; }
+.aa-button.aa-delete-confirm:hover:not(:disabled) { background: #a93632; border-color: #a93632; }
