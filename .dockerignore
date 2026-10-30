@@ -3,6 +3,9 @@ node_modules
 dist
 dist-ssr
 backend/.venv
+backend/.venv-*
+backend/.venv.*
+backend/.local
 .venv
 **/__pycache__/
 *.py[cod]

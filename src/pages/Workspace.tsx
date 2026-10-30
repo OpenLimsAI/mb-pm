@@ -26,6 +26,7 @@ interface ApplicationPresentation {
   domain: string
   href: string
   previewHref?: string
+  external?: boolean
   planned?: boolean
   kind: 'projects' | 'knowledge' | 'information' | 'solutions' | 'notes' | 'hr' | 'accounts' | 'settings' | 'ai' | 'assistant' | 'feedback'
   features: readonly string[]
@@ -51,7 +52,7 @@ const knowledgeApps: readonly ApplicationPresentation[] = [
 ]
 const businessApps: readonly ApplicationPresentation[] = [
   { id: 'pm', accessId: 'pm', name: '项目管理', englishName: 'PROJECT MANAGEMENT', description: '把计划、进度与团队协作放在一起，清晰掌握研发项目的每一步。', domain: 'pm.openlims.ai', href: '/launch/pm', previewHref: siteMode === 'combined' ? '/dashboard' : undefined, kind: 'projects', features: ['项目与任务', '团队协作', '财务与风险'] },
-  { id: 'mdm', accessId: 'mdm', name: '主数据管理', englishName: 'MASTER DATA MANAGEMENT', description: '管理分子、药物资产与项目登记治理；执行计划在关联的项目中维护。', domain: '主数据权限独立校验', href: '/launch/mdm', kind: 'projects', features: ['分子与药物资产', '项目登记治理', '执行关联'] },
+  { id: 'mdm', accessId: 'mdm', name: '主数据管理', englishName: 'MASTER DATA MANAGEMENT', description: '管理分子、药物资产与项目登记治理；执行计划在关联的项目中维护。', domain: '主数据权限独立校验', href: '/launch/mdm', external: true, kind: 'projects', features: ['分子与药物资产', '项目登记治理', '执行关联'] },
   { id: 'feedback', accessId: 'feedback', name: '回音壁', englishName: 'FEEDBACK', description: '反馈使用中遇到的问题和新功能建议，查看处理状态。', domain: '问题 · 建议 · 改进', href: '/launch/feedback', previewHref: '/feedback?preview=1', kind: 'feedback', features: ['问题反馈', '图片说明', '修复状态'] },
   { id: 'hr', name: '人力资源', englishName: 'HUMAN RESOURCES', description: '人员与组织管理的统一入口，应用正在规划中。', domain: '待开发应用', href: '', planned: true, kind: 'hr', features: ['人员档案', '组织管理', '人事流程'] },
   { id: 'accounts', accessId: 'accounts', name: '账号管理', englishName: 'ACCOUNT MANAGEMENT', description: '统一查看组织成员与账号身份，按管理权限维护账号信息。', domain: '按管理权限使用', href: '/accounts', kind: 'accounts', features: ['组织成员', '账号身份', '应用权限'] },
@@ -90,7 +91,7 @@ function ApplicationCard({ application, access, preview }: { application: Applic
   if (!enabled || (preview && !application.previewHref)) return <article className={className} aria-label={application.name}>{content}</article>
 
   return (
-    <a className={className} href={preview ? application.previewHref : application.href} aria-label={`进入${application.name}`}>
+    <a className={className} href={preview ? application.previewHref : application.href} target={application.external ? '_blank' : undefined} rel={application.external ? 'noopener noreferrer' : undefined} aria-label={`进入${application.name}`}>
       {content}
     </a>
   )

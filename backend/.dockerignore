@@ -9,6 +9,9 @@ __pycache__
 *.pyc
 .pytest_cache
 .venv
+.venv-*
+.venv.*
+.local
 venv
 .ruff_cache
 tests
