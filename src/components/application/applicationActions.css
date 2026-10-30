@@ -1,0 +1,13 @@
+.application-actions { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.application-account { display: flex; align-items: center; gap: 9px; color: #fff; text-decoration: none; min-width: 0; border-radius: 6px; padding: 3px; }
+.application-account:hover, .application-theme-toggle:hover { background: rgba(255,255,255,.12); }
+.application-avatar { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 50%; border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.14); color: #fff; font-weight: 600; }
+.application-account-copy { display: grid; gap: 2px; min-width: 0; line-height: 1.2; }
+.application-account-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 110px; font-size: 13px; }
+.application-account-copy small { color: #c9dcef; font-size: 10px; white-space: nowrap; }
+.application-theme-toggle { display: grid; place-items: center; flex: none; width: 34px; height: 34px; color: #e6f1ff; border: 0; border-radius: 6px; background: transparent; }
+.application-account:focus-visible, .application-theme-toggle:focus-visible { outline: 2px solid #bfeaff; outline-offset: 2px; }
+html[data-application-theme="dark"] { filter: invert(1) hue-rotate(180deg); background: #fff; }
+html[data-application-theme="dark"] :is(.aa-topbar, .pn-app-header, .ks-topbar, .if-header) { filter: invert(1) hue-rotate(180deg); }
+html[data-application-theme="dark"] :is(img, video, iframe, canvas):not(header *) { filter: invert(1) hue-rotate(180deg); }
+@media (max-width: 650px) { .application-actions { gap: 5px; } .application-account-copy { display: none; } .application-avatar { width: 30px; height: 30px; } }
