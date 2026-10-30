@@ -75,6 +75,7 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("tasks", "actual_cost", "NUMERIC(12,2)"),
     ("project_ai_analyses", "prompt", "TEXT NOT NULL DEFAULT ''"),
     ("tasks", "sort_order", "INTEGER"),
+    ("solution_answers", "conversation_id", "VARCHAR(80)"),
 )
 
 
@@ -91,8 +92,19 @@ def _ensure_schema() -> None:
             continue  # 新库由 create_all 直接带上新列
         if col not in {c["name"] for c in insp.get_columns(table)}:
             with engine.begin() as conn:
-                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}"))
+                guard = "IF NOT EXISTS " if engine.dialect.name == "postgresql" else ""
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {guard}{col} {ddl}"))
             logger.info("已为 %s 表补充 %s 列", table, col)
+
+    # Existing tables are skipped by create_all, including their new indexes.
+    if "solution_answers" in existing_tables:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_solution_answers_solution_conversation "
+                    "ON solution_answers (solution_id, conversation_id)"
+                )
+            )
 
     # —— 加宽组合 ID 列（issue #4）—— #
     # SQLite 不强制 VARCHAR(n) 长度，也不支持 ALTER COLUMN ... TYPE，直接跳过。
