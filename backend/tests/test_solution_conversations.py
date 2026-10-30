@@ -104,3 +104,49 @@ def test_history_context_is_bounded_and_does_not_include_another_issuer(
     assert calls[-1]["conversation_questions_not_evidence"] == [
         f"缓冲液问题 {i}" for i in range(2, 8)
     ]
+
+
+def test_startup_upgrades_legacy_answers_without_losing_data(tmp_path, monkeypatch):
+    from sqlalchemy import create_engine, inspect, text
+    import app.main as main
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'legacy-answers.db'}")
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "CREATE TABLE solution_answers (id VARCHAR(64) PRIMARY KEY, solution_id VARCHAR(64), question TEXT)"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT INTO solution_answers VALUES ('answer-1', 'report-1', 'existing question')"
+            )
+        )
+    monkeypatch.setattr(main, "engine", engine)
+    main._ensure_schema()
+    main._ensure_schema()
+    inspector = inspect(engine)
+    assert "conversation_id" in {col["name"] for col in inspector.get_columns("solution_answers")}
+    assert "ix_solution_answers_solution_conversation" in {
+        index["name"] for index in inspector.get_indexes("solution_answers")
+    }
+    with engine.connect() as conn:
+        assert conn.execute(
+            text("SELECT id, question, conversation_id FROM solution_answers")
+        ).one() == ("answer-1", "existing question", None)
+    engine.dispose()
+
+
+def test_alembic_revisions_are_unambiguous():
+    from pathlib import Path
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    root = Path(__file__).parents[1]
+    config = Config(str(root / "alembic.ini"))
+    config.set_main_option("script_location", str(root / "alembic"))
+    scripts = ScriptDirectory.from_config(config)
+    revisions = list(scripts.walk_revisions())
+    ids = [revision.revision for revision in revisions]
+    assert len(ids) == len(set(ids))
+    assert scripts.get_revision("008").down_revision == "007_solution_ai"

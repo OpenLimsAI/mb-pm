@@ -45,7 +45,7 @@ uv pip install --python .venv -r requirements.txt
 
 IAM：`IAMIdentity`（issuer + sub ↔ 业务用户，一对一绑定）· `IAMSession`（会话 cookie 的 SHA-256 → 加密令牌）· `IAMLogin`（进行中的登录 state，10 分钟有效）。
 
-知识报告个人模型：`SolutionAISettings`（表 `solution_ai_settings`，迁移 `007`），以 IAM `issuer + owner_id` 为复合主键，配置使用 `APP_SECRET` 加密，`revision` 用于乐观并发保护。该表不替代 PM 全局 AI 配置；本轮只在隔离测试库验证，未迁移生产。
+知识报告个人模型：`SolutionAISettings`（表 `solution_ai_settings`，迁移 `007_solution_ai`），以 IAM `issuer + owner_id` 为复合主键，配置使用 `APP_SECRET` 加密，`revision` 用于乐观并发保护。该表不替代 PM 全局 AI 配置；本轮只在隔离测试库验证，未迁移生产。
 
 ## 认证与授权
 
@@ -114,9 +114,9 @@ rm -f cmc_pms_lite.db        # 清库
 
 FastAPI · SQLAlchemy 2 · Pydantic 2 · SQLite/PostgreSQL · python-jose（RS256 验签）· httpx · cryptography（Fernet）· openpyxl。
 
-知识报告对话主题：迁移 `008` 为 `solution_answers` 增加可空 `conversation_id` 和 `(solution_id, conversation_id)` 索引，保留旧问答，不回写旧行。问答请求可指定主题，历史回传主题标识；同主题最近六个问题仅用于理解，作者、报告与 issuer 隔离及当前来源校验保持。该功能复用原 ask/history 接口，无新增环境变量。正式升级需先执行 Alembic 到 `008`；本轮仅在隔离 SQLite 中验证升级、重复升级、降级与模型结构，未迁移生产。
+知识报告对话主题：迁移 `008` 为 `solution_answers` 增加可空 `conversation_id` 和 `(solution_id, conversation_id)` 索引，保留旧问答，不回写旧行。问答请求可指定主题，历史回传主题标识；同主题最近六个问题仅用于理解，作者、报告与 issuer 隔离及当前来源校验保持。该功能复用原 ask/history 接口，无新增环境变量。启动时会为既有表幂等补齐该字段及索引；新表由 `create_all` 建立。上线前仍须备份，并在隔离的生产库副本验证。
 
-独立个人笔记：门户 Cookie 访问 `/api/v1/notes`，新建、搜索、编辑和回收站恢复按 issuer/sub 隔离。009 迁移新增 `personal_notes`，不依赖 KB、PM 或报告表；写操作同源、revision 冲突保护，创建 UUID 支持重试。正式升级需迁移到 009；本轮仅隔离测试，未部署。详见[个人笔记](../docs/personal-notes.md)。
+独立个人笔记：门户 Cookie 访问 `/api/v1/notes`，新建、搜索、编辑和回收站恢复按 issuer/sub 隔离。009 迁移新增 `personal_notes`，不依赖 KB、PM 或报告表；写操作同源、revision 冲突保护，创建 UUID 支持重试。启动时 `create_all` 会为不存在的笔记表建表；上线前仍须备份并验证。详见[个人笔记](../docs/personal-notes.md)。
 
 ## AI 助手任务接口（本地实现）
 
@@ -126,4 +126,4 @@ FastAPI · SQLAlchemy 2 · Pydantic 2 · SQLite/PostgreSQL · python-jose（RS25
 
 模型复用个人加密设置与安全传输，可选个人默认模型或 `enterprise`（企业默认）。`retrieval` 在普通助手中不可用；本应用不执行联网搜索、业务写入、邮件、定时任务或工具动作。显式参考正文最长20,000字、问题12,000字、任务偏好4,000字；每任务最多100轮，推理只带最近3轮的有界历史节选。每条回答作为已保存消息，同时提供 Markdown 结果产物。
 
-010 迁移新增 `assistant_tasks`、`assistant_messages` 和归属/顺序索引、请求唯一约束，需正式升级到010；本次只在隔离 SQLite 验证升级、重复升级、模型结构与降级，未部署或访问生产。`tests/test_assistant.py` 32项与相关笔记、门户、模型、报告回归共280项通过；模型请求均为测试替身。
+010 迁移新增 `assistant_tasks`、`assistant_messages` 和归属/顺序索引、请求唯一约束，启动时 `create_all` 会创建缺失的表；上线前仍须备份并验证。`tests/test_assistant.py` 32项与相关笔记、门户、模型、报告回归共280项通过；模型请求均为测试替身。
