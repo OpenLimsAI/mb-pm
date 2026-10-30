@@ -45,6 +45,7 @@ class KnowledgeSolution(Base):
     sections: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
     formula: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
     references: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     reviewer_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     reviewer_name: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     review_notes: Mapped[str] = mapped_column(Text, default="", nullable=False)

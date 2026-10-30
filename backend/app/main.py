@@ -76,6 +76,7 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("project_ai_analyses", "prompt", "TEXT NOT NULL DEFAULT ''"),
     ("tasks", "sort_order", "INTEGER"),
     ("solution_answers", "conversation_id", "VARCHAR(80)"),
+    ("knowledge_solutions", "deleted_at", "TIMESTAMP WITH TIME ZONE"),
 )
 
 

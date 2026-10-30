@@ -43,7 +43,11 @@ export interface ReviewAction {
   revision: number; note: string; reviewerId?: string; versionId?: string
 }
 export interface Reviewer { id: string; name: string }
+export interface TrashedSolution { id: string; title: string; revision: number; deletedAt: string }
 export interface SolutionClient {
+  trash(): Promise<TrashedSolution[]>
+  remove(id: string, revision: number): Promise<void>
+  restore(id: string, revision: number): Promise<Solution>
   list(): Promise<Solution[]>
   create(input: SolutionInput): Promise<Solution>
   get(id: string): Promise<Solution>

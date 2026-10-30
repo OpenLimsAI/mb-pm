@@ -112,3 +112,6 @@
   .ks-custom-workspace .ks-outline{max-width:42%;padding:15px 5px}.ks-custom-workspace .ks-outline-link{gap:4px;font-size:10px!important}
   .ks-custom-workspace .ks-pane-heading{padding-left:10px;padding-right:7px}
 }
+
+.ks-report-list-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.ks-card-actions{display:flex;gap:4px}.ks-card-actions .ks-report-delete{color:#9c4b42}.ks-card-actions .ks-report-delete:hover{background:#fbeeea;color:#8c302a}.ks-trash-list{display:flex;flex-direction:column;gap:8px}.ks-trash-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid #dce5ea;border-radius:6px}.ks-trash-item strong,.ks-trash-item span{display:block}.ks-trash-item span{font-size:11px;color:#7c8f9a;margin-top:5px}
+.ks-report-action-error{color:#a33f36;background:#fff2ef;padding:10px;border-radius:5px;overflow-wrap:anywhere}

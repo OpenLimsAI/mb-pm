@@ -71,6 +71,10 @@ class SolutionInput(Input):
         return self
 
 
+class SolutionRevision(Input):
+    revision: int = Field(ge=1)
+
+
 class SolutionSave(SolutionInput):
     revision: int = Field(ge=1)
 

@@ -7,6 +7,7 @@ const seed = (): Solution => ({ id: 'original', title: '原报告', projectName:
 function clientMock() {
   const docs = new Map([['original', seed()]])
   const client: SolutionClient = {
+    trash: vi.fn(async () => []), remove: vi.fn(async () => {}), restore: vi.fn(async () => seed()),
     list: vi.fn(async () => [...docs.values()]), get: vi.fn(async id => structuredClone(docs.get(id)!)),
     create: vi.fn(async input => { const doc = { ...seed(), ...input, id: 'imported' }; docs.set(doc.id, doc); return structuredClone(doc) }),
     save: vi.fn(async (id, input) => { const doc = { ...docs.get(id)!, ...input, revision: input.revision + 1 }; docs.set(id, doc); return structuredClone(doc) }),
