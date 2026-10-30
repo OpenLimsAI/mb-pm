@@ -411,6 +411,19 @@ def test_scope_isolation_and_replay(assistant_client, monkeypatch):
     assert "工作结果" not in latest
 
 
+def test_knowledge_question_supplies_full_catalogue_count(assistant_client, monkeypatch):
+    from app.services import solution_knowledge
+
+    f = assistant_client
+    monkeypatch.setattr(solution_knowledge, "paper_count", lambda claims: 63)
+    monkeypatch.setattr(solution_knowledge, "list_sources", lambda claims, query: [])
+    response = question(f, create(f), data_sources=["knowledge"])
+    assert response.status_code == 200, response.text
+    data = json.loads(f.calls[-1]["messages"][-1]["content"])["application_data"]["knowledge"]
+    assert data["active_paper_count"] == 63
+    assert data["sources"] == []
+
+
 def test_knowledge_failure_does_not_call_model(assistant_client, monkeypatch):
     from fastapi import HTTPException
 

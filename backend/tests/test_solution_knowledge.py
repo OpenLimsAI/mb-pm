@@ -287,3 +287,24 @@ def test_timeout_is_clear_and_does_not_leak_network_detail(monkeypatch):
         kb.list_sources(CLAIMS)
     assert exc.value.status_code == 504
     assert "private-token" not in exc.value.detail
+
+
+def test_paper_count_counts_full_active_catalogue_without_search_limit(upstream):
+    rows = [page(f"sources/paper-{i}.md") for i in range(63)]
+    rows += [
+        page("sources/paper-0.md"),
+        page("sources/disabled.md", active=False),
+        page("sources/other.md", layer="knowledge"),
+        page("other/no.md"),
+    ]
+    calls = upstream(rows)
+    assert kb.paper_count(CLAIMS) == 63
+    assert calls[0]["method"] == "GET"
+    assert calls[0]["params"] == {"active": "true", "layer": "source"}
+
+
+def test_paper_count_checks_current_permission_before_reading(monkeypatch):
+    monkeypatch.setattr(kb.accounts, "live_roles", lambda subject: set())
+    with pytest.raises(HTTPException) as exc:
+        kb.paper_count(CLAIMS)
+    assert exc.value.status_code == 403

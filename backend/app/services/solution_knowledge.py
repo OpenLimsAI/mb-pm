@@ -212,6 +212,24 @@ def _retrieve(query: str) -> list[dict]:
     return final["page_refs"]
 
 
+def paper_count(claims: dict) -> int:
+    """Count the active paper catalogue independently of search result limits."""
+    check_access(claims)
+    records = _json(_request("GET", "/v1/base/pages", params={"active": "true", "layer": "source"}))
+    if not isinstance(records, list):
+        raise HTTPException(502, "论文知识库目录格式异常")
+    return len(
+        {
+            record["path"]
+            for record in records
+            if isinstance(record, dict)
+            and _valid_path(record.get("path"))
+            and record.get("layer") == "source"
+            and record.get("active") is True
+        }
+    )
+
+
 def list_sources(claims: dict, query: str = "", project_name: str = "") -> list[dict]:
     check_access(claims)
     query = query.strip()
