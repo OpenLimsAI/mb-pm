@@ -256,7 +256,7 @@ def test_bounded_history_and_task_boundary(assistant_client):
     call = f.calls[-1]["messages"]
     value = json.dumps(call, ensure_ascii=False)
     assert "当前任务问题0" not in value and "当前任务问题1" not in value
-    assert "当前任务问题4" in value and "参考资料4" in value
+    assert "当前任务问题4" in value and "参考资料4" not in value
     assert "另一个任务秘密" not in value and len(call) <= 9
 
 
@@ -311,9 +311,13 @@ def test_migration_is_repeatable_and_retains_legacy_tables():
                 actual = {
                     column["name"]: column for column in info.get_columns(model.__tablename__)
                 }
-                assert set(actual) == set(model.__table__.columns.keys())
+                expected = set(model.__table__.columns.keys())
+                if model is AssistantMessage:
+                    expected.remove("data_sources")  # introduced by migration 012
+                assert set(actual) == expected
                 for column in model.__table__.columns:
-                    assert actual[column.name]["nullable"] == column.nullable
+                    if column.name in expected:
+                        assert actual[column.name]["nullable"] == column.nullable
             assert info.get_foreign_keys("assistant_tasks") == []
             assert {item["name"] for item in info.get_unique_constraints("assistant_messages")} == {
                 "uq_assistant_messages_request_role",
@@ -382,3 +386,166 @@ def test_message_limit_does_not_call_model(assistant_client):
         )
     f.db.commit()
     assert question(f, task).status_code == 422 and f.calls == []
+
+
+def test_scope_isolation_and_replay(assistant_client, monkeypatch):
+    from app.services import assistant as service
+
+    f = assistant_client
+    monkeypatch.setattr(
+        service,
+        "application_data",
+        lambda db, claims, payload: {key: "机密应用数据" for key in payload.data_sources},
+    )
+    task = create(f)
+    request_id = str(uuid4())
+    response = question(f, task, request_id=request_id, data_sources=["projects"])
+    assert response.status_code == 200
+    task = response.json()
+    assert "机密应用数据" in json.dumps(f.calls[-1]["messages"], ensure_ascii=False)
+    assert "不得用一般知识推测或编造业务事实" in f.calls[-1]["messages"][0]["content"]
+    assert question(f, task, request_id=request_id, data_sources=[]).status_code == 409
+    assert question(f, task, data_sources=[]).status_code == 200
+    latest = json.dumps(f.calls[-1]["messages"], ensure_ascii=False)
+    assert "机密应用数据" not in latest
+    assert "工作结果" not in latest
+
+
+def test_knowledge_failure_does_not_call_model(assistant_client, monkeypatch):
+    from fastapi import HTTPException
+
+    from app.services import solution_knowledge
+
+    f = assistant_client
+
+    def unavailable(*args, **kwargs):
+        raise HTTPException(503, "知识库不可用")
+
+    monkeypatch.setattr(solution_knowledge, "list_sources", unavailable)
+    response = question(f, create(f), data_sources=["knowledge"])
+    assert response.status_code == 503
+    assert f.calls == []
+
+
+def test_projects_respect_live_role_and_visibility(assistant_client, monkeypatch):
+    from datetime import date
+
+    from app.core.config import settings
+    from app.models import IAMIdentity, Project, ProjectMember, SubProject, Task, User
+    from app.services import accounts
+
+    f = assistant_client
+    f.db.add_all(
+        [
+            User(
+                id="u1",
+                username="author",
+                display_name="甲",
+                email="a@example.test",
+                role="admin",
+                is_active=True,
+            ),
+            User(
+                id="u2",
+                username="other",
+                display_name="乙",
+                email="b@example.test",
+                role="rd",
+                is_active=True,
+            ),
+        ]
+    )
+    f.db.flush()
+    f.db.add(IAMIdentity(issuer=settings.casdoor_issuer, subject="author", user_id="u1"))
+    for ident in ("visible", "hidden"):
+        f.db.add(
+            Project(
+                id=ident,
+                code=ident,
+                name=ident,
+                product_type="其他",
+                current_stage="立项",
+                target_stage="立项",
+                owner_id="u2",
+                status="活跃",
+                health="green",
+                progress=0,
+                planned_start=date(2026, 1, 1),
+                planned_end=date(2026, 12, 1),
+            )
+        )
+    f.db.flush()
+    f.db.add(ProjectMember(project_id="visible", user_id="u1"))
+    f.db.add(
+        SubProject(
+            id="sub",
+            project_id="visible",
+            name="子项目",
+            stage="立项",
+            module="其他",
+            status="进行中",
+            progress=0,
+        )
+    )
+    f.db.flush()
+    for ident, owner in (("own", "u1"), ("other", "u2")):
+        f.db.add(
+            Task(
+                id=ident,
+                code=ident,
+                name=ident,
+                sub_project_id="sub",
+                owner_id=owner,
+                status="进行中",
+                priority="中",
+                planned_start=date(2026, 1, 1),
+                planned_end=date(2026, 12, 1),
+            )
+        )
+    f.db.commit()
+    monkeypatch.setattr(accounts, "live_roles", lambda subject: {"rd"})
+    response = question(f, create(f), data_sources=["projects"])
+    assert response.status_code == 200, response.text
+    data = json.loads(f.calls[-1]["messages"][-1]["content"])["application_data"]["projects"]
+    assert [row["name"] for row in data["projects"]] == ["visible"]
+    assert [row["name"] for row in data["tasks"]] == ["own"]
+
+
+def test_data_sources_migration_upgrade_repeat_and_downgrade():
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+
+    path = (
+        Path(__file__).parents[1] / "alembic/versions/2026_10_30_0100-012_assistant_data_sources.py"
+    )
+    spec = importlib.util.spec_from_file_location("assistant_scope_migration", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    engine = create_engine("sqlite://")
+    with engine.begin() as connection:
+        connection.execute(
+            text("CREATE TABLE assistant_messages (id TEXT PRIMARY KEY, content TEXT NOT NULL)")
+        )
+        connection.execute(text("INSERT INTO assistant_messages VALUES ('one', 'original')"))
+        with Operations.context(MigrationContext.configure(connection)):
+            module.upgrade()
+            module.upgrade()
+            columns = {c["name"]: c for c in inspect(connection).get_columns("assistant_messages")}
+            assert columns["data_sources"]["nullable"] is False
+            assert (
+                connection.execute(text("SELECT data_sources FROM assistant_messages")).scalar_one()
+                == "[]"
+            )
+            connection.execute(
+                text("UPDATE assistant_messages SET data_sources = '[\"projects\"]'")
+            )
+            module.downgrade()
+            assert {c["name"] for c in inspect(connection).get_columns("assistant_messages")} == {
+                "id",
+                "content",
+            }
+            assert (
+                connection.execute(text("SELECT content FROM assistant_messages")).scalar_one()
+                == "original"
+            )
+    engine.dispose()

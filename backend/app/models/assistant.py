@@ -43,6 +43,9 @@ class AssistantMessage(Base):
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     context: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    data_sources: Mapped[str] = mapped_column(
+        String(100), nullable=False, default="[]", server_default="[]"
+    )
     profile_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     model: Mapped[str] = mapped_column(String(200), nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(

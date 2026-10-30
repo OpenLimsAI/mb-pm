@@ -170,7 +170,7 @@ deploy/                 环境配置及历史发布材料
 
 笔记独立页面采用专用应用外壳，顶栏使用全局 `--app-header-background`，保留通用 `app-workbench-link` 返回动作。`NotesWorkspace` 的 app 模式把原有来源与回收站筛选放入侧栏，embedded 模式继续供行业信息复用，不重复嵌套应用导航；两种模式共用客户端、列表和编辑状态。`NoteEditor` 继续以 Portal 挂到 body，统一编辑样式并将保存区固定在可滚动正文之外。
 
-工作台当前依次为 AI 智能、知识信息、业务管理、功能设置四个区域。AI 助手位于 PortalGate 的独立 `/assistant`，不加载 PM/KB 数据。`AssistantApp` 管理任务选择、逐任务输入草稿和异步回复归属，结果以 Markdown 渲染并禁止 HTML/远程图片自动加载；`client.ts` 区分正式门户 API 和独立预览存储。模型设置共用研究报告个人配置，手动选择企业默认在窗口聚焦刷新后仍保留。
+工作台当前依次为 AI 智能、知识信息、业务管理、功能设置四个区域。AI 助手位于 PortalGate 的独立 `/assistant`，提问时按用户选择读取有权限的 PM/KB 数据。`AssistantApp` 管理任务选择、逐任务输入草稿和异步回复归属，结果以 Markdown 渲染并禁止 HTML/远程图片自动加载；`client.ts` 区分正式门户 API 和独立预览存储。模型设置共用研究报告个人配置，手动选择企业默认在窗口聚焦刷新后仍保留。
 
 后端 `assistant_tasks` 按 issuer/sub 隔离，`assistant_messages` 保存有序问答、显式资料上下文与请求标识。产物由已保存的回答派生，不建立重复文本表。创建 UUID 和已完成请求支持重放，写操作采用 revision；生成前释放数据库读事务，返回后重新校验归属、回收站及版本，原子追加一对问答。010 迁移仅在隔离测试库验证。详见[AI 助手](ai-assistant.md)。
 

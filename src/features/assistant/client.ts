@@ -7,7 +7,7 @@ export interface AssistantMessage { id: string; role: 'user' | 'assistant'; cont
 export interface AssistantArtifact { id: string; title: string; content: string; model: string; createdAt: string }
 export interface AssistantTask extends TaskSummary { messages: AssistantMessage[]; artifacts: AssistantArtifact[] }
 export interface TaskQuery { search?: string; project?: string; trashed?: boolean; offset?: number }
-export interface TaskQuestion { requestId: string; question: string; context: string; modelProfileId?: string }
+export interface TaskQuestion { requestId: string; question: string; context: string; modelProfileId?: string; data_sources?: string[] }
 export interface AssistantClient {
   list(query?: TaskQuery): Promise<{ items: TaskSummary[]; total: number }>
   get(id: string): Promise<AssistantTask>
@@ -25,8 +25,9 @@ const http = axios.create({ baseURL: `${API_BASE}/assistant/tasks`, withCredenti
 http.interceptors.request.use(config => { if (config.data) config.data = snakeize(config.data); if (config.params) config.params = snakeize(config.params); return config })
 http.interceptors.response.use(response => { response.data = camelize(response.data); return response }, (error: unknown) => {
   const status = axios.isAxiosError(error) ? error.response?.status : undefined
+  const detail = axios.isAxiosError(error) && typeof error.response?.data?.detail === 'string' ? error.response.data.detail : ''
   if (status === 401) window.dispatchEvent(new Event('portal:unauthorized'))
-  return Promise.reject(problem(status === 409 ? '任务已在其他页面更新。当前问题已保留，请刷新任务后核对并重试。' : status === 401 ? '登录已失效，请重新登录。' : status === 422 ? '请检查任务内容和模型配置，再重新发送。' : status === 404 ? '任务或所选模型不存在，或当前账号无权访问。' : status === 403 ? '当前账号无法使用此功能，请先确认登录状态。' : '请求未完成，问题仍保留。请检查模型配置或连接后重试。', status))
+  return Promise.reject(problem(status === 409 ? '任务已在其他页面更新。当前问题已保留，请刷新任务后核对并重试。' : status === 401 ? '登录已失效，请重新登录。' : [403, 422, 502, 503, 504].includes(status || 0) && detail ? detail : status === 422 ? '请检查任务内容和模型配置，再重新发送。' : status === 404 ? '任务或所选模型不存在，或当前账号无权访问。' : status === 403 ? '当前账号无法使用此功能，请先确认登录状态。' : '请求未完成，问题仍保留。请检查模型配置或连接后重试。', status))
 })
 export const assistantApi: AssistantClient = {
   list: async query => (await http.get('', { params: query })).data,
