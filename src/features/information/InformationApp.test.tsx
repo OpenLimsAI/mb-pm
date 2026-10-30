@@ -140,12 +140,13 @@ test('示例解析重试同步资料详情并保留已保存版本', async () =>
   expect(screen.getAllByText(/演示采集版/)).toHaveLength(2)
 })
 
-test('顶栏显示当前账号并提供我的设置，预览中退出保持禁用', () => {
+test('顶栏显示当前账号、我的设置及主题切换，不显示退出登录', () => {
   mount('/information/sources?preview=1')
   const header = within(screen.getByRole('banner'))
   expect(header.getByText('李总管')).toBeInTheDocument()
   expect(header.getByRole('link', { name: '李总管 · 我的设置' })).toHaveAttribute('href', '/settings?preview=1')
-  expect(header.getByRole('button', { name: '退出登录' })).toBeDisabled()
+  expect(header.queryByRole('button', { name: '退出登录' })).not.toBeInTheDocument()
+  expect(header.getByRole('button', { name: '切换主题' })).toBeEnabled()
 })
 
 test('来源弹窗支持键盘编辑，关闭后焦点返回添加入口', async () => {

@@ -40,7 +40,8 @@ describe('report import integration', () => {
     const { container } = await mount()
     const header = container.querySelector('.ks-top-actions')!
     const actions = [...header.children].map(element => element.textContent)
-    expect(actions.slice(-4)).toEqual(['导入', '导出', '排列布局', '应用工作台'])
+    expect(actions.slice(-4, -1)).toEqual(['导入', '导出', '排列布局'])
+    expect(within(header as HTMLElement).getByRole('link', { name: '应用工作台' })).toBeInTheDocument()
     expect(within(header as HTMLElement).queryByRole('button', { name: '提交评审' })).not.toBeInTheDocument()
   })
   it('previews before creating, saves the current draft and imports as a separate report', async () => {

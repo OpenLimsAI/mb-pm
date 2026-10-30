@@ -1,6 +1,7 @@
+import ApplicationActions from '../components/application/ApplicationActions'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import axios from 'axios'
-import { AlertCircle, ArrowUpRight, Bug, Check, CheckCircle2, ChevronRight, CircleDot, ImagePlus, LayoutGrid, Lightbulb, LogOut, MessageSquareText, Plus, RefreshCw, Search, ShieldCheck, Trash2, X } from 'lucide-react'
+import { AlertCircle, ArrowUpRight, Bug, Check, CheckCircle2, ChevronRight, CircleDot, ImagePlus, Lightbulb, MessageSquareText, Plus, RefreshCw, Search, ShieldCheck, Trash2, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { usePortalContext } from '../components/portal/context'
 import { API_BASE } from '../api/client'
@@ -29,7 +30,7 @@ function formatDate(value: string) {
 }
 
 export default function Feedback() {
-  const { user, logout, preview, applications, refresh } = usePortalContext()
+  const { user, preview, applications, refresh } = usePortalContext()
   const suffix = preview ? '?preview=1' : ''
   const name = user.displayName || user.username
   const allowed = preview || applications.some((entry) => entry.id === 'feedback' && entry.enabled)
@@ -215,9 +216,7 @@ export default function Feedback() {
       <Link to={'/' + suffix} className="if-brand" aria-label="迈博药业应用工作台首页"><img src="/brand/maibo-pharma-logo.png" alt="迈博药业" width={44} height={44} /><span className="if-brand-copy"><strong>迈博药业</strong><span>数字化工作空间</span></span></Link>
       <span className="if-app-name">回音壁</span>
       <div className="if-header-actions"><span className="if-header-note"><ShieldCheck size={14} />{preview ? '界面体验 · 演示数据' : '组织成员 · 共享反馈'}</span>
-        <Link className="if-workbench" to={'/' + suffix}><LayoutGrid size={17} /><span>应用工作台</span></Link>
-        <Link className="if-account" to={'/settings' + suffix} aria-label={`${name} · 我的设置`}><span className="if-avatar" aria-hidden="true">{Array.from(name)[0]}</span><span className="if-account-copy"><strong>{name}</strong><span>{preview ? '界面预览账号' : '当前登录账号'}</span></span></Link>
-        <button type="button" className="if-logout" onClick={logout} disabled={preview} aria-label="退出登录"><LogOut size={17} /><span>退出登录</span></button>
+        <ApplicationActions userName={name} preview={preview} />
       </div>
     </header>
     <div className="if-shell"><aside className="if-sidebar feedback-sidebar"><nav aria-label="回音壁导航"><p className="if-nav-group">反馈与建议</p><a className="if-nav is-active" href="#feedback-content" aria-current="page"><MessageSquareText size={19} /><span>反馈列表</span></a></nav><div className="feedback-side-note"><span className="feedback-side-icon"><MessageSquareText size={17} /></span><strong>每一个声音都值得被听见</strong><p>在这里分享问题与想法，一起让工作更顺畅。</p></div></aside>

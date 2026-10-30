@@ -267,3 +267,7 @@
 .aa-delete-title { margin: 4px 0 20px; color: #294457; line-height: 1.6; overflow-wrap: anywhere; }
 .aa-button.aa-delete-confirm { color: #fff; background: #bc4541; border-color: #bc4541; }
 .aa-button.aa-delete-confirm:hover:not(:disabled) { background: #a93632; border-color: #a93632; }
+
+.aa-sidebar-model { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 38px; padding: 8px 11px; border-radius: 6px; color: #6a8190; text-decoration: none; font-size: 12px; }
+.aa-sidebar-model:hover { color: #23486f; background: #edf3f7; }
+.aa-sidebar-model svg:last-child { margin-left: auto; }

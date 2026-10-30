@@ -81,11 +81,11 @@ test('paused directory checks have a real resume control for managers',async()=>
  await waitFor(()=>expect(resumed).toHaveBeenCalledWith({action:'resume'}))
 })
 
-test('the unified account header uses the existing portal settings and logout flow',async()=>{
+test('the unified account header offers portal settings without a logout button',async()=>{
  mount();await screen.findByRole('heading',{name:'ICH 官方指导原则'})
  expect(screen.getByRole('link',{name:'Actual User · 我的设置'})).toHaveAttribute('href','/settings')
- await userEvent.click(screen.getByRole('button',{name:'退出登录'}))
- expect(logout).toHaveBeenCalledTimes(1)
+ expect(screen.queryByRole('button',{name:'退出登录'})).not.toBeInTheDocument()
+ expect(logout).not.toHaveBeenCalled()
 })
 
 
