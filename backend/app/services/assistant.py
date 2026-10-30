@@ -253,9 +253,11 @@ def application_data(db, claims, payload):
             "truncated": len(projects) > 100 or len(tasks) > 100,
         }
     if "knowledge" in payload.data_sources:
+        paper_count = solution_knowledge.paper_count(claims)
         sources = solution_knowledge.list_sources(claims, query=payload.question[:1000])
         full = [solution_knowledge.get_source(claims, item["id"]) for item in sources[:4]]
         evidence["knowledge"] = {
+            "active_paper_count": paper_count,
             "sources": [
                 {
                     "title": source["title"],
