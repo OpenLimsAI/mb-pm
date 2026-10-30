@@ -46,7 +46,7 @@ it('keeps the draft on failure and prevents duplicate saves or closing while pen
 })
 it('uses the application sidebar to browse origins and keeps the current category usable', async () => {
   const client = createPreviewNotesClient('person')
-  for (const [sourceApp, title] of [['manual', '个人观察'], ['solutions', '报告中的发现'], ['information', '行业摘录']] as const) {
+  for (const [sourceApp, title] of [['manual', '个人观察'], ['solutions', '报告中的发现'], ['information', '行业摘录'], ['knowledge', '论文摘录']] as const) {
     const draft = newNote({ title, sourceApp, content: '记录与思考' }); await client.create(draft.id, draft)
   }
   const list = vi.spyOn(client, 'list')
@@ -65,5 +65,25 @@ it('uses the application sidebar to browse origins and keeps the current categor
   await screen.findByText('回收站为空')
   fireEvent.click(within(nav).getByRole('button', { name: '全部笔记' }))
   await screen.findByRole('heading', { name: '行业摘录' })
-  expect(await client.list()).toMatchObject({ total: 3 })
+  fireEvent.click(within(nav).getByRole('button', { name: '知识库' }))
+  await screen.findByRole('heading', { name: '论文摘录' })
+  expect(screen.queryByRole('heading', { name: '行业摘录' })).not.toBeInTheDocument()
+  expect(await client.list()).toMatchObject({ total: 4 })
+})
+
+it('requires confirmation before explicitly sharing a private note', async () => {
+  const client = createPreviewNotesClient('share-test')
+  const draft = newNote({ title: '私人记录', content: '只有本人可见' })
+  await client.create(draft.id, draft)
+  const share = vi.fn(async (note) => note)
+  const api = { ...client, share }
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+  render(<NotesWorkspace client={api} />)
+  await screen.findByRole('heading', { name: '私人记录' })
+  fireEvent.click(screen.getByRole('button', { name: '共享到知识库检索' }))
+  expect(share).not.toHaveBeenCalled()
+  confirm.mockReturnValue(true)
+  fireEvent.click(screen.getByRole('button', { name: '共享到知识库检索' }))
+  await waitFor(() => expect(share).toHaveBeenCalledWith(expect.objectContaining({ id: draft.id }), true))
+  confirm.mockRestore()
 })

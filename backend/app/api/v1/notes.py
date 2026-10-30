@@ -1,6 +1,8 @@
 """Private note CRUD: portal sessions only, with no KB dependency."""
 # ruff: noqa: B008
 
+import hashlib
+import json
 from datetime import UTC, datetime
 from typing import Literal
 from urllib.parse import urlsplit
@@ -17,18 +19,32 @@ from app.api.deps import require_same_origin
 from app.api.v1 import portal
 from app.core.config import settings
 from app.db.session import get_db
-from app.models.note import PersonalNote
-from app.services import password_policy
+from app.models.note import NoteWisdomSync, PersonalNote
+from app.services import note_sync, password_policy
 
 router = APIRouter(prefix="/notes", tags=["personal-notes"])
-Source = Literal["manual", "solutions", "information"]
+Source = Literal["manual", "solutions", "information", "knowledge"]
 
 
 def identity(request: Request, db: Session = Depends(get_db)):
-    if request.method not in ("GET", "HEAD", "OPTIONS"):
+    knowledge_request = request.headers.get("origin") == settings.KNOWLEDGE_NOTES_ORIGIN
+    if request.method not in ("GET", "HEAD", "OPTIONS") and not knowledge_request:
         require_same_origin(request, origin=settings.portal_origin)
     claims = portal.session_claims(request, db)
     password_policy.enforce(db, claims["sub"], request.url.path)
+    expected_identity = request.headers.get("x-notes-identity")
+    actual_identity = hashlib.sha256(
+        json.dumps(
+            [claims["iss"], claims["sub"]], ensure_ascii=False, separators=(",", ":")
+        ).encode()
+    ).hexdigest()
+    if expected_identity is not None and expected_identity != actual_identity:
+        raise HTTPException(403, "知识库和工作台登录的账号不一致，请重新登录")
+    if knowledge_request and (
+        request.headers.get("x-notes-issuer") != claims["iss"]
+        or request.headers.get("x-notes-subject") != claims["sub"]
+    ):
+        raise HTTPException(403, "知识库和工作台登录的账号不一致，请重新登录")
     return claims
 
 
@@ -91,14 +107,14 @@ def get_note(db, note_id, claims):
     return row
 
 
-def output(row):
+def output(row, db=None):
     def value(name):
         result = getattr(row, name)
         if isinstance(result, datetime) and result.tzinfo is None:
             return result.replace(tzinfo=UTC)
         return result
 
-    return jsonable_encoder(
+    result = jsonable_encoder(
         {
             name: value(name)
             for name in (
@@ -115,6 +131,10 @@ def output(row):
             )
         }
     )
+
+    mirror = db.get(NoteWisdomSync, row.id) if db else None
+    result["wisdom"] = note_sync.summary(mirror)
+    return result
 
 
 @router.get("")
@@ -145,7 +165,7 @@ def listing(
         .offset(offset)
         .limit(50)
     ).all()
-    return {"items": [output(row) for row in rows], "total": total}
+    return {"items": [output(row, db) for row in rows], "total": total}
 
 
 @router.post("", status_code=201)
@@ -159,7 +179,7 @@ def create(payload: NoteCreate, db: Session = Depends(get_db), claims: dict = De
             and existing.deleted_at is None
             and all(getattr(existing, name) == value for name, value in data.items())
         ):
-            return output(existing)
+            return output(existing, db)
         raise HTTPException(409, "笔记已创建或标识不可用，请刷新笔记列表后核对")
     row = PersonalNote(id=str(payload.id), issuer=claims["iss"], owner_id=claims["sub"], **data)
     db.add(row)
@@ -168,7 +188,7 @@ def create(payload: NoteCreate, db: Session = Depends(get_db), claims: dict = De
     except IntegrityError as exc:
         db.rollback()
         raise HTTPException(409, "笔记已创建，请刷新笔记列表后核对") from exc
-    return output(row)
+    return output(row, db)
 
 
 def change(db, row, claims, revision, values):
@@ -182,9 +202,10 @@ def change(db, row, claims, revision, values):
     if not count:
         db.rollback()
         raise HTTPException(409, "笔记已在其他页面更新，请保留当前内容并重新打开核对")
+    note_sync.enqueue(db, row.id, revision + 1)
     db.commit()
     db.refresh(row)
-    return output(row)
+    return output(row, db)
 
 
 @router.put("/{note_id}")
@@ -221,3 +242,33 @@ def restore(
     if not row.deleted_at:
         raise HTTPException(409, "笔记已恢复")
     return change(db, row, claims, payload.revision, {"deleted_at": None})
+
+
+class NoteShare(NoteRevision):
+    enabled: bool
+
+
+@router.post("/{note_id}/wisdom")
+def share(
+    note_id: str,
+    payload: NoteShare,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    row = get_note(db, note_id, claims)
+    if row.deleted_at:
+        raise HTTPException(409, "请先恢复笔记")
+    if payload.enabled:
+        note_sync.require_editor(claims["sub"])
+        if not note_sync.configured():
+            raise HTTPException(503, "知识库检索连接尚未配置")
+    mirror = db.get(NoteWisdomSync, row.id)
+    if not mirror:
+        mirror = NoteWisdomSync(
+            note_id=row.id, enabled=payload.enabled, desired_revision=row.revision
+        )
+        db.add(mirror)
+        db.flush()
+    else:
+        mirror.enabled = payload.enabled
+    return change(db, row, claims, payload.revision, {})

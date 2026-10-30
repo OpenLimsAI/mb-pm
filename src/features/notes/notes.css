@@ -164,3 +164,7 @@
   .pn-save-hint { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .pn-spin { animation: none; }.pn-button, .pn-card { transition: none; } }
+
+.pn-sync-status { display: block; padding: 8px 18px; color: #536f84; font-size: 12px; }
+.pn-app-knowledge-embed { min-height: 100vh; }
+.pn-card footer { flex-wrap: wrap; gap: 8px; }

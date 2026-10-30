@@ -175,3 +175,5 @@ deploy/                 环境配置及历史发布材料
 后端 `assistant_tasks` 按 issuer/sub 隔离，`assistant_messages` 保存有序问答、显式资料上下文与请求标识。产物由已保存的回答派生，不建立重复文本表。创建 UUID 和已完成请求支持重放，写操作采用 revision；生成前释放数据库读事务，返回后重新校验归属、回收站及版本，原子追加一对问答。010 迁移仅在隔离测试库验证。详见[AI 助手](ai-assistant.md)。
 
 行业信息在原有结构样式之后加载 `informationTheme.css`，统一应用外壳、导航、卡片、表单与响应式阅读布局，所有规则限定在该应用下。来源弹窗保持稳定的焦点监听，并通过 ref 获取最新关闭处理，避免表单渲染时重新聚焦。仅表现层变更，既有采集、入库、个人笔记与权限接口继续复用。
+
+统一笔记以门户 `personal_notes` 为唯一正文来源，知识库嵌入门户笔记界面。显式共享通过同事务 `note_wisdom_sync` 任务表及 PostgreSQL advisory lock 同步 Core，浏览器不再发布正式笔记的 Wisdom 副本。详见 [笔记数据流程](personal-notes.md)。

@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Index, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -27,3 +27,19 @@ class PersonalNote(Base):
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class NoteWisdomSync(Base):
+    """One durable, coalescing outbox per explicitly shared note. No legacy backfill."""
+
+    __tablename__ = "note_wisdom_sync"
+    note_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    desired_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    synced_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    published_path: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    operation: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    next_attempt_at: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    error: Mapped[str] = mapped_column(String(500), nullable=False, default="")
