@@ -46,10 +46,11 @@ export const solutionApi: SolutionClient = {
   knowledgeStatus: async () => (await http.get('/knowledge/status')).data,
   addSource: async input => (await http.post('/sources', input)).data,
   ask: async (id, input) => (await http.post(`/${encodeURIComponent(id)}/ask`, input, { timeout: 300000 })).data,
+  polish: async (id, input) => (await http.post(`/${encodeURIComponent(id)}/polish`, input, { timeout: 300000 })).data,
   history: async id => (await http.get(`/${encodeURIComponent(id)}/history`)).data,
   exportWord: async id => {
     const { data } = await http.get(`/${encodeURIComponent(id)}/export`, { responseType: 'blob' })
-    downloadBlob(data, `知识报告-${id}.docx`)
+    downloadBlob(data, `研究报告-${id}.docx`)
   },
   publish: async id => (await http.post(`/${encodeURIComponent(id)}/publish`)).data,
 }

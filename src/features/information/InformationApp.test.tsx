@@ -147,3 +147,18 @@ test('顶栏显示当前账号并提供我的设置，预览中退出保持禁�
   expect(header.getByRole('link', { name: '李总管 · 我的设置' })).toHaveAttribute('href', '/settings?preview=1')
   expect(header.getByRole('button', { name: '退出登录' })).toBeDisabled()
 })
+
+test('来源弹窗支持键盘编辑，关闭后焦点返回添加入口', async () => {
+  mount()
+  const trigger = screen.getByRole('button', { name: '添加来源' })
+  await userEvent.click(trigger)
+  const dialog = screen.getByRole('dialog', { name: '添加信息源' })
+  const name = within(dialog).getByRole('textbox', { name: '来源名称' })
+  expect(name).toHaveFocus()
+  await userEvent.type(name, '我的监管来源')
+  expect(name).toHaveFocus()
+  expect(name).toHaveValue('我的监管来源')
+  await userEvent.keyboard('{Escape}')
+  expect(screen.queryByRole('dialog', { name: '添加信息源' })).not.toBeInTheDocument()
+  expect(trigger).toHaveFocus()
+})

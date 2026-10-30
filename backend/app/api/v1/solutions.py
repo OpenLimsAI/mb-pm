@@ -4,6 +4,8 @@
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi.exceptions import RequestValidationError
+from fastapi.routing import APIRoute
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -13,8 +15,16 @@ from app.api.v1 import portal
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.solution import KnowledgeSolution, SolutionAnswer, SolutionSource
-from app.schemas.solution import AskInput, ReviewAction, SolutionInput, SolutionSave, SourceInput
-from app.services import password_policy, solution_knowledge
+from app.schemas.solution import (
+    AskInput,
+    PolishInput,
+    ReviewAction,
+    SolutionInput,
+    SolutionSave,
+    SourceInput,
+)
+from app.schemas.solution_ai import ModelSettingsInput, ModelTestInput
+from app.services import password_policy, solution_ai, solution_knowledge
 from app.services import solutions as service
 
 router = APIRouter(prefix="/solutions", tags=["solutions"])
@@ -26,6 +36,48 @@ def identity(request: Request, db: Session = Depends(get_db)):
     claims = portal.session_claims(request, db)
     password_policy.enforce(db, claims["sub"], request.url.path)
     return claims
+
+
+class PrivateModelRoute(APIRoute):
+    """FastAPI validation must never echo draft API keys in its `input` error field."""
+
+    def get_route_handler(self):
+        original = super().get_route_handler()
+
+        async def safe_handler(request):
+            try:
+                return await original(request)
+            except RequestValidationError:
+                raise HTTPException(
+                    422, "模型配置格式不正确，请检查必填项、长度和默认模型"
+                ) from None
+
+        return safe_handler
+
+
+model_router = APIRouter(prefix="/ai", route_class=PrivateModelRoute)
+
+
+@model_router.get("/settings")
+def ai_settings(db: Session = Depends(get_db), claims: dict = Depends(identity)):
+    return solution_ai.settings(db, claims)
+
+
+@model_router.put("/settings")
+def save_ai_settings(
+    payload: ModelSettingsInput, db: Session = Depends(get_db), claims: dict = Depends(identity)
+):
+    return solution_ai.save_settings(db, claims, payload)
+
+
+@model_router.post("/test")
+def test_ai_settings(
+    payload: ModelTestInput, db: Session = Depends(get_db), claims: dict = Depends(identity)
+):
+    return solution_ai.test_connection(db, claims, payload)
+
+
+router.include_router(model_router)
 
 
 @router.get("")
@@ -199,6 +251,18 @@ def ask(
     claims: dict = Depends(identity),
 ):
     return service.ask(
+        db, service.get_solution(db, solution_id, claims, owner=True), payload, claims
+    )
+
+
+@router.post("/{solution_id}/polish")
+def polish(
+    solution_id: str,
+    payload: PolishInput,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    return service.polish(
         db, service.get_solution(db, solution_id, claims, owner=True), payload, claims
     )
 

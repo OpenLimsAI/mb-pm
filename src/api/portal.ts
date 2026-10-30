@@ -8,7 +8,7 @@ export interface PortalUser {
 }
 
 export interface PortalApplication {
-  id: 'pm' | 'kb' | 'information' | 'solutions' | 'feedback' | 'accounts' | 'mdm'
+  id: 'pm' | 'kb' | 'information' | 'solutions' | 'feedback' | 'notes' | 'accounts' | 'assistant' | 'mdm'
   enabled: boolean
   reason?: string
 }

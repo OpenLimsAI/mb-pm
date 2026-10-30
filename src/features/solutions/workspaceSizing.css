@@ -1,0 +1,19 @@
+.ks-custom-workspace { position: relative; }
+.ks-workspace-resizers { position: absolute; inset: 0; z-index: 14; pointer-events: none; }
+.ks-workspace-resizer { position: absolute; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 3px; background: transparent; pointer-events: auto; touch-action: none; user-select: none; transition: background .12s; }
+.ks-workspace-resizer-columns { cursor: col-resize; }
+.ks-workspace-resizer-rows { cursor: row-resize; }
+.ks-workspace-resizer > span { border-radius: 2px; background: #b8cad4; pointer-events: none; }
+.ks-workspace-resizer-columns > span { width: 2px; height: 36px; max-height: 50%; }
+.ks-workspace-resizer-rows > span { width: 36px; max-width: 50%; height: 2px; }
+.ks-workspace-resizer:hover,.ks-workspace-resizer:focus-visible { background: #badbe8; outline: 1px solid #77a9bf; outline-offset: 0; }
+.ks-workspace-resizer:hover > span,.ks-workspace-resizer:focus-visible > span { background: #347c9c; }
+.ks-workspace-resizing iframe { pointer-events: none !important; }
+.ks-workspace-resizing,.ks-workspace-resizing * { user-select: none !important; }
+.ks-workspace-resize-shield { position: fixed; inset: 0; z-index: 110; pointer-events: auto; background: transparent; touch-action: none; }
+.ks-workspace-resize-shield-columns { cursor: col-resize; }
+.ks-workspace-resize-shield-rows { cursor: row-resize; }
+@media (max-width: 900px) {
+  .ks-app:not(.ks-focus-writing) .ks-custom-workspace:not([data-visible-count="1"]) > .ks-workspace-module[data-module] { flex: 0 0 var(--ks-mobile-height, 520px); min-height: 240px; }
+  .ks-app:not(.ks-focus-writing) .ks-custom-workspace[data-visible-count="1"] > .ks-workspace-module[data-module] { flex: 1 0 100%; min-height: 0; }
+}

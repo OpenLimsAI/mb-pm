@@ -235,7 +235,8 @@ def list_models(provider: str, cfg: dict) -> list[str]:
     ][:300]
 
 
-def chat(provider: str, cfg: dict, messages: list, *, probe=False, timeout=None):
+def chat(provider: str, cfg: dict, messages: list, *, probe=False, timeout=None, request_fn=None):
+    request_model = request_fn if request_fn is not None else request
     if not cfg["model"]:
         raise AIError("请先填写或选择模型名称")
     body = {"model": cfg["model"], "messages": messages, "stream": False}
@@ -248,7 +249,7 @@ def chat(provider: str, cfg: dict, messages: list, *, probe=False, timeout=None)
                 "num_predict": 64 if probe else 4096,
             }
         )
-        result = request(
+        result = request_model(
             provider,
             cfg,
             "/api/chat",
@@ -266,7 +267,7 @@ def chat(provider: str, cfg: dict, messages: list, *, probe=False, timeout=None)
     else:
         if provider == "minimax":
             body.update(temperature=1.0, max_tokens=8192)
-        result = request(
+        result = request_model(
             provider,
             cfg,
             "/chat/completions",

@@ -251,3 +251,51 @@ a.workspace-app-card--knowledge:hover .workspace-app-entry svg { transform: tran
   .workspace-shell *, .workspace-shell *::before, .workspace-shell *::after { animation: none !important; transition: none !important; }
   .workspace-app-card:hover, .workspace-app-card:hover .workspace-app-entry svg { transform: none; }
 }
+
+/* Application groups share the established workbench card palette. */
+.workspace-category { margin-top: 30px; padding: 24px; border: 1px solid #dae5ee; border-radius: 16px; background: #edf3f8; }
+.workspace-category--business { background: #edf1f6; }
+.workspace-category--settings { background: #f0f5f7; }
+.workspace-category > .workspace-section-heading { margin-bottom: 20px; color: #698298; }
+.workspace-category .workspace-section-heading h2 { font-size: 22px; }
+.workspace-category .workspace-app-card { padding-top: 22px; }
+.workspace-category .workspace-app-copy { margin-top: 18px; }
+.workspace-category .workspace-app-copy h3 { font-size: 24px; }
+.workspace-category .workspace-app-features { margin-top: 16px; margin-bottom: 20px; }
+.workspace-category .workspace-app-entry, .workspace-category .workspace-app-unavailable { padding-top: 14px; padding-bottom: 14px; }
+.workspace-app-card--notes .workspace-app-icon { color: #536a96; background: #edf0fa; border-color: #dce4f4; }
+.workspace-app-card--hr .workspace-app-icon { color: #748798; background: #f0f3f6; }
+.workspace-app-card--settings .workspace-app-icon, .workspace-app-card--ai .workspace-app-icon { color: #426f81; background: #e9f3f7; }
+.portal-ai-settings { --ks-teal: #087b9c; }
+.portal-ai-settings > .app-workbench-link { margin-bottom: 18px; }
+.portal-ai-settings .ks-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 5px 10px; border: 1px solid #d5e1e9; border-radius: 6px; background: #f7fafc; color: #23486f; cursor: pointer; font-size: 12px; }
+.portal-ai-settings .ks-button.ks-primary { color: #fff; background: #087b9c; border-color: #087b9c; }
+.portal-ai-settings .ks-button:disabled { opacity: .5; cursor: not-allowed; }
+.portal-ai-settings .ks-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 13px; color: #536c7e; font-size: 12px; }
+.portal-ai-settings .ks-field input, .portal-ai-settings .ks-field select { width: 100%; min-height: 36px; padding: 7px 10px; border: 1px solid #ccdce7; border-radius: 5px; background: #fff; color: #304b5b; }
+.portal-ai-settings .ks-field input:disabled { background: #f1f5f8; color: #8c9eac; }
+@media (min-width: 961px) { .workspace-business-grid.has-accounts { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 720px) { .workspace-category { padding: 16px; margin-top: 22px; }.workspace-category .workspace-section-heading h2 { font-size: 21px; } }
+
+/* AI is the first application group and has one clear, full-width entry. */
+.workspace-category--intelligence { background: #eaf2f9; border-color: #cddfec; }
+.workspace-category--intelligence > .workspace-section-heading { color: #48728f; }
+.workspace-ai-grid { grid-template-columns: minmax(0, 1fr); }
+.workspace-category .workspace-app-card--assistant { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; align-items: center; gap: 12px 24px; padding: 26px 28px; border-color: #cddfec; background: #fff; }
+.workspace-app-card--assistant .workspace-app-topline { grid-column: 1; grid-row: 1 / 3; }
+.workspace-app-card--assistant .workspace-app-icon { width: 64px; height: 64px; border-radius: 14px; color: #087b9c; background: #e8f3fa; border-color: #d1e5f2; }
+.workspace-app-card--assistant .workspace-app-domain { display: none; }
+.workspace-category .workspace-app-card--assistant .workspace-app-copy { grid-column: 2; grid-row: 1; margin: 0; }
+.workspace-app-card--assistant .workspace-app-copy h3 { margin-top: 3px; }
+.workspace-app-card--assistant .workspace-app-copy > p { max-width: 710px; margin-top: 7px; font-size: 13px; }
+.workspace-category .workspace-app-card--assistant .workspace-app-features { grid-column: 2; grid-row: 2; margin: 0; gap: 8px 20px; }
+.workspace-category .workspace-app-card--assistant .workspace-app-entry { grid-column: 3; grid-row: 1 / 3; display: inline-flex; gap: 18px; align-self: center; margin: 0; padding: 11px 16px; border: 1px solid #bed9eb; border-radius: 7px; color: #23486f; background: #e8f4ff; font-size: 13px; white-space: nowrap; }
+.workspace-category .workspace-app-card--assistant .workspace-app-unavailable { grid-column: 2 / 4; grid-row: 3; margin: 0; padding: 8px 0 0; background: transparent; }
+@media(max-width: 780px) {
+  .workspace-category .workspace-app-card--assistant { grid-template-columns: 48px minmax(0, 1fr); gap: 16px; padding: 22px; }
+  .workspace-app-card--assistant .workspace-app-icon { width: 48px; height: 48px; border-radius: 10px; }
+  .workspace-app-card--assistant .workspace-app-topline { grid-row: 1; align-self: start; }
+  .workspace-category .workspace-app-card--assistant .workspace-app-features { grid-column: 1 / 3; grid-row: 2; }
+  .workspace-category .workspace-app-card--assistant .workspace-app-entry { grid-column: 1 / 3; grid-row: 3; justify-content: space-between; }
+  .workspace-category .workspace-app-card--assistant .workspace-app-unavailable { grid-column: 1 / 3; grid-row: 3; }
+}

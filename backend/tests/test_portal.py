@@ -126,6 +126,7 @@ def test_new_user_enters_portal_with_pm_open_by_default(portal_fixture, token_fa
     }
     assert app_map(client)["kb"]["enabled"] is True
     assert app_map(client)["information"]["enabled"] is True
+    assert app_map(client)["notes"]["enabled"] is True
     # 项目管理默认开放：首次进入项目管理时才建成员，门户目录本身不建成员 / 绑定 / 会话
     assert app_map(client)["pm"]["enabled"] is True
     assert client.get("/api/v1/auth/me").status_code == 401
@@ -143,6 +144,7 @@ def test_pm_only_catalogue_checks_but_does_not_bind(portal_fixture, token_factor
     applications = app_map(client)
     assert applications["pm"]["enabled"] is True
     assert applications["kb"]["enabled"] is False
+    assert applications["assistant"]["enabled"] is True
     assert applications["information"]["enabled"] is True
     assert db.query(IAMIdentity).count() == 0
     assert client.get("/api/v1/auth/me").status_code == 401

@@ -27,7 +27,7 @@ export default function PortalLayout({ user, logout, preview = false, children }
           {user && !preview && accountsEnabled && <NavLink to="/accounts">账号管理</NavLink>}
           {user && <NavLink to={'/feedback' + suffix}>回音壁</NavLink>}
           {user && <NavLink to={'/settings' + suffix}>我的设置</NavLink>}
-          {user && <NavLink to={'/release-notes' + suffix}>版本更新</NavLink>}
+          {user && <NavLink to={'/model-settings' + suffix}>AI 设置</NavLink>}
           <NavLink to="/help">使用帮助</NavLink>
         </nav>
         <div className="workspace-account">

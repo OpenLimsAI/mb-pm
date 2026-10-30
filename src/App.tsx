@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import Login from './pages/Login'
 import { WorkspacePage } from './pages/Workspace'
 import PortalGate from './components/portal/PortalGate'
-import { accountsUrl, feedbackUrl, informationUrl, solutionsUrl, releaseNotesUrl, settingsRedirect, siteMode, workspaceUrl } from './lib/site'
+import { accountsUrl, assistantUrl, feedbackUrl, informationUrl, solutionsUrl, releaseNotesUrl, settingsRedirect, siteMode, workspaceUrl } from './lib/site'
 import { RequirePerm } from './components/auth/RequirePerm'
 import { BootSplash } from './components/auth/AuthStatus'
 
@@ -29,6 +29,9 @@ const PortalAccounts = lazy(() => import('./pages/PortalAccounts'))
 const PortalHelp = lazy(() => import('./pages/PortalHelp'))
 const PortalLaunch = lazy(() => import('./pages/PortalLaunch'))
 const Information = lazy(() => import('./pages/Information'))
+const Notes = lazy(() => import('./pages/Notes'))
+const Assistant = lazy(() => import('./pages/Assistant'))
+const PortalAISettings = lazy(() => import('./pages/PortalAISettings'))
 const Solutions = lazy(() => import('./pages/Solutions'))
 const Feedback = lazy(() => import('./pages/Feedback'))
 
@@ -47,6 +50,9 @@ export default function App() {
           <Route element={<PortalGate />}>
             <Route path="/" element={<WorkspacePage />} />
             <Route path="/settings" element={<SettingsRoute />} />
+            <Route path="/model-settings" element={<PortalAISettings />} />
+            <Route path="/notes" element={<Notes />} />
+            <Route path="/assistant/*" element={<Assistant />} />
             {/* 原「我的账号」页并入「我的设置」（保留 ?preview=1 等查询参数） */}
             <Route path="/account" element={<SettingsAlias />} />
             <Route path="/accounts" element={<PortalAccounts />} />
@@ -60,8 +66,9 @@ export default function App() {
         {siteMode === 'pm' && <>
           <Route path="/workspace" element={<ExternalWorkspace />} />
           <Route path="/feedback" element={<ExternalRedirect to={feedbackUrl} message="正在打开回音壁 …" />} />
-          <Route path="/information/*" element={<ExternalRedirect to={informationUrl} message="正在打开信息获取 …" />} />
-          <Route path="/solutions/*" element={<ExternalRedirect to={solutionsUrl} message="正在打开知识报告 …" />} />
+          <Route path="/assistant/*" element={<ExternalRedirect to={assistantUrl} message="正在打开 AI 助手 …" />} />
+          <Route path="/information/*" element={<ExternalRedirect to={informationUrl} message="正在打开行业信息 …" />} />
+          <Route path="/solutions/*" element={<ExternalRedirect to={solutionsUrl} message="正在打开研究报告 …" />} />
           {/* 个人设置回门户；旧 AI 标签直达项目管理 AI设置 */}
           <Route path="/settings" element={<SettingsRoute />} />
           <Route path="/org" element={<ExternalRedirect to={accountsUrl} message="正在打开账号管理 …" />} />
@@ -103,15 +110,17 @@ function RouteTitle() {
   const { pathname } = useLocation()
   useEffect(() => {
     if (pathname === '/feedback') { document.title = '回音壁 · 迈博工作空间'; return }
+    if (pathname === '/assistant' || pathname.startsWith('/assistant/')) { document.title = 'AI 助手 · 迈博工作空间'; return }
+    if (pathname === '/notes') { document.title = '我的笔记 · 迈博工作空间'; return }
     if (pathname === '/solutions' || pathname.startsWith('/solutions/')) {
-      document.title = '知识报告 · 迈博工作空间'
+      document.title = '研究报告 · 迈博工作空间'
       return
     }
     if (pathname === '/information' || pathname.startsWith('/information/')) {
-      document.title = '信息获取 · 迈博工作空间'
+      document.title = '行业信息 · 迈博工作空间'
       return
     }
-    const portal = siteMode === 'portal' || (siteMode === 'combined' && (['/', '/login', '/workspace', '/account', '/accounts', '/settings', '/help', '/release-notes'].includes(pathname) || pathname.startsWith('/launch/')))
+    const portal = siteMode === 'portal' || (siteMode === 'combined' && (['/', '/login', '/workspace', '/account', '/accounts', '/settings', '/model-settings', '/notes', '/assistant', '/help', '/release-notes'].includes(pathname) || pathname.startsWith('/launch/')))
     document.title = portal ? '迈博药业 · 员工应用门户' : 'CMC-PMS · 项目管理'
   }, [pathname])
   return null
