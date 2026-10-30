@@ -69,6 +69,22 @@ describe('AI assistant task workspace', () => {
     expect(within(result).getByRole('combobox', { name: '选择任务产物' })).toHaveValue(stored.artifacts[0].id)
   })
 
+  it('saves the selected data sources and sends them with subsequent questions', async () => {
+    const client = createPreviewAssistantClient('sources'), task = await create(client, '数据问答'), send = vi.spyOn(client, 'send')
+    await mount(client)
+    await open(task.title)
+    fireEvent.click(screen.getByRole('button', { name: /数据设置/ }))
+    const dialog = screen.getByRole('dialog', { name: '数据设置' })
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: /项目管理/ }))
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存设置' }))
+    fireEvent.change(composer(), { target: { value: '目前有哪些项目？' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送任务消息' }))
+    await waitFor(() => expect(send).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ data_sources: ['projects'] })))
+    fireEvent.click(screen.getByRole('button', { name: /数据设置/ }))
+    expect(within(screen.getByRole('dialog', { name: '数据设置' })).getByRole('checkbox', { name: /项目管理/ })).toBeChecked()
+    expect(within(screen.getByRole('dialog', { name: '数据设置' })).getByRole('checkbox', { name: /知识库/ })).not.toBeChecked()
+  })
+
   it('retains a failed question and retries with the same request UUID', async () => {
     const client = createPreviewAssistantClient('retry'), task = await create(client, '重试任务'), send = vi.spyOn(client, 'send')
     send.mockRejectedValueOnce(new Error('模型暂时不可用，请稍后重试。'))
