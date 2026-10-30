@@ -10,7 +10,7 @@ const formulaRow = (id: string, evidenceIds: string[], verification: FormulaRow[
   unit: 'g', basis: '批次', range: '待验证', rationale: '专家判断',
 })
 const seed = (): Solution => ({
-  id: 'one', title: '知识报告', projectName: '项目 A', productName: '研究制剂', ownerId: 'author', ownerName: '研究员',
+  id: 'one', title: '研究报告', projectName: '项目 A', productName: '研究制剂', ownerId: 'author', ownerName: '研究员',
   status: 'draft', revision: 1, version: 1, updatedAt: '2026-10-24T10:00:00Z',
   sections: [
     { id: 's1', title: '研究目标', content: '原始目标' },

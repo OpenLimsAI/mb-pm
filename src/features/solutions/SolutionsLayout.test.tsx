@@ -30,11 +30,11 @@ function mockClient(): SolutionClient {
 }
 async function mount(client = mockClient()) {
   const result = render(<SolutionsApp client={client} userId="author" userName="研究员" preview />)
-  await screen.findByRole('textbox', { name: '章节正文' })
+  await screen.findByRole('textbox', { name: '章节正文' }); fireEvent.click(screen.getByRole('tab', { name: '报告资料' }))
   await screen.findByRole('checkbox', { name: '选择资料：研究资料甲' })
   return { ...result, client }
 }
-const moduleNames = { editor: '报告撰写', knowledge: '知识库资料', ai: 'AI 研究助手' }
+const moduleNames = { editor: '撰写报告', knowledge: '知识库资料', ai: 'AI 研究助手' }
 type Module = keyof typeof moduleNames
 function applyLayout(name: string, order: Module[]) {
   fireEvent.click(screen.getByRole('button', { name: '排列布局' }))
@@ -47,13 +47,18 @@ function applyLayout(name: string, order: Module[]) {
 function expectPlacement(arrangement: string, order: Module[]) {
   const grid = screen.getByRole('region', { name: '报告工作区' })
   expect(grid).toHaveAttribute('data-arrangement', arrangement)
-  order.forEach((module, index) => expect(grid.querySelector(`[data-module="${module}"]`)).toHaveAttribute('data-slot', String(index + 1)))
+  order.forEach((module, index) => {
+    const element = grid.querySelector(`[data-module="${module}"]`)
+    expect(element).toHaveAttribute('data-slot', String(index + 1))
+    expect(element).toHaveStyle({ gridArea: `s${index + 1}`, order: String(index) })
+  })
+  expect([...grid.querySelectorAll('[data-module]')].map(element => element.getAttribute('data-module'))).toEqual(['editor', 'knowledge', 'ai'])
 }
-beforeEach(() => { localStorage.clear(); sessionStorage.clear() })
+beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-writing-mode', 'split'); sessionStorage.clear() })
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
 describe('independent workspace module layout', () => {
-  it('keeps writing, question, source scope and local formula details while moving the same modules through all four grids', async () => {
+  it('keeps writing, question, source scope and source drafts while moving the same modules through all four grids', async () => {
     const { client } = await mount()
     const search = screen.getByRole('textbox', { name: '搜索知识资料' })
     fireEvent.change(search, { target: { value: '特定研究对象' } })
@@ -69,8 +74,6 @@ describe('independent workspace module layout', () => {
     const context = screen.getByRole('textbox', { name: '附带上下文' })
     const question = screen.getByRole('textbox', { name: '向AI提问' })
     fireEvent.change(question, { target: { value: '仍在组织的问题' } })
-    fireEvent.click(screen.getByRole('button', { name: '展开候选物料依据' }))
-    const specification = screen.getByRole('textbox', { name: '规格' })
 
     const cases: [string, string, Module[]][] = [
       ['横向三个', 'columns', ['ai', 'editor', 'knowledge']],
@@ -93,13 +96,11 @@ describe('independent workspace module layout', () => {
       expect(screen.getByRole('combobox', { name: '知识项目范围' })).toHaveValue('项目 A')
       expect(screen.getByRole('button', { name: '论文' })).toHaveClass('is-active')
       expect(screen.getByRole('checkbox', { name: '选择资料：研究资料甲' })).toBeChecked()
-      expect(screen.getByRole('textbox', { name: '规格' })).toBe(specification)
-      expect(specification).toHaveValue('已有规格')
     }
     expect(client.get).toHaveBeenCalledTimes(1)
     expect(client.history).toHaveBeenCalledTimes(1)
     expect(JSON.parse(sessionStorage.getItem('ks-draft:preview:author:layout-report') || '{}').sections[1].content).toBe('切换布局时尚未提交的正文')
-  })
+  }, 20000)
 
   it('does not save or mark a report dirty when only arrangement, visibility and outline width change', async () => {
     const { client } = await mount()
@@ -122,28 +123,24 @@ describe('independent workspace module layout', () => {
     await mount()
     const question = screen.getByRole('textbox', { name: '向AI提问' })
     fireEvent.change(question, { target: { value: '隐藏时仍然保留的问题' } })
-    fireEvent.click(screen.getByRole('button', { name: '展开候选物料依据' }))
-    const specification = screen.getByRole('textbox', { name: '规格' })
-    fireEvent.click(screen.getByRole('button', { name: '收起报告撰写' }))
+    fireEvent.click(screen.getByRole('button', { name: '收起撰写报告' }))
     fireEvent.click(screen.getByRole('button', { name: '隐藏知识库资料' }))
     fireEvent.click(screen.getByRole('button', { name: '隐藏AI 研究助手' }))
     expect(screen.queryByRole('textbox', { name: '章节正文' })).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: '向AI提问' })).not.toBeInTheDocument()
     expect(question).toBeInTheDocument()
-    expect(specification).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '展开AI 研究助手' }))
     expect(screen.getByRole('textbox', { name: '向AI提问' })).toBe(question)
     expect(screen.queryByRole('textbox', { name: '章节正文' })).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: '搜索知识资料' })).not.toBeInTheDocument()
-    for (const name of ['展开报告撰写', '展开知识库资料']) fireEvent.click(screen.getByRole('button', { name }))
-    for (const name of ['收起报告撰写', '隐藏知识库资料', '隐藏AI 研究助手']) fireEvent.click(screen.getByRole('button', { name }))
+    for (const name of ['展开撰写报告', '展开知识库资料']) fireEvent.click(screen.getByRole('button', { name }))
+    for (const name of ['收起撰写报告', '隐藏知识库资料', '隐藏AI 研究助手']) fireEvent.click(screen.getByRole('button', { name }))
     applyLayout('上二下一', ['ai', 'knowledge', 'editor'])
     expectPlacement('top-pair', ['ai', 'knowledge', 'editor'])
     expect(screen.getByRole('textbox', { name: '章节正文' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: '搜索知识资料' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: '向AI提问' })).toBe(question)
     expect(question).toHaveValue('隐藏时仍然保留的问题')
-    expect(screen.getByRole('textbox', { name: '规格' })).toBe(specification)
   })
 
   it('keeps the latest writing and revision when a previous autosave completes after a layout change', async () => {

@@ -17,12 +17,14 @@ from app.api.v1 import (
     account,
     accounts,
     ai,
+    assistant,
     auth,
     baselines,
     finances,
     feedback,
     information,
     mdm_integration,
+    notes,
     portal,
     portal_settings,
     projects,
@@ -215,6 +217,8 @@ app.include_router(portal.router, prefix=API_PREFIX)
 app.include_router(feedback.router, prefix=API_PREFIX)
 app.include_router(portal_settings.router, prefix=API_PREFIX)
 app.include_router(information.router, prefix=API_PREFIX)
+app.include_router(notes.router, prefix=API_PREFIX)
+app.include_router(assistant.router, prefix=API_PREFIX)
 app.include_router(accounts.router, prefix=API_PREFIX)
 app.include_router(account.router, prefix=API_PREFIX)
 app.include_router(users.router, prefix=API_PREFIX)

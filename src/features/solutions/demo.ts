@@ -1,6 +1,7 @@
 import type { Answer, KnowledgeSource, Solution, SolutionClient, SolutionInput, Version } from './types'
 import { emptySolution } from './template'
 import { exportPreview } from './export'
+import { libraryEmbedUrl, validLibraryPath } from './libraryEmbed'
 
 const now = () => new Date().toISOString()
 const uid = () => crypto.randomUUID()
@@ -75,19 +76,51 @@ export function createDemoClient(namespace: string, userId: string, userName: st
     reviewers: async () => [{ id: userId, name: userName }],
     versions: async id => clone(read().versions[id] || []),
     sources: async (query = '', projectName = '') => clone(read().sources.filter(s => (!projectName || s.projectName === projectName) && (!query.trim() || `${s.title} ${s.content} ${s.tags.join(' ')}`.toLowerCase().includes(query.trim().toLowerCase())))),
-    getSource: async id => { const source = read().sources.find(item => item.id === id); if (!source) throw new Error('资料不存在'); return clone(source) },
+    getSource: async id => {
+      if (id.startsWith('kb:')) {
+        const path = id.slice(3), base = libraryEmbedUrl(true)
+        if (!base || !validLibraryPath(path)) throw new Error('请选择本地预览知识库中的资料')
+        const url = new URL('/__library-preview/source', base); url.searchParams.set('path', path)
+        const response = await fetch(url, { signal: AbortSignal.timeout(10000), credentials: 'omit' })
+        if (!response.ok) throw Object.assign(new Error('预览资料已删除或暂不可读，请刷新知识库后重试'), { status: response.status })
+        const source = await response.json() as KnowledgeSource
+        if (source.id !== id || source.kind !== 'paper' || !Array.isArray(source.tags) || !source.tags.every(tag => typeof tag === 'string') || !['content', 'title', 'authors', 'date', 'projectName', 'locator', 'version', 'updatedAt', 'url'].every(key => typeof source[key as keyof KnowledgeSource] === 'string') || source.content.length > 500000) throw new Error('预览资料格式无效')
+        const state = read(); state.sources = [source, ...state.sources.filter(item => item.id !== id)]; write(state)
+        return clone(source)
+      }
+      const source = read().sources.find(item => item.id === id); if (!source) throw new Error('资料不存在'); return clone(source)
+    },
     knowledgeStatus: async () => ({ configured: false, available: false, message: '界面预览 · 示例资料仅保存在当前浏览器，未连接企业知识库或 AI 模型。' }),
     addSource: async input => { const state = read(); if (!input.title.trim() || !input.content.trim()) throw new Error('请填写资料标题与正文'); const source = { ...clone(input), id: uid(), version: '1', updatedAt: now() }; state.sources.unshift(source); write(state); return clone(source) },
     ask: async (id, input) => {
+      // Local fixture sources are refreshed as well, so removed documents cannot be cited from a stale cache.
+      const externalIds = input.sourceIds.length ? input.sourceIds.filter(value => value.startsWith('kb:')) : read().sources.filter(source => source.id.startsWith('kb:') && (!input.projectName || source.projectName === input.projectName)).map(source => source.id)
+      for (const sourceId of externalIds) {
+        try { await client.getSource(sourceId) }
+        catch (error) {
+          if (input.sourceIds.length || (error as { status?: number }).status !== 404) throw error
+          const state = read(); state.sources = state.sources.filter(source => source.id !== sourceId); write(state)
+        }
+      }
       const state = read(); get(state, id)
       if (!input.question.trim()) throw new Error('请输入问题')
-      const chars = input.question.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+      const topicQuestions = input.conversationId ? (state.answers[id] || []).filter(answer => (answer.conversationId || answer.id) === input.conversationId).slice(-6).map(answer => answer.question.slice(0, 500)).join(' ').slice(-1500) : ''
+      const chars = `${input.question} ${input.context} ${topicQuestions}`.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
       const terms = Array.from(new Set(Array.from({ length: Math.max(0, chars.length - 1) }, (_, i) => chars.slice(i, i + 2))))
       const candidates = state.sources.filter(s => (!input.sourceIds.length || input.sourceIds.includes(s.id)) && (!input.projectName || s.projectName === input.projectName))
       const ranked = candidates.map(source => ({ source, score: terms.reduce((n, term) => n + (`${source.title} ${source.content}`.toLowerCase().includes(term) ? 1 : 0), 0) })).filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, 4)
       const references = ranked.map(({ source }) => ({ id: uid(), sourceId: source.id, title: source.title, excerpt: source.content.slice(0, 800), locator: source.locator, sourceVersion: source.version, sectionId: input.sectionId }))
-      const answer: Answer = { id: uid(), question: input.question, context: input.context, scope: input.sourceIds.length ? `选定 ${input.sourceIds.length} 份资料` : input.projectName || '全部演示资料', createdAt: now(), mode: 'retrieval', references, content: references.length ? `找到 ${references.length} 份相关演示资料。以下是原文摘录，请核对条件后再采纳。\n\n${references.map((ref, i) => `[${i + 1}] ${ref.title}\n${ref.excerpt}`).join('\n\n')}\n\n待验证事项：这些为交互演示资料，未形成真实配方结论。` : '当前检索范围内未找到相关知识。可调整关键词、扩大所选资料范围或添加实践记录。' }
+      const answer: Answer = { id: uid(), conversationId: input.conversationId || uid(), question: input.question, context: input.context, scope: input.sourceIds.length ? `选定 ${input.sourceIds.length} 份资料` : input.projectName || '全部演示资料', createdAt: now(), mode: 'retrieval', references, content: references.length ? `找到 ${references.length} 份相关演示资料。以下是原文摘录，请核对条件后再采纳。\n\n${references.map((ref, i) => `[${i + 1}] ${ref.title}\n${ref.excerpt}`).join('\n\n')}\n\n待验证事项：这些为交互演示资料，未形成真实配方结论。` : '当前检索范围内未找到相关知识。可调整关键词、扩大所选资料范围或添加实践记录。' }
       ;(state.answers[id] ||= []).push(answer); write(state); return clone(answer)
+    },
+    polish: async (id, input) => {
+      const report = get(read(), id)
+      if (!report.canEdit || report.status !== 'draft') throw new Error('当前报告不可编辑')
+      if (!report.sections.some(section => section.id === input.sectionId)) throw new Error('润色章节不存在')
+      if (!input.text.trim() || input.text.length > 5000) throw new Error('请选择 1–5,000 字进行润色')
+      // This local preview only demonstrates text cleanup, never a generated model response.
+      const content = input.text.trim().replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').replace(/([\p{Script=Han}]),(?=[\p{Script=Han}])/gu, '$1，').replace(/([\p{Script=Han}]);(?=[\p{Script=Han}])/gu, '$1；')
+      return { content, model: '本地文字整理演示', mode: 'preview' }
     },
     history: async id => clone(read().answers[id] || []),
     exportWord: async id => exportPreview(get(read(), id)),

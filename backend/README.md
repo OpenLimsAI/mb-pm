@@ -31,7 +31,7 @@ uv pip install --python .venv -r requirements.txt
 | `DATABASE_URL` | `sqlite:///./cmc_pms_lite.db` | 切 PostgreSQL：`postgresql+psycopg://user:pwd@host:5432/db`（需 `pip install "psycopg[binary]"`） |
 | `AUTO_SEED` | `true` | 库为空时自动灌种子 |
 | `APP_CORS_ORIGINS` | `http://localhost:5175,...` | 允许的前端来源 |
-| `APP_SECRET` | `change-me` | IAM 会话令牌加密密钥：须为 ≥32 字符随机值，否则登录返回 503 |
+| `APP_SECRET` | `change-me` | IAM 会话与知识报告个人模型配置的加密密钥：须为 ≥32 字符随机值，稳定保留并妥善备份 |
 | `CASDOOR_ENDPOINT` | `http://localhost:8000` | 浏览器访问的 mb-casd（Casdoor）地址，也是 token `iss` 的期望值 |
 | `CASDOOR_INTERNAL_URL` | 空（同上） | 后端访问 IAM 的地址（换 token / 拉 JWKS），容器 / 内网部署时使用 |
 | `CASDOOR_CLIENT_ID` / `CASDOOR_CLIENT_SECRET` | `mppm-client-id-0001` / 空 | Casdoor 应用 `mp-pm` 的凭据，secret 只在后端 |
@@ -44,6 +44,8 @@ uv pip install --python .venv -r requirements.txt
 `User · Project · ProjectMember · SubProject · Task · TaskDependency · Template · TemplateVersion · ProjectFinance · ProjectBaseline · AuditLog`
 
 IAM：`IAMIdentity`（issuer + sub ↔ 业务用户，一对一绑定）· `IAMSession`（会话 cookie 的 SHA-256 → 加密令牌）· `IAMLogin`（进行中的登录 state，10 分钟有效）。
+
+知识报告个人模型：`SolutionAISettings`（表 `solution_ai_settings`，迁移 `007`），以 IAM `issuer + owner_id` 为复合主键，配置使用 `APP_SECRET` 加密，`revision` 用于乐观并发保护。该表不替代 PM 全局 AI 配置；本轮只在隔离测试库验证，未迁移生产。
 
 ## 认证与授权
 
@@ -73,7 +75,11 @@ IAM：`IAMIdentity`（issuer + sub ↔ 业务用户，一对一绑定）· `IAMS
 | POST | `/account/password` | 本人改密码（需当前密码）：其他设备上的会话一并退出（PM「请先修改临时密码」页使用） |
 | POST | `/portal/login/start` | 门户嵌入式登录开始（须门户 Origin），同 `/auth/login/start` |
 | POST | `/portal/username`、`/portal/password` | 门户「设置 › 我的账号」：本人改用户名 / 密码（门户会话，需当前密码，须门户 Origin） |
-| GET/PUT | `/portal/settings/ai` | 门户「设置 › AI 分析」（admin / cmc_lead）；另有 POST `/portal/settings/ai/models`、`/portal/settings/ai/test` |
+| GET/PUT | `/ai/settings` | 项目管理「AI设置」的全局配置（admin / cmc_lead）；另有 POST `/ai/models`、`/ai/test`，门户兼容接口 `/portal/settings/ai/*` 沿用同一配置 |
+| GET/PUT | `/solutions/ai/settings` | 本人知识报告模型配置；门户会话、同源写保护和临时密码守卫，旧修订号返回 409，读取仅返回 `key_set` |
+| POST | `/solutions/ai/test` | 测试本人配置草稿，只发送固定短消息，不保存配置或返回原始服务响应 |
+| POST | `/solutions/{id}/ask` | 依授权原文问答；`model_profile_id` 可选个人标识、`system` 或 `retrieval`，未传时取个人默认再兼容全局 |
+| POST | `/solutions/{id}/polish` | 作者草稿的选中文字润色；`text` 最多 5,000 字，`instruction` 最多 1,000 字，沿用个人 / 企业生成模型，返回建议而不保存正文 |
 | GET/POST | `/projects` | 列表 / 创建 |
 | **POST** | **`/projects/import`** | **整包创建：项目+子项目+任务+依赖（模板实例化结果）** |
 | GET/PATCH | `/projects/{id}` | 详情 / 更新 |
@@ -86,6 +92,8 @@ IAM：`IAMIdentity`（issuer + sub ↔ 业务用户，一对一绑定）· `IAMS
 | **PATCH** | **`/tasks/{id}`** | **更新（含进展录入）→ 自动汇总子项目+项目进度** |
 | GET | `/task-dependencies?project_id=` | 依赖列表 |
 | GET | `/templates` | 模板列表（含 structure_json） |
+
+个人模型支持 DeepSeek、MiniMax、GLM、OpenAI、`custom`，最多 20 组，同一服务商可保存多个模型。密钥留空仅对原服务商与原地址保留，清除须明确，变更服务商或地址不复用旧密钥；设置及测试校验错误不回显输入密钥。自托管可使用 HTTP(S) 与明确局域网地址，拒绝元数据、链路本地和特殊地址，DNS 固定 IP 后保留原域名 TLS 校验，禁用代理和重定向。具体字段、错误与参考地址见[知识报告个人模型](../docs/knowledge-solutions.md#个人模型配置)。
 
 ## 进度汇总（rollup）
 
@@ -105,3 +113,17 @@ rm -f cmc_pms_lite.db        # 清库
 ## 技术栈
 
 FastAPI · SQLAlchemy 2 · Pydantic 2 · SQLite/PostgreSQL · python-jose（RS256 验签）· httpx · cryptography（Fernet）· openpyxl。
+
+知识报告对话主题：迁移 `008` 为 `solution_answers` 增加可空 `conversation_id` 和 `(solution_id, conversation_id)` 索引，保留旧问答，不回写旧行。问答请求可指定主题，历史回传主题标识；同主题最近六个问题仅用于理解，作者、报告与 issuer 隔离及当前来源校验保持。该功能复用原 ask/history 接口，无新增环境变量。正式升级需先执行 Alembic 到 `008`；本轮仅在隔离 SQLite 中验证升级、重复升级、降级与模型结构，未迁移生产。
+
+独立个人笔记：门户 Cookie 访问 `/api/v1/notes`，新建、搜索、编辑和回收站恢复按 issuer/sub 隔离。009 迁移新增 `personal_notes`，不依赖 KB、PM 或报告表；写操作同源、revision 冲突保护，创建 UUID 支持重试。正式升级需迁移到 009；本轮仅隔离测试，未部署。详见[个人笔记](../docs/personal-notes.md)。
+
+## AI 助手任务接口（本地实现）
+
+独立入口 `/api/v1/assistant/tasks` 使用门户会话，不依赖 PM 成员或知识库角色。任务、消息与结果按 IAM issuer/sub 隔离；任务项目名仅作个人分组。`GET/POST /tasks` 列表与创建，`GET/PUT /tasks/{id}` 读取与修改，`POST /tasks/{id}/messages` 发送问题，`POST /tasks/{id}/trash` 和 `/restore` 提供可恢复移除。写请求要求同源并通过临时密码检查。
+
+创建包含 UUID；修改与提问包含 revision，提问另带 request_id。已完成的同内容请求重试直接返回已保存消息，不追加重复轮次。模型等待前释放数据库读事务，回答完成后重新核对归属、回收站与 revision，再原子保存问答；模型失败或版本冲突不改写消息。并发生成不持有数据库锁，尚未保存的并发调用不承诺外部推理恰好执行一次。
+
+模型复用个人加密设置与安全传输，可选个人默认模型或 `enterprise`（企业默认）。`retrieval` 在普通助手中不可用；本应用不执行联网搜索、业务写入、邮件、定时任务或工具动作。显式参考正文最长20,000字、问题12,000字、任务偏好4,000字；每任务最多100轮，推理只带最近3轮的有界历史节选。每条回答作为已保存消息，同时提供 Markdown 结果产物。
+
+010 迁移新增 `assistant_tasks`、`assistant_messages` 和归属/顺序索引、请求唯一约束，需正式升级到010；本次只在隔离 SQLite 验证升级、重复升级、模型结构与降级，未部署或访问生产。`tests/test_assistant.py` 32项与相关笔记、门户、模型、报告回归共280项通过；模型请求均为测试替身。

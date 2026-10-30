@@ -116,6 +116,11 @@ class SourceInput(Input):
 
 
 class AskInput(Input):
+    model_config = ConfigDict(protected_namespaces=("model_validate", "model_dump"))
+    model_profile_id: str | None = Field(default=None, min_length=1, max_length=80)
+    conversation_id: str | None = Field(
+        default=None, min_length=1, max_length=80, pattern=r"^[A-Za-z0-9_-]+$"
+    )
     question: str = Field(min_length=1, max_length=4000)
     context: str = Field(default="", max_length=16000)
     source_ids: list[str] = Field(default_factory=list, max_length=100)
@@ -128,6 +133,21 @@ class AskInput(Input):
         if not value.strip():
             raise ValueError("请输入问题")
         return value.strip()
+
+
+class PolishInput(Input):
+    model_config = ConfigDict(protected_namespaces=("model_validate", "model_dump"))
+    model_profile_id: str | None = Field(default=None, min_length=1, max_length=80)
+    section_id: str = Field(min_length=1, max_length=80)
+    text: str = Field(min_length=1, max_length=5000)
+    instruction: str = Field(default="", max_length=1000)
+
+    @field_validator("text")
+    @classmethod
+    def text_present(cls, value):
+        if not value.strip():
+            raise ValueError("请选择要润色的文字")
+        return value
 
 
 class ReviewAction(Input):
