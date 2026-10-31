@@ -97,6 +97,20 @@ describe('AI assistant task workspace', () => {
     expect(within(result).getByRole('combobox', { name: '选择任务产物' })).toHaveValue(stored.artifacts[0].id)
   })
 
+  it('sends on Enter while preserving Shift+Enter and IME composition', async () => {
+    const client = createPreviewAssistantClient('keyboard'), task = await create(client, '键盘发送'), send = vi.spyOn(client, 'send')
+    await mount(client)
+    await open(task.title)
+    fireEvent.change(composer(), { target: { value: '请整理项目进展' } })
+    expect(fireEvent.keyDown(composer(), { key: 'Enter', shiftKey: true })).toBe(true)
+    fireEvent.keyDown(composer(), { key: 'Enter', isComposing: true })
+    fireEvent.keyDown(composer(), { key: 'Enter', keyCode: 229 })
+    expect(send).not.toHaveBeenCalled()
+    fireEvent.keyDown(composer(), { key: 'Enter' })
+    await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ id: task.id }), expect.objectContaining({ question: '请整理项目进展' })))
+    await within(chat()).findByRole('button', { name: '查看产物' })
+  })
+
   it('saves the selected data sources and sends them with subsequent questions', async () => {
     const client = createPreviewAssistantClient('sources'), task = await create(client, '数据问答'), send = vi.spyOn(client, 'send')
     await mount(client)
