@@ -1,0 +1,503 @@
+{
+  "checked_date": "2026-10-31",
+  "timezone": "America/New_York",
+  "pm_main_at_review": "508b4380596b07f157d9980a29107c5b54fd7e91",
+  "kb_main_at_review": "41fe005e6c47edf0506fa903b8adeb7e4f1353bb",
+  "items": [
+    {
+      "workspace": "pm",
+      "path": "README.md",
+      "status": " M",
+      "sha256": "6939f22c449f2979e861140af9f2527e46d1eda87083769d75497f14f9ea6be6",
+      "disposition": "existing-behavior-integrated-in-PR72-PR73; retain-current-main"
+    },
+    {
+      "workspace": "pm",
+      "path": "backend/.env.example",
+      "status": " M",
+      "sha256": "561319f3d73002e252361bbe7bf09231bcebb71c6cd1b382188d28a0ed23ea00",
+      "disposition": "existing-behavior-integrated-in-PR72-PR73; retain-current-main"
+    },
+    {
+      "workspace": "pm",
+      "path": "backend/README.md",
+      "status": " M",
+      "sha256": "92bf0992218badce5ef17429853de205f509632ff3917ea396db548e6b511488",
+      "disposition": "existing-behavior-integrated-in-PR72-PR73; retain-current-main"
+    },
+    {
+      "workspace": "pm",
+      "path": "backend/app/api/v1/notes.py",
+      "status": " M",
+      "sha256": "dae701f1a224477d79bb8f83aa677bb955df0944eb7d1112778c5de0400e2172",
+      "disposition": "superseded-by-shared-server-notes-PR72; legacy automatic import not carried forward"
+    },
+    {
+      "workspace": "pm",
+      "path": "backend/app/core/config.py",
+      "status": " M",
+      "sha256": "517f50780b636d9b50d2063ce49e5283a944f29a8a755f7672aa95f7d69e150b",
+      "disposition": "existing-behavior-integrated-in-PR72-PR73; retain-current-main"
+    },
+    {
+      "workspace": "pm",
+      "path": "backend/app/main.py",
+      "status": " M",
+      "sha256": "f2e3faba27d5c916b18df0600ee4ba2450504bb37deb7feb08cb79db9bc8251e",
+      "disposition": "existing-behavior-integrated-in-PR72-PR73; retain-current-main"
+    },
+    {
+      "workspace": "pm",
+      "path": "backend/app/models/assistant.py",
+      "status": " M",
+      "sha256": "95baa1a2ebcf202efa8b6d841055eb55ac787613e7717b4eecb6f93e1e9e5cf5",
+      "disposition": "already-integrated-and-superseded-by-PR70-PR73-PR76-PR78"
+    },
+    {
+      "workspace": "pm",
+      "path": "backend/app/schemas/assistant.py",
+      "status": " M",
+      "sha256": "dfa4c7cdd390a83f9f39617df4baef0b8934509f17002168acc55a8a07e70678",
+      "disposition": "already-integrated-and-superseded-by-PR70-PR73-PR76-PR78"
+    },
+    {
+      "workspace": "pm",
+      "path": "backend/app/services/assistant.py",
+      "status": " M",
+      "sha256": "2a236aed7538d5a7ba3e9be50852fcd07d74554b2b1ed2f702796afbab13f29a",
+      "disposition": "already-integrated-and-superseded-by-PR70-PR73-PR76-PR78"
+    },
+    {
+      "workspace": "pm",
+      "path": "backend/tests/test_assistant.py",
+      "status": " M",
+      "sha256": "50a5ac43fb2dd89bfc26b472afb45e2ae058ecacf945af42f584fbe578027ad4",
+      "disposition": "already-integrated-and-superseded-by-PR70-PR73-PR76-PR78"
+    },
+    {
+      "workspace": "pm",
+      "path": "backend/tests/test_notes.py",
+      "status": " M",
+      "sha256": "c4d321dfcc025f75f3f7bbded2b58651e0ca234c535771e952c76984d1752318",
+      "disposition": "superseded-by-shared-server-notes-PR72; legacy automatic import not carried forward"
+    },
+    {
+      "workspace": "pm",
+      "path": "docs/ai-assistant.md",
+      "status": " M",
+      "sha256": "f0615e21b8d8945cc6f69b73c74b0789e1c073306fb6ece599a99b19472f75b7",
+      "disposition": "already-integrated-and-superseded-by-PR70-PR73-PR76-PR78"
+    },
+    {
+      "workspace": "pm",
+      "path": "docs/architecture.md",
+      "status": " M",
+      "sha256": "20003c940d4e22e26c72396a417d9f4043fda7341cbeea282f2dec2056148fe8",
+      "disposition": "existing-behavior-integrated-in-PR72-PR73; retain-current-main"
+    },
+    {
+      "workspace": "pm",
+      "path": "docs/configuration.md",
+      "status": " M",
+      "sha256": "99450ec24f1ecabe68ed440bba7a178d04db5a2d45a3e005cf50266026795c85",
+      "disposition": "existing-behavior-integrated-in-PR72-PR73; retain-current-main"
+    },
+    {
+      "workspace": "pm",
+      "path": "docs/features.md",
+      "status": " M",
+      "sha256": "8c322200661ad4ce945f16dbf82ada8245899110ee2527522b4b7ee471f7449a",
+      "disposition": "existing-behavior-integrated-in-PR72-PR73; retain-current-main"
+    },
+    {
+      "workspace": "pm",
+      "path": "docs/personal-notes.md",
+      "status": " M",
+      "sha256": "60455cc6f54c489f5524706df1e8e7ae2d3646725aa54021c603e3eee252eeb5",
+      "disposition": "existing-behavior-integrated-in-PR72-PR73; retain-current-main"
+    },
+    {
+      "workspace": "pm",
+      "path": "src/features/assistant/AssistantApp.test.tsx",
+      "status": " M",
+      "sha256": "c50a67467d4a9fbec31cc2636bb3b93d05b2bbd2fc0b32ff29f730ce2f8cd453",
+      "disposition": "already-integrated-and-superseded-by-PR70-PR73-PR76-PR78"
+    },
+    {
+      "workspace": "pm",
+      "path": "src/features/assistant/AssistantApp.tsx",
+      "status": " M",
+      "sha256": "3e50dad8361d82eb185debefa34afee44c471125c80b9203e40dc863d8a34c56",
+      "disposition": "already-integrated-and-superseded-by-PR70-PR73-PR76-PR78"
+    },
+    {
+      "workspace": "pm",
+      "path": "src/features/assistant/assistant.css",
+      "status": " M",
+      "sha256": "2d5ff376f8efd01ae095eb9a7cfaa3d05e2b409fabb4b6d7c46d437d6de7ce26",
+      "disposition": "already-integrated-and-superseded-by-PR70-PR73-PR76-PR78"
+    },
+    {
+      "workspace": "pm",
+      "path": "src/features/assistant/client.ts",
+      "status": " M",
+      "sha256": "6943154106b35b84838626b9d56019f9b396ed172218dbc55aeb5e4425c24617",
+      "disposition": "already-integrated-and-superseded-by-PR70-PR73-PR76-PR78"
+    },
+    {
+      "workspace": "pm",
+      "path": "src/features/notes/NotesWorkspace.test.tsx",
+      "status": " M",
+      "sha256": "99320b1170f672c245ee0075908eadeb3fb4c536b77ffebd73c37f4a8a18b837",
+      "disposition": "existing-behavior-integrated-in-PR72-PR73; retain-current-main"
+    },
+    {
+      "workspace": "pm",
+      "path": "src/features/notes/NotesWorkspace.tsx",
+      "status": " M",
+      "sha256": "09be337a5860c0af0d4655d238550e36d4ef11cecf3205aeac5edb30daf5f63f",
+      "disposition": "existing-behavior-integrated-in-PR72-PR73; retain-current-main"
+    },
+    {
+      "workspace": "pm",
+      "path": "src/features/notes/client.ts",
+      "status": " M",
+      "sha256": "8454d4a730f0c4c97bd2ebfbb65e4bcb3ee4e46959b7400f045819158ecc91f9",
+      "disposition": "existing-behavior-integrated-in-PR72-PR73; retain-current-main"
+    },
+    {
+      "workspace": "pm",
+      "path": "src/pages/Assistant.tsx",
+      "status": " M",
+      "sha256": "5181cbaa980574036497c2f5d279c15feba3fa97bbe5dd9c9834a5e480ec2bdb",
+      "disposition": "already-integrated-and-superseded-by-PR70-PR73-PR76-PR78"
+    },
+    {
+      "workspace": "pm",
+      "path": "src/pages/Notes.tsx",
+      "status": " M",
+      "sha256": "f80c596d9d8b423213486bd72cb2cdab9223db2e566dc5219d0ddcad815c4a53",
+      "disposition": "existing-behavior-integrated-in-PR72-PR73; retain-current-main"
+    },
+    {
+      "workspace": "pm",
+      "path": "backend/alembic/versions/2026_10_30_0100-012_assistant_data_sources.py",
+      "status": "??",
+      "sha256": "de7bafd4410cb6febce4bef6f991be15f8a6d751832eb6d16c5a3a4ba03f6da6",
+      "disposition": "already-integrated-and-superseded-by-PR70-PR73-PR76-PR78"
+    },
+    {
+      "workspace": "kb",
+      "path": "src/App.tsx",
+      "status": " M",
+      "sha256": "a9e877ce147ad0afcd875bc640bdf927e58a109738d86aba89aa0d7f5982f646",
+      "disposition": "superseded-by-canonical-shared-notes-PR35; pending-merge"
+    },
+    {
+      "workspace": "kb",
+      "path": "docs/paper-deletion 2.md",
+      "status": "??",
+      "sha256": "285d1d15d34be096566dfcc02dac6af9dc80cc8352d8096db28cb4ac12d1e2fd",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "docs/verification/2026-10-20-paper-lifecycle 2.md",
+      "status": "??",
+      "sha256": "5d57ac59365d558fe225f9ef1b14f8737889d3a5e77e9cc3b13bf1c246d584b4",
+      "disposition": "unversioned-evidence-copy-with-small-metric-differences; preserve-original-not-authoritative"
+    },
+    {
+      "workspace": "kb",
+      "path": "docs/verification/2026-10-20-paper-lifecycle-evidence 2.json",
+      "status": "??",
+      "sha256": "f20bedadd808a74cb92d2ec947178d87cce3d2ac2cf16fe027e1792e791a8812",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "docs/verification/2026-10-22-paper-cards-tag-recovery 2.md",
+      "status": "??",
+      "sha256": "ae2b894db5d5d1c335ca147ec8e6024dee5c609cfb72ebe1e134a35460836fac",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "docs/verification/2026-10-22-paper-cards-tag-recovery-evidence 2.json",
+      "status": "??",
+      "sha256": "291f8be4b0b757c9e40c798a86d2a7f3b5fbecaa25ad8d120705fd46c3b69e42",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "docs/verification/images/2026-10-22-paper-cards-light 2.png",
+      "status": "??",
+      "sha256": "c1c305235f98bd206895a14e109821ef7f150752e043e750fb85a0dad43918f0",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "server/paper-deletion-core 2.ts",
+      "status": "??",
+      "sha256": "f96c7fcaaca447a233a3bf6f1a6df701ad3ed26b6775876005cb19d9a1645b24",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "server/paper-deletion-store 2.ts",
+      "status": "??",
+      "sha256": "6effb6598bc68a7c0c3b4a6398039e8e67ec84da3ca7104dc5a417652363da20",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "server/paper-deletions 2.ts",
+      "status": "??",
+      "sha256": "8261dd9e9ba458c445639b6c1fa056ddff53c944bf98f32da04834566fc48964",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "server/paper-write-guard 2.ts",
+      "status": "??",
+      "sha256": "3fcfc79c8bba1761a6515e912024ad9b4eab240f220144f225e298a6fbd0025f",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "src/config/paper-ai-output.test 2.ts",
+      "status": "??",
+      "sha256": "677d970e521c2a5f392c882061180aface50a50bcc35b2861b4ee44b0c00c283",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "src/config/paper-deletion-core.test 2.ts",
+      "status": "??",
+      "sha256": "4d63453a595a8cb3b2acf4d51b4154bd7a79cad8e15b70ea5f01ed6a7d432ed5",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "src/config/paper-deletion-store.test 2.ts",
+      "status": "??",
+      "sha256": "75877310cb9271ef7764f671de88c64b928bc12ceae3b911b3492f75fb68615f",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "src/config/paper-deletions-runtime.test 2.ts",
+      "status": "??",
+      "sha256": "5b24c2065f8b5d22227e58f0d0af20c6b755144fa4c3ac81eeedd48aaf1f1d13",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "src/config/paper-deletions-server.test 2.ts",
+      "status": "??",
+      "sha256": "95691123893a0774ca7a1b6bc93d3336ab4e22b7a80e0777747780e1cbcc9faa",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "src/config/paper-note-deletion.test 2.tsx",
+      "status": "??",
+      "sha256": "04eb10763af727b5d45ecdd2f409cf43bdbf45a74b55d85b41a9523aad888f5d",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "src/config/paper-write-guard.test 2.ts",
+      "status": "??",
+      "sha256": "31b91c92dc76ae7003eddbe152ec6c1eec0dfcbc9b17c48d0c0539817194a718",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "src/features/notes/personal-notes-service.test.ts",
+      "status": "??",
+      "sha256": "7b3f007761cb9dcdc231a9ef417c31b6c39321b971f234a796f645d4dd292af9",
+      "disposition": "superseded-by-canonical-shared-notes-PR35; pending-merge"
+    },
+    {
+      "workspace": "kb",
+      "path": "src/features/notes/personal-notes-service.ts",
+      "status": "??",
+      "sha256": "daf91b4cf0e8a0c0a2b7df96cc7ccf1cf29647655287c01dfdb2d8ac1f09043a",
+      "disposition": "superseded-by-canonical-shared-notes-PR35; pending-merge"
+    },
+    {
+      "workspace": "kb",
+      "path": "src/features/research/PaperDeleteDialog 2.tsx",
+      "status": "??",
+      "sha256": "862b8aba88a7ce3fdfa970a4d732af59856a89704d1a45c66a63a7d0a1a93eed",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "src/features/research/PaperDeleteDialog.test 2.tsx",
+      "status": "??",
+      "sha256": "a2ecd3b2e79f21e53dde4b9deae96ef7553df48805d940f3dac46ad5fa091a16",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "src/features/research/PaperLibrary.deletion.test 2.tsx",
+      "status": "??",
+      "sha256": "21fb38c4051d629ad20da0574d0058334d87d04dc79efeaf81260de7f40e58c8",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "src/features/research/QaPanel.deletion.test 2.tsx",
+      "status": "??",
+      "sha256": "c6a157aef2ebc5f2afad7fe985e19bd2ad98751c8aeb6f75f80db282382b682b",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "src/features/research/ResearchWorkspace.deletion.test 2.tsx",
+      "status": "??",
+      "sha256": "ec7fe5a56eff78a531f79c65fb95367d3d547454e32eef6587fa0b758c2b3ec2",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "src/features/research/paper-lifecycle 2.ts",
+      "status": "??",
+      "sha256": "42f17c40c8da6271ccc8e19c4f2d60acff846bbf38f5258ff6f61b160cc802a9",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "src/features/research/paper-lifecycle.test 2.ts",
+      "status": "??",
+      "sha256": "70a576fc713cb29555aee645f685731707fd77da12b292b0a1d812abe382932d",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "src/features/research/usePaperDeletions 2.ts",
+      "status": "??",
+      "sha256": "5b59badc2644f784a4f586e9931eafe06af8efe02f3eb88c89e2f03842c1f01a",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "src/features/research/usePaperDeletions.test 2.ts",
+      "status": "??",
+      "sha256": "65f6fcad3d4513c60518a910f47356a7da30fc0858cd352f5df41bcbe47b9ff6",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "src/features/research/usePaperSessionCleanup 2.ts",
+      "status": "??",
+      "sha256": "824689bb526e1524b727de4b7d5eec802afd4e7f2bdf04b157a639b710ce15f6",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "src/models/paper-deletion 2.ts",
+      "status": "??",
+      "sha256": "8736c9ba3cbc93555503fc97a91545c65e950cc8a6b0384be996e89b961d7ffc",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "kb",
+      "path": "tests/e2e/paper-deletion.spec 2.ts",
+      "status": "??",
+      "sha256": "bafaf1f4e8d5b87028e6f633a2a567e153e278e414e211bbfd4b0754ea115d6d",
+      "disposition": "historical-copy-not-built-or-committed-again"
+    },
+    {
+      "workspace": "iam-worktree",
+      "path": "backend/.coverage 2",
+      "status": "??",
+      "sha256": "a24c5a45bcd7db3e122b3b3bdc04517b5264e3fc0f6f425ff62a63fa44f0088c",
+      "disposition": "generated-coverage-database-not-source"
+    },
+    {
+      "workspace": "iam-worktree",
+      "path": "deploy/knowledge-permissions/README 2.md",
+      "status": "??",
+      "sha256": "e05a88051bc08a3e2bd60a8f40ece087db578ed37cc96407ea4eda5a2efc4d3b",
+      "disposition": "historical-committed-configuration-copy"
+    },
+    {
+      "workspace": "iam-worktree",
+      "path": "deploy/knowledge-permissions/iam-proxy 2.Caddyfile",
+      "status": "??",
+      "sha256": "915fc895a299b5b0720976dc41e354198180f852e4fd0e18e003da1079d6dcca",
+      "disposition": "historical-committed-configuration-copy"
+    },
+    {
+      "workspace": "gantt-worktree",
+      "path": "CHANGELOG.md",
+      "status": " M",
+      "sha256": "ff1801a596fdb4ccdf4efe417ec1679e46355fdd19680b74b8e8a02a35f3b278",
+      "disposition": "already-integrated; retain-current-main-and-later-release-notes"
+    },
+    {
+      "workspace": "gantt-worktree",
+      "path": "docs/features.md",
+      "status": " M",
+      "sha256": "0ea29ba33559a7896db3bf9bdf5137b288db8456804e02f294821c43ee26731a",
+      "disposition": "already-integrated; retain-current-main-and-later-release-notes"
+    },
+    {
+      "workspace": "gantt-worktree",
+      "path": "docs/releases/notes.json",
+      "status": " M",
+      "sha256": "6f122b890ffc167f77e112e247d95ef9eccb956471a6e09424529053a72f12fd",
+      "disposition": "already-integrated; retain-current-main-and-later-release-notes"
+    },
+    {
+      "workspace": "gantt-worktree",
+      "path": "public/release-notes.html",
+      "status": " M",
+      "sha256": "22f7f86bc454ea56e2669f8a3737e69bfe934a33709f7a15e96866f57ce0de14",
+      "disposition": "already-integrated; retain-current-main-and-later-release-notes"
+    },
+    {
+      "workspace": "gantt-worktree",
+      "path": "src/components/project/Gantt.tsx",
+      "status": " M",
+      "sha256": "c071b0930191a63f2f323651b06fb5895599a4f17811c0ac33f6827a69603228",
+      "disposition": "already-integrated; retain-current-main-and-later-release-notes"
+    },
+    {
+      "workspace": "gantt-worktree",
+      "path": "src/pages/Gantt.tsx",
+      "status": " M",
+      "sha256": "43804c978a1a425d933201f4fc664746ad235a01b5c16bbff038a885e6702152",
+      "disposition": "already-integrated; retain-current-main-and-later-release-notes"
+    },
+    {
+      "workspace": "gantt-worktree",
+      "path": "src/components/project/Gantt.test.tsx",
+      "status": "??",
+      "sha256": "c7676cbe079bd05656f145b67f02390efacb7832a1a4a940190700a994ffe51a",
+      "disposition": "already-integrated; retain-current-main-and-later-release-notes"
+    },
+    {
+      "workspace": "gantt-worktree",
+      "path": "src/components/project/TimelineZoomControl.tsx",
+      "status": "??",
+      "sha256": "fa99a451a853d0d52c2b6676ddba4e64ec4277d69f0002a24af36d9b77ea6c26",
+      "disposition": "already-integrated; retain-current-main-and-later-release-notes"
+    },
+    {
+      "workspace": "gantt-worktree",
+      "path": "src/lib/ganttZoom.ts",
+      "status": "??",
+      "sha256": "8055a7715e798fac5ef75decc8c1191ff9746670139e57cee04329b292c18f0c",
+      "disposition": "already-integrated; retain-current-main-and-later-release-notes"
+    }
+  ],
+  "excluded_dependency_entries": [
+    "mb-kb-shared-notes/node_modules",
+    "knowledge-library/node_modules"
+  ],
+  "note": "Original files preserved locally; hashes identify reviewed working copies, not deploy artifacts. No credentials or application data included."
+}
