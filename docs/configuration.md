@@ -133,7 +133,7 @@ PM 回调为 `https://pm.openlims.ai/api/v1/auth/callback`，登出回跳为 `ht
 统一退出开启还要求 CASDOOR_ACCOUNT_STATUS_VISIBLE=true：这是部署者确认本组织 isForbidden/isDeleted 对本人未被字段规则遮蔽；默认 false，未确认时503，不自动授予权限。每次请求在 introspection 后用本人的同一access Header只读 get-user，固定组织+sub，不读全组织、不调用会生成token的get-account；禁用/删除403，状态缺失或错主体401，失败/超时503，无active缓存。该门槛不自动同步角色，也不等于永久撤销旧token；恢复/退出的精确边界见[本人状态补强](mdm-phase2.md#本人状态核验补强)。正式组织未验收保持默认关闭。
 知识报告对话主题无新增环境变量；正式服务升级需要数据库迁移 `008`（主题标识与索引），先迁移后重启服务。个人模型设置仍使用 `007` 的独立加密表，访问权限与密钥配置保持原有规则。本轮只保留本地预览，未对生产数据库执行迁移。
 
-工作台我的笔记为独立 `/notes`，门户目录增加 `notes.enabled`，有效门户账号均可使用；不要求 KB 角色或 `VITE_KNOWLEDGE_PORT`，不额外增加 IAM 角色。业务管理中的账号管理沿用 `accounts.enabled`。门户个人 AI 设置 `/model-settings` 复用研究报告的加密配置与预览存储，和 PM 的管理员 `/ai-settings` 分开。
+工作台我的笔记为独立 `/notes`，门户目录增加 `notes.enabled`，有效门户账号均可使用；不要求 KB 角色或 `VITE_KNOWLEDGE_PORT`，不额外增加 IAM 角色。功能设置中的账号管理沿用 `accounts.enabled`；同版块的主数据管理沿用 `mdm.enabled` 和受保护的 `/launch/mdm` 入口。门户个人 AI 设置 `/model-settings` 复用研究报告的加密配置与预览存储，和 PM 的管理员 `/ai-settings` 分开。
 
 个人笔记正式运行需执行 Alembic 到 `009`（包含此前研究报告 007/008 迁移），新建 `personal_notes`；不改写论文知识库数据。接口按门户会话隔离，写操作要求同源，临时密码需先更改。无新增环境变量。当前只在隔离测试库验证迁移，未执行生产迁移或部署。
 

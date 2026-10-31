@@ -164,7 +164,7 @@ deploy/                 环境配置及历史发布材料
 
 知识报告问答的 `conversation_id` 由迁移 `008` 加到原 `solution_answers`，按报告建立主题索引。`AskInput` 可带主题标识，未带时服务端为单次问题生成独立标识；历史接口回传该字段。连续问答只读取当前 IAM issuer、作者与报告下该主题最近六个问题作为理解上下文，不把历史生成内容用作证据。前端 `conversations.ts` 聚合主题并兼容旧回答标识，主题切换保留本次编辑中的问题草稿；后台结果按发出时的主题归属，采纳复用现有引用确认与撤销流程。正文末段以弹性高度填满撰写区域，不改变报告正文、章节、来源或历史存储。
 
-工作台 `Workspace.tsx` 将应用依次分为 AI 智能、知识信息、业务管理、功能设置四个区域。笔记卡片进入门户 `/notes`，使用独立笔记客户端与数据表；人力资源仅为不可跳转的待开发占位。个人 AI 模型页 `/model-settings` 位于 PortalGate 内，与 AI 助手和研究报告共用 IAM namespace 及模型客户端，不加载 PM 数据或改变 `/ai-settings` 管理员配置。登录返回路由将其视为门户会话。研究报告/行业信息名称调整只涉及前端展示，内部 solutions/information 路由和浏览器存储键保持不变。
+工作台 `Workspace.tsx` 将应用依次分为 AI 智能、知识信息、业务管理、功能设置四个区域。业务管理放置项目管理、回音壁与人力资源；功能设置放置我的设置、AI 设置、主数据管理及按准入权限显示的账号管理，各卡片继续使用后台应用准入信息。笔记卡片进入门户 `/notes`，使用独立笔记客户端与数据表；人力资源仅为不可跳转的待开发占位。个人 AI 模型页 `/model-settings` 位于 PortalGate 内，与 AI 助手和研究报告共用 IAM namespace 及模型客户端，不加载 PM 数据或改变 `/ai-settings` 管理员配置。登录返回路由将其视为门户会话。研究报告/行业信息名称调整只涉及前端展示，内部 solutions/information 路由和浏览器存储键保持不变。
 
 独立笔记由 `src/features/notes` 提供共享编辑弹窗、列表与选区捕获。正式使用门户 Cookie 访问 `/api/v1/notes`；`personal_notes` 按 IAM issuer/sub 隔离，无 KB/报告外键，不访问 Core。009 迁移新增表及索引，revision 乐观锁保护更新、软删除和恢复，UUID 创建重试不重复保存。预览使用独立的 `mberp:personal-notes:preview:v1:<namespace:user>` 浏览器键，保留旧 KB 数据。
 
