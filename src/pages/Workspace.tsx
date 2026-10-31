@@ -52,14 +52,14 @@ const knowledgeApps: readonly ApplicationPresentation[] = [
 ]
 const businessApps: readonly ApplicationPresentation[] = [
   { id: 'pm', accessId: 'pm', name: '项目管理', englishName: 'PROJECT MANAGEMENT', description: '把计划、进度与团队协作放在一起，清晰掌握研发项目的每一步。', domain: 'pm.openlims.ai', href: '/launch/pm', previewHref: siteMode === 'combined' ? '/dashboard' : undefined, kind: 'projects', features: ['项目与任务', '团队协作', '财务与风险'] },
-  { id: 'mdm', accessId: 'mdm', name: '主数据管理', englishName: 'MASTER DATA MANAGEMENT', description: '管理分子、药物资产与项目登记治理；执行计划在关联的项目中维护。', domain: '主数据权限独立校验', href: '/launch/mdm', external: true, kind: 'projects', features: ['分子与药物资产', '项目登记治理', '执行关联'] },
   { id: 'feedback', accessId: 'feedback', name: '回音壁', englishName: 'FEEDBACK', description: '反馈使用中遇到的问题和新功能建议，查看处理状态。', domain: '问题 · 建议 · 改进', href: '/launch/feedback', previewHref: '/feedback?preview=1', kind: 'feedback', features: ['问题反馈', '图片说明', '修复状态'] },
   { id: 'hr', name: '人力资源', englishName: 'HUMAN RESOURCES', description: '人员与组织管理的统一入口，应用正在规划中。', domain: '待开发应用', href: '', planned: true, kind: 'hr', features: ['人员档案', '组织管理', '人事流程'] },
-  { id: 'accounts', accessId: 'accounts', name: '账号管理', englishName: 'ACCOUNT MANAGEMENT', description: '统一查看组织成员与账号身份，按管理权限维护账号信息。', domain: '按管理权限使用', href: '/accounts', kind: 'accounts', features: ['组织成员', '账号身份', '应用权限'] },
 ]
 const settingApps: readonly ApplicationPresentation[] = [
   { id: 'settings', name: '我的设置', englishName: 'MY SETTINGS', description: '管理个人登录账号，修改用户名、密码并查看应用访问。', domain: '个人账号', href: '/settings', previewHref: '/settings?preview=1', kind: 'settings', features: ['登录身份', '用户名与密码', '应用访问'] },
   { id: 'models', name: 'AI 设置', englishName: 'AI SETTINGS', description: '管理个人研究模型，配置多组服务、连接信息与默认模型。', domain: '个人模型', href: '/model-settings', previewHref: '/model-settings?preview=1', kind: 'ai', features: ['多个服务商', '模型配置', '默认选择'] },
+  { id: 'mdm', accessId: 'mdm', name: '主数据管理', englishName: 'MASTER DATA MANAGEMENT', description: '管理分子、药物资产与项目登记治理；执行计划在关联的项目中维护。', domain: '主数据权限独立校验', href: '/launch/mdm', external: true, kind: 'projects', features: ['分子与药物资产', '项目登记治理', '执行关联'] },
+  { id: 'accounts', accessId: 'accounts', name: '账号管理', englishName: 'ACCOUNT MANAGEMENT', description: '统一查看组织成员与账号身份，按管理权限维护账号信息。', domain: '按管理权限使用', href: '/accounts', kind: 'accounts', features: ['组织成员', '账号身份', '应用权限'] },
 ]
 const icons = { assistant: Sparkles, solutions: FilePenLine, notes: NotebookPen, knowledge: BookOpen, information: Radar, projects: BriefcaseBusiness, hr: UsersRound, accounts: ShieldCheck, settings: Settings2, ai: SlidersHorizontal, feedback: MessageSquareText }
 
@@ -101,7 +101,7 @@ export default function Workspace({ user, applications, onRefresh, onLogout, pre
   const [refreshing, setRefreshing] = useState(false)
   const [notice, setNotice] = useState('')
   const displayName = user?.displayName || user?.username || ''
-  // 管理功能单独分区，仅向获得账号管理准入的人显示；界面预览和普通员工不显示。
+  // 账号管理仅向获得准入的人显示；界面预览和普通员工不显示。
   const showManagement = !preview && applications.some((entry) => entry.id === 'accounts' && entry.enabled)
 
   const refreshIdentity = async () => {
@@ -151,12 +151,12 @@ export default function Workspace({ user, applications, onRefresh, onLogout, pre
           <div className="workspace-app-grid">{knowledgeApps.map(application => <ApplicationCard key={application.id} application={application} access={applications.find(entry => entry.id === application.accessId)} preview={preview} />)}</div>
         </section>
         <section className="workspace-category workspace-category--business" aria-labelledby="workspace-business-title">
-          <div className="workspace-section-heading"><div><div className="workspace-section-label">BUSINESS MANAGEMENT</div><h2 id="workspace-business-title">业务管理版块</h2><p>集中处理项目、人员和账号管理。</p></div><BriefcaseBusiness size={25} aria-hidden="true" /></div>
-          <div className={`workspace-app-grid workspace-business-grid${showManagement ? ' has-accounts' : ''}`}>{businessApps.filter(application => application.id !== 'accounts' || showManagement).map(application => <ApplicationCard key={application.id} application={application} access={applications.find(entry => entry.id === application.accessId)} preview={preview} />)}</div>
+          <div className="workspace-section-heading"><div><div className="workspace-section-label">BUSINESS MANAGEMENT</div><h2 id="workspace-business-title">业务管理版块</h2><p>集中处理项目协作、人员事务与使用反馈。</p></div><BriefcaseBusiness size={25} aria-hidden="true" /></div>
+          <div className="workspace-app-grid workspace-business-grid">{businessApps.map(application => <ApplicationCard key={application.id} application={application} access={applications.find(entry => entry.id === application.accessId)} preview={preview} />)}</div>
         </section>
         <section className="workspace-category workspace-category--settings" aria-labelledby="workspace-settings-title">
-          <div className="workspace-section-heading"><div><div className="workspace-section-label">PREFERENCES & TOOLS</div><h2 id="workspace-settings-title">功能设置版块</h2><p>管理个人账号与 AI 模型偏好。</p></div><Settings2 size={25} aria-hidden="true" /></div>
-          <div className="workspace-app-grid">{settingApps.map(application => <ApplicationCard key={application.id} application={application} preview={preview} />)}</div>
+          <div className="workspace-section-heading"><div><div className="workspace-section-label">PREFERENCES & TOOLS</div><h2 id="workspace-settings-title">功能设置版块</h2><p>管理个人偏好、AI 模型、主数据与账号权限。</p></div><Settings2 size={25} aria-hidden="true" /></div>
+          <div className="workspace-app-grid">{settingApps.filter(application => application.id !== 'accounts' || showManagement).map(application => <ApplicationCard key={application.id} application={application} access={applications.find(entry => entry.id === application.accessId)} preview={preview} />)}</div>
         </section>
 
         <aside className="workspace-help" aria-label="账号与访问说明">

@@ -274,7 +274,7 @@ a.workspace-app-card--knowledge:hover .workspace-app-entry svg { transform: tran
 .portal-ai-settings .ks-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 13px; color: #536c7e; font-size: 12px; }
 .portal-ai-settings .ks-field input, .portal-ai-settings .ks-field select { width: 100%; min-height: 36px; padding: 7px 10px; border: 1px solid #ccdce7; border-radius: 5px; background: #fff; color: #304b5b; }
 .portal-ai-settings .ks-field input:disabled { background: #f1f5f8; color: #8c9eac; }
-@media (min-width: 961px) { .workspace-business-grid.has-accounts { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 961px) { .workspace-business-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 720px) { .workspace-category { padding: 16px; margin-top: 22px; }.workspace-category .workspace-section-heading h2 { font-size: 21px; } }
 
 /* AI is the first application group and has one clear, full-width entry. */

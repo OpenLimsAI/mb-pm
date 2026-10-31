@@ -49,17 +49,28 @@ describe('workspace application entries', () => {
     const knowledge = screen.getByRole('region', { name: '知识信息版块' })
     expect(within(knowledge).getAllByRole('heading', { level: 3 }).map(element => element.textContent)).toEqual(['研究报告', '我的笔记', '知识库', '行业信息'])
     const business = screen.getByRole('region', { name: '业务管理版块' })
-    expect(within(business).getAllByRole('heading', { level: 3 }).map(element => element.textContent)).toEqual(['项目管理', '主数据管理', '回音壁', '人力资源'])
+    expect(within(business).getAllByRole('heading', { level: 3 }).map(element => element.textContent)).toEqual(['项目管理', '回音壁', '人力资源'])
     expect(within(business).getByRole('article', { name: '人力资源' })).toHaveTextContent('待开发')
     expect(within(business).queryByRole('link', { name: /人力资源/ })).not.toBeInTheDocument()
     const settings = screen.getByRole('region', { name: '功能设置版块' })
-    expect(within(settings).getAllByRole('heading', { level: 3 }).map(element => element.textContent)).toEqual(['我的设置', 'AI 设置'])
+    expect(within(settings).getAllByRole('heading', { level: 3 }).map(element => element.textContent)).toEqual(['我的设置', 'AI 设置', '主数据管理'])
+    expect(within(settings).queryByRole('heading', { name: '账号管理' })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: '版本更新' })).not.toBeInTheDocument()
   })
-  it.each([false, true])('shows account management inside business only with its actual grant (%s)', enabled => {
-    render(<MemoryRouter><Workspace user={{ id: 'a', username: 'a', displayName: '同事' }} applications={[{ id: 'accounts', enabled }]} onRefresh={vi.fn()} onLogout={vi.fn()} /></MemoryRouter>)
+  it.each([false, true])('groups management entries inside settings with their actual grants (%s)', enabled => {
+    render(<MemoryRouter><Workspace user={{ id: 'a', username: 'a', displayName: '同事' }} applications={[{ id: 'accounts', enabled }, { id: 'mdm', enabled }]} onRefresh={vi.fn()} onLogout={vi.fn()} /></MemoryRouter>)
     const business = screen.getByRole('region', { name: '业务管理版块' })
-    expect(!!within(business).queryByRole('link', { name: '进入账号管理' })).toBe(enabled)
+    const settings = screen.getByRole('region', { name: '功能设置版块' })
+    expect(within(business).queryByRole('heading', { name: '主数据管理' })).not.toBeInTheDocument()
+    expect(within(business).queryByRole('heading', { name: '账号管理' })).not.toBeInTheDocument()
+    expect(!!within(settings).queryByRole('heading', { name: '账号管理' })).toBe(enabled)
+    expect(!!within(settings).queryByRole('link', { name: '进入账号管理' })).toBe(enabled)
+    expect(within(settings).getByRole('heading', { name: '主数据管理' })).toBeInTheDocument()
+    expect(!!within(settings).queryByRole('link', { name: '进入主数据管理' })).toBe(enabled)
+    if (enabled) {
+      expect(within(settings).getByRole('link', { name: '进入账号管理' })).toHaveAttribute('href', '/accounts')
+      expect(within(settings).getByRole('link', { name: '进入主数据管理' })).toHaveAttribute('href', '/launch/mdm')
+    }
     expect(within(screen.getByRole('region', { name: '知识信息版块' })).queryByRole('heading', { name: '账号管理' })).not.toBeInTheDocument()
   })
   it('opens independent personal notes even without a KB grant', () => {
