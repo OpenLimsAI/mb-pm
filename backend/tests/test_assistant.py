@@ -416,12 +416,18 @@ def test_knowledge_question_supplies_full_catalogue_count(assistant_client, monk
 
     f = assistant_client
     monkeypatch.setattr(solution_knowledge, "paper_count", lambda claims: 63)
-    monkeypatch.setattr(solution_knowledge, "list_sources", lambda claims, query: [])
+    from app.services import assistant_tool_chat
+
+    def tool_chat(provider, cfg, messages, claims, **kwargs):
+        f.calls.append({"messages": messages})
+        return "知识库当前有63篇有效论文"
+
+    monkeypatch.setattr(assistant_tool_chat, "chat", tool_chat)
     response = question(f, create(f), data_sources=["knowledge"])
     assert response.status_code == 200, response.text
     data = json.loads(f.calls[-1]["messages"][-1]["content"])["application_data"]["knowledge"]
     assert data["active_paper_count"] == 63
-    assert data["sources"] == []
+    assert "只读查询工具" in data["note"]
 
 
 def test_knowledge_failure_does_not_call_model(assistant_client, monkeypatch):
@@ -434,7 +440,7 @@ def test_knowledge_failure_does_not_call_model(assistant_client, monkeypatch):
     def unavailable(*args, **kwargs):
         raise HTTPException(503, "知识库不可用")
 
-    monkeypatch.setattr(solution_knowledge, "list_sources", unavailable)
+    monkeypatch.setattr(solution_knowledge, "paper_count", unavailable)
     response = question(f, create(f), data_sources=["knowledge"])
     assert response.status_code == 503
     assert f.calls == []
@@ -562,3 +568,104 @@ def test_data_sources_migration_upgrade_repeat_and_downgrade():
                 == "original"
             )
     engine.dispose()
+
+
+def test_kb_tools_route_uses_pinned_private_transport(assistant_client, monkeypatch):
+    from app.services import assistant_tool_chat, solution_knowledge
+
+    f = assistant_client
+    assert test_solution_ai.save(f).status_code == 200
+    monkeypatch.setattr(solution_knowledge, "paper_count", lambda claims: 63)
+    seen = []
+
+    def tools(provider, cfg, messages, claims, **kwargs):
+        assert not f.db.in_transaction()
+        assert provider == "custom" and cfg["api_key"] == test_solution_ai.FAKE_KEY
+        assert kwargs["request_fn"] is solution_ai.pinned_request
+        seen.append(messages)
+        return "已查询知识库原文"
+
+    monkeypatch.setattr(assistant_tool_chat, "chat", tools)
+    result = question(f, create(f), data_sources=["knowledge"], model_profile_id=None)
+    assert result.status_code == 200 and len(seen) == 1
+    assert test_solution_ai.FAKE_KEY not in result.text
+    assert result.json()["messages"][-1]["content"] == "已查询知识库原文"
+
+
+def test_unselected_knowledge_never_registers_or_executes_tools(assistant_client, monkeypatch):
+    from app.services import assistant_tool_chat
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Knowledge was not selected")
+
+    monkeypatch.setattr(assistant_tool_chat, "chat", forbidden)
+    f = assistant_client
+    assert question(f, create(f)).status_code == 200 and len(f.calls) == 1
+
+
+def test_kb_tool_failure_retains_task_and_request_for_retry(assistant_client, monkeypatch):
+    from fastapi import HTTPException
+
+    from app.services import assistant_tool_chat, solution_knowledge
+
+    f = assistant_client
+    monkeypatch.setattr(solution_knowledge, "paper_count", lambda claims: 63)
+
+    def unavailable(*args, **kwargs):
+        raise HTTPException(504, "知识库响应超时，请重试")
+
+    monkeypatch.setattr(assistant_tool_chat, "chat", unavailable)
+    task = create(f)
+    result = question(f, task, data_sources=["knowledge"])
+    assert result.status_code == 504 and "超时" in result.json()["detail"]
+    assert f.client.get(f"{PREFIX}/{task['id']}").json() == task
+
+
+def test_kb_native_tool_roundtrip_is_saved_only_after_final_reply(assistant_client, monkeypatch):
+    from app.services import solution_knowledge
+
+    f = assistant_client
+    monkeypatch.setattr(solution_knowledge, "check_access", lambda claims: None)
+    monkeypatch.setattr(solution_knowledge, "paper_count", lambda claims: 63)
+    seen = []
+
+    def request(provider, cfg, path, body, **kwargs):
+        assert not f.db.in_transaction()
+        seen.append(body)
+        if len(seen) == 1:
+            return {
+                "message": {
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "read_page",
+                                "arguments": {"path": "knowledge/cmc.md"},
+                            }
+                        }
+                    ]
+                }
+            }
+        assert "verified local evidence" in body["messages"][-1]["content"]
+        return {"message": {"content": "依据 knowledge/cmc.md 的资料给出回答。"}}
+
+    def core(method, path, **kwargs):
+        assert method == "GET" and path == "/v1/base/pages/knowledge/cmc.md"
+        return json.dumps(
+            {"path": "knowledge/cmc.md", "layer": "knowledge", "body": "verified local evidence"}
+        ).encode()
+
+    monkeypatch.setenv("SOLUTION_KB_CORE_URL", "http://core.test")
+    monkeypatch.setenv("SOLUTION_KB_TOKEN", "server-only-token")
+    monkeypatch.setenv("SOLUTION_KB_PUBLIC_URL", "https://kb.test")
+    monkeypatch.setattr(ai, "request", request)
+    monkeypatch.setattr(solution_knowledge, "_request", core)
+    task = create(f)
+    request_id = str(uuid4())
+    result = question(f, task, data_sources=["knowledge"], request_id=request_id)
+    assert result.status_code == 200, result.text
+    assert len(seen) == 2 and result.json()["message_count"] == 2
+    assert "server-only-token" not in result.text and "verified local evidence" not in result.text
+    assert (
+        question(f, task, data_sources=["knowledge"], request_id=request_id).json() == result.json()
+    )
+    assert len(seen) == 2
