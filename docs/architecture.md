@@ -179,3 +179,7 @@ deploy/                 环境配置及历史发布材料
 统一笔记以门户 `personal_notes` 为唯一正文来源，知识库嵌入门户笔记界面。显式共享通过同事务 `note_wisdom_sync` 任务表及 PostgreSQL advisory lock 同步 Core，浏览器不再发布正式笔记的 Wisdom 副本。详见 [笔记数据流程](personal-notes.md)。
 
 AI 助手选择知识库时，`assistant_tool_chat.py` 为本轮模型注册六个 DIKW 只读函数工具，由 `assistant_knowledge.py` 校验参数并复用 `solution_knowledge.py` 的固定 Core 连接、响应上限和实时 IAM 权限；函数调用通过 OpenAI/Ollama 协议串联，工具资料有预算并标记分页和截断。最终保存前再次校验 KB 角色。未选择知识库时继续普通文本对话；没有跨请求共享工具记忆，也不开放 shell、Core 写入或联网工具。详见[工具合同与限制](ai-assistant.md#dikw-查询工具复用本次更新)。
+
+## 本地工作区核对
+
+本地旧稿、重复副本与 main 的对应关系，以及 2026-10-31 生产核对快照，见[本地修改核对记录](verification/2026-10-31-local-reconciliation.md)。未提交条目不能直接作为待发布功能列表；实际版本与配置须在发布时重新检查。
