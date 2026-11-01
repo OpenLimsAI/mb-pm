@@ -165,11 +165,13 @@ AI 助手正式运行需迁移到 `012`，新建个人任务和消息表。门�
 
 统一笔记的精确 CORS Origin 和可选后台检索连接：`KNOWLEDGE_NOTES_ORIGIN`、`NOTES_WISDOM_CORE_URL`、`NOTES_WISDOM_TOKEN`、`NOTES_WISDOM_WORKER_ENABLED`，配置说明见 [我的笔记](personal-notes.md#配置)。
 
-个人助手移除项目相关功能后，无新增环境变量或数据库迁移；可选应用数据源仅为知识库，仍复用现有知识库连接和实时权限。旧浏览器保存的 `projects` 选项不再生效，接口拒绝该选项。两个生产实例已部署；验证范围及公网待补验事项见[发布记录](../deploy/parallel-test/releases/20261101-assistant-remove-projects.md)。
+此前个人助手移除项目相关功能的版本只提供知识库，忽略旧浏览器 `projects` 选择；当时无需新增迁移，发布范围见[发布记录](../deploy/parallel-test/releases/20261101-assistant-remove-projects.md)。当前开发预览单独恢复项目管理只读数据源，保持任务项目归类移除，并要求重新明确选择；升级要求见下方。
 
 Kimi 支持、模型价格显示与静态价格目录的维护规则见[模型价格参考](model-pricing.md)。
 
 ## 助手公开搜索（开发预览）
+
+个人助手恢复项目管理数据源的开发版本还需迁移 `015`，为消息增加内部 `application_scope`，记录实际使用的来源和可验证的项目范围；已有启动补列机制同时覆盖该列。部署前先备份并核对迁移，不只替换前端。没有新增 PM 令牌或浏览器凭据：读取使用当前门户身份，实时核对 IAM、已有有效 PM 账号及项目行级范围，不因勾选自动创建成员或扩大权限。无有效 PM 绑定时先进入项目管理完成正常关联，再重试；仅选项目管理不要求知识库配置。此版本尚未部署生产。
 
 个人助手和研究助手共用后端 Tavily 适配。管理员在服务端设置 `ASSISTANT_WEB_ENABLED=true` 与 `ASSISTANT_WEB_API_KEY`，并可设置 `ASSISTANT_WEB_MAX_RESULTS`（默认 5，实际范围 1–8）；示例见 [`backend/.env.example`](../backend/.env.example)。默认禁用且不包含密钥；用户无需逐次指定是否联网，Auto 会判断。浏览器只读取是否就绪，不接收密钥或任意服务地址配置。模型配置仍独立，搜索就绪不代表模型已配置。
 

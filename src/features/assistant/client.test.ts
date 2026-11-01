@@ -6,6 +6,100 @@ const question = (text = '请整理研究目标。') => ({ requestId: crypto.ran
 beforeEach(() => localStorage.clear())
 
 describe('assistant preview persistence and private task conversations', () => {
+  it('uses only the application needed by each question and labels project previews without inventing projects', async () => {
+    const client = createPreviewAssistantClient('project-scope'), task = await client.create(taskInput())
+    const projects = await client.send(task, { ...question('目前有哪些项目？'), answerMode: 'auto', data_sources: ['projects', 'knowledge'], context: '' })
+    expect(projects.messages.at(-1)).toMatchObject({ answerMode: 'application', usedSources: ['projects'], webReferences: [] })
+    expect(projects.messages.at(-1)?.content).toContain('界面演示 · 未读取真实项目数据')
+    expect(projects.messages.at(-1)?.content).toContain('不展示虚构的项目列表或进度')
+    const knowledge = await client.send(projects, { ...question('知识库有几篇论文？'), answerMode: 'auto', data_sources: ['projects', 'knowledge'] })
+    expect(knowledge.messages.at(-1)).toMatchObject({ answerMode: 'knowledge', usedSources: ['knowledge'] })
+    const article = await client.send(knowledge, { ...question('知识库中有哪些关于项目状态的论文'), answerMode: 'auto', data_sources: ['knowledge'] })
+    expect(article.messages.at(-1)).toMatchObject({ answerMode: 'knowledge', usedSources: ['knowledge'] })
+    const general = await client.send(article, { ...question('什么是项目管理？'), answerMode: 'auto', data_sources: ['projects', 'knowledge'] })
+    expect(general.messages.at(-1)).toMatchObject({ answerMode: 'general', usedSources: [] })
+  })
+
+  it('queries the project demo without a knowledge permission or connection', async () => {
+    const client = createPreviewAssistantClient('project-only'), task = await client.create(taskInput())
+    const first = await client.send(task, { ...question('列出项目状态和进度'), answerMode: 'auto', data_sources: ['projects'], context: '' })
+    expect(first.messages.at(-1)).toMatchObject({ answerMode: 'application', usedSources: ['projects'] })
+    const followup = await client.send(first, { ...question('再详细一点'), answerMode: 'auto', data_sources: ['projects'], context: '' })
+    expect(followup.messages.at(-1)).toMatchObject({ answerMode: 'application', usedSources: ['projects'] })
+    await expect(client.send(followup, { ...question('继续'), answerMode: 'auto', data_sources: ['knowledge'], context: '' })).rejects.toMatchObject({ status: 422, message: expect.stringContaining('启用项目管理') })
+    expect(await client.get(task.id)).toEqual(followup)
+  })
+
+  it('requires both permissions only for a joint request and keeps that followup scope', async () => {
+    const client = createPreviewAssistantClient('joint-scope'), task = await client.create(taskInput())
+    const input = { ...question('结合知识库论文分析项目最新进展'), answerMode: 'auto' as const, context: '' }
+    await expect(client.send(task, { ...input, data_sources: ['projects'] })).rejects.toMatchObject({ status: 422, message: expect.stringContaining('启用知识库') })
+    const answered = await client.send(task, { ...input, data_sources: ['projects', 'knowledge'] })
+    expect(answered.messages.at(-1)).toMatchObject({ answerMode: 'application', usedSources: ['projects', 'knowledge'] })
+    await expect(client.send(answered, { ...question('继续'), answerMode: 'auto', data_sources: ['projects'], context: '' })).rejects.toMatchObject({ status: 422, message: expect.stringContaining('启用知识库') })
+    expect(await client.get(task.id)).toEqual(answered)
+  })
+
+  it('does not turn project questions into public web searches and honors explicit general restrictions', async () => {
+    const client = createPreviewAssistantClient('no-project-access'), task = await client.create(taskInput())
+    for (const answerMode of ['auto', 'web'] as const) await expect(client.send(task, { ...question('项目最新进展是什么'), answerMode, data_sources: [], context: '' })).rejects.toMatchObject({ status: 422, message: expect.stringContaining('启用项目管理') })
+    expect(await client.get(task.id)).toEqual(task)
+    const general = await client.send(task, { ...question('项目管理是什么？'), answerMode: 'general', data_sources: ['projects'], context: '' })
+    expect(general.messages.at(-1)).toMatchObject({ answerMode: 'general', usedSources: [] })
+    await expect(client.send(general, { ...question('项目目录'), answerMode: 'knowledge', data_sources: ['projects'], context: '' })).rejects.toMatchObject({ status: 422, message: expect.stringContaining('启用知识库') })
+  })
+
+  it('validates and normalizes source choices and rejects a replay whose permission scope changed', async () => {
+    const client = createPreviewAssistantClient('source-replay'), task = await client.create(taskInput())
+    const input = { ...question('项目列表'), answerMode: 'auto' as const, context: '', data_sources: ['projects', 'projects'] }
+    const answered = await client.send(task, input)
+    expect(answered.messages[0].dataSources).toEqual(['projects'])
+    expect(await client.send(task, { ...input, data_sources: ['projects'] })).toEqual(answered)
+    await expect(client.send(answered, { ...input, data_sources: ['projects', 'knowledge'] })).rejects.toMatchObject({ status: 409 })
+    for (const data_sources of [['unknown'], ['projects', 'knowledge', 'projects']]) await expect(client.send(answered, { ...question(), data_sources })).rejects.toMatchObject({ status: 422 })
+  })
+
+  it.each([
+    ['总结本轮资料中的最新结果', 'auto'],
+    ['整理附带的资料', 'auto'],
+    ['这份文档说明什么', 'auto'],
+    ['概括已上传的资料', 'auto'],
+    ['分析我提供的材料', 'auto'],
+    ['联网整理本轮资料的最新结论', 'web'],
+    ['不要联网，整理附件', 'auto'],
+    ['summarize the attached document', 'auto'],
+  ] as const)('analyzes current material without enabling application data: %s / %s', async (text, answerMode) => {
+    const client = createPreviewAssistantClient('provided-reference'), task = await client.create(taskInput())
+    const answered = await client.send(task, { ...question(text), context: 'private-attachment-marker', answerMode, data_sources: [] })
+    const answer = answered.messages.at(-1)!
+    expect(answer).toMatchObject({ answerMode: 'general', requestedMode: answerMode, webReferences: [] })
+    expect(answer.modeReason).toContain('本轮提供的资料')
+    expect(answer.modeReason).toContain('不将资料发送到联网搜索')
+    expect(answered.messages[0].context).toBe('private-attachment-marker')
+    expect(answer.content).toContain('本轮已附带用户提供的资料')
+  })
+
+  it.each([
+    ['总结本轮资料中的最新结果', '', 'auto'],
+    ['整理已上传的资料', '  ', 'web'],
+    ['总结知识库中的这份资料', 'user-provided', 'auto'],
+    ['总结内部系统附带资料', 'user-provided', 'web'],
+    ['总结这份资料', 'user-provided', 'knowledge'],
+  ] as const)('does not turn missing or explicit application material into web preview: %s / %s / %s', async (text, context, answerMode) => {
+    const client = createPreviewAssistantClient('missing-reference'), task = await client.create(taskInput())
+    await expect(client.send(task, { ...question(text), context, answerMode, data_sources: [] })).rejects.toMatchObject({ status: 422, message: expect.stringContaining('启用知识库') })
+    expect(await client.get(task.id)).toEqual(task)
+  })
+
+  it('retains explicit knowledge scope and public questions when an attachment exists', async () => {
+    const client = createPreviewAssistantClient('explicit-reference'), task = await client.create(taskInput())
+    const knowledge = await client.send(task, { ...question('总结这份资料'), answerMode: 'knowledge', data_sources: ['knowledge'] })
+    expect(knowledge.messages.at(-1)).toMatchObject({ answerMode: 'knowledge', webReferences: [] })
+    const publicAnswer = await client.send(knowledge, { ...question('柿子脱涩最新学术进展'), answerMode: 'auto', data_sources: [] })
+    expect(publicAnswer.messages.at(-1)?.answerMode).toBe('web')
+    expect(publicAnswer.messages.at(-1)?.content).not.toContain('用户提供的阅读摘录')
+  })
+
   it('does not turn an unauthorized internal question into a public web search preview', async () => {
     const client = createPreviewAssistantClient('private-routing'), task = await client.create(taskInput())
     await expect(client.send(task, { ...question('公司内部资料的最新进展'), answerMode: 'auto', data_sources: [] })).rejects.toMatchObject({ status: 422, message: expect.stringContaining('启用知识库') })

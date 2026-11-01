@@ -61,6 +61,9 @@ class AssistantMessage(Base):
     web_references: Mapped[list] = mapped_column(
         JSON, nullable=False, default=list, server_default="[]"
     )
+    application_scope: Mapped[dict] = mapped_column(
+        JSON, nullable=False, default=dict, server_default="{}"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )

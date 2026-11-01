@@ -49,7 +49,7 @@ def capabilities(claims: dict = Depends(identity)):
 
 @router.get("/{task_id}")
 def detail(task_id: str, db: Session = Depends(get_db), claims: dict = Depends(identity)):
-    return service.detail(db, service.get_task(db, task_id, claims))
+    return service.detail(db, service.get_task(db, task_id, claims), claims)
 
 
 @router.put("/{task_id}")
