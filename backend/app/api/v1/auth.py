@@ -228,7 +228,9 @@ def callback(
             raise ValueError("invalid authorized party")
         resolve_identity(claims, db, bind=True)
         session_id = secrets.token_urlsafe(32)
-        expires = min(int(claims["exp"]), int(time.time()) + settings.IAM_SESSION_SECONDS)
+        from app.services.iam_sessions import create_session_payload
+
+        encrypted, expires = create_session_payload(tokens, claims, identity)
         # 每次成功登录都轮换本地会话。
         previous = request.cookies.get(SESSION_COOKIE)
         if previous:
@@ -237,7 +239,7 @@ def callback(
             IAMSession(
                 id=digest(session_id),
                 expires_at=expires,
-                tokens=seal({"access_token": access, "id_token": tokens["id_token"]}),
+                tokens=encrypted,
             )
         )
         db.commit()

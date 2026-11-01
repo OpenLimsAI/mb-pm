@@ -3,23 +3,18 @@
 演示身份头（DemoUser）与本地签发的 HS256 JWT 均已移除，一律返回 401。
 """
 
-import time
 from urllib.parse import urlsplit
 
-from cryptography.fernet import InvalidToken
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.security import (
-    SESSION_COOKIE,
     decode_access_token,
-    digest,
     resolve_identity,
-    unseal,
 )
 from app.db.session import get_db
-from app.models import IAMSession, User
+from app.models import User
 from app.services import password_policy
 
 
@@ -39,16 +34,18 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "请使用 IAM 登录，演示身份头已禁用")
         token = authorization[7:].strip()
     else:
-        session_id = request.cookies.get(SESSION_COOKIE, "")
-        session = db.get(IAMSession, digest(session_id)) if session_id else None
-        if not session or session.expires_at <= int(time.time()):
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "请先登录 IAM")
+        if not request.cookies.get("mbpm_iam_session"):
+            from app.core.auth_logging import auth_failure
+
+            raise auth_failure(request, "session_missing", "请先登录 IAM")
         if request.method not in {"GET", "HEAD", "OPTIONS"}:
             require_same_origin(request)
-        try:
-            token = unseal(session.tokens)["access_token"]
-        except (InvalidToken, ValueError, KeyError) as exc:
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "登录会话已失效") from exc
+        from app.services.iam_sessions import session_claims
+
+        claims = session_claims(request, db)
+        user = resolve_identity(claims, db)
+        password_policy.enforce(db, claims["sub"], request.url.path)
+        return user
     # 每次请求都重新验签并校验组织 / 账号启用状态；须先改临时密码的账号只放行改密 / 查询身份 / 退出。
     claims = decode_access_token(token)
     from app.services.oidc_logout import ensure_not_revoked

@@ -1,8 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom'
 import { ArrowRight, BookOpen, Eye, EyeOff, FolderKanban, Loader2, LockKeyhole, LogOut, ShieldCheck, UserRound } from 'lucide-react'
 import { USE_API } from '../api/client'
-import { hasIamSession, IamUnreachable, LoginRejected, NeedsIamPage, signInWithPassword, signInWithSession, startLogin } from '../api/iamLogin'
+import { hasIamSession, IamUnreachable, LoginRejected, NeedsIamPage, signInWithPassword, signInWithSession, startLogin, type IamSessionState } from '../api/iamLogin'
 import { useAuth } from '../store/auth'
 import { usePortal } from '../store/portal'
 import { loginUsesProjectSession, safeReturnPath, siteMode, workspaceUrl } from '../lib/site'
@@ -26,6 +26,7 @@ export default function Login() {
   const [params] = useSearchParams()
   const errorCode = params.get('error') ?? ''
   const localLogout = params.get('local') === '1'
+  const signedOut = params.get('signed_out') === '1'
   const localProject = localLogout && params.get('app') === 'pm'
   const [error, setError] = useState<string | undefined>(errors[errorCode])
   const [pending, setPending] = useState(false)
@@ -34,7 +35,11 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [autoSignin, setAutoSignin] = useState(true)
   // 浏览器里已有 IAM 登录会话（如刚在项目管理登录过）：直接单点登录，不再要求输入密码
-  const [ssoRedirect, setSsoRedirect] = useState(false)
+  const [ssoRedirectKey, setSsoRedirectKey] = useState<string | null>(null)
+  const [ssoIssueFor, setSsoIssueFor] = useState<{ key: string; message: string }>()
+  const [ssoRetry, setSsoRetry] = useState(0)
+  const ssoProbe = useRef<{ key: string; task: Promise<IamSessionState> } | null>(null)
+  const authStarting = useRef<symbol | null>(null)
   const from = (location.state as { from?: unknown } | null)?.from
   const returnTo = safeReturnPath(from, localProject || siteMode === 'pm' ? '/dashboard' : '/')
   // 本地组合预览兼容 PM 深链接；www 只使用门户会话，pm 只使用业务会话。
@@ -49,33 +54,82 @@ export default function Login() {
   }, [refresh])
 
   const kind = isProjectReturn ? 'pm' : 'portal'
+  const ssoAttemptKey = `mb-iam-auto-attempt:${kind}`
+  const ssoContextKey = `${location.key}:${kind}:${returnTo}:${errorCode}:${localLogout}:${signedOut}:${ssoRetry}`
+  const ssoRedirect = ssoRedirectKey === ssoContextKey
+  const ssoIssue = ssoIssueFor?.key === ssoContextKey ? ssoIssueFor.message : undefined
   useEffect(() => {
-    // 登录出错回到本页时（?error=）不自动登录，避免反复跳转
-    if (!USE_API || status !== 'anonymous' || errorCode || localLogout) return
+    // Explicit sign-out and callback errors must never start an automatic login loop.
+    if (!USE_API || status !== 'anonymous' || errorCode || localLogout || signedOut) return
     let active = true
-    void hasIamSession(kind).then(async (signedIn) => {
-      if (!active || !signedIn) return
-      setSsoRedirect(true)
+    const operation = Symbol('automatic-sso')
+    const key = ssoContextKey
+    const issue = (message: string) => setSsoIssueFor({ key, message })
+    if (ssoProbe.current?.key !== key) {
+      ssoProbe.current = { key, task: hasIamSession(kind) }
+    }
+    void ssoProbe.current.task.then(async (session) => {
+      if (!active || authStarting.current || session === 'anonymous') return
+      if (session !== 'authenticated') {
+        issue('暂时无法确认统一身份登录状态。可以重试检查，或打开统一身份平台恢复登录。')
+        return
+      }
       try {
-        // 单点登录：用 IAM 会话直接换授权码，再走原有回调；失败时照常显示登录表单
-        window.location.assign(await signInWithSession(await startLogin(kind, returnTo)))
+        const previous = Number(sessionStorage.getItem(ssoAttemptKey) || 0)
+        if (previous > Date.now() - 60000) {
+          issue('刚才的自动登录未能恢复工作空间，请重试检查或打开统一身份平台。')
+          return
+        }
+        sessionStorage.setItem(ssoAttemptKey, String(Date.now()))
       } catch {
-        if (active) setSsoRedirect(false)
+        issue('浏览器暂时无法保存自动登录状态，已停止自动跳转。请打开统一身份平台继续登录。')
+        return
+      }
+      authStarting.current = operation
+      setSsoRedirectKey(key)
+      try {
+        const start = await startLogin(kind, returnTo)
+        if (!active) return
+        const callback = await signInWithSession(start)
+        if (active) window.location.assign(callback)
+      } catch {
+        if (active && authStarting.current === operation) {
+          authStarting.current = null
+          setSsoRedirectKey(null)
+          issue('统一身份登录尚在，但自动恢复未完成。请重试检查，或打开统一身份平台继续。')
+        }
       }
     })
-    return () => { active = false }
-  }, [status, errorCode, localLogout, kind, returnTo])
+    return () => {
+      active = false
+      // Cancel this generation only. A late provider reply cannot reset a newer
+      // login attempt, and unmount cleanup never writes React state.
+      if (authStarting.current === operation) authStarting.current = null
+    }
+  }, [status, errorCode, localLogout, signedOut, kind, returnTo, ssoContextKey, ssoAttemptKey])
 
-  if (status === 'ready' && !errorCode && !localLogout) return <Navigate to={returnTo} replace />
+  if (status === 'ready' && !errorCode && !localLogout && !signedOut) return <Navigate to={returnTo} replace />
+
+  function retrySso() {
+    try { sessionStorage.removeItem(ssoAttemptKey) } catch { /* Optional redirect loop guard. */ }
+    setSsoIssueFor(undefined); setSsoRetry(value => value + 1)
+  }
+  async function recoverAtIam() {
+    authStarting.current = Symbol('manual-sso')
+    setPending(true)
+    try { await login(returnTo) }
+    catch { authStarting.current = null; setError('暂时无法打开统一身份平台，请稍后重试。'); setPending(false) }
+  }
 
   // 用户名 / 密码直接在这里登录（提交到迈博 IAM，不经过本系统后端），不再跳到 IAM 登录页面
   const handleLogin = async (event: FormEvent) => {
     event.preventDefault()
     const name = username.trim()
-    if (!name || !password || pending || ssoRedirect) {
+    if (!name || !password || pending || ssoRedirect || authStarting.current) {
       setError(!name ? '请输入用户名。' : !password ? '请输入密码。' : undefined)
       return
     }
+    authStarting.current = Symbol('password-login')
     setPending(true)
     setError(undefined)
     try {
@@ -85,15 +139,18 @@ export default function Login() {
       if (err instanceof LoginRejected) {
         setError(err.message)
         setPassword('')
+        authStarting.current = null
         setPending(false)
       } else if (err instanceof IamUnreachable || err instanceof NeedsIamPage) {
         // 浏览器连不上 IAM（网络或跨域策略），或还需在 IAM 完成两步验证等步骤：改为跳转 IAM 登录页，保证仍能登录
         setError(err instanceof NeedsIamPage ? '需要在迈博统一身份平台完成验证，正在打开…' : '暂时无法在此页面完成登录，正在打开迈博统一身份登录页…')
         await login(returnTo).catch(() => {
           setError('暂时无法连接登录服务，请稍后重试。')
+          authStarting.current = null
           setPending(false)
         })
       } else {
+        authStarting.current = null
         setError('暂时无法连接登录服务，请稍后重试。')
         setPending(false)
       }
@@ -141,6 +198,7 @@ export default function Login() {
             <div className="mb-login-card-eyebrow">欢迎使用迈博工作空间</div>
             <h2 id="mb-login-title">登录，开启今天的工作</h2>
             <p className="mb-login-card-description">{isProjectReturn ? '登录后进入项目管理，继续您的工作。' : <>登录后选择项目管理或知识库，<br />继续您的工作。</>}</p>
+            {ssoIssue && <div className="mb-login-identity-note" role="status"><div><p>{ssoIssue}</p><div className="mt-2 flex flex-wrap gap-3"><button type="button" className="underline" disabled={pending || ssoRedirect} onClick={retrySso}>重试登录检查</button><button type="button" className="underline" disabled={pending || ssoRedirect} onClick={() => { void recoverAtIam() }}>打开统一身份平台</button></div></div></div>}
             <form className="mb-login-form" onSubmit={handleLogin} noValidate aria-describedby="mb-login-identity-note">
               <p id="mb-login-identity-note" className="mb-login-identity-note"><ShieldCheck size={15} aria-hidden="true" />迈博统一身份登录 · 使用迈博员工账号</p>
               <div className="mb-login-field">

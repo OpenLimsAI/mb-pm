@@ -41,7 +41,9 @@ def ensure_not_revoked(db: Session, claims: dict, audience: str):
     if audience == settings.MDM_DELEGATION_CLIENT_ID:
         audiences.update({settings.CASDOOR_CLIENT_ID, settings.portal_client_id})
     markers = db.scalars(
-        select(OIDCRevocation).where(
+        select(OIDCRevocation)
+        .execution_options(populate_existing=True)
+        .where(
             OIDCRevocation.issuer == settings.casdoor_issuer,
             OIDCRevocation.audience.in_(audiences),
             or_(OIDCRevocation.subject == subject, OIDCRevocation.subject == ""),
@@ -228,7 +230,11 @@ def global_logout(request: Request, db: Session, *, portal: bool = False):
     cookie = PORTAL_SESSION_COOKIE if portal else SESSION_COOKIE
     model = PortalSession if portal else IAMSession
     identifier = request.cookies.get(cookie, "")
-    session = db.get(model, digest(identifier)) if identifier else None
+    session = (
+        db.scalar(select(model).where(model.id == digest(identifier)).with_for_update())
+        if identifier
+        else None
+    )
     succeeded = False
     claims = None
     if session:
@@ -237,6 +243,7 @@ def global_logout(request: Request, db: Session, *, portal: bool = False):
             audience = settings.portal_client_id if portal else settings.CASDOOR_CLIENT_ID
             claims = decode_access_token(
                 access,
+                allow_expired=True,  # Also revoke the subject of an expired renewable session.
                 audience=audience,
                 jwks_url=settings.PORTAL_JWKS_URL or None if portal else None,
             )
@@ -280,7 +287,7 @@ def global_logout(request: Request, db: Session, *, portal: bool = False):
     if succeeded:
         # SsoLogout already destroyed the provider's server sessions. Casdoor's
         # subsequent cookie-less /api/logout returns JSON instead of redirecting.
-        destination = origin + "/login"
+        destination = origin + "/login?signed_out=1"
     else:
         destination = origin + "/login?error=logout_incomplete"
     response = RedirectResponse(destination, 303)

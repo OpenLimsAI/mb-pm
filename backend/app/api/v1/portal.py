@@ -309,11 +309,9 @@ def handle_callback(request: Request, code: str, state: str, error: str, db: Ses
             if verified.get("azp", settings.portal_client_id) != settings.portal_client_id:
                 raise ValueError("invalid authorized party")
         validate_identity(claims)
-        expires = min(
-            int(claims["exp"]),
-            int(identity["exp"]),
-            int(time.time()) + settings.IAM_SESSION_SECONDS,
-        )
+        from app.services.iam_sessions import create_session_payload
+
+        encrypted, expires = create_session_payload(tokens, claims, identity)
         if expires <= int(time.time()):
             raise ValueError("expired token")
         session_id = secrets.token_urlsafe(32)
@@ -324,7 +322,7 @@ def handle_callback(request: Request, code: str, state: str, error: str, db: Ses
             PortalSession(
                 id=digest(session_id),
                 expires_at=expires,
-                tokens=seal({"access_token": access, "id_token": tokens["id_token"]}),
+                tokens=encrypted,
             )
         )
         db.commit()
@@ -354,21 +352,9 @@ def callback(
 def session_claims(request: Request, db: Session) -> dict:
     """当前门户会话的已验签令牌声明；同时重新校验组织与账号状态。"""
     require_configuration()
-    session_id = request.cookies.get(PORTAL_SESSION_COOKIE, "")
-    session = db.get(PortalSession, digest(session_id)) if session_id else None
-    if not session or session.expires_at <= int(time.time()):
-        raise HTTPException(401, "请先登录迈博工作台")
-    try:
-        access = unseal(session.tokens)["access_token"]
-        claims = decode_portal_token(access)
-    except (InvalidToken, ValueError, KeyError, TypeError) as exc:
-        raise HTTPException(401, "登录会话已失效") from exc
-    from app.services.oidc_logout import ensure_not_revoked
+    from app.services.iam_sessions import session_claims as renewable_claims
 
-    ensure_not_revoked(db, claims, settings.portal_client_id)
-    from app.services.oidc_status import ensure_active_token
-
-    ensure_active_token(access, claims, expected_audience=settings.portal_client_id, portal=True)
+    claims = renewable_claims(request, db, portal=True)
     validate_identity(claims)
     return claims
 

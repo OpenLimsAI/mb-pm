@@ -67,7 +67,14 @@ def change_username(payload: UsernameChange, request: Request, db: Session = Dep
         db, claims["sub"], payload.new_username, payload.current_password
     )
     # 登录令牌里的用户名要到下次登录才更新：记在本会话里，门户显示新用户名（未绑定项目管理成员时用到）
-    session = db.get(PortalSession, digest(request.cookies.get(PORTAL_SESSION_COOKIE, "")))
+    from sqlalchemy import select
+
+    session = db.scalar(
+        select(PortalSession)
+        .where(PortalSession.id == digest(request.cookies.get(PORTAL_SESSION_COOKIE, "")))
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     if session is not None:
         session.tokens = seal({**session_data(request, db), "username": payload.new_username})
         db.commit()
