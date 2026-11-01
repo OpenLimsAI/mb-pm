@@ -56,6 +56,7 @@ jobs:
   backend-tests:
     name: 后端 · pytest（PostgreSQL · 硬护栏）
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     services:
       postgres:
         image: postgres:16-alpine
@@ -82,7 +83,7 @@ jobs:
         run: pip install -r requirements-dev.txt
       - name: pytest
         working-directory: backend
-        run: python -m pytest tests/ -v --cov=app.services.accounts --cov=app.schemas.accounts --cov=app.api.v1.accounts --cov=app.api.v1.portal --cov-branch --cov-fail-under=90 --cov-report=term-missing --cov-report=json:coverage.json
+        run: timeout --signal=KILL 300s python -m pytest tests/ -v -o faulthandler_timeout=60 --cov=app.services.accounts --cov=app.schemas.accounts --cov=app.api.v1.accounts --cov=app.api.v1.portal --cov-branch --cov-fail-under=90 --cov-report=term-missing --cov-report=json:coverage.json
 
   # ───────── 硬护栏 4：Docker 镜像可构建 ─────────
   docker:

@@ -218,6 +218,8 @@ GitHub Actions 检查前端账号权限覆盖率、门户路由及构建、后�
 
 ## 自动问答与联网预览
 
+后端 PostgreSQL CI 的 pytest 最长执行 300 秒，单项超过 60 秒输出线程堆栈，整项作业最长 10 分钟；超时作为失败保留日志，不跳过检查或降低覆盖率门槛。
+
 启动前端后打开 `/assistant?preview=1` 或 `/solutions?preview=1`，保留原有预览存储。默认 Auto，可分别尝试「什么是缓冲液」「总结柿子脱涩的最新研究进展」「知识库有哪些论文」，检查实际方式标记及高级范围限制。模拟联网回答逐轮显示「界面演示 · 未实际联网」，不代表科学结论或真实搜索结果。正式配置与未配置提示见[搜索说明](assistant-auto-search.md)。
 
 回归入口：`npm test -- src/features/answerModes src/features/assistant src/features/solutions src/pages/Assistant.test.tsx`；后端新增 `tests/test_assistant_answer_modes.py` 和 `tests/test_retrieval_quality.py`，并运行现有助手、报告与迁移测试。使用请求替身验证搜索错误、私有数据不发送至搜索、合法来源与报告采纳，不使用真实付费接口。上线仍需备份和迁移 `014`；本轮不部署生产。
