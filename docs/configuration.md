@@ -127,7 +127,15 @@ PM 回调为 `https://pm.openlims.ai/api/v1/auth/callback`，登出回跳为 `ht
 
 ## 信息获取
 
+### 知识源
+
+新 `/knowledge-sources` 使用 `KNOWLEDGE_SOURCE_APP_ENABLED=true`；手动下载后台由 `KNOWLEDGE_SOURCE_WORKER_ENABLED` 控制，默认 `false`，生产发布时显式启用。复用原 `INFORMATION_KB_URL`、`INFORMATION_KB_SECRET` 和原文共享卷，不修改 Core 令牌。旧 `INFORMATION_APP_ENABLED=false` 必须保持，新后台只运行带知识源 app 标识的显式任务，不恢复旧监控。完整 Core 文献阅读仍需实时 KB 角色，文件夹整理需 `kb_manager`；`admin` 的 ICH 公开收录委托不扩大为全库权限。见[知识源](knowledge-sources.md)。
+
 旧「行业信息」下线，总开关 `INFORMATION_APP_ENABLED` 默认 `false`。即使旧环境仍配置 `INFORMATION_WORKER_ENABLED=true`，关闭总开关也不会启动或执行采集，已登录的信息管理接口返回 410；既有原文下载保留原会话、实时 IAM、租户与版本授权；不删除或重写历史任务和原文。不要为查看新 UI 重新启用旧服务。生产部署须明确保留该关闭状态。
+
+### 已下线历史实现（仅保留参考）
+
+以下为旧接口历史配置，不作为新知识源启用步骤。
 
 有效门户成员可浏览和订阅；系统管理员（`admin`）与知识库负责人（`kb_manager`）可管理来源、检查、收录及重试，后台每步实时核对 IAM。不会因此创建 PM 成员或授予普通知识库上传权限。
 

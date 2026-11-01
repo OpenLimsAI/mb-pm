@@ -23,6 +23,7 @@ from app.api.v1 import (
     feedback,
     finances,
     information,
+    knowledge_sources,
     mdm_integration,
     notes,
     portal,
@@ -190,6 +191,13 @@ async def lifespan(_: FastAPI):
 
         worker = start_worker()
     notes_worker = None
+    knowledge_source_worker = None
+    if settings.KNOWLEDGE_SOURCE_APP_ENABLED and settings.KNOWLEDGE_SOURCE_WORKER_ENABLED:
+        from app.services.knowledge_source_worker import (
+            start_worker as start_knowledge_source_worker,
+        )
+
+        knowledge_source_worker = start_knowledge_source_worker()
     if settings.NOTES_WISDOM_WORKER_ENABLED:
         from app.services.note_sync import start_worker
 
@@ -197,6 +205,9 @@ async def lifespan(_: FastAPI):
     try:
         yield
     finally:
+        if knowledge_source_worker:
+            knowledge_source_worker[0].set()
+            knowledge_source_worker[1].join(timeout=5)
         if notes_worker:
             notes_worker[0].set()
             notes_worker[1].join(timeout=5)
@@ -275,6 +286,7 @@ app.include_router(portal.router, prefix=API_PREFIX)
 app.include_router(feedback.router, prefix=API_PREFIX)
 app.include_router(portal_settings.router, prefix=API_PREFIX)
 app.include_router(information.router, prefix=API_PREFIX)
+app.include_router(knowledge_sources.router, prefix=API_PREFIX)
 app.include_router(notes.router, prefix=API_PREFIX)
 app.include_router(assistant.router, prefix=API_PREFIX)
 app.include_router(accounts.router, prefix=API_PREFIX)

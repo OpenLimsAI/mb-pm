@@ -47,7 +47,7 @@ describe('workspace application entries', () => {
     const intelligence = screen.getByRole('region', { name: 'AI 智能版块' })
     expect(within(intelligence).getByRole('link', { name: '进入AI 助手' })).toHaveAttribute('href', '/assistant?preview=1')
     const knowledge = screen.getByRole('region', { name: '知识信息版块' })
-    expect(within(knowledge).getAllByRole('heading', { level: 3 }).map(element => element.textContent)).toEqual(['研究报告', '我的笔记', '知识库'])
+    expect(within(knowledge).getAllByRole('heading', { level: 3 }).map(element => element.textContent)).toEqual(['知识源', '研究报告', '我的笔记', '知识库'])
     const business = screen.getByRole('region', { name: '业务管理版块' })
     expect(within(business).getAllByRole('heading', { level: 3 }).map(element => element.textContent)).toEqual(['项目管理', '回音壁', '人力资源'])
     expect(within(business).getByRole('article', { name: '人力资源' })).toHaveTextContent('待开发')

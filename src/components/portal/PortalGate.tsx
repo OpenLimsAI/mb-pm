@@ -22,7 +22,7 @@ export default function PortalGate() {
 
   if (preview) return <Outlet context={{
     user: { id: 'preview', username: 'preview', displayName: '同事' },
-    applications: [{ id: 'pm', enabled: true }, { id: 'kb', enabled: true }, { id: 'information', enabled: true }, { id: 'solutions', enabled: true }, { id: 'feedback', enabled: true }, { id: 'notes', enabled: true }, { id: 'assistant', enabled: true }],
+    applications: [{ id: 'knowledge-sources', enabled: true }, { id: 'pm', enabled: true }, { id: 'kb', enabled: true }, { id: 'information', enabled: true }, { id: 'solutions', enabled: true }, { id: 'feedback', enabled: true }, { id: 'notes', enabled: true }, { id: 'assistant', enabled: true }],
     preview: true, refresh: async () => {}, logout: () => {},
   } satisfies PortalContext} />
   if (!USE_API || status === 'anonymous') return <Navigate to="/login" state={{ from: location.pathname + location.search + location.hash }} replace />

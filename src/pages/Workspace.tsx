@@ -13,7 +13,7 @@ export interface WorkspaceUser {
 }
 
 export interface WorkspaceApplication {
-  id: 'pm' | 'kb' | 'information' | 'solutions' | 'notes' | 'accounts' | 'assistant' | 'feedback' | 'mdm'
+  id: 'pm' | 'kb' | 'information' | 'knowledge-sources' | 'solutions' | 'notes' | 'accounts' | 'assistant' | 'feedback' | 'mdm'
   enabled: boolean
   reason?: string
 }
@@ -46,6 +46,7 @@ const assistantApps: readonly ApplicationPresentation[] = [
   { id: 'assistant', accessId: 'assistant', name: 'AI 助手', englishName: 'AI ASSISTANT', description: '围绕一个任务展开对话，带上资料与上下文，让问题、讨论和成果在同一个工作空间里连接起来。', domain: '任务 · 对话 · 产物', href: '/assistant', previewHref: '/assistant?preview=1', kind: 'assistant', features: ['独立任务对话', '资料与上下文', '结果与产物'] },
 ]
 const knowledgeApps: readonly ApplicationPresentation[] = [
+  { id: 'knowledge-sources', accessId: 'knowledge-sources', name: '知识源', englishName: 'KNOWLEDGE SOURCES', description: '统一整理知识库论文，按文件夹分类，从 ICH 等已适配来源下载原文并归档。', domain: '论文 · 文件夹 · 来源下载', href: '/knowledge-sources', previewHref: '/knowledge-sources?preview=1', kind: 'information', features: ['全部论文', '文件夹整理', '来源下载'] },
   { id: 'solutions', accessId: 'solutions', name: '研究报告', englishName: 'RESEARCH REPORTS', description: '在写作中查阅知识、追问依据，把论文、实践与专家判断写成可追溯的研究报告。', domain: '研究 · 论证 · 撰写', href: '/launch/solutions', previewHref: '/solutions?preview=1', kind: 'solutions', features: ['报告撰写', '知识与 AI', '引用与版本'] },
   { id: 'notes', name: '我的笔记', englishName: 'MY NOTES', description: '整理阅读笔记、研究观察与写作灵感，让每一次思考都有迹可循。', domain: '阅读 · 记录 · 整理', href: '/notes', previewHref: '/notes?preview=1', kind: 'notes', features: ['个人笔记', '阅读摘录', '思考整理'] },
   { id: 'kb', accessId: 'kb', name: '知识库', englishName: 'KNOWLEDGE BASE', description: '连接团队的知识与经验，让需要的信息更容易找到，让积累持续产生价值。', domain: new URL(knowledgeLaunchUrl).host, href: '/launch/kb', previewHref: knowledgeLaunchUrl + '?preview=1', kind: 'knowledge', features: ['知识检索', '内容阅读', '经验沉淀'] },

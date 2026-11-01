@@ -179,6 +179,11 @@ def applications(claims: dict, db: Session) -> list[PortalApplicationOut]:
             if settings.INFORMATION_APP_ENABLED
             else "行业信息已下线，知识源正在重新设计",
         ),
+        PortalApplicationOut(
+            id="knowledge-sources",
+            enabled=settings.KNOWLEDGE_SOURCE_APP_ENABLED,
+            reason=None if settings.KNOWLEDGE_SOURCE_APP_ENABLED else "知识源暂未开通",
+        ),
         # 方案应用面向组织成员；方案所有权与知识来源权限由其接口独立检查。
         PortalApplicationOut(id="solutions", enabled=True),
         PortalApplicationOut(id="feedback", enabled=True),
