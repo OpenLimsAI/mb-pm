@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { API_BASE, camelize, snakeize } from '../../api/client'
 
-export type ModelProvider = 'deepseek' | 'minimax' | 'glm' | 'openai' | 'custom'
+export type ModelProvider = 'deepseek' | 'minimax' | 'kimi' | 'glm' | 'openai' | 'custom'
 export interface ModelProfile { id: string; name: string; provider: ModelProvider; baseUrl: string; model: string; keySet: boolean }
 export interface ModelSettings { profiles: ModelProfile[]; defaultProfileId: string | null; revision: number }
 export interface ModelProfileDraft extends Omit<ModelProfile, 'keySet'> { apiKey?: string; clearKey?: boolean }
@@ -11,8 +11,8 @@ export interface ModelTestResult { ok: boolean; model: string; ms: number }
 export interface ModelSettingsClient { get(): Promise<ModelSettings>; save(input: ModelSettingsInput): Promise<ModelSettings>; test(profile: ModelProfileDraft): Promise<ModelTestResult> }
 
 export const MAX_MODEL_PROFILES = 20
-export const modelProviderLabels: Record<ModelProvider, string> = { deepseek: 'DeepSeek', minimax: 'MiniMax', glm: '智谱 GLM', openai: 'OpenAI', custom: '自定义 / OpenAI 兼容' }
-export const modelProviderEndpoints: Record<ModelProvider, string> = { deepseek: 'https://api.deepseek.com', minimax: 'https://api.minimax.io/v1', glm: 'https://open.bigmodel.cn/api/paas/v4', openai: 'https://api.openai.com/v1', custom: '' }
+export const modelProviderLabels: Record<ModelProvider, string> = { deepseek: 'DeepSeek', minimax: 'MiniMax', kimi: 'Kimi / 月之暗面', glm: '智谱 GLM', openai: 'OpenAI', custom: '自定义 / OpenAI 兼容' }
+export const modelProviderEndpoints: Record<ModelProvider, string> = { deepseek: 'https://api.deepseek.com', minimax: 'https://api.minimax.io/v1', kimi: 'https://api.moonshot.cn/v1', glm: 'https://open.bigmodel.cn/api/paas/v4', openai: 'https://api.openai.com/v1', custom: '' }
 const providers = Object.keys(modelProviderLabels) as ModelProvider[]
 const emptySettings = (): ModelSettings => ({ profiles: [], defaultProfileId: null, revision: 0 })
 

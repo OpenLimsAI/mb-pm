@@ -1,0 +1,14 @@
+.model-price-picker { margin: 12px 0; min-width: 0; color: #3b5265; font-size: 12px; }
+.model-price-preset { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; font-size: 13px; }
+.model-price-preset select { width: 100%; min-width: 0; min-height: 38px; border: 1px solid #cbd9e4; border-radius: 6px; background: #fff; color: #23486f; padding: 7px 9px; }
+.model-price-info { border: 1px solid #d7e3ec; border-radius: 8px; background: #f6f9fc; padding: 12px; }
+.model-price-title { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; color: #23486f; }
+.model-price-title strong { overflow-wrap: anywhere; }
+.model-price-scroll { overflow-x: auto; margin-top: 8px; }
+.model-price-info table { width: 100%; border-collapse: collapse; text-align: left; font-size: 12px; }
+.model-price-info caption { padding: 0 0 8px; text-align: left; font-size: 11px; color: #657c8f; }
+.model-price-info th, .model-price-info td { padding: 8px; border-bottom: 1px solid #dce6ed; white-space: nowrap; }
+.model-price-info thead { background: #eaf1f7; }
+.model-price-info p { margin: 8px 0 0; line-height: 1.65; }
+.model-price-info a { color: #23486f; text-decoration: underline; }
+.model-price-source, .model-price-disclaimer { color: #6b7e8d; font-size: 11px; }
