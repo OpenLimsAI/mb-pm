@@ -363,7 +363,9 @@ def test_pagination_and_literal_search(assistant_client):
     assert f.client.get(PREFIX, params={"offset": 10**30}).status_code == 422
 
 
-@pytest.mark.parametrize("result", ["", "  ", "字" * 80001, None])
+@pytest.mark.parametrize(
+    "result", ["", "  ", "字" * 80001, None], ids=["empty", "blank", "oversized", "null"]
+)
 def test_invalid_model_reply_is_not_persisted(assistant_client, monkeypatch, result):
     f = assistant_client
     task = create(f)

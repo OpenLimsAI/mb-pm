@@ -181,6 +181,17 @@ def test_unsafe_citation_urls_rejected(url):
         (200, b"x" * 1000001, "web_invalid_response"),
         (200, None, "web_no_results"),
     ],
+    # Keep verbose CI test names bounded: the oversized body must never become a node ID.
+    ids=[
+        "unauthorized",
+        "forbidden",
+        "rate-limited",
+        "redirect",
+        "upstream-error",
+        "invalid-json",
+        "oversized-response",
+        "no-results",
+    ],
 )
 def test_search_dependency_errors_are_distinct_and_sanitized(monkeypatch, status, body, code):
     enable_search(monkeypatch)

@@ -124,7 +124,7 @@ def test_other_account_missing_model_and_frozen_report(solution_client, monkeypa
     assert polish(f, report).status_code == 409
 
 
-@pytest.mark.parametrize("result", ["", "a" * 16001, None])
+@pytest.mark.parametrize("result", ["", "a" * 16001, None], ids=["empty", "oversized", "null"])
 def test_invalid_provider_result_or_failure_keeps_original(solution_client, monkeypatch, result):
     f = solution_client
     report = create(f)
