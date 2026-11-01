@@ -27,9 +27,9 @@ export default function PortalSettings() {
         <section className="portal-panel" aria-labelledby="portal-access-title">
           <h2 id="portal-access-title">应用访问</h2><p className="portal-secondary-copy">应用内的项目、数据与操作权限由各应用继续验证。</p>
           <ul className="portal-access-list">
-            {(['assistant', 'pm', 'kb', 'information', 'solutions', 'notes'] as const).map((id) => {
+            {(['assistant', 'pm', 'kb', 'solutions', 'notes'] as const).map((id) => {
               const access = applications.find((app) => app.id === id)
-              return <li key={id}><div><strong>{id === 'assistant' ? 'AI 助手' : id === 'notes' ? '我的笔记' : id === 'solutions' ? '研究报告' : id === 'information' ? '行业信息' : id === 'pm' ? '项目管理' : '知识库'}</strong><span>{access?.enabled ? (id === 'information' ? '可体验界面，真实采集尚未接入' : '已开通应用入口') : access?.reason || '请联系管理员开通'}</span></div><span className={access?.enabled ? 'portal-access-status' : 'portal-access-status portal-access-status--pending'}>{access?.enabled ? '已开通' : '待开通'}</span></li>
+              return <li key={id}><div><strong>{id === 'assistant' ? 'AI 助手' : id === 'notes' ? '我的笔记' : id === 'solutions' ? '研究报告' : id === 'pm' ? '项目管理' : '知识库'}</strong><span>{access?.enabled ? '已开通应用入口' : access?.reason || '请联系管理员开通'}</span></div><span className={access?.enabled ? 'portal-access-status' : 'portal-access-status portal-access-status--pending'}>{access?.enabled ? '已开通' : '待开通'}</span></li>
             })}
           </ul>
           <Link className="portal-text-link" to={'/' + (preview ? '?preview=1' : '')}>返回工作台</Link>

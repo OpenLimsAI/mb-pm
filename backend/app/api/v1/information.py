@@ -75,6 +75,12 @@ class Preferences(Input):
 def principal(request: Request, db: Annotated[Session, Depends(get_db)]):
     claims = session_claims(request, db)
     password_policy.enforce(db, claims["sub"], request.url.path)
+    # Existing KB papers retain protected links to these immutable originals.
+    archived_original = (
+        request.method == "GET" and getattr(request.scope.get("route"), "name", None) == "original"
+    )
+    if not settings.INFORMATION_APP_ENABLED and not archived_original:
+        raise HTTPException(410, "行业信息已下线，知识源正在重新设计；已有资料保留")
     try:
         account = active_account(claims["sub"])
     except IAMError as exc:
