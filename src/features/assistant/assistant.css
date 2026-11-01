@@ -77,7 +77,9 @@
 .aa-turn-number { display: inline-flex; flex-shrink: 0; padding: 2px 10px; border: 1px solid #bed5e5; border-radius: 999px; color: #2c5775; background: #e2eef6; font-size: 11px; font-weight: 600; line-height: 1.8; }
 .aa-turn-header time { min-width: 0; max-width: 100%; color: #6b8496; font-size: 10px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .aa-message { min-width: 0; margin: 0; padding: 20px; }
-.aa-user-message { border-bottom: 1px solid #d8e6f0; border-left: 3px solid #79a7c6; padding-left: 17px; background: #f0f6fb; }
+.aa-user-message { border-bottom: 1px solid #bfd4e5; border-left: 3px solid #3f7ca7; padding-left: 17px; background: #d6e7f5; }
+.aa-user-message .aa-message-overline strong { color: #244d6a; }
+.aa-user-message .aa-mini-avatar { color: #244d6a; background: #c0d8eb; }
 .aa-assistant-message { background: #fff; }
 .aa-assistant-message .aa-message-overline { margin-bottom: 16px; }
 .aa-message-overline { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
@@ -85,7 +87,7 @@
 .aa-bot-avatar { color: #087b9c; background: #e9f5f8; }
 .aa-message-overline strong { font-size: 11px; font-weight: 600; color: #42637a; }
 .aa-message-overline > span:last-child:not(:first-child) { min-width: 0; max-width: 60%; margin-left: auto; color: #6e8799; font-size: 10px; overflow-wrap: anywhere; }
-.aa-question-text { color: #2c4d64; font-size: 13px; font-weight: 500; line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; }
+.aa-question-text { color: #183f5d; font-size: 13px; font-weight: 500; line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; }
 .aa-context-details { margin-top: 7px; padding: 6px 9px; border: 1px solid #e6edf2; border-radius: 5px; color: #8da0ac; font-size: 10px; }
 .aa-context-details summary { display: flex; align-items: center; gap: 5px; cursor: pointer; }
 .aa-context-details pre, .aa-history-materials pre { max-height: 240px; overflow: auto; margin: 10px 0 0; padding: 10px; background: #f5f8fa; color: #627d8e; font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
