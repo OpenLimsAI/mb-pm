@@ -74,7 +74,7 @@ describe('research workspace survives authentication remounts', () => {
   })
 
   it('revalidates each selected source and blocks generation if the previous scope cannot be restored', async () => {
-    writeWorkspaceRecovery(scope, cached())
+    writeWorkspaceRecovery(scope, { ...cached(), projectFilter: '旧项目范围' })
     const client = mockClient()
     vi.mocked(client.getSource).mockRejectedValue(Object.assign(new Error('资料权限已撤销'), { status: 403 }))
     render(app(client))
@@ -86,6 +86,7 @@ describe('research workspace survives authentication remounts', () => {
     fireEvent.click(screen.getByRole('button', { name: '清除原范围，使用全部授权资料' }))
     expect(screen.getByRole('button', { name: '发送问题' })).toBeEnabled()
     expect(readWorkspaceRecovery(scope)?.selectedSourceIds).toEqual([])
+    expect(readWorkspaceRecovery(scope)?.projectFilter).toBe('')
   })
 
   it('keeps source restoration bounded and only uses freshly verified source ids', async () => {
@@ -102,6 +103,24 @@ describe('research workspace survives authentication remounts', () => {
     expect(client.ask).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: '发送问题' }))
     await waitFor(() => expect(client.ask).toHaveBeenCalledWith('r1', expect.objectContaining({ sourceIds: ['paper-1'] })))
+  })
+
+  it('preserves a legacy cached project scope without restoring the removed report-material controls', async () => {
+    writeWorkspaceRecovery(scope, { ...cached(), projectFilter: '旧项目范围' })
+    const client = mockClient()
+    render(app(client))
+    await screen.findByRole('textbox', { name: '向AI提问' })
+    await waitFor(() => expect(screen.getByRole('button', { name: '发送问题' })).toBeEnabled())
+    expect(screen.getByText('指定 1 份资料 · 限于旧项目范围')).toBeVisible()
+    expect(screen.queryByRole('textbox', { name: '搜索知识资料' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: '知识项目范围' })).not.toBeInTheDocument()
+    expect(client.sources).not.toHaveBeenCalled()
+    expect(client.ask).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '发送问题' }))
+    await waitFor(() => expect(client.ask).toHaveBeenCalledWith('r1', expect.objectContaining({ sourceIds: ['paper-1'], projectName: '旧项目范围' })))
+    fireEvent.click(screen.getByRole('button', { name: '清除原范围，使用全部授权资料' }))
+    expect(readWorkspaceRecovery(scope)?.projectFilter).toBe('')
+    expect(readWorkspaceRecovery(scope)?.selectedSourceIds).toEqual([])
   })
 
   it('does not restore another identity, expired workspaces, or reports without fresh editing rights', async () => {

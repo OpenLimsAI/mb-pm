@@ -20,7 +20,7 @@ function mockClient(initial = seed()) {
   }
   return client
 }
-async function mount(client: SolutionClient, userId = 'author') { render(<SolutionsApp client={client} userId={userId} userName="张研究员" preview />); await screen.findByRole('textbox', { name: '章节正文' }); fireEvent.click(screen.getByRole('tab', { name: '报告资料' })) }
+async function mount(client: SolutionClient, userId = 'author') { render(<SolutionsApp client={client} userId={userId} userName="张研究员" preview />); await screen.findByRole('textbox', { name: '章节正文' }) }
 beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-writing-mode', 'split'); sessionStorage.clear() })
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
@@ -56,12 +56,16 @@ describe('knowledge solution workspace', () => {
 
   it('fetches full knowledge text and requires confirmation before inserting with an undo', async () => {
     const client = mockClient(); await mount(client)
-    fireEvent.click(await screen.findByRole('button', { name: /研究资料甲.*查看原文/ }))
-    const sourceDialog = await screen.findByRole('dialog', { name: '知识资料 · 原文预览' })
-    expect(client.getSource).toHaveBeenCalledWith('paper-1', 'one')
-    expect(within(sourceDialog).getByText('原文中的研究条件与观察')).toBeInTheDocument()
-    fireEvent.click(within(sourceDialog).getByRole('button', { name: '引用到当前章节' }))
-    const confirmDialog = screen.getByRole('dialog', { name: '确认采纳 · 原文引用' })
+    const frame = screen.getByTitle('原知识库资料') as HTMLIFrameElement
+    const origin = new URL(frame.src).origin
+    act(() => {
+      window.dispatchEvent(new MessageEvent('message', {source:frame.contentWindow, origin, data:{type:'mberp:knowledge-library:ready',version:1,preview:true}}))
+      window.dispatchEvent(new MessageEvent('message', {source:frame.contentWindow, origin, data:{type:'mberp:knowledge-library:selection',version:1,path:'sources/paper.md',title:source.title}}))
+    })
+    fireEvent.click(screen.getByRole('button', { name: '引用到章节' }))
+    const confirmDialog = await screen.findByRole('dialog', { name: '确认采纳 · 原文引用' })
+    expect(client.getSource).toHaveBeenCalledWith('kb:sources/paper.md', 'one')
+    expect(within(confirmDialog).getByRole('textbox')).toHaveValue(source.content)
     expect(screen.getByRole('textbox', { name: '章节正文' })).toHaveValue('原始内容')
     fireEvent.click(within(confirmDialog).getByRole('button', { name: '确认插入并保留引用' }))
     const textarea = screen.getByRole('textbox', { name: '章节正文' }) as HTMLTextAreaElement
@@ -87,13 +91,13 @@ describe('knowledge solution workspace', () => {
     expect(screen.getByRole('textbox', { name: '向AI提问' })).toBeInTheDocument()
   })
 
-  it('queries the backend for knowledge searches and does not treat a loading failure as no results', async () => {
+  it('removes report source management without fetching the retired source list', async () => {
     const client = mockClient(); await mount(client)
-    await waitFor(() => expect(client.sources).toHaveBeenCalled())
-    vi.mocked(client.sources).mockRejectedValueOnce(new Error('索引服务离线'))
-    fireEvent.change(screen.getByRole('textbox', { name: '搜索知识资料' }), { target: { value: '关键词' } })
-    await waitFor(() => expect(client.sources).toHaveBeenCalledWith('关键词', ''))
-    expect(await screen.findByText('资料加载失败：索引服务离线')).toBeInTheDocument()
+    expect(screen.queryByRole('tab', {name:'报告资料'})).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', {name:'添加资料'})).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', {name:'搜索知识资料'})).not.toBeInTheDocument()
+    expect(client.sources).not.toHaveBeenCalled()
+    expect(screen.getByTitle('原知识库资料')).toBeInTheDocument()
   })
 
   it('does not expose or request the author conversation when opened by a reviewer', async () => {
@@ -273,7 +277,6 @@ describe('knowledge solution workspace', () => {
 
   it('reads selected library evidence independently before citation and ignores a failed authorization', async () => {
     const client = mockClient(); await mount(client)
-    fireEvent.click(screen.getByRole('tab', { name: /^知识库$/ }))
     const frame = screen.getByTitle('原知识库资料') as HTMLIFrameElement
     const origin = new URL(frame.src).origin
     act(() => {
@@ -295,7 +298,6 @@ describe('knowledge solution workspace', () => {
     const client = mockClient(); await mount(client)
     let resolveSource!: (value: KnowledgeSource) => void
     vi.mocked(client.getSource).mockReturnValueOnce(new Promise(resolve => { resolveSource = resolve }))
-    fireEvent.click(screen.getByRole('tab', { name: /^知识库$/ }))
     const frame = screen.getByTitle('原知识库资料') as HTMLIFrameElement, origin = new URL(frame.src).origin
     act(() => {
       window.dispatchEvent(new MessageEvent('message', { source: frame.contentWindow, origin, data: { type: 'mberp:knowledge-library:ready', version: 1, preview: true } }))

@@ -10,13 +10,10 @@ interface Props {
   busy: boolean
   canAsk: boolean
   onUse: (path: string, action: 'ask' | 'cite') => void
-  onAdd: () => void
-  children: ReactNode
   scope: ReactNode
 }
 
-export default function KnowledgeLibrary({ preview, editable, busy, canAsk, onUse, onAdd, children, scope }: Props) {
-  const [tab, setTab] = useState<'library' | 'report'>('library')
+export default function KnowledgeLibrary({ preview, editable, busy, canAsk, onUse, scope }: Props) {
   const [reload, setReload] = useState(0)
   const [ready, setReady] = useState(false)
   const [delayed, setDelayed] = useState(false)
@@ -38,15 +35,10 @@ export default function KnowledgeLibrary({ preview, editable, busy, canAsk, onUs
   function refresh() { setReady(false); setSelected(null); setDelayed(false); setReload(value => value + 1) }
   return <div className="ks-library-workspace">
     <div className="ks-library-toolbar">
-      <div role="tablist" aria-label="资料来源">
-        <button role="tab" id="ks-library-tab" aria-controls="ks-library-view" aria-selected={tab === 'library'} onClick={() => setTab('library')}><BookOpen size={13} />知识库</button>
-        <button role="tab" id="ks-report-sources-tab" aria-controls="ks-report-sources-view" aria-selected={tab === 'report'} onClick={() => setTab('report')}>报告资料</button>
-      </div>
-      <div className="ks-library-actions">
-        {tab === 'library' ? <button className="ks-button" onClick={refresh} aria-label="刷新知识库" title="刷新知识库"><RefreshCw size={14} /></button> : <button className="ks-button" onClick={onAdd}><Plus size={14} />添加资料</button>}
-      </div>
+      <span className="ks-library-label"><BookOpen size={13} />知识库</span>
+      <div className="ks-library-actions"><button className="ks-button" onClick={refresh} aria-label="刷新知识库" title="刷新知识库"><RefreshCw size={14} /></button></div>
     </div>
-    <div id="ks-library-view" role="tabpanel" aria-labelledby="ks-library-tab" className="ks-library-view" hidden={tab !== 'library'}>
+    <div id="ks-library-view" className="ks-library-view">
       <div className="ks-library-frame-wrap">
         {url && <iframe key={reload} ref={frame} src={url} title="原知识库资料" className={ready ? 'is-ready' : ''} referrerPolicy="strict-origin" />}
         {!ready && <div className="ks-library-loading" role="status">
@@ -64,7 +56,6 @@ export default function KnowledgeLibrary({ preview, editable, busy, canAsk, onUs
         </div>
       </div>
     </div>
-    <div id="ks-report-sources-view" role="tabpanel" aria-labelledby="ks-report-sources-tab" className="ks-report-sources-view" hidden={tab !== 'report'}>{children}</div>
     {scope}
   </div>
 }

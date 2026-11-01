@@ -6,7 +6,7 @@ import { readLibraryMessage, validLibraryPath } from './libraryEmbed'
 afterEach(() => vi.useRealTimers())
 function mount() {
   const onUse = vi.fn()
-  render(<KnowledgeLibrary preview editable busy={false} canAsk onUse={onUse} onAdd={() => {}} scope={<p>问答范围</p>}><p>独立报告资料</p></KnowledgeLibrary>)
+  render(<KnowledgeLibrary preview editable busy={false} canAsk onUse={onUse} scope={<p>问答范围</p>} />)
   const frame = screen.getByTitle('原知识库资料') as HTMLIFrameElement
   const origin = new URL(frame.src).origin
   function message(type: string, extra = {}, overrides = {}) {
@@ -33,13 +33,12 @@ describe('original library embedding', () => {
     expect(screen.getByRole('button', { name: '引用到章节' })).toBeDisabled()
   })
 
-  it('keeps the iframe mounted across tabs and resets trust on reload', () => {
+  it('shows only the embedded library and resets its selection on refresh', () => {
     const { frame, message } = mount()
+    expect(screen.queryByRole('tab', { name: '报告资料' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '添加资料' })).not.toBeInTheDocument()
     message('ready'); message('selection', { path: 'sources/paper.md', title: '文献' })
-    fireEvent.click(screen.getByRole('tab', { name: '报告资料' }))
-    expect(screen.getByText('独立报告资料')).toBeVisible()
-    fireEvent.click(screen.getByRole('tab', { name: /^知识库$/ }))
-    expect(screen.getByTitle('原知识库资料')).toBe(frame)
+    expect(screen.getByRole('button', { name: '加入问答范围' })).toBeEnabled()
     fireEvent.click(screen.getByRole('button', { name: '刷新知识库' }))
     expect(screen.getByTitle('原知识库资料')).not.toBe(frame)
     expect(screen.getByRole('button', { name: '加入问答范围' })).toBeDisabled()

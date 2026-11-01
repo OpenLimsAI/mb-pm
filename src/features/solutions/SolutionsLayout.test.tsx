@@ -31,8 +31,9 @@ function mockClient(): SolutionClient {
 }
 async function mount(client = mockClient()) {
   const result = render(<SolutionsApp client={client} userId="author" userName="研究员" preview />)
-  await screen.findByRole('textbox', { name: '章节正文' }); fireEvent.click(screen.getByRole('tab', { name: '报告资料' }))
-  await screen.findByRole('checkbox', { name: '选择资料：研究资料甲' })
+  await screen.findByRole('textbox', { name: '章节正文' })
+  const frame = screen.getByTitle('原知识库资料') as HTMLIFrameElement
+  act(() => window.dispatchEvent(new MessageEvent('message', {source:frame.contentWindow, origin:new URL(frame.src).origin, data:{type:'mberp:knowledge-library:ready',version:1,preview:true}})))
   return { ...result, client }
 }
 const moduleNames = { editor: '撰写报告', knowledge: '知识库资料', ai: 'AI 研究助手' }
@@ -59,14 +60,13 @@ beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-writing-mode',
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
 describe('independent workspace module layout', () => {
-  it('keeps writing, question, source scope and source drafts while moving the same modules through all four grids', async () => {
+  it('keeps writing, question, source scope and library state while moving the same modules through all four grids', async () => {
     const { client } = await mount()
-    const search = screen.getByRole('textbox', { name: '搜索知识资料' })
-    fireEvent.change(search, { target: { value: '特定研究对象' } })
-    fireEvent.change(screen.getByRole('combobox', { name: '知识项目范围' }), { target: { value: '项目 A' } })
-    fireEvent.click(screen.getByRole('button', { name: '论文' }))
-    fireEvent.click(screen.getByRole('checkbox', { name: '选择资料：研究资料甲' }))
-    await waitFor(() => expect(client.sources).toHaveBeenLastCalledWith('特定研究对象', '项目 A'))
+    const frame = screen.getByTitle('原知识库资料') as HTMLIFrameElement
+    act(() => window.dispatchEvent(new MessageEvent('message', {source:frame.contentWindow, origin:new URL(frame.src).origin, data:{type:'mberp:knowledge-library:selection',version:1,path:'sources/paper.md',title:source.title}})))
+    fireEvent.click(screen.getByRole('button', {name:'加入问答范围'}))
+    await waitFor(() => expect(client.getSource).toHaveBeenCalledWith('kb:sources/paper.md', 'layout-report'))
+    await screen.findByText('已将《研究资料甲》加入问答范围。')
     vi.useFakeTimers()
     fireEvent.click(screen.getByRole('button', { name: '打开章节：验证安排' }))
     const body = screen.getByRole('textbox', { name: '章节正文' })
@@ -92,11 +92,9 @@ describe('independent workspace module layout', () => {
       expect(question).toHaveValue('仍在组织的问题')
       expect(screen.getByRole('textbox', { name: '附带上下文' })).toBe(context)
       expect(context).toHaveValue('切换布局时尚未提交的正文')
-      expect(screen.getByRole('textbox', { name: '搜索知识资料' })).toBe(search)
-      expect(search).toHaveValue('特定研究对象')
-      expect(screen.getByRole('combobox', { name: '知识项目范围' })).toHaveValue('项目 A')
-      expect(screen.getByRole('button', { name: '论文' })).toHaveClass('is-active')
-      expect(screen.getByRole('checkbox', { name: '选择资料：研究资料甲' })).toBeChecked()
+      expect(screen.getByTitle('原知识库资料')).toBe(frame)
+      expect(screen.getByRole('button', {name:'加入问答范围'})).toBeEnabled()
+      expect(screen.getByText(/已选 1 份资料/)).toBeInTheDocument()
     }
     expect(client.get).toHaveBeenCalledTimes(1)
     expect(client.history).toHaveBeenCalledTimes(1)
@@ -133,13 +131,13 @@ describe('independent workspace module layout', () => {
     fireEvent.click(screen.getByRole('button', { name: '展开AI 研究助手' }))
     expect(screen.getByRole('textbox', { name: '向AI提问' })).toBe(question)
     expect(screen.queryByRole('textbox', { name: '章节正文' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('textbox', { name: '搜索知识资料' })).not.toBeInTheDocument()
+    expect(screen.getByTitle('原知识库资料')).not.toBeVisible()
     for (const name of ['展开撰写报告', '展开知识库资料']) fireEvent.click(screen.getByRole('button', { name }))
     for (const name of ['收起撰写报告', '隐藏知识库资料', '隐藏AI 研究助手']) fireEvent.click(screen.getByRole('button', { name }))
     applyLayout('上二下一', ['ai', 'knowledge', 'editor'])
     expectPlacement('top-pair', ['ai', 'knowledge', 'editor'])
     expect(screen.getByRole('textbox', { name: '章节正文' })).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: '搜索知识资料' })).toBeInTheDocument()
+    expect(screen.getByTitle('原知识库资料')).toBeVisible()
     expect(screen.getByRole('textbox', { name: '向AI提问' })).toBe(question)
     expect(question).toHaveValue('隐藏时仍然保留的问题')
   })
@@ -183,7 +181,7 @@ describe('independent workspace module layout', () => {
     render(<SolutionsApp client={client} userId="author" userName="研究员" preview />)
     await screen.findByRole('textbox', { name: '章节正文' })
     expectPlacement('right-main', ['ai', 'editor', 'knowledge'])
-    expect(screen.queryByRole('textbox', { name: '搜索知识资料' })).not.toBeInTheDocument()
+    expect(screen.getByTitle('原知识库资料')).not.toBeVisible()
     expect(screen.getByRole('button', { name: '展开知识库资料' })).toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: '章节目录' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '展开章节目录' }))
@@ -197,11 +195,11 @@ describe('independent workspace module layout', () => {
     render(<SolutionsApp client={client} userId="author" userName="研究员" preview />)
     await screen.findByRole('textbox', { name: '章节正文' })
     expectPlacement('left-main', ['editor', 'knowledge', 'ai'])
-    expect(screen.queryByRole('textbox', { name: '搜索知识资料' })).not.toBeInTheDocument()
+    expect(screen.getByTitle('原知识库资料')).not.toBeVisible()
     expect(screen.queryByRole('textbox', { name: '向AI提问' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '展开AI 研究助手' }))
     expect(screen.getByRole('textbox', { name: '向AI提问' })).toBeInTheDocument()
-    expect(screen.queryByRole('textbox', { name: '搜索知识资料' })).not.toBeInTheDocument()
+    expect(screen.getByTitle('原知识库资料')).not.toBeVisible()
     expect(client.save).not.toHaveBeenCalled()
   })
 })
