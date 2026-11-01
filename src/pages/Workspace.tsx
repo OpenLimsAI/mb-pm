@@ -49,7 +49,6 @@ const knowledgeApps: readonly ApplicationPresentation[] = [
   { id: 'solutions', accessId: 'solutions', name: '研究报告', englishName: 'RESEARCH REPORTS', description: '在写作中查阅知识、追问依据，把论文、实践与专家判断写成可追溯的研究报告。', domain: '研究 · 论证 · 撰写', href: '/launch/solutions', previewHref: '/solutions?preview=1', kind: 'solutions', features: ['报告撰写', '知识与 AI', '引用与版本'] },
   { id: 'notes', name: '我的笔记', englishName: 'MY NOTES', description: '整理阅读笔记、研究观察与写作灵感，让每一次思考都有迹可循。', domain: '阅读 · 记录 · 整理', href: '/notes', previewHref: '/notes?preview=1', kind: 'notes', features: ['个人笔记', '阅读摘录', '思考整理'] },
   { id: 'kb', accessId: 'kb', name: '知识库', englishName: 'KNOWLEDGE BASE', description: '连接团队的知识与经验，让需要的信息更容易找到，让积累持续产生价值。', domain: new URL(knowledgeLaunchUrl).host, href: '/launch/kb', previewHref: knowledgeLaunchUrl + '?preview=1', kind: 'knowledge', features: ['知识检索', '内容阅读', '经验沉淀'] },
-  { id: 'information', accessId: 'information', name: '行业信息', englishName: 'INDUSTRY INFORMATION', description: '管理医药信息源，收集重要资料，让行业动态与知识积累连接起来。', domain: 'ICH · Q / S / E / M', href: '/launch/information', previewHref: '/information?preview=1', kind: 'information', features: ['信息源监控', '批量收录', '更新与关注'] },
 ]
 const businessApps: readonly ApplicationPresentation[] = [
   { id: 'pm', accessId: 'pm', name: '项目管理', englishName: 'PROJECT MANAGEMENT', description: '把计划、进度与团队协作放在一起，清晰掌握研发项目的每一步。', domain: 'pm.openlims.ai', href: '/launch/pm', previewHref: siteMode === 'combined' ? '/dashboard' : undefined, kind: 'projects', features: ['项目与任务', '团队协作', '财务与风险'] },

@@ -172,8 +172,13 @@ def applications(claims: dict, db: Session) -> list[PortalApplicationOut]:
             enabled=kb_enabled,
             reason=None if kb_enabled else "知识库尚未开通，请联系系统管理员",
         ),
-        # 信息获取供组织成员浏览；管理与后台采集另行实时核对 admin / kb_manager。
-        PortalApplicationOut(id="information", enabled=True),
+        PortalApplicationOut(
+            id="information",
+            enabled=settings.INFORMATION_APP_ENABLED,
+            reason=None
+            if settings.INFORMATION_APP_ENABLED
+            else "行业信息已下线，知识源正在重新设计",
+        ),
         # 方案应用面向组织成员；方案所有权与知识来源权限由其接口独立检查。
         PortalApplicationOut(id="solutions", enabled=True),
         PortalApplicationOut(id="feedback", enabled=True),

@@ -127,6 +127,8 @@ PM 回调为 `https://pm.openlims.ai/api/v1/auth/callback`，登出回跳为 `ht
 
 ## 信息获取
 
+旧「行业信息」下线，总开关 `INFORMATION_APP_ENABLED` 默认 `false`。即使旧环境仍配置 `INFORMATION_WORKER_ENABLED=true`，关闭总开关也不会启动或执行采集，已登录的信息管理接口返回 410；既有原文下载保留原会话、实时 IAM、租户与版本授权；不删除或重写历史任务和原文。不要为查看新 UI 重新启用旧服务。生产部署须明确保留该关闭状态。
+
 有效门户成员可浏览和订阅；系统管理员（`admin`）与知识库负责人（`kb_manager`）可管理来源、检查、收录及重试，后台每步实时核对 IAM。不会因此创建 PM 成员或授予普通知识库上传权限。
 
 配置 `INFORMATION_WORKER_ENABLED=true`、持久化 `INFORMATION_DATA_DIR`（容器为 `/data/information`），`INFORMATION_MAX_ARCHIVE_MB` 默认 5120。两个 PM 实例必须共享相同数据卷和数据库，全局租约避免重复采集。

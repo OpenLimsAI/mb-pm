@@ -283,6 +283,8 @@ def complete_job(store, job):
 
 
 def tick(session_factory=SessionLocal, official_factory=OfficialClient):
+    if not settings.INFORMATION_APP_ENABLED:
+        return
     db = session_factory()
     owner = str(uuid4())
     store = Store(db, "worker")

@@ -6,7 +6,7 @@ import Workspace from './Workspace'
 describe('workspace application entries', () => {
   it('opens local application previews without a production login jump', () => {
     render(<MemoryRouter><Workspace user={null} applications={[]} preview onRefresh={vi.fn()} onLogout={vi.fn()} /></MemoryRouter>)
-    expect(screen.getByRole('link', { name: '进入行业信息' })).toHaveAttribute('href', '/information?preview=1')
+    expect(screen.queryByRole('link', { name: '进入行业信息' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: '进入AI 助手' })).toHaveAttribute('href', '/assistant?preview=1')
     expect(screen.getByRole('link', { name: '进入研究报告' })).toHaveAttribute('href', '/solutions?preview=1')
     expect(screen.getByRole('link', { name: '进入项目管理' })).toHaveAttribute('href', '/dashboard')
@@ -26,10 +26,10 @@ describe('workspace application entries', () => {
     expect(screen.getByRole('link', { name: '进入知识库' })).toHaveAttribute('href', '/launch/kb')
     expect(screen.getByRole('link', { name: '进入知识库' })).not.toHaveAttribute('target')
   })
-  it('opens the new work application through the checked launch route', () => {
+  it('hides retired information even when an old catalogue grants it', () => {
     render(<MemoryRouter><Workspace user={{ id: 'person', username: 'reader', displayName: '同事' }} applications={[{ id: 'information', enabled: true }]} onRefresh={vi.fn()} onLogout={vi.fn()} /></MemoryRouter>)
-    expect(screen.getByRole('link', { name: '进入行业信息' })).toHaveAttribute('href', '/launch/information')
-    expect(screen.getByRole('heading', { name: '行业信息' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '进入行业信息' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '行业信息' })).not.toBeInTheDocument()
   })
 
   it('lists feedback as an application using the checked launch route', () => {
@@ -39,15 +39,15 @@ describe('workspace application entries', () => {
   it('does not offer an active entry when the catalogue denies access', () => {
     render(<MemoryRouter><Workspace user={null} applications={[{ id: 'information', enabled: false, reason: '请刷新登录身份' }]} onRefresh={vi.fn()} onLogout={vi.fn()} /></MemoryRouter>)
     expect(screen.queryByRole('link', { name: '进入行业信息' })).not.toBeInTheDocument()
-    expect(screen.getByText('请刷新登录身份')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '行业信息' })).not.toBeInTheDocument()
   })
-  it('groups four knowledge apps in two rows before business and settings', () => {
+  it('keeps active knowledge apps before business and settings', () => {
     const { container } = render(<MemoryRouter><Workspace user={{ id: 'a', username: 'a', displayName: '研究员' }} applications={[]} preview onRefresh={vi.fn()} onLogout={vi.fn()} /></MemoryRouter>)
     expect([...container.querySelectorAll('.workspace-category h2')].map(element => element.textContent)).toEqual(['AI 智能版块', '知识信息版块', '业务管理版块', '功能设置版块'])
     const intelligence = screen.getByRole('region', { name: 'AI 智能版块' })
     expect(within(intelligence).getByRole('link', { name: '进入AI 助手' })).toHaveAttribute('href', '/assistant?preview=1')
     const knowledge = screen.getByRole('region', { name: '知识信息版块' })
-    expect(within(knowledge).getAllByRole('heading', { level: 3 }).map(element => element.textContent)).toEqual(['研究报告', '我的笔记', '知识库', '行业信息'])
+    expect(within(knowledge).getAllByRole('heading', { level: 3 }).map(element => element.textContent)).toEqual(['研究报告', '我的笔记', '知识库'])
     const business = screen.getByRole('region', { name: '业务管理版块' })
     expect(within(business).getAllByRole('heading', { level: 3 }).map(element => element.textContent)).toEqual(['项目管理', '回音壁', '人力资源'])
     expect(within(business).getByRole('article', { name: '人力资源' })).toHaveTextContent('待开发')
