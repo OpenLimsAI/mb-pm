@@ -15,6 +15,7 @@ from app.core.security import DEFAULT_ROLE, ROLE_PRIORITY
 from app.models import IAMIdentity, Project, SubProject, Task, User
 from app.models.assistant import AssistantMessage, AssistantTask
 from app.services import accounts, ai, assistant_tool_chat, solution_ai, solution_knowledge
+from app.services import assistant_diagnostics as diagnostics
 from app.services.iam_admin import IAMError
 from app.services.scope import visible_project_ids_for, visible_task_ids_for
 
@@ -275,6 +276,7 @@ def question(db, claims, task, payload):
     )
     if count >= 200:
         raise HTTPException(422, "此任务已达到 100 轮对话，请新建任务继续")
+    diagnostics.stage("model_selection")
     selected = solution_ai.select_model(
         db,
         claims,
@@ -293,6 +295,8 @@ def question(db, claims, task, payload):
             raise HTTPException(422, "尚未配置可用模型，请先在 AI 模型设置中添加模型")
     # Prior answers may contain sources that are no longer selected or accessible.
     # Rebuild evidence on every turn instead of forwarding old conversation text.
+    diagnostics.configure_model("custom" if selected["kind"] == "private" else provider, cfg)
+    diagnostics.stage("application_data")
     evidence = application_data(db, claims, payload)
     scope_instruction = (
         "已选择应用数据。涉及项目、任务或知识库等业务事实时，只能依据本轮选中应用提供的资料"
@@ -351,6 +355,7 @@ def question(db, claims, task, payload):
     task_id = task.id
     # Release the read transaction before waiting on any external model service.
     db.rollback()
+    diagnostics.stage("model")
     try:
         if "knowledge" in payload.data_sources:
             content = assistant_tool_chat.chat(
@@ -366,10 +371,13 @@ def question(db, claims, task, payload):
                 if selected["kind"] == "private"
                 else ai.chat(provider, cfg, messages, timeout=60)
             )
-        if not isinstance(content, str) or not content.strip() or len(content) > 80000:
-            raise ai.AIError("invalid response")
-    except (ai.AIError, OSError, ValueError, KeyError, TypeError):
-        raise HTTPException(503, "AI 回答未完成，请保留当前输入并重试，或检查模型设置") from None
+        if not isinstance(content, str) or not content.strip():
+            raise ai.AIError("invalid response", code="model_empty_response")
+        if len(content) > 80000:
+            raise ai.AIError("response too large", code="response_too_large")
+    except (ai.AIError, OSError, ValueError, KeyError, TypeError) as exc:
+        raise diagnostics.model_http_error(exc) from None
+    diagnostics.stage("saving")
     task = get_task(db, task_id, claims)
     active(task)
     replay = completed_request(db, task, payload)

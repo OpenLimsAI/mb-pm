@@ -7,6 +7,7 @@ import time
 from fastapi import HTTPException
 
 from app.services import ai, solution_knowledge
+from app.services import assistant_diagnostics as diagnostics
 from app.services import assistant_knowledge as knowledge
 
 MAX_ROUNDS = 4
@@ -27,20 +28,20 @@ INSTRUCTIONS = (
 
 def _message(result, ollama):
     if not isinstance(result, dict):
-        raise ai.AIError("模型工具响应格式异常")
+        raise ai.AIError("模型工具响应格式异常", code="model_invalid_response")
     if ollama:
         if result.get("done_reason") == "length":
-            raise ai.AIError("模型输出被截断")
+            raise ai.AIError("模型输出被截断", code="output_limit")
         message = result.get("message")
     else:
         choices = result.get("choices")
         if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
-            raise ai.AIError("模型没有返回有效回答")
+            raise ai.AIError("模型没有返回有效回答", code="model_invalid_response")
         if choices[0].get("finish_reason") == "length":
-            raise ai.AIError("模型输出被截断")
+            raise ai.AIError("模型输出被截断", code="output_limit")
         message = choices[0].get("message")
     if not isinstance(message, dict):
-        raise ai.AIError("模型工具响应格式异常")
+        raise ai.AIError("模型工具响应格式异常", code="model_invalid_response")
     return message
 
 
@@ -57,7 +58,11 @@ def chat(provider, cfg, messages, claims, *, request_fn=None):
     for turn in range(MAX_ROUNDS + 1):
         remaining = MAX_SECONDS - (time.monotonic() - started)
         if remaining <= 0:
-            raise HTTPException(504, "知识库查询超时，请缩小问题范围后重试")
+            raise HTTPException(
+                504,
+                "知识库查询超时，请缩小问题范围后重试",
+                headers={diagnostics.ERROR_HEADER: "query_timeout"},
+            )
         can_use_tools = turn < MAX_ROUNDS and used < MAX_CALLS and evidence_size < MAX_EVIDENCE
         body = {"model": cfg["model"], "messages": list(history), "stream": False}
         if can_use_tools:
@@ -68,7 +73,8 @@ def chat(provider, cfg, messages, claims, *, request_fn=None):
             body["max_tokens"] = 8192 if provider == "minimax" else 4096
             if provider == "minimax":
                 body["temperature"] = 1.0
-        result = request_model(
+        result = diagnostics.model_call(
+            request_model,
             provider,
             cfg,
             "/api/chat" if ollama else "/chat/completions",
@@ -78,36 +84,40 @@ def chat(provider, cfg, messages, claims, *, request_fn=None):
         message = _message(result, ollama)
         calls = message.get("tool_calls") or []
         if not isinstance(calls, list) or len(calls) > MAX_CALLS:
-            raise ai.AIError("模型工具调用格式异常")
+            raise ai.AIError("模型工具调用格式异常", code="model_invalid_response")
         if not calls:
             content = message.get("content")
             if not isinstance(content, str):
-                raise ai.AIError("模型没有返回正文")
+                raise ai.AIError("模型没有返回正文", code="model_empty_response")
             content = re.sub(r"<think>.*?</think>", "", content, flags=re.S).strip()
             if not content or len(content) > 80000:
-                raise ai.AIError("模型没有返回有效正文")
+                raise ai.AIError("模型没有返回有效正文", code="model_empty_response")
             solution_knowledge.check_access(claims)
             return content
         if not can_use_tools:
-            raise HTTPException(422, "本轮知识库查询次数已达上限，请缩小问题范围后重试")
+            raise HTTPException(
+                422,
+                "本轮知识库查询次数已达上限，请缩小问题范围后重试",
+                headers={diagnostics.ERROR_HEADER: "query_limit"},
+            )
         normalized = []
         for index, call in enumerate(calls):
             if not isinstance(call, dict) or not isinstance(call.get("function"), dict):
-                raise ai.AIError("模型工具调用格式异常")
+                raise ai.AIError("模型工具调用格式异常", code="model_invalid_response")
             function = call["function"]
             name, arguments = function.get("name"), function.get("arguments")
             if not isinstance(name, str) or len(name) > 100:
-                raise ai.AIError("模型工具调用格式异常")
+                raise ai.AIError("模型工具调用格式异常", code="model_invalid_response")
             call_id = f"kb_{turn}_{index}" if ollama else call.get("id")
             if not isinstance(call_id, str) or not call_id or len(call_id) > 200 or call_id in ids:
-                raise ai.AIError("模型工具调用标识异常")
+                raise ai.AIError("模型工具调用标识异常", code="model_invalid_response")
             ids.add(call_id)
             if (isinstance(arguments, str) and len(arguments) > 8000) or (
                 isinstance(arguments, dict) and len(json.dumps(arguments)) > 8000
             ):
-                raise ai.AIError("模型工具参数过长")
+                raise ai.AIError("模型工具参数过长", code="model_invalid_response")
             if not ollama and not isinstance(arguments, str):
-                raise ai.AIError("模型工具参数格式异常")
+                raise ai.AIError("模型工具参数格式异常", code="model_invalid_response")
             normalized.append(
                 {
                     "id": call_id,
@@ -132,11 +142,15 @@ def chat(provider, cfg, messages, claims, *, request_fn=None):
             message.get("reasoning_content"), str
         ):
             if len(message["reasoning_content"]) > 80000:
-                raise ai.AIError("模型推理回复过长")
+                raise ai.AIError("模型推理回复过长", code="response_too_large")
             history[-1]["reasoning_content"] = message["reasoning_content"]
         for call in normalized:
             if time.monotonic() - started >= MAX_SECONDS:
-                raise HTTPException(504, "知识库查询超时，请缩小问题范围后重试")
+                raise HTTPException(
+                    504,
+                    "知识库查询超时，请缩小问题范围后重试",
+                    headers={diagnostics.ERROR_HEADER: "query_timeout"},
+                )
             function = call["function"]
             if used >= MAX_CALLS or evidence_size >= MAX_EVIDENCE:
                 value = {
@@ -151,7 +165,8 @@ def chat(provider, cfg, messages, claims, *, request_fn=None):
                         arguments = json.loads(raw) if len(raw) <= 8000 else None
                     else:
                         arguments = raw
-                    value = knowledge.execute(claims, function["name"], arguments)
+                    with diagnostics.tool_call(function["name"]):
+                        value = knowledge.execute(claims, function["name"], arguments)
                 except (ValueError, TypeError):
                     value = {"error": "工具参数不是有效 JSON 对象，请按定义重试"}
             encoded = knowledge.encoded_result(

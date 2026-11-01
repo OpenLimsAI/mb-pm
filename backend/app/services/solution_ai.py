@@ -17,6 +17,7 @@ from app.core.security import seal, unseal
 from app.models.solution_ai import SolutionAISettings
 from app.schemas.solution_ai import ModelSettingsInput, allowed_address, model_url
 from app.services import ai
+from app.services import assistant_diagnostics as diagnostics
 
 CONFIG_ERROR = "个人模型配置暂不可读取，请联系管理员检查加密配置"
 CONFLICT = "模型配置已有新修改，请重新加载后编辑；未覆盖已保存设置"
@@ -151,10 +152,10 @@ def resolved_addresses(host, port):
                 )
             )
         if not candidates or any(not allowed_address(address) for address in candidates):
-            raise ai.AIError("模型地址解析到禁止访问的网络地址")
+            raise ai.AIError("模型地址解析到禁止访问的网络地址", code="model_network")
         return candidates
     except (socket.gaierror, ValueError):
-        raise ai.AIError("模型地址无法解析，请检查地址与网络") from None
+        raise ai.AIError("模型地址无法解析，请检查地址与网络", code="model_network") from None
 
 
 class PinnedHTTPConnection(http.client.HTTPConnection):
@@ -202,8 +203,13 @@ def pinned_request(provider, cfg, path, body=None, timeout=60):
             raise TimeoutError()
         connection.sock.settimeout(remaining)
         response = connection.getresponse()
+        diagnostics.transport_status(response.status)
         if response.status < 200 or response.status >= 300:
-            raise ai.AIError("模型服务拒绝请求，请核对地址、模型、密钥与账户状态")
+            raise ai.AIError(
+                "模型服务拒绝请求，请核对地址、模型、密钥与账户状态",
+                code=diagnostics.upstream_code(response.status),
+                upstream_status=response.status,
+            )
         chunks, length = [], 0
         while True:
             remaining = deadline - time.monotonic()
@@ -217,22 +223,32 @@ def pinned_request(provider, cfg, path, body=None, timeout=60):
             chunks.append(chunk)
             length += len(chunk)
             if length > 2_000_000:
-                raise ai.AIError("模型回复过长，请缩小问题范围")
+                raise ai.AIError("模型回复过长，请缩小问题范围", code="response_too_large")
         result = json.loads(b"".join(chunks))
         if not isinstance(result, dict):
-            raise ai.AIError("模型服务未返回有效的对话结果")
+            raise ai.AIError("模型服务未返回有效的对话结果", code="model_invalid_response")
         base = result.get("base_resp") or {}
         if (
             result.get("error")
             or not isinstance(base, dict)
             or base.get("status_code") not in (None, 0)
         ):
-            raise ai.AIError("模型服务拒绝请求，请检查个人模型设置")
+            raise ai.AIError("模型服务拒绝请求，请检查个人模型设置", code="model_rejected")
         return result
     except ai.AIError:
         raise
-    except (OSError, ValueError, TypeError, http.client.HTTPException):
-        raise ai.AIError("模型连接失败或响应无效，请检查个人模型地址与网络") from None
+    except TimeoutError:
+        raise ai.AIError(
+            "模型连接失败或响应无效，请检查个人模型地址与网络", code="model_timeout"
+        ) from None
+    except (OSError, http.client.HTTPException):
+        raise ai.AIError(
+            "模型连接失败或响应无效，请检查个人模型地址与网络", code="model_network"
+        ) from None
+    except (ValueError, TypeError):
+        raise ai.AIError(
+            "模型连接失败或响应无效，请检查个人模型地址与网络", code="model_invalid_response"
+        ) from None
     finally:
         if connection is not None:
             connection.close()

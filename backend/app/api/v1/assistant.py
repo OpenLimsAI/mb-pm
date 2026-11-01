@@ -3,7 +3,7 @@
 
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_same_origin
@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.schemas.assistant import TaskCreate, TaskQuestion, TaskRevision, TaskSave
 from app.services import assistant as service
+from app.services import assistant_diagnostics as diagnostics
 from app.services import password_policy
 
 router = APIRouter(prefix="/assistant/tasks", tags=["ai-assistant"])
@@ -62,10 +63,13 @@ def save(
 def question(
     task_id: str,
     payload: TaskQuestion,
+    response: Response,
     db: Session = Depends(get_db),
     claims: dict = Depends(identity),
 ):
-    return service.question(db, claims, service.get_task(db, task_id, claims), payload)
+    with diagnostics.request_scope(payload.request_id) as trace:
+        response.headers[diagnostics.ID_HEADER] = trace.id
+        return service.question(db, claims, service.get_task(db, task_id, claims), payload)
 
 
 @router.post("/{task_id}/trash")
