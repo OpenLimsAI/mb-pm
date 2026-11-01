@@ -82,6 +82,7 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("assistant_messages", "requested_mode", "VARCHAR(20) NOT NULL DEFAULT ''"),
     ("assistant_messages", "mode_reason", "VARCHAR(200) NOT NULL DEFAULT ''"),
     ("assistant_messages", "web_references", "JSON NOT NULL DEFAULT '[]'"),
+    ("assistant_messages", "application_scope", "JSON NOT NULL DEFAULT '{}'"),
     ("solution_answers", "answer_mode", "VARCHAR(20) NOT NULL DEFAULT ''"),
     ("solution_answers", "requested_mode", "VARCHAR(20) NOT NULL DEFAULT ''"),
     ("solution_answers", "mode_reason", "VARCHAR(200) NOT NULL DEFAULT ''"),

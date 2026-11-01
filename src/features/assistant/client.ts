@@ -1,11 +1,14 @@
 import type { AnswerCapabilities, AnswerMode, AnswerProvenance } from '../answerModes/types'
-import { previewCapabilities, previewProvenance, previewWebAnswer } from '../answerModes/preview'
+import { previewCapabilities, previewWebAnswer } from '../answerModes/preview'
+import { normalizeDataSources } from './dataSources'
+import type { ApplicationDataSource } from './dataSources'
+import { previewApplicationAnswer, previewPersonalProvenance } from './previewScope'
 import axios from 'axios'
 import { API_BASE, camelize, snakeize } from '../../api/client'
 
 export interface TaskInput { title: string; instructions: string }
 export interface TaskSummary extends TaskInput { id: string; revision: number; createdAt: string; updatedAt: string; deletedAt: string | null; messageCount: number }
-export interface AssistantMessage extends AnswerProvenance { id: string; role: 'user' | 'assistant'; content: string; context: string; model: string; mode: 'ai' | 'preview'; requestId: string; createdAt: string }
+export interface AssistantMessage extends AnswerProvenance { id: string; role: 'user' | 'assistant'; content: string; context: string; model: string; mode: 'ai' | 'preview'; requestId: string; createdAt: string; dataSources?: ApplicationDataSource[]; usedSources?: ApplicationDataSource[] }
 export interface AssistantArtifact { id: string; title: string; content: string; model: string; createdAt: string }
 export interface AssistantTask extends TaskSummary { messages: AssistantMessage[]; artifacts: AssistantArtifact[] }
 export interface TaskQuery { search?: string; trashed?: boolean; offset?: number }
@@ -116,19 +119,21 @@ export function createPreviewAssistantClient(namespace: string, storage: Storage
     restore: async task => change(task, { deletedAt: null }, true),
     send: async (task, input) => {
       if (!input.question.trim() || input.question.length > 12000 || input.context.length > 20000 || !input.requestId || input.modelProfileId === 'retrieval') throw problem('问题最多 12,000 字，附带资料最多 20,000 字，请检查后重试。', 422)
+      const dataSources = normalizeDataSources(input.data_sources || [])
+      if (input.data_sources && (!Array.isArray(input.data_sources) || input.data_sources.length > 2 || input.data_sources.some(source => source !== 'projects' && source !== 'knowledge'))) throw problem('请选择有效的应用数据源。', 422)
       const current = find(read(), task.id)
       const replay = current.messages.find(m => m.role === 'user' && m.requestId === input.requestId)
       if (replay) {
-        if (replay.content === input.question && replay.context === input.context && replay.model === (input.modelProfileId || 'enterprise') && replay.requestedMode === input.answerMode) return publicTask(current)
+        if (replay.content === input.question && replay.context === input.context && replay.model === (input.modelProfileId || 'enterprise') && replay.requestedMode === input.answerMode && JSON.stringify(normalizeDataSources(replay.dataSources || [])) === JSON.stringify(dataSources)) return publicTask(current)
         throw problem('同一次请求的内容已经改变，请重新发送。', 409)
       }
       check(current, task)
       if (current.messages.length >= 200) throw problem('此任务已达到 100 轮对话，请新建任务继续。', 422)
-      const provenance = input.answerMode ? previewProvenance(input.question, input.answerMode, input.data_sources?.includes('knowledge') || false, false, current.messages.filter(message => message.role === 'assistant').at(-1)?.answerMode) : undefined
+      const provenance = input.answerMode || dataSources.includes('projects') ? previewPersonalProvenance(input.question, input.answerMode || 'auto', dataSources, current.messages.filter(message => message.role === 'assistant').at(-1), !!input.context.trim()) : undefined
       if (provenance?.answerMode === 'knowledge' && !input.data_sources?.includes('knowledge')) throw problem('请先在数据设置中启用知识库，再使用仅知识库回答。', 422)
-      const now = new Date().toISOString(), id = crypto.randomUUID(), content = provenance?.answerMode === 'web' ? previewWebAnswer(input.question) : previewAnswer(input.question, input.context, current.instructions)
+      const now = new Date().toISOString(), id = crypto.randomUUID(), content = provenance?.answerMode === 'web' ? previewWebAnswer(input.question) : provenance?.answerMode === 'application' ? previewApplicationAnswer(input.question, provenance.usedSources) : previewAnswer(input.question, input.context, current.instructions)
       const messages: AssistantMessage[] = [...current.messages,
-        { id: crypto.randomUUID(), role: 'user', content: input.question, context: input.context, model: input.modelProfileId || 'enterprise', mode: 'preview', requestId: input.requestId, requestedMode: input.answerMode, createdAt: now },
+        { id: crypto.randomUUID(), role: 'user', content: input.question, context: input.context, model: input.modelProfileId || 'enterprise', mode: 'preview', requestId: input.requestId, requestedMode: input.answerMode, dataSources, createdAt: now },
         { id, role: 'assistant', content, context: '', model: '界面演示', mode: 'preview', requestId: input.requestId, createdAt: now, ...provenance },
       ]
       return change(task, { messages, messageCount: messages.length, artifacts: [...current.artifacts, { id, title: input.question.slice(0, 80), content, model: '界面演示', createdAt: now }] })

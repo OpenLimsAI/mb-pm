@@ -276,6 +276,13 @@
 .aa-data-sources strong, .aa-data-sources small { display: block; }
 .aa-data-sources strong { color: #315671; font-size: 13px; }
 .aa-data-sources small { margin-top: 5px; color: #78909f; font-size: 11px; }
+.aa-data-scope-notice { margin: 0 0 18px; padding: 14px; border: 1px solid #cfdeea; border-radius: 8px; background: #f2f7fb; }
+.aa-data-scope-notice strong { color: #244f71; font-size: 13px; }
+.aa-data-scope-notice p, .aa-data-network > p, .aa-data-requirement { margin: 7px 0 0; color: #526e82; font-size: 12px; line-height: 1.7; }
+.aa-data-network { padding-top: 16px; border-top: 1px solid #e2ebf2; }
+.aa-data-network h3 { margin: 0; color: #315671; font-size: 13px; }
+.aa-data-requirement { margin: 0 0 16px; color: #8b5b2f; }
+.aa-composer-mode > small[aria-label="当前应用数据范围"] { color: #526e82; }
 
 .aa-delete-title { margin: 4px 0 20px; color: #294457; line-height: 1.6; overflow-wrap: anywhere; }
 .aa-button.aa-delete-confirm { color: #fff; background: #bc4541; border-color: #bc4541; }

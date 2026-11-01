@@ -218,6 +218,8 @@ GitHub Actions 检查前端账号权限覆盖率、门户路由及构建、后�
 
 ## 自动问答与联网预览
 
+数据设置额外验收四种选择：全不选、仅项目管理、仅知识库、两项都选；确认许可范围和本轮实际来源分开显示，取消不改变当前设置，旧项目许可不静默重新启用。项目预览每轮标注未读取真实项目数据。后端 `tests/test_assistant_projects.py` 覆盖现有账号与实时角色、项目行级范围、仅读取所选来源、空目录与截断、模型后撤权和历史重放；本轮附带资料分析及 `015` 增量迁移也需回归。测试均用隔离库和请求替身，不调用真实模型或生产服务。
+
 启动前端后打开 `/assistant?preview=1` 或 `/solutions?preview=1`，保留原有预览存储。默认 Auto，可分别尝试「什么是缓冲液」「总结柿子脱涩的最新研究进展」「知识库有哪些论文」，检查实际方式标记及高级范围限制。模拟联网回答逐轮显示「界面演示 · 未实际联网」，不代表科学结论或真实搜索结果。正式配置与未配置提示见[搜索说明](assistant-auto-search.md)。
 
 回归入口：`npm test -- src/features/answerModes src/features/assistant src/features/solutions src/pages/Assistant.test.tsx`；后端新增 `tests/test_assistant_answer_modes.py` 和 `tests/test_retrieval_quality.py`，并运行现有助手、报告与迁移测试。使用请求替身验证搜索错误、私有数据不发送至搜索、合法来源与报告采纳，不使用真实付费接口。上线仍需备份和迁移 `014`；本轮不部署生产。

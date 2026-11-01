@@ -11,6 +11,7 @@ class Plan:
     mode: str
     reason: str
     query: str
+    sources: tuple[str, ...] = ()
 
 
 def followup(question):
@@ -31,6 +32,7 @@ def decide(
     constrained_sources=False,
     previous_mode="",
     previous_web_question="",
+    reference_material_available=False,
 ):
     text = question.strip()
     no_web = bool(
@@ -40,11 +42,28 @@ def decide(
             re.I,
         )
     )
-    private_intent = bool(
+    application_intent = bool(
         re.search(
-            r"知识库|论文库|已上传|上传的|所选资料|这些材料|这份资料|当前章节|本章|现有资料|已有资料|资料中的|材料中的|附带资料|公司内部|内部(?:资料|文件|数据|实验|项目)|本公司|本次材料|未公开|保密(?:资料|数据|文件|项目|实验|信息)|我们(?:自己的|的)(?:实验|项目|数据|资料)|我方(?:实验|项目|数据|资料)|\b(?:our internal|our confidential|unpublished (?:data|experiment|project))\b",
+            r"知识库|论文库|公司内部|内部(?:资料|文件|数据|实验|项目|系统)|本公司|本(?:应用|系统)(?:中|内|里|的)?(?:资料|材料|文件|数据)|未公开|保密(?:资料|数据|文件|项目|实验|信息)|我们(?:自己的|的)(?:实验|项目|数据|资料)|我方(?:实验|项目|数据|资料)|\b(?:knowledge base|our internal|our confidential|unpublished (?:data|experiment|project))\b",
             text,
             re.I,
+        )
+    )
+    provided_reference = bool(
+        re.search(
+            r"(?:本轮|本次|附带的?|这份|这些|已上传的?|上传的|提供的)(?:资料|材料|文件|文档|内容|正文|摘录)|附件|\b(?:attached|provided|uploaded) (?:materials?|files?|documents?|content|excerpts?)\b",
+            text,
+            re.I,
+        )
+    )
+    private_intent = (
+        application_intent
+        or provided_reference
+        or bool(
+            re.search(
+                r"已上传|上传的|所选资料|这些材料|这份资料|当前章节|本章|现有资料|已有资料|资料中的|材料中的|附带资料",
+                text,
+            )
         )
     )
     if constrained_sources:
@@ -55,6 +74,10 @@ def decide(
         return Plan("knowledge", "按你的设置，仅使用已授权知识库", text)
     if requested == "general":
         return Plan("general", "按你的设置，不联网回答", text)
+    if reference_material_available and provided_reference and not application_intent:
+        return Plan(
+            "general", "依据本轮提供的资料回答，不读取知识库，也不将资料发送到联网搜索", text
+        )
     if no_web:
         if private_intent:
             if not knowledge_allowed:
@@ -85,3 +108,94 @@ def decide(
     if followup(text) and previous_mode == "general":
         return Plan("general", "延续本主题上一轮的回答范围", text)
     return Plan("general", "通用问题，直接回答即可", text)
+
+
+def decide_personal(
+    question,
+    requested,
+    *,
+    data_sources,
+    previous_mode="",
+    previous_sources=(),
+    previous_web_question="",
+    reference_material_available=False,
+):
+    """Personal-only PM routing; report callers continue using decide unchanged."""
+    text = question.strip()
+    if requested in ("general", "knowledge"):
+        plan = decide(text, requested, knowledge_allowed="knowledge" in data_sources)
+        return Plan(
+            plan.mode, plan.reason, plan.query, ("knowledge",) if plan.mode == "knowledge" else ()
+        )
+    explicit_project_system = bool(re.search(r"项目管理(?:应用|系统|数据)", text))
+    if (
+        reference_material_available
+        and not explicit_project_system
+        and re.search(
+            r"(?:本轮|本次|附带的?|这份|这些|已上传的?|上传的|提供的)(?:资料|材料|文件|文档|内容|正文|摘录)|附件",
+            text,
+        )
+        and not re.search(r"知识库|论文库|公司内部|内部系统|未公开|保密资料", text)
+    ):
+        plan = decide(
+            text,
+            requested,
+            knowledge_allowed="knowledge" in data_sources,
+            reference_material_available=True,
+        )
+        if plan.mode == "general":
+            return plan
+    project_intent = explicit_project_system or bool(
+        re.search(
+            r"(?:当前|目前|现有|现在|所有|全部|有哪些|有多少|几个|列出|罗列|查看|查询|统计).{0,10}项目|项目.{0,12}(?:清单|列表|目录|数量|有哪些|有多少|几个|状态|负责人|进度|起止|开始时间|结束时间|截止|延期|完成情况|概况|最新进展)|(?:我们|我方|本公司|我的|我负责|我参与).{0,6}项目",
+            text,
+        )
+    )
+    # A KB article about project management is still a KB question. Native PM
+    # access requires an explicit current-directory/system request as well.
+    if (
+        re.search(r"知识库|论文库", text)
+        and re.search(r"文章|论文|文献|指南|专题|概念|定义|方法", text)
+        and not re.search(r"结合|综合|对照|关联|同时|联动", text)
+        and not explicit_project_system
+        and (
+            re.search(
+                r"^(?:请|帮我|请帮我)?(?:查询|检索|搜索|整理|总结|列出|介绍)?(?:一下)?(?:知识库|论文库)(?:中|里|内|的)",
+                text,
+            )
+            or not re.search(
+                r"(?:当前|目前|现有|现在|所有|全部|有哪些|有多少|几个|列出|罗列|查看|查询|统计).{0,10}项目",
+                text,
+            )
+        )
+    ):
+        project_intent = False
+    inherited = followup(text) and previous_mode == "application" and "projects" in previous_sources
+    if project_intent or inherited:
+        if "projects" not in data_sources:
+            raise HTTPException(422, "该问题需要项目管理数据，请先在数据设置中勾选项目管理")
+        joint = bool(re.search(r"知识库|论文库", text)) or (
+            inherited and "knowledge" in previous_sources
+        )
+        if joint and "knowledge" not in data_sources:
+            raise HTTPException(422, "该问题还需要知识库数据，请先在数据设置中勾选知识库")
+        sources = ("projects", "knowledge") if joint else ("projects",)
+        return Plan(
+            "application",
+            "依据项目管理只读目录与授权知识库回答"
+            if joint
+            else "依据当前账号可见的项目管理只读目录回答",
+            text,
+            sources,
+        )
+    plan = decide(
+        text,
+        requested,
+        knowledge_allowed="knowledge" in data_sources,
+        previous_mode=previous_mode,
+        previous_web_question=previous_web_question,
+        reference_material_available=reference_material_available,
+    )
+    return Plan(
+        plan.mode, plan.reason, plan.query, ("knowledge",) if plan.mode == "knowledge" else ()
+    )

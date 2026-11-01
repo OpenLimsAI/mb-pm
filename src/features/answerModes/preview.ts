@@ -3,13 +3,17 @@ import type { ActualAnswerMode, AnswerCapabilities, AnswerMode, AnswerProvenance
 export const previewCapabilities: AnswerCapabilities = { webSearch: { configured: false, provider: null, message: '联网搜索尚未配置，请联系管理员开通。' }, modes: ['auto', 'general', 'knowledge', 'web'] }
 // This planner only controls the local, explicitly labelled interface demo.
 // Production routing and permissions are decided by the server.
-export function previewProvenance(question: string, requested: AnswerMode = 'auto', knowledgeAllowed = true, constrained = false, previousMode?: ActualAnswerMode): AnswerProvenance {
+export function previewProvenance(question: string, requested: AnswerMode = 'auto', knowledgeAllowed = true, constrained = false, previousMode?: ActualAnswerMode, referenceMaterialAvailable = false): AnswerProvenance {
   let mode: ActualAnswerMode
   const noWeb = /(?:不(?:要|用|必|允许|需要)?|无需|无须|禁止|别)(?:再|进行|使用|调用|用)?(?:联网|上网|搜索|网络|检索互联网)|仅(?:用|凭|使用)已有知识|只(?:用|凭|使用)(?:已有|模型)知识|离线(?:回答|模式)|without (?:web|internet)|(?:do not|don't) (?:browse|search)/i.test(question)
-  const privateIntent = /知识库|论文库|已上传|上传的|所选资料|这些材料|这份资料|当前章节|本章|现有资料|已有资料|资料中的|材料中的|附带资料|公司内部|内部(?:资料|文件|数据|实验|项目)|本公司|本次材料|未公开|保密(?:资料|数据|文件|项目|实验|信息)|我们(?:自己的|的)(?:实验|项目|数据|资料)|我方(?:实验|项目|数据|资料)|\b(?:our internal|our confidential|unpublished (?:data|experiment|project))\b/i.test(question)
+  const applicationIntent = /知识库|论文库|公司内部|内部(?:资料|文件|数据|实验|项目|系统)|本公司|本(?:应用|系统)(?:中|内|里|的)?(?:资料|材料|文件|数据)|未公开|保密(?:资料|数据|文件|项目|实验|信息)|我们(?:自己的|的)(?:实验|项目|数据|资料)|我方(?:实验|项目|数据|资料)|\b(?:knowledge base|our internal|our confidential|unpublished (?:data|experiment|project))\b/i.test(question)
+  const providedReference = /(?:本轮|本次|附带的?|这份|这些|已上传的?|上传的|提供的)(?:资料|材料|文件|文档|内容|正文|摘录)|附件|\b(?:attached|provided|uploaded) (?:materials?|files?|documents?|content|excerpts?)\b/i.test(question)
+  const privateIntent = applicationIntent || providedReference || /已上传|上传的|所选资料|这些材料|这份资料|当前章节|本章|现有资料|已有资料|资料中的|材料中的|附带资料/.test(question)
+  const useProvidedReference = referenceMaterialAvailable && providedReference && !applicationIntent && !constrained && requested !== 'knowledge' && requested !== 'general'
   const followup = question.trim().length <= 80 && /^(继续|再说|再详细|展开|还有呢|然后呢|为什么|那[么这它]|这些|上述|上面|它们|what about|and |why\b)/i.test(question.trim())
   if (constrained) mode = 'knowledge'
   else if (requested === 'knowledge' || requested === 'general') mode = requested
+  else if (useProvidedReference) mode = 'general'
   else if (noWeb) mode = privateIntent ? 'knowledge' : 'general'
   else if (privateIntent) mode = 'knowledge'
   else if (requested === 'web') mode = 'web'
@@ -17,7 +21,7 @@ export function previewProvenance(question: string, requested: AnswerMode = 'aut
   else if (/最新|近期|最近|当前|目前|今天|今年|新闻|进展|联网|上网|搜索|检索|查找.{0,20}(?:论文|文献)|(?:论文|文献).{0,20}(?:查找|搜)|\b(?:latest|recent|current|today|news|search|202[6-9])\b/i.test(question)) mode = 'web'
   else mode = 'general'
   if (mode === 'knowledge' && !knowledgeAllowed) throw Object.assign(new Error('该问题涉及内部或知识库资料，请先在数据设置中启用知识库。'), { status: 422 })
-  return { answerMode: mode, requestedMode: requested, modeReason: mode === 'web' ? requested === 'web' ? '按你的选择使用联网检索。以下仅演示展示方式。' : '问题需要外部或近期资料，自动选择联网检索。以下仅演示展示方式。' : mode === 'knowledge' ? '按指定的知识库范围查找依据；本轮引用数量不代表整个知识库的数量。' : '使用通用知识整理回答，无需联网搜索。', webReferences: mode === 'web' ? demoWebReferences() : [] }
+  return { answerMode: mode, requestedMode: requested, modeReason: useProvidedReference ? '依据本轮提供的资料回答，不读取知识库，也不将资料发送到联网搜索。' : mode === 'web' ? requested === 'web' ? '按你的选择使用联网检索。以下仅演示展示方式。' : '问题需要外部或近期资料，自动选择联网检索。以下仅演示展示方式。' : mode === 'knowledge' ? '按指定的知识库范围查找依据；本轮引用数量不代表整个知识库的数量。' : '使用通用知识整理回答，无需联网搜索。', webReferences: mode === 'web' ? demoWebReferences() : [] }
 }
 export function demoWebReferences(): WebReference[] {
   return [1, 2].map((number) => ({ id: `demo-web-${number}`, title: `示例来源 ${number} · 非真实检索结果`, url: `https://example.com/#demo-source-${number}`, publishedAt: null, retrievedAt: new Date().toISOString(), excerpt: '此处演示原文摘要、出处链接和日期的呈现方式。未检索论文，也不提供实际研究结论。' }))

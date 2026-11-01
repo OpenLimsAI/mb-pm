@@ -4,6 +4,23 @@ import { AnswerEvidence, SearchCapability } from './AnswerTools'
 import { safeWebSourceUrl } from './sourceUrl'
 
 describe('answer provenance', () => {
+  it('shows real project usage from response metadata and distinguishes the project interface demo', () => {
+    const { rerender } = render(<AnswerEvidence answer={{ answerMode: 'application', usedSources: ['projects'], modeReason: '只读查询授权项目。' }} />)
+    expect(screen.getByText('应用数据回答')).toBeInTheDocument()
+    expect(screen.getByText('本轮应用数据：项目管理')).toBeInTheDocument()
+    expect(screen.queryByText('知识库回答')).not.toBeInTheDocument()
+    rerender(<AnswerEvidence preview answer={{ answerMode: 'application', usedSources: ['projects', 'knowledge'] }} />)
+    expect(screen.getByText('本轮演示范围：项目管理、知识库')).toBeInTheDocument()
+    expect(screen.getByText('界面演示 · 未读取真实项目数据')).toBeInTheDocument()
+    expect(screen.queryByText('本轮应用数据：项目管理、知识库')).not.toBeInTheDocument()
+  })
+
+  it('does not infer unused application data for older records without usage metadata', () => {
+    render(<AnswerEvidence answer={{ answerMode: 'knowledge' }} />)
+    expect(screen.getByText('知识库回答')).toBeInTheDocument()
+    expect(screen.queryByText('本轮未读取应用数据')).not.toBeInTheDocument()
+  })
+
   it('uses the actual response mode, preserves unknown publication dates, and opens safe source links', () => {
     render(<AnswerEvidence answer={{ answerMode: 'web', requestedMode: 'auto', modeReason: '需要核对近期资料。', webReferences: [{ id: 'one', title: '真实来源标题', url: 'https://example.org/research', publishedAt: null, retrievedAt: '2026-11-01T12:00:00Z', excerpt: '原文摘要。' }] }} />)
     expect(screen.getByText('已联网检索')).toBeInTheDocument()

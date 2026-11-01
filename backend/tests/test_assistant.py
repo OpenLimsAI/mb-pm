@@ -318,6 +318,7 @@ def test_migration_is_repeatable_and_retains_legacy_tables():
                         "mode_reason",
                         "web_references",
                     }  # 014
+                    expected.remove("application_scope")  # introduced by migration 015
                 assert set(actual) == expected
                 for column in model.__table__.columns:
                     if column.name in expected:
@@ -459,11 +460,18 @@ def test_knowledge_failure_does_not_call_model(assistant_client, monkeypatch):
     assert f.calls == []
 
 
-def test_removed_project_source_is_rejected_before_model_call(assistant_client):
+def test_unbound_project_source_cannot_read_project_data(assistant_client):
     f = assistant_client
     task = create(f)
-    assert question(f, task, data_sources=["projects"]).status_code == 422
-    assert question(f, task, data_sources=["projects", "knowledge"]).status_code == 422
+    assert (
+        question(f, task, question="目前有哪些项目", data_sources=["projects"]).status_code == 403
+    )
+    assert (
+        question(
+            f, task, question="目前有哪些项目", data_sources=["projects", "knowledge"]
+        ).status_code
+        == 403
+    )
     assert f.calls == []
     assert f.client.get(f"{PREFIX}/{task['id']}").json()["messages"] == []
 

@@ -35,16 +35,20 @@ class TaskRevision(BaseModel):
 class TaskQuestion(TaskRevision):
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
     request_id: UUID
-    data_sources: list[Literal["knowledge"]] = Field(default_factory=list, max_length=1)
+    data_sources: list[Literal["projects", "knowledge"]] = Field(default_factory=list, max_length=2)
     question: str = Field(min_length=1, max_length=12000)
     context: str = Field(default="", max_length=20000)
     model_profile_id: str | None = Field(default=None, min_length=1, max_length=100)
     answer_mode: Literal["auto", "general", "knowledge", "web"] | None = None
 
-    @field_validator("data_sources")
+    @field_validator("data_sources", mode="before")
     @classmethod
     def unique_sources(cls, value):
-        return sorted(set(value))
+        return (
+            sorted(set(value))
+            if isinstance(value, list) and all(isinstance(item, str) for item in value)
+            else value
+        )
 
     @field_validator("question")
     @classmethod

@@ -13,6 +13,7 @@ from app.models.assistant import AssistantMessage, AssistantTask
 from app.services import (
     ai,
     answer_modes,
+    assistant_projects,
     assistant_tool_chat,
     solution_ai,
     solution_knowledge,
@@ -65,12 +66,47 @@ def summary(task, count):
     )
 
 
-def detail(db, task):
+def check_history_access(db, claims, messages):
+    project_scopes = []
+    joint_knowledge = False
+    for row in messages:
+        metadata = row.application_scope
+        try:
+            permitted_sources = json.loads(row.data_sources)
+        except (ValueError, TypeError):
+            permitted_sources = []
+        if not isinstance(permitted_sources, list):
+            raise HTTPException(403, "历史回答的数据范围无法验证，请新建任务重新提问")
+        if not isinstance(metadata, dict) or metadata.get("version") != 1:
+            if "projects" in permitted_sources or row.answer_mode == "application":
+                raise HTTPException(403, assistant_projects.LEGACY_SCOPE)
+            continue
+        used = metadata.get("used_sources")
+        if not isinstance(used, list) or any(
+            source not in ("projects", "knowledge") for source in used
+        ):
+            raise HTTPException(403, "历史回答的数据范围无法验证，请重新确认数据设置")
+        if row.answer_mode == "application" and "projects" not in used:
+            raise HTTPException(403, "历史回答的数据范围无法验证，请新建任务重新提问")
+        if "projects" in used:
+            project_scopes.append(metadata)
+            joint_knowledge = joint_knowledge or "knowledge" in used
+    # A task can have 100 rounds; authorize the union once, never once per row.
+    permitted = (
+        assistant_projects.check_saved(db, claims, project_scopes) if project_scopes else None
+    )
+    if joint_knowledge:
+        solution_knowledge.check_access(claims)
+    return permitted
+
+
+def detail(db, task, claims):
     messages = db.scalars(
         select(AssistantMessage)
         .where(AssistantMessage.task_id == task.id)
         .order_by(AssistantMessage.position)
     ).all()
+    check_history_access(db, claims, messages)
     rows = [
         jsonable_encoder(
             {
@@ -85,6 +121,13 @@ def detail(db, task):
                 "requested_mode": row.requested_mode,
                 "mode_reason": row.mode_reason,
                 "web_references": row.web_references,
+                **(
+                    {"used_sources": row.application_scope["used_sources"]}
+                    if isinstance(row.application_scope, dict)
+                    and row.application_scope.get("version") == 1
+                    and "used_sources" in row.application_scope
+                    else {}
+                ),
                 "created_at": timestamp(row.created_at),
             }
         )
@@ -144,7 +187,7 @@ def create(db, claims, payload):
             and task.deleted_at is None
             and all(getattr(task, key) == value for key, value in data.items())
         ):
-            return detail(db, task)
+            return detail(db, task, claims)
         raise HTTPException(409, "任务标识已使用，请刷新任务列表后核对")
     task = AssistantTask(id=str(payload.id), issuer=claims["iss"], owner_id=claims["sub"], **data)
     db.add(task)
@@ -153,12 +196,17 @@ def create(db, claims, payload):
     except IntegrityError:
         db.rollback()
         raise HTTPException(409, "任务已创建，请刷新任务列表后核对") from None
-    return detail(db, task)
+    return detail(db, task, claims)
 
 
 def change(db, claims, task, revision, values):
     if task.revision != revision:
         raise HTTPException(409, CONFLICT)
+    check_history_access(
+        db,
+        claims,
+        db.scalars(select(AssistantMessage).where(AssistantMessage.task_id == task.id)).all(),
+    )
     changed = db.execute(
         update(AssistantTask)
         .where(AssistantTask.id == task.id, owned(claims), AssistantTask.revision == revision)
@@ -169,7 +217,7 @@ def change(db, claims, task, revision, values):
         raise HTTPException(409, CONFLICT)
     db.commit()
     db.refresh(task)
-    return detail(db, task)
+    return detail(db, task, claims)
 
 
 def active(task):
@@ -177,7 +225,7 @@ def active(task):
         raise HTTPException(409, "任务已移至回收站，请先恢复")
 
 
-def completed_request(db, task, payload):
+def completed_request(db, task, payload, claims):
     prior = db.scalar(
         select(AssistantMessage).where(
             AssistantMessage.task_id == task.id,
@@ -195,7 +243,7 @@ def completed_request(db, task, payload):
         or prior.requested_mode != (payload.answer_mode or "")
     ):
         raise HTTPException(409, "该请求已使用不同内容，请刷新后重新发送")
-    return detail(db, task)
+    return detail(db, task, claims)
 
 
 def application_data(db, claims, payload):
@@ -211,11 +259,16 @@ def application_data(db, claims, payload):
 
 def question(db, claims, task, payload):
     active(task)
-    replay = completed_request(db, task, payload)
+    replay = completed_request(db, task, payload, claims)
     if replay is not None:
         return replay
     if task.revision != payload.revision:
         raise HTTPException(409, CONFLICT)
+    prior_project_access = check_history_access(
+        db,
+        claims,
+        db.scalars(select(AssistantMessage).where(AssistantMessage.task_id == task.id)).all(),
+    )
     count = db.scalar(
         select(func.count())
         .select_from(AssistantMessage)
@@ -265,27 +318,53 @@ def question(db, claims, task, payload):
         ),
         "",
     )
-    plan = (
-        answer_modes.Plan(
-            "knowledge" if payload.data_sources else "general", "沿用原有回答范围", payload.question
+    if payload.answer_mode is None:
+        # Legacy requests keep their knowledge behavior; restored PM requests
+        # use the personal router rather than implying KB access.
+        requested = (
+            "auto"
+            if "projects" in payload.data_sources
+            else ("knowledge" if "knowledge" in payload.data_sources else "general")
         )
-        if payload.answer_mode is None
-        else answer_modes.decide(
-            payload.question,
-            payload.answer_mode,
-            knowledge_allowed="knowledge" in payload.data_sources,
-            previous_mode=previous.answer_mode if previous else "",
-            previous_web_question=previous_web_question,
-        )
+    else:
+        requested = payload.answer_mode
+    plan = answer_modes.decide_personal(
+        payload.question,
+        requested,
+        data_sources=payload.data_sources,
+        previous_mode=previous.answer_mode if previous else "",
+        previous_sources=(previous.application_scope or {}).get("used_sources", [])
+        if previous
+        else [],
+        previous_web_question=previous_web_question,
+        reference_material_available=bool(payload.context.strip()),
     )
-    use_knowledge = plan.mode == "knowledge"
+    use_knowledge = "knowledge" in plan.sources
+    use_projects = "projects" in plan.sources
     diagnostics.stage("application_data")
-    evidence = application_data(db, claims, payload) if use_knowledge else {}
+    # Pass only sources actually used, not every data source the user permitted.
+    evidence = (
+        application_data(db, claims, payload.model_copy(update={"data_sources": ["knowledge"]}))
+        if use_knowledge
+        else {}
+    )
+    project_access, project_ids = None, []
+    if use_projects:
+        evidence["projects"], project_access, project_ids = assistant_projects.catalogue(
+            db, claims, prior_project_access
+        )
+    application_scope = {"version": 1, "used_sources": list(plan.sources)}
+    if use_projects:
+        application_scope.update(
+            project_ids=project_ids, visible_count=evidence["projects"]["total"]
+        )
+        if evidence["projects"]["truncated"]:
+            application_scope["scope_hash"] = assistant_projects.fingerprint(project_access)
     scope_instruction = (
-        "已选择知识库数据。涉及知识库中的业务事实时，只能依据本轮选中应用提供的资料"
+        "本轮使用已授权的应用数据。涉及应用中的业务事实时，只能依据本轮选中应用提供的资料"
         "和用户本轮提供的资料作答；历史问题仅用于理解追问，不是事实证据。"
         "如果资料中未找到答案，请明确说明，不得用一般知识推测或编造业务事实。"
-        if use_knowledge
+        if use_knowledge or use_projects
         else ""
     )
     messages = [{"role": "system", "content": SYSTEM_PROMPT + scope_instruction}]
@@ -297,6 +376,12 @@ def question(db, claims, task, payload):
             }
         )
     for message in history:
+        # Previous application-derived questions and answers are never new
+        # evidence, even when the same source is still selected.
+        if message.answer_mode in ("knowledge", "application") or (
+            message.application_scope and message.application_scope.get("used_sources")
+        ):
+            continue
         if payload.answer_mode is not None and message.answer_mode != plan.mode:
             continue
         if message.role == "user":
@@ -361,9 +446,18 @@ def question(db, claims, task, payload):
     except (ai.AIError, OSError, ValueError, KeyError, TypeError) as exc:
         raise diagnostics.model_http_error(exc) from None
     diagnostics.stage("saving")
+    db.rollback()
+    if project_access:
+        current_access = assistant_projects.recheck(db, claims, project_access)
+        if "scope_hash" in application_scope and application_scope[
+            "scope_hash"
+        ] != assistant_projects.fingerprint(current_access):
+            raise HTTPException(403, assistant_projects.ACCESS_CHANGED)
+        if use_knowledge:
+            solution_knowledge.check_access(claims)
     task = get_task(db, task_id, claims)
     active(task)
-    replay = completed_request(db, task, payload)
+    replay = completed_request(db, task, payload, claims)
     if replay is not None:
         return replay
     changed = db.execute(
@@ -397,6 +491,7 @@ def question(db, claims, task, payload):
                 requested_mode=payload.answer_mode or "",
                 mode_reason=plan.reason,
                 web_references=web_references if role == "assistant" else [],
+                application_scope=application_scope,
                 created_at=now,
             )
         )
@@ -406,4 +501,4 @@ def question(db, claims, task, payload):
         db.rollback()
         raise HTTPException(409, CONFLICT) from None
     db.refresh(task)
-    return detail(db, task)
+    return detail(db, task, claims)
