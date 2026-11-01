@@ -27,6 +27,9 @@ describe('knowledge source real-data application', () => {
   it('lists existing KB papers and archived files without treating discovery as saved or unknown indexing as ready', async () => {
     mount()
     expect(await screen.findByRole('button', { name: /已有研究论文/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '应用工作台' })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('link', { name: '同事 · 我的设置' })).toHaveAttribute('href', '/settings')
+    expect(screen.getByRole('button', { name: '切换主题' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /已下载的ICH指南/ })).toBeInTheDocument()
     expect(screen.queryByText('官方新指南')).not.toBeInTheDocument()
     expect(screen.getByText('索引状态待确认')).toBeInTheDocument()
