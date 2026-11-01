@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode, type ButtonHTMLAttributes } from 'react'
-import { Link } from 'react-router-dom'
-import { ArrowUpRight, Check, ChevronRight, Clock3, Database, Download, ExternalLink, FileText, Folder, FolderDown, FolderOpen, FolderPlus, FolderSearch, HardDriveDownload, Inbox, LayoutGrid, Library, Link2, LoaderCircle, PanelRight, Pencil, Plus, Radar, RefreshCw, Search, Star, X } from 'lucide-react'
+import { ArrowUpRight, Check, ChevronRight, Clock3, Database, Download, ExternalLink, FileText, Folder, FolderDown, FolderOpen, FolderPlus, FolderSearch, HardDriveDownload, Inbox, Library, Link2, LoaderCircle, PanelRight, Pencil, Plus, Radar, RefreshCw, Search, Star, X } from 'lucide-react'
 import { usePortalContext } from '../../components/portal/context'
-import { workspaceUrl } from '../../lib/site'
+import ApplicationActions from '../../components/application/ApplicationActions'
 import { SCOPE_NAMES, type InformationDocument, type InformationSource } from '../information/api'
 import { getKnowledgeSources, mutateKnowledgeSources, sourceError, type KnowledgeSourceSnapshot, type SourcePaper } from './api'
 import './knowledge-sources.css'
@@ -24,10 +23,10 @@ function Button({ children, primary, quiet, ...props }: ButtonHTMLAttributes<HTM
 
 export default function KnowledgeSourceApp() {
   const { preview, user, identityNamespace, applications } = usePortalContext()
-  return <Workspace key={identityNamespace || user.id} preview={preview} allowed={applications.some(a => a.id === 'knowledge-sources' && a.enabled)} />
+  return <Workspace key={identityNamespace || user.id} userName={user.displayName || user.username} preview={preview} allowed={applications.some(a => a.id === 'knowledge-sources' && a.enabled)} />
 }
 
-function Workspace({ preview, allowed }: { preview: boolean; allowed: boolean }) {
+function Workspace({ preview, allowed, userName }: { preview: boolean; allowed: boolean; userName: string }) {
   const [data, setData] = useState<KnowledgeSourceSnapshot | null>(null)
   const [loading, setLoading] = useState(!preview && allowed), [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false)
   const [view, setView] = useState<View>('library'), [folder, setFolder] = useState('all'), [selected, setSelected] = useState(''), [picks, setPicks] = useState<string[]>([])
@@ -70,10 +69,11 @@ function Workspace({ preview, allowed }: { preview: boolean; allowed: boolean })
   function nav(v: View, f: string, label: string, icon: ReactNode, count?: number) { return <button type="button" className={`ks-nav${view === v && (v !== 'library' || folder === f) ? ' is-active' : ''}`} onClick={() => go(v, f)} aria-current={view === v && (v !== 'library' || folder === f) ? 'page' : undefined}>{icon}<span>{label}</span>{count !== undefined && <small>{count}</small>}</button> }
   const previewSource = d.sources.find(s => s.id === modal?.sourceId)
   return <div id="knowledge-source-app">
-    <header className="ks-top"><div className="ks-brand"><div className="ks-mark"><FolderSearch /></div><strong>知识源</strong><span>MBERP · 论文与来源管理</span>{preview && <small className="ks-preview">界面预览 · 未连接数据</small>}</div><div className="ks-actions"><Button onClick={() => { void refresh() }} disabled={busy || preview || !allowed}><RefreshCw />刷新</Button><Link className="ks-toplink" to={workspaceUrl}><LayoutGrid />应用工作台</Link></div></header>
+    <a className="ks-skip" href="#ks-content">跳至知识源内容</a>
+    <header className="ks-top ks-source-header"><div className="ks-brand"><div className="ks-mark"><FolderSearch aria-hidden="true" /></div><strong>知识源</strong><span>论文与来源管理</span>{preview && <small className="ks-preview">界面预览 · 未连接数据</small>}</div><div className="ks-header-actions"><button type="button" className="ks-header-refresh" aria-label="刷新知识源" title="刷新知识源" onClick={() => { void refresh() }} disabled={busy || loading || preview || !allowed}><RefreshCw aria-hidden="true" /></button><ApplicationActions userName={userName} preview={preview} /></div></header>
     {notice && <div role="status" className="ks-inline-status">{notice}</div>}{error && <div role="alert" className="ks-inline-status ks-inline-error">{error}<Button quiet onClick={() => { void refresh() }} disabled={busy}>重试连接</Button></div>}
     <div className="ks-shell"><aside className="ks-sidebar"><div className="ks-side-group">{nav('library', 'all', '全部论文', <Library />, d.papers.length)}{nav('library', 'recent', '最近下载', <Clock3 />)}{nav('library', 'unsorted', '待整理', <Inbox />, d.papers.filter(unsorted).length)}{nav('library', 'starred', '我的收藏', <Star />, d.papers.filter(p => d.starred.includes(p.id)).length)}</div><div><div className="ks-side-label"><span>论文文件夹</span>{d.canOrganize && <button className="ks-icon-btn" type="button" aria-label="新建文件夹" onClick={() => open({ kind: 'new-folder' })}><Plus /></button>}</div><div className="ks-side-group">{d.folders.map(f => <div key={f.id}>{nav('library', f.id, f.name, sourceFolders.has(f.id) ? <FolderDown /> : <Folder />, folderCount(f.id))}</div>)}</div></div><div className="ks-side-group"><div className="ks-side-label">获取论文</div>{nav('sources', '', '论文搜索源', <Radar />, d.sources.length)}{nav('downloads', '', '下载任务', <Download />, d.jobs.filter(j => active(j.status) || j.status === 'paused').length || undefined)}</div><div className="ks-side-end"><strong><Database />与知识库共用论文</strong>多个文件夹，共用一份原件。<br />来源下载由用户主动启动。</div></aside>
-      <main className="ks-main" aria-busy={loading || busy}>
+      <main id="ks-content" className="ks-main" aria-busy={loading || busy}>
         {preview ? <Empty title="知识源界面预览">预览不连接知识库。请正常登录后查看真实论文、文件夹和来源下载任务。</Empty> : !allowed ? <Empty title="知识源暂不可用">请返回工作台刷新应用权限，或联系管理员。</Empty> : loading ? <Empty title="正在读取知识库"><LoaderCircle className="if-spin" />正在加载论文、文件夹和来源状态。</Empty> : !data ? <Empty title="知识库尚未连接">{error || '请检查连接后刷新，当前没有可确认的论文清单。'}</Empty> : <>
           {d.integration.status !== 'ready' && <div className="ks-connection" role="status">{d.integration.message}</div>}
           {view === 'sources' ? <Sources data={d} busy={busy} mutate={mutate} open={open} /> : view === 'downloads' ? <Downloads data={d} busy={busy} mutate={mutate} go={go} /> : <>
@@ -86,6 +86,7 @@ function Workspace({ preview, allowed }: { preview: boolean; allowed: boolean })
           </>}
         </>}
       </main></div>
+    <footer className="ks-app-footer"><span><Database aria-hidden="true" />与知识库共用论文 · 来源下载由你启动</span><span>迈博药业 · 数字化工作空间</span></footer>
     {modal && data && <Dialog key={`${modal.kind}:${modal.folderId || modal.sourceId || ''}`} modal={modal} data={d} source={previewSource} busy={busy} remoteError={error} mutate={mutate} onClose={close} onDone={() => { setModal(null); setPicks([]) }} go={go} />}
   </div>
 }

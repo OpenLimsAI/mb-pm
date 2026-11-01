@@ -8,6 +8,6 @@
 .application-theme-toggle { display: grid; place-items: center; flex: none; width: 34px; height: 34px; color: #e6f1ff; border: 0; border-radius: 6px; background: transparent; }
 .application-account:focus-visible, .application-theme-toggle:focus-visible { outline: 2px solid #bfeaff; outline-offset: 2px; }
 html[data-application-theme="dark"] { filter: invert(1) hue-rotate(180deg) brightness(1.35); background: #fff; }
-html[data-application-theme="dark"] :is(.aa-topbar, .pn-app-header, .ks-topbar, .if-header) { filter: brightness(.74) hue-rotate(180deg) invert(1); }
+html[data-application-theme="dark"] :is(.aa-topbar, .pn-app-header, .ks-topbar, .if-header, .ks-source-header) { filter: brightness(.74) hue-rotate(180deg) invert(1); }
 html[data-application-theme="dark"] :is(img, video, iframe, canvas):not(header *) { filter: invert(1) hue-rotate(180deg); }
 @media (max-width: 650px) { .application-actions { gap: 5px; } .application-account-copy { display: none; } .application-avatar { width: 30px; height: 30px; } }
