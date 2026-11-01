@@ -25,6 +25,19 @@ export class NeedsIamPage extends Error {}
 const IAM_STEPS = new Set(['NextMfa', 'RequiredMfa', 'SelectPlan', 'BuyPlanResult'])
 
 const startClient = axios.create({ baseURL: API_BASE, withCredentials: true, timeout: 15000 })
+const IAM_REQUEST_TIMEOUT = 10000
+export type IamSessionState = 'authenticated' | 'anonymous' | 'unknown'
+
+async function iamFetch(url: string, options: RequestInit): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), IAM_REQUEST_TIMEOUT)
+  try {
+    // Include response decoding in the deadline, not just receipt of the headers.
+    const response = await fetch(url, { ...options, signal: controller.signal })
+    const body = await response.text()
+    return new Response(body, { status: response.status, headers: response.headers })
+  } finally { clearTimeout(timer) }
+}
 
 /** kind：门户会话（portal）或项目管理会话（pm）。 */
 export async function startLogin(kind: 'portal' | 'pm', returnTo: string): Promise<EmbeddedLogin> {
@@ -32,17 +45,21 @@ export async function startLogin(kind: 'portal' | 'pm', returnTo: string): Promi
   return camelize<EmbeddedLogin>(data)
 }
 
-/** 浏览器里是否已有 IAM 登录会话（有则可直接走单点登录，不必再输入密码）。查询失败按没有处理。 */
-export async function hasIamSession(kind: 'portal' | 'pm'): Promise<boolean> {
+/** 探测失败不代表 IAM 已退出；调用方应提供重试或顶层 IAM 恢复入口。 */
+export async function hasIamSession(kind: 'portal' | 'pm'): Promise<IamSessionState> {
   try {
     const { data } = await startClient.get(kind === 'portal' ? '/portal/config' : '/auth/config')
     const url = (data as { iam_session_url?: unknown }).iam_session_url
-    if (typeof url !== 'string' || !url) return false
-    const response = await fetch(url, { credentials: 'include', headers: { 'Accept-Language': 'zh-CN' } })
-    const body = await response.json() as { status?: string; data?: { name?: unknown } | null }
-    return body.status === 'ok' && typeof body.data?.name === 'string'
+    if (typeof url !== 'string' || !url) return 'unknown'
+    const response = await iamFetch(url, { credentials: 'include', headers: { 'Accept-Language': 'zh-CN' } })
+    const body = await response.json() as { status?: string; msg?: unknown; data?: { name?: unknown } | null }
+    if (!response.ok) return response.status === 401 && body.status === 'error' ? 'anonymous' : 'unknown'
+    if (body.status === 'ok' && typeof body.data?.name === 'string' && body.data.name) return 'authenticated'
+    if (body.status === 'ok' && body.data === null) return 'anonymous'
+    if (body.status === 'error' && typeof body.msg === 'string' && /^(?:Please (?:sign in|log in|login) first[.!]?|请先登录[。！!]?)$/i.test(body.msg.trim())) return 'anonymous'
+    return 'unknown'
   } catch {
-    return false
+    return 'unknown'
   }
 }
 
@@ -60,13 +77,14 @@ async function requestCode(start: EmbeddedLogin, fields: Record<string, unknown>
   let body: { status?: string; msg?: string; data?: unknown }
   try {
     // text/plain 属于简单请求（无需预检）；IAM 按 JSON 解析请求体，按 Accept-Language 返回中文提示
-    const response = await fetch(start.loginApi, {
+    const response = await iamFetch(start.loginApi, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'text/plain;charset=UTF-8', 'Accept-Language': 'zh-CN' },
       body: JSON.stringify({ application: start.application, organization: start.organization, type: 'code', ...fields }),
     })
     body = await response.json()
+    if (!response.ok && body.status !== 'error') throw new IamUnreachable('无法连接迈博统一身份服务')
   } catch {
     throw new IamUnreachable('无法连接迈博统一身份服务')
   }

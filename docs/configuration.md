@@ -65,6 +65,20 @@
 
 ## 独立门户与会话
 
+门户与 PM 支持服务端续期。Casdoor 应用须允许 `authorization_code` 与 `refresh_token`；access、id、refresh token 均加密存入原有会话表，浏览器只持有 HttpOnly 随机会话 Cookie。默认在 access token 到期前 120 秒刷新，活跃操作不再每小时被中断；刷新使用该会话所属的独立客户端，不新增 scope。
+
+| 配置 | 默认值 | 含义 |
+|---|---|---|
+| `IAM_SESSION_SECONDS` | `3600` | 可续期会话的空闲时限；无刷新令牌的旧会话仍按原有上限过期 |
+| `IAM_SESSION_ABSOLUTE_SECONDS` | `28800` | 自完整登录起最多 8 小时，刷新不会延长这个绝对时限 |
+| `IAM_REFRESH_LEEWAY_SECONDS` | `120` | 短期访问令牌到期前的刷新窗口 |
+
+升级不会为旧会话补造刷新令牌，用户须正常登录一次后进入续期模式。仅调大 `IAM_SESSION_SECONDS` 无法延长旧令牌的一小时寿命。IAM 的 7 天单点登录 Cookie 与上述业务会话时限分别生效。显式退出后不会自动恢复登录。
+
+两个生产实例通过 PostgreSQL 会话行锁串行刷新，身份校验完成后立即释放锁，不持有到 AI 生成结束。刷新重新校验签名、issuer、client/audience、subject、组织、账号状态及原始授权链撤销标记；后续刷新不能越过统一退出。IAM 暂时故障返回 503，不授权请求、不清除有效工作现场；`invalid_grant` 返回 401，要求重新登录。已成功旋转但状态核验暂时失败的新凭据会加密保留，下一次仍须重新核验才能使用。
+
+单点登录探测区分已登录、未登录与暂无法确认，超时或跨域失败提供重试和顶层 IAM 入口，不等同账号已退出。`auth.audit` 输出 UTC 时间、随机请求 ID、路由模板、实例、HTTP 状态与安全原因码；响应含 `X-Request-ID`，鉴权失败另含 `X-Auth-Reason`。日志不包含账号、Cookie、令牌、查询参数、问答内容或模型密钥。常见原因码为 `session_missing`、`session_expired`、`session_idle`、`token_expired`、`revoked`、`account_disabled`、`provider_unavailable`、`refresh_rejected`。
+
 正式门户使用组织 `mabpharm` 下的独立 Casdoor 应用 `admin/maibo-portal`。
 PM 保留 `mp-pm` 客户端。正式门户需配置 `PORTAL_PUBLIC_URL`、`PORTAL_CLIENT_ID` 和 `PORTAL_CLIENT_SECRET`；缺少完整配置时返回 503，不回退到 PM 客户端。
 

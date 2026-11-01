@@ -82,7 +82,10 @@ class Settings(BaseSettings):
     MDM_SOURCE_NAMESPACE: str = "mdm"
     OIDC_GLOBAL_LOGOUT_ENABLED: bool = False
     CASDOOR_ACCOUNT_STATUS_VISIBLE: bool = False
-    IAM_SESSION_SECONDS: int = 3600
+    IAM_SESSION_SECONDS: int = Field(default=3600, ge=60, le=604800)
+    # Renewable sessions remain idle-limited; the browser never receives OAuth tokens.
+    IAM_SESSION_ABSOLUTE_SECONDS: int = Field(default=28800, ge=300, le=604800)
+    IAM_REFRESH_LEEWAY_SECONDS: int = Field(default=120, ge=0, le=300)
     IAM_COOKIE_SECURE: bool = False  # HTTPS 部署必须设为 true
 
     # 独立员工门户。留空只兼容本地 / 同域过渡模式；生产 www 必须配置独立 IAM 应用。

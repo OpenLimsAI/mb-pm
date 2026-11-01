@@ -498,7 +498,9 @@ def _verify_saved(account: dict, wanted: set[str], changes: dict) -> None:
 def _refresh_catalogue(db: Session, subject: str, roles: set[str]) -> None:
     """仅更新门户入口缓存；业务权限仍验签并由各应用校验，不改签发的令牌。"""
     with db.no_autoflush:
-        for session in db.query(PortalSession):
+        for session in (
+            db.query(PortalSession).order_by(PortalSession.id).populate_existing().with_for_update()
+        ):
             try:
                 data = unseal(session.tokens)
                 # 这里只定位待更新的服务端会话，不用未验签声明授权。

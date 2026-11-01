@@ -19,6 +19,7 @@ interface AuthState {
   mustChangePassword: boolean
   status: AuthStatus
   error: string | null
+  refreshError: string | null
   /** 重新向后端确认登录身份（并发调用合并为一次请求）。 */
   refresh: () => Promise<void>
   /** 跳转到 IAM 登录；returnTo 为登录成功后回到的站内路径。 */
@@ -29,24 +30,30 @@ interface AuthState {
 
 let refreshing: Promise<void> | undefined
 
-export const useAuth = create<AuthState>((set) => ({
+export const useAuth = create<AuthState>((set, get) => ({
   currentUser: null,
   mustChangePassword: false,
   status: 'loading',
   error: null,
+  refreshError: null,
   refresh: () => {
     if (!refreshing) {
       refreshing = fetchMe()
         .then(({ mustChangePassword, ...user }) => set({
-          currentUser: user as unknown as User, mustChangePassword: !!mustChangePassword, status: 'ready', error: null,
+          currentUser: user as unknown as User, mustChangePassword: !!mustChangePassword, status: 'ready', error: null, refreshError: null,
         }))
         .catch((err) => {
           const { status, detail } = asAPIError(err)
+          if (get().status === 'ready' && get().currentUser && (status === undefined || status >= 500)) {
+            set({ refreshError: '暂时无法确认登录状态，当前页面已保留。请重试；需要身份验证的操作可能暂时无法完成。' })
+            return
+          }
           set({
             currentUser: null,
             mustChangePassword: false,
             status: status === 401 ? 'anonymous' : status === undefined ? 'offline' : 'error',
             error: detail,
+            refreshError: null,
           })
         })
         .finally(() => { refreshing = undefined })
@@ -68,9 +75,11 @@ export const useAuth = create<AuthState>((set) => ({
   },
 }))
 
-// 任一请求 401（会话过期 / 在别处登出）→ 回到未登录态，路由守卫随即跳登录页。
+// Recheck identity so a delayed response from before a renewal cannot erase a valid login.
 window.addEventListener('pms:unauthorized', () => {
-  useAuth.setState({ currentUser: null, status: 'anonymous', error: null })
+  const state = useAuth.getState()
+  if (state.status === 'ready' && state.currentUser) void state.refresh()
+  else useAuth.setState({ currentUser: null, mustChangePassword: false, status: 'anonymous', error: null, refreshError: null })
 })
 
 // 清理旧版留在浏览器里的令牌（演示 JWT、oidc-client-ts 的用户与 token），不信任其内容。

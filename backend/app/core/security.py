@@ -91,6 +91,7 @@ def decode_access_token(
     access_token: str | None = None,
     audience: str | None = None,
     jwks_url: str | None = None,
+    allow_expired: bool = False,
 ) -> dict:
     if not token or len(token) > 32768:
         raise HTTPException(401, "无效的 IAM 令牌")
@@ -106,15 +107,25 @@ def decode_access_token(
             issuer=settings.casdoor_issuer,
             access_token=access_token,
             options={
-                "require_exp": True,
+                # python-jose makes require_exp force verify_exp back to True.
+                # Renewal still requires a signed integer exp below, but may
+                # inspect an expired access JWT solely to bind a refresh grant.
+                "require_exp": not allow_expired,
                 "require_sub": True,
                 "require_aud": True,
                 "require_iss": True,
                 "leeway": 10,
+                "verify_exp": not allow_expired,
             },
         )
         if not claims.get("sub"):
             raise JWTError("empty subject")
+        if allow_expired and (
+            not isinstance(claims.get("exp"), int)
+            or isinstance(claims["exp"], bool)
+            or claims["exp"] <= 0
+        ):
+            raise JWTError("missing or invalid expiry")
         return claims
     except (JWTError, ValueError, TypeError, KeyError) as exc:
         raise HTTPException(401, "IAM 令牌无效或已过期") from exc

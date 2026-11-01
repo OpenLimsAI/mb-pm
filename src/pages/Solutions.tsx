@@ -21,5 +21,5 @@ export default function Solutions() {
   if (!preview && !applications.some(entry => entry.id === 'solutions' && entry.enabled)) {
     return <main className="portal-panel"><h1>研究报告暂时不可用</h1><p>请返回工作台刷新登录身份。</p><Link className="app-workbench-link" to="/">应用工作台</Link></main>
   }
-  return <SolutionsApp key={`${namespace}:${user.id}:${preview}`} client={client} userId={user.id} userName={user.displayName} preview={preview} modelClient={modelClient} notesClient={notesClient} initialHome />
+  return <SolutionsApp key={`${namespace}:${user.id}:${preview}`} client={client} userId={user.id} userName={user.displayName} preview={preview} modelClient={modelClient} notesClient={notesClient} recoveryNamespace={identityNamespace} initialHome />
 }

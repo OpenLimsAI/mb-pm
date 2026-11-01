@@ -36,7 +36,7 @@ from app.api.v1 import (
     templates,
     users,
 )
-from app.core.auth_logging import CallbackQueryFilter
+from app.core.auth_logging import CallbackQueryFilter, audit_auth_request
 from app.core.config import settings
 from app.db.base import Base
 from app.db.session import SessionLocal, engine
@@ -205,6 +205,8 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan,
 )
+
+app.middleware("http")(audit_auth_request)
 
 app.add_middleware(
     CORSMiddleware,

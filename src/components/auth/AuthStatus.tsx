@@ -31,3 +31,8 @@ export function IdentityProblem({ message, onLogout }: { message: string | null;
     </div>
   )
 }
+
+/** Recoverable status belongs beside the editor, never in place of it. */
+export function IdentityRetryNotice({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return <div role="status" className="relative z-50 flex flex-wrap items-center justify-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900"><AlertTriangle size={16} aria-hidden="true" /><span>{message}</span><Button size="sm" icon={<RotateCw size={14} />} onClick={onRetry}>重试身份验证</Button></div>
+}

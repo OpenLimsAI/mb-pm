@@ -387,7 +387,7 @@ def test_global_logout_uses_server_token_and_reports_partial_failure(
     location = response.headers["location"]
     assert "id_token_hint" not in location and "access_token" not in location
     if provider_ok is True:
-        assert location == settings.pms_origin + "/login"
+        assert location == settings.pms_origin + "/login?signed_out=1"
     else:
         assert location == settings.pms_origin + "/login?error=logout_incomplete"
     response = client.get("/api/v1/auth/me", headers={"Authorization": "Bearer " + access})
@@ -584,7 +584,7 @@ def test_global_logout_requires_active_preflight_and_inactive_postcondition(
     assert response.status_code == 303
     location = response.headers["location"]
     if case == "inactive":
-        assert location == settings.pms_origin + "/login"
+        assert location == settings.pms_origin + "/login?signed_out=1"
     else:
         assert location == settings.pms_origin + "/login?error=logout_incomplete"
     assert len(checks) == (1 if case == "wrong_subject" else 2)
