@@ -124,7 +124,7 @@
 
 ## 个人模型配置
 
-点击研究助手内高亮的「AI模型设置」，添加、编辑和删除当前账号的模型配置。支持 DeepSeek、MiniMax、GLM、OpenAI 和 `custom` 自托管兼容服务；每人最多 20 组，同一服务商可配置不同模型及用途。每组填写配置名称、服务地址、模型 ID 和可选密钥，模型 ID 按本人服务商控制台手动填写，不固定或推荐所谓最新名称。
+点击研究助手内高亮的「AI模型设置」，添加、编辑和删除当前账号的模型配置。支持 DeepSeek、MiniMax、Kimi、GLM、OpenAI 和 `custom` 自托管兼容服务；每人最多 20 组，同一服务商可配置不同模型及用途。每组填写配置名称、服务地址、模型 ID 和可选密钥，模型 ID 可从带参考价的预置列表选择，也可按本人服务商控制台手动填写；型号与账号开通范围仍需确认。
 
 以下是代码预填基础地址的官方依据。基础地址后由服务追加 `/chat/completions`，填写时不要重复该路径；支持最小的 OpenAI-compatible 对话请求，不意味着支持供应商的全部专用参数。
 
@@ -132,6 +132,7 @@
 | --- | --- | --- |
 | OpenAI | `https://api.openai.com/v1` | [Chat Completions 接口](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create) |
 | DeepSeek | `https://api.deepseek.com` | [对话接口示例](https://api-docs.deepseek.com/guides/multi_round_chat/) |
+| Kimi | `https://api.moonshot.cn/v1` | [官方快速开始](https://platform.kimi.com/docs/get-api-key) |
 | MiniMax | `https://api.minimax.io/v1` | [OpenAI-compatible 接口定义](https://platform.minimax.io/docs/api-reference/text/api/openapi-chat-openai.json) |
 | GLM | `https://open.bigmodel.cn/api/paas/v4` | [OpenAI API 兼容说明](https://docs.bigmodel.cn/cn/guide/develop/openai/introduction) |
 | 自托管兼容服务 | 本人填写 HTTP(S) 基础地址 | 须提供兼容的 Chat Completions 接口，允许不带密钥 |
@@ -193,3 +194,5 @@
 ## 报告主页与个人摘录
 
 从工作台进入 `/solutions` 默认显示报告主页，不自动打开第一份报告。选择报告后进入撰写，顶部主页按钮仍先保存当前修改再返回。正文选中有效文字后，浮动菜单显示询问 AI、Polish 文字、存入我的笔记。存入笔记打开独立弹窗，可修改标题与摘录；确认后只保存个人笔记，保留报告/章节标题与来源，不修改正文、不调用 AI 或论文知识库。预览正文及回答选区也可摘录。新笔记可从工作台「我的笔记」或行业信息侧栏查看。旧 KB 笔记不自动迁移。
+
+Kimi 支持、模型价格显示与静态价格目录的维护规则见[模型价格参考](model-pricing.md)。

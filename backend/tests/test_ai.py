@@ -333,7 +333,7 @@ def test_removed_providers_rejected_and_legacy_settings_fall_back(client, auth_h
         json.dump({"provider": "custom", "providers": {"openai": {"api_key": "old"}}}, f)
     cfg = ai.load_settings()
     assert cfg["provider"] == "deepseek"
-    assert set(cfg["providers"]) == {"deepseek", "minimax", "ollama"}
+    assert set(cfg["providers"]) == {"deepseek", "minimax", "kimi", "ollama"}
 
 
 def test_startup_adds_prompt_column_to_existing_table(tmp_path, monkeypatch):
@@ -463,3 +463,44 @@ def test_revoked_project_lead_cannot_use_ai_with_old_token(client, iam_user, bea
         "/api/v1/finances/ai-analyses",
     ]:
         assert client.get(endpoint, headers=bearer(user, "cmc_lead")).status_code == 403
+
+
+@pytest.mark.parametrize("provider,profile_provider", [("kimi", None), ("", "kimi")])
+@pytest.mark.parametrize("probe,limit,effort", [(True, 4096, "low"), (False, 16384, "high")])
+def test_kimi_bounded_thinking_request(provider, profile_provider, probe, limit, effort):
+    seen = []
+
+    def request(provider, cfg, path, body, **kwargs):
+        seen.append(body)
+        return {"choices": [{"message": {"content": "连接成功"}, "finish_reason": "stop"}]}
+
+    cfg = {"model": "kimi-k3.1-pro", "base_url": "https://api.moonshot.cn/v1", "api_key": "test"}
+    if profile_provider:
+        cfg["provider"] = profile_provider
+    assert (
+        ai.chat(
+            provider, cfg, [{"role": "user", "content": "你好"}], probe=probe, request_fn=request
+        )[0]
+        == "连接成功"
+    )
+    assert seen[0]["max_completion_tokens"] == limit
+    assert seen[0]["reasoning_effort"] == effort
+    assert "temperature" not in seen[0] and "max_tokens" not in seen[0]
+
+
+def test_old_settings_keep_existing_provider_and_add_kimi_defaults():
+    path = settings.AI_SETTINGS_PATH
+    with open(path, "w") as f:
+        json.dump(
+            {
+                "provider": "deepseek",
+                "providers": {
+                    "deepseek": {"model": "existing-model", "api_key": "existing-secret"}
+                },
+            },
+            f,
+        )
+    value = ai.load_settings()
+    assert value["provider"] == "deepseek"
+    assert value["providers"]["deepseek"]["api_key"] == "existing-secret"
+    assert value["providers"]["kimi"]["model"] == "kimi-k3.1-pro"

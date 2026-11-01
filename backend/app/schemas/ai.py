@@ -3,7 +3,7 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-Provider = Literal["deepseek", "minimax", "ollama"]
+Provider = Literal["deepseek", "minimax", "kimi", "ollama"]
 # 分析提示词（告诉模型分析什么、按什么结构输出）的长度上限
 MAX_PROMPT_LENGTH = 4000
 

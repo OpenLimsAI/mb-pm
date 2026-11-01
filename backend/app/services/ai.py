@@ -46,6 +46,7 @@ from app.services.rollup import live_health, live_span
 DEFAULTS = {
     "deepseek": {"base_url": "https://api.deepseek.com", "model": "deepseek-v4-pro"},
     "minimax": {"base_url": "https://api.minimaxi.com/v1", "model": "MiniMax-M3"},
+    "kimi": {"base_url": "https://api.moonshot.cn/v1", "model": "kimi-k3.1-pro"},
     "ollama": {"base_url": "http://127.0.0.1:11434", "model": ""},
 }
 
@@ -179,7 +180,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 def request(provider: str, cfg: dict, path: str, body=None, timeout=25) -> dict:
     key = cfg.get("api_key", "")
-    if provider in ("deepseek", "minimax") and not key:
+    if provider in ("deepseek", "minimax", "kimi") and not key:
         raise AIError("尚未填写 API Key，请在 AI 设置中保存密钥")
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
     if key and provider != "ollama":
@@ -255,6 +256,21 @@ def list_models(provider: str, cfg: dict) -> list[str]:
     ][:300]
 
 
+def kimi_parameters(provider: str, cfg: dict, body: dict, *, probe=False) -> None:
+    """Kimi fixed sampling and bounded thinking; also used by private profiles/tool turns."""
+    if provider != "kimi" and cfg.get("provider") != "kimi":
+        return
+    for key in ("temperature", "top_p", "presence_penalty", "frequency_penalty"):
+        body.pop(key, None)
+    limit = 4096 if probe else 16384
+    if cfg["model"].startswith("kimi-k3"):
+        body.pop("max_tokens", None)
+        body["max_completion_tokens"] = limit
+        body["reasoning_effort"] = "low" if probe else "high"
+    else:
+        body["max_tokens"] = limit
+
+
 def chat(provider: str, cfg: dict, messages: list, *, probe=False, timeout=None, request_fn=None):
     request_model = request_fn if request_fn is not None else request
     if not cfg["model"]:
@@ -290,6 +306,7 @@ def chat(provider: str, cfg: dict, messages: list, *, probe=False, timeout=None,
     else:
         if provider == "minimax":
             body.update(temperature=1.0, max_tokens=8192)
+        kimi_parameters(provider, cfg, body, probe=probe)
         result = diagnostics.model_call(
             request_model,
             provider,

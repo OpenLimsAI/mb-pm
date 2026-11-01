@@ -284,7 +284,8 @@ def test_ollama_native_objects_and_tool_name(monkeypatch):
     assert seen[1]["messages"][-1]["tool_name"] == "dikw_health"
 
 
-def test_deepseek_required_reasoning_is_preserved(monkeypatch):
+@pytest.mark.parametrize("provider", ["deepseek", "kimi"])
+def test_provider_required_reasoning_is_preserved(monkeypatch, provider):
     upstream(monkeypatch, [{"status": "ok"}])
     first = reply(calls=[call("dikw_health", {})])
     first["choices"][0]["message"]["reasoning_content"] = "检查服务"
@@ -294,7 +295,7 @@ def test_deepseek_required_reasoning_is_preserved(monkeypatch):
         seen.append(body)
         return next(responses)
 
-    assert chat(request) == "正常"
+    assert chat(request, provider) == "正常"
     assert seen[1]["messages"][-2]["reasoning_content"] == "检查服务"
 
 

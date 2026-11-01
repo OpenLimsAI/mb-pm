@@ -456,3 +456,14 @@ def test_migration_matches_model_and_is_idempotent():
             migration.downgrade()
             assert not inspect(connection).has_table("solution_ai_settings")
     engine.dispose()
+
+
+def test_kimi_personal_profile_is_saved_without_exposing_key(solution_client):
+    result = save(
+        solution_client,
+        [profile(provider="kimi", base_url="https://api.moonshot.cn/v1", model="kimi-k3.1-pro")],
+    )
+    assert result.status_code == 200
+    entry = result.json()["profiles"][0]
+    assert entry["provider"] == "kimi" and entry["key_set"] is True
+    assert FAKE_KEY not in result.text

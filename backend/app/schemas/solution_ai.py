@@ -7,7 +7,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 
-Provider = Literal["deepseek", "minimax", "glm", "openai", "custom"]
+Provider = Literal["deepseek", "minimax", "kimi", "glm", "openai", "custom"]
 RESERVED_IDS = {"system", "retrieval"}
 METADATA_HOSTS = {"metadata", "metadata.google.internal", "instance-data.ec2.internal"}
 
