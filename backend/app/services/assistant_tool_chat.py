@@ -73,6 +73,7 @@ def chat(provider, cfg, messages, claims, *, request_fn=None):
             body["max_tokens"] = 8192 if provider == "minimax" else 4096
             if provider == "minimax":
                 body["temperature"] = 1.0
+            ai.kimi_parameters(provider, cfg, body)
         result = diagnostics.model_call(
             request_model,
             provider,
@@ -137,10 +138,10 @@ def chat(provider, cfg, messages, claims, *, request_fn=None):
                 else [{"function": c["function"]} for c in normalized],
             }
         )
-        # DeepSeek thinking-mode tool turns require its preceding reasoning field.
-        if (provider == "deepseek" or cfg.get("provider") == "deepseek") and isinstance(
-            message.get("reasoning_content"), str
-        ):
+        # Thinking-mode tool turns require the preceding provider reasoning field.
+        if (
+            provider in ("deepseek", "kimi") or cfg.get("provider") in ("deepseek", "kimi")
+        ) and isinstance(message.get("reasoning_content"), str):
             if len(message["reasoning_content"]) > 80000:
                 raise ai.AIError("模型推理回复过长", code="response_too_large")
             history[-1]["reasoning_content"] = message["reasoning_content"]

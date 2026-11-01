@@ -42,7 +42,7 @@ flowchart TD
     App --> PMDB[项目管理 PostgreSQL]
     IAM --> IAMDB[IAM PostgreSQL]
     App -->|后端换码 / JWKS| IAM
-    App -->|分析数据快照| Model[DeepSeek / MiniMax / Ollama]
+    App -->|分析数据快照| Model[DeepSeek / MiniMax / Kimi / Ollama]
     KB -->|服务端 OIDC| Proxy[iam-proxy]
     Proxy --> IAM
 ```
@@ -185,3 +185,5 @@ AI 助手选择知识库时，`assistant_tool_chat.py` 为本轮模型注册六�
 本地旧稿、重复副本与 main 的对应关系，以及 2026-10-31 生产核对快照，见[本地修改核对记录](verification/2026-10-31-local-reconciliation.md)。未提交条目不能直接作为待发布功能列表；实际版本与配置须在发布时重新检查。
 
 个人助手的任务输入和返回结果不再包含 `project`，列表只按任务名称搜索；`data_sources` 只接受 `knowledge`。旧 `assistant_tasks.project` 列及预览记录中的历史归类值保留以避免破坏历史数据，但不参与当前接口、检索或模型上下文。
+
+模型价格是随前端版本发布的官方资料快照，统一由 `modelPricingData.ts` / `modelPricing.ts` 匹配服务商、基础地址与型号，`ModelPricePicker` 展示。价格数据不参与密钥保存或模型调用，不增加后台访问；Kimi 调用参数共用于普通生成与知识库工具轮次。范围见[模型价格参考](model-pricing.md)。

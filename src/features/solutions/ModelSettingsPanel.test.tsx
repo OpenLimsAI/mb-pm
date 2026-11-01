@@ -22,6 +22,20 @@ function save() { fireEvent.click(screen.getByRole('button', { name: '保存全�
 beforeEach(() => { localStorage.clear(); vi.restoreAllMocks() })
 
 describe('model settings panel', () => {
+  it('configures Kimi with the mainland endpoint, default model and visible pricing', async () => {
+    const { client } = await mount(mockClient({ profiles: [], defaultProfileId: null, revision: 0 }), true)
+    fireEvent.click(screen.getByRole('button', { name: '添加第一组配置' }))
+    field('服务商', 'kimi')
+    expect(screen.getByLabelText('服务地址')).toHaveValue('https://api.moonshot.cn/v1')
+    expect(screen.getByLabelText('模型名称')).toHaveValue('kimi-k3.1-pro')
+    expect(screen.getByRole('table')).toHaveTextContent('¥68')
+    expect(screen.getByLabelText('API 密钥')).toBeDisabled()
+    field('预置模型与参考价', 'kimi-k3')
+    expect(screen.getByLabelText('模型名称')).toHaveValue('kimi-k3')
+    save()
+    await waitFor(() => expect(client.save).toHaveBeenCalledOnce())
+    expect(vi.mocked(client.save).mock.calls[0][0].profiles[0]).toMatchObject({ provider: 'kimi', model: 'kimi-k3' })
+  })
   it('loads every profile without returning a saved secret and submits all edits in one save', async () => {
     const { client, onChange } = await mount()
     expect(screen.getByLabelText('API 密钥')).toHaveValue('')
