@@ -28,14 +28,19 @@ export function assistantFailure(error: unknown) {
   const detail = axios.isAxiosError(error) && typeof error.response?.data?.detail === 'string' ? error.response.data.detail : ''
   const diagnostic = axios.isAxiosError(error) ? String(error.response?.headers?.['x-assistant-diagnostic-id'] || '') : ''
   if (status === 401) window.dispatchEvent(new Event('portal:unauthorized'))
-  if (axios.isAxiosError(error) && !error.response && ['ECONNABORTED', 'ETIMEDOUT', 'ERR_NETWORK'].includes(error.code || '')) {
-    let requestId = ''
+  let requestId = ''
+  if (axios.isAxiosError(error)) {
     try {
       const data = typeof error.config?.data === 'string' ? JSON.parse(error.config.data) : error.config?.data
       if (typeof data?.request_id === 'string' && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(data.request_id)) requestId = data.request_id
     } catch { /* A failed request may not contain JSON. */ }
-    const message = error.code === 'ERR_NETWORK' ? '页面与服务的连接中断，问题已保留。' : '页面等待超时，问题已保留。'
-    return problem(`${message}请刷新任务核对结果。${requestId ? `（请求编号：${requestId}）` : ''}`)
+    if (!error.response && ['ECONNABORTED', 'ETIMEDOUT', 'ERR_NETWORK'].includes(error.code || '')) {
+      const message = error.code === 'ERR_NETWORK' ? '页面与服务的连接中断，问题已保留。' : '页面等待超时，问题已保留。'
+      return problem(`${message}请刷新任务核对结果。${requestId ? `（请求编号：${requestId}）` : ''}`)
+    }
+  }
+  if (status && status >= 500 && !/^[0-9a-f]{32}$/.test(diagnostic)) {
+    return problem(`服务未返回可识别的错误信息，问题已保留。${requestId ? `请提供请求编号排查。（请求编号：${requestId}）` : '请稍后重试。'}`, status)
   }
   return problem(status === 409 ? '任务已在其他页面更新。当前问题已保留，请刷新任务后核对并重试。' : status === 401 ? '登录已失效，请重新登录。' : ([403, 422, 502, 503, 504].includes(status || 0) || status === 500 && /^[0-9a-f]{32}$/.test(diagnostic)) && detail ? detail : status === 422 ? '请检查任务内容和模型配置，再重新发送。' : status === 404 ? '任务或所选模型不存在，或当前账号无权访问。' : status === 403 ? '当前账号无法使用此功能，请先确认登录状态。' : '请求未完成，问题仍保留。请检查模型配置或连接后重试。', status)
 }

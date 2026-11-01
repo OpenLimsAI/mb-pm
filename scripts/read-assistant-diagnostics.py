@@ -14,6 +14,7 @@ FIELDS = (
     "stage",
     "code",
     "status",
+    "dependency_status",
     "provider",
     "model",
     "elapsed_ms",
