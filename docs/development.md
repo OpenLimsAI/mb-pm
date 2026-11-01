@@ -224,3 +224,9 @@ GitHub Actions 检查前端账号权限覆盖率、门户路由及构建、后�
 ## 行业信息下线（2026-11-01，代码更新）
 
 旧应用入口已移除，直接链接显示下线说明。总开关 `INFORMATION_APP_ENABLED=false` 默认关闭管理 API 与后台任务；既有受保护原文下载保持可用；原文、文件夹、论文和任务数据不迁移、不删除。新「知识源」本轮仅做界面设计。前后端针对性验证与发布状态以本次回执为准，不将代码检查当作已部署。
+
+## 知识源
+
+正式入口 `/knowledge-sources` 使用门户会话与真实 `/api/v1/knowledge-sources` 接口，需配对知识库桥接版本及开启新应用/后台开关；旧 `INFORMATION_APP_ENABLED` 继续关闭。开发预览只显示连接提示，不执行真实采集。
+
+针对性检查：`npx vitest run src/features/knowledge-sources/KnowledgeSourceApp.test.tsx src/pages/Workspace.test.tsx`、`node scripts/test-portal-routing.mjs`，后端知识源测试与全量检查按原测试说明执行。需检验全库读取、多分类去重、目录预览、下载部分失败与重试、旧监控不恢复和权限失效。

@@ -414,7 +414,15 @@ class Store:
         self.put("event", event)
 
     def create_job(
-        self, source_id, subject, *, kind="check", document_ids=None, folder_id=None, parse=False
+        self,
+        source_id,
+        subject,
+        *,
+        kind="check",
+        document_ids=None,
+        folder_id=None,
+        parse=False,
+        app=None,
     ):
         source = self.source(source_id)
         row = self.db.get(InformationEntry, source_id)
@@ -427,7 +435,11 @@ class Store:
         if claimed != 1:
             raise HTTPException(409, "来源在创建任务时发生变化，请刷新后重试")
         for old in self.active_jobs():
-            if old["sourceId"] == source_id and old["status"] in ("queued", "running", "paused"):
+            if (
+                old["sourceId"] == source_id
+                and old.get("app") == app
+                and old["status"] in ("queued", "running", "paused")
+            ):
                 raise HTTPException(409, "此来源已有未完成任务，请先继续或取消原任务")
         ident = self.key("job", str(uuid4()))
         items = [
@@ -454,6 +466,8 @@ class Store:
             "pending": len(items),
             "scopeStatus": {},
         }
+        if app:
+            data["app"] = app
         self.put("job", data)
         self.audit(subject, "job_created:" + kind, ident)
         return data

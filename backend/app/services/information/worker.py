@@ -59,13 +59,19 @@ def safe_error(exc):
     return "后台处理失败，原文和已完成结果保留，请联系管理员查看运行记录"
 
 
-def run_step(store, official, *, extract=extract_pdf, connector=bridge.call, job_id=None):
+def run_step(store, official, *, extract=extract_pdf, connector=bridge.call, job_id=None, app=None):
     """The caller holds the global lease. Commit after every scope/file; closing UI has no effect."""
     db = store.db
-    jobs = [j for j in store.active_jobs() if j["status"] in ("queued", "running")]
+    jobs = [
+        j
+        for j in store.active_jobs()
+        if j["status"] in ("queued", "running") and j.get("app") == app
+    ]
     if not jobs:
         return False
-    job = next((j for j in jobs if j["id"] == job_id), jobs[0]) if job_id else jobs[0]
+    job = next((j for j in jobs if j["id"] == job_id), None) if job_id else jobs[0]
+    if job is None:
+        return False
     jobid = job["id"]
     try:
         authority(db, job["actorSubject"])

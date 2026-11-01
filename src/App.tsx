@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import Login from './pages/Login'
 import { WorkspacePage } from './pages/Workspace'
 import PortalGate from './components/portal/PortalGate'
-import { accountsUrl, assistantUrl, feedbackUrl, informationUrl, solutionsUrl, releaseNotesUrl, settingsRedirect, siteMode, workspaceUrl } from './lib/site'
+import { accountsUrl, assistantUrl, feedbackUrl, informationUrl, knowledgeSourcesUrl, solutionsUrl, releaseNotesUrl, settingsRedirect, siteMode, workspaceUrl } from './lib/site'
 import { RequirePerm } from './components/auth/RequirePerm'
 import { BootSplash } from './components/auth/AuthStatus'
 
@@ -28,6 +28,7 @@ const AISettings = lazy(() => import('./pages/AISettings'))
 const PortalAccounts = lazy(() => import('./pages/PortalAccounts'))
 const PortalHelp = lazy(() => import('./pages/PortalHelp'))
 const PortalLaunch = lazy(() => import('./pages/PortalLaunch'))
+const KnowledgeSources = lazy(() => import('./pages/KnowledgeSources'))
 const Information = lazy(() => import('./pages/Information'))
 const Notes = lazy(() => import('./pages/Notes'))
 const Assistant = lazy(() => import('./pages/Assistant'))
@@ -59,6 +60,7 @@ export default function App() {
             <Route path="/release-notes" element={<ReleaseNotes />} />
             <Route path="/launch/:appId" element={<PortalLaunch />} />
             <Route path="/feedback" element={<Feedback />} />
+            <Route path="/knowledge-sources/*" element={<KnowledgeSources />} />
             <Route path="/information/*" element={<Information />} />
             <Route path="/solutions/*" element={<Solutions />} />
           </Route>
@@ -67,6 +69,7 @@ export default function App() {
           <Route path="/workspace" element={<ExternalWorkspace />} />
           <Route path="/feedback" element={<ExternalRedirect to={feedbackUrl} message="正在打开回音壁 …" />} />
           <Route path="/assistant/*" element={<ExternalRedirect to={assistantUrl} message="正在打开 AI 助手 …" />} />
+          <Route path="/knowledge-sources/*" element={<ExternalRedirect to={knowledgeSourcesUrl} message="正在打开知识源 …" />} />
           <Route path="/information/*" element={<ExternalRedirect to={informationUrl} message="正在打开行业信息 …" />} />
           <Route path="/solutions/*" element={<ExternalRedirect to={solutionsUrl} message="正在打开研究报告 …" />} />
           {/* 个人设置回门户；旧 AI 标签直达项目管理 AI设置 */}
@@ -116,6 +119,7 @@ function RouteTitle() {
       document.title = '研究报告 · 迈博工作空间'
       return
     }
+    if (pathname === '/knowledge-sources' || pathname.startsWith('/knowledge-sources/')) { document.title = '知识源 · 迈博工作空间'; return }
     if (pathname === '/information' || pathname.startsWith('/information/')) {
       document.title = '行业信息 · 迈博工作空间'
       return
