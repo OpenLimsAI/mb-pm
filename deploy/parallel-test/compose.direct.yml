@@ -15,6 +15,11 @@
 
 services:
   app-direct:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     image: mb-pm:${PMS_IMAGE_TAG:?run setup.py init first}
     restart: unless-stopped
     depends_on:

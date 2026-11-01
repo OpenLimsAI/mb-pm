@@ -1,6 +1,11 @@
 # www 门户发布前先配置独立 IAM 应用；日常发版保留客户现有业务数据。
 services:
   app:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     environment:
       PMS_PUBLIC_URL: https://pm.openlims.ai
       APP_CORS_ORIGINS: https://pm.openlims.ai,https://www.openlims.ai

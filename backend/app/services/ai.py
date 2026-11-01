@@ -39,6 +39,7 @@ from app.models import (
     User,
 )
 from app.schemas.ai import AISettingsInput, ProviderConfig
+from app.services import assistant_diagnostics as diagnostics
 from app.services.finance import finance_view, task_cost_totals
 from app.services.rollup import live_health, live_span
 
@@ -85,11 +86,15 @@ _lock = threading.RLock()
 
 
 class AIError(Exception):
-    pass
+    def __init__(self, message, *, code="model_error", upstream_status=None):
+        super().__init__(message)
+        self.code = code
+        self.upstream_status = upstream_status
 
 
 class NetworkError(AIError):
-    pass
+    def __init__(self, message, *, code="model_network"):
+        super().__init__(message, code=code)
 
 
 def load_settings() -> dict:
@@ -195,17 +200,20 @@ def request(provider: str, cfg: dict, path: str, body=None, timeout=25) -> dict:
     )
     try:
         with opener.open(req, timeout=timeout) as response:
+            diagnostics.transport_status(getattr(response, "status", None))
             raw = response.read(2_000_001)
         if len(raw) > 2_000_000:
-            raise AIError("模型回复过长，请缩小分析范围")
+            raise AIError("模型回复过长，请缩小分析范围", code="response_too_large")
         result = json.loads(raw)
         if not isinstance(result, dict):
-            raise AIError("服务返回的格式不正确，请检查接口地址")
+            raise AIError("服务返回的格式不正确，请检查接口地址", code="model_invalid_response")
         base_response = result.get("base_resp") or {}
         if not isinstance(base_response, dict):
-            raise AIError("服务返回的格式不正确，请检查接口地址")
+            raise AIError("服务返回的格式不正确，请检查接口地址", code="model_invalid_response")
         if result.get("error") or base_response.get("status_code") not in (None, 0):
-            raise AIError("模型服务拒绝了请求，请检查模型名称、密钥和账户额度")
+            raise AIError(
+                "模型服务拒绝了请求，请检查模型名称、密钥和账户额度", code="model_rejected"
+            )
         return result
     except urllib.error.HTTPError as e:
         message = {
@@ -214,11 +222,23 @@ def request(provider: str, cfg: dict, path: str, body=None, timeout=25) -> dict:
             404: "接口或模型不存在",
             429: "调用额度不足或请求过于频繁",
         }.get(e.code, "服务请求失败")
-        raise AIError(f"{message}（HTTP {e.code}），请检查 AI 设置") from None
-    except (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException):
-        raise NetworkError("模型服务连接失败或超时，请检查地址、网络及本地模型是否已启动") from None
+        raise AIError(
+            f"{message}（HTTP {e.code}），请检查 AI 设置",
+            code=diagnostics.upstream_code(e.code),
+            upstream_status=e.code,
+        ) from None
+    except (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException) as exc:
+        timed_out = isinstance(exc, TimeoutError) or isinstance(
+            getattr(exc, "reason", None), TimeoutError
+        )
+        raise NetworkError(
+            "模型服务连接失败或超时，请检查地址、网络及本地模型是否已启动",
+            code="model_timeout" if timed_out else "model_network",
+        ) from None
     except (ValueError, UnicodeError):
-        raise AIError("服务没有返回有效 JSON，请检查接口地址") from None
+        raise AIError(
+            "服务没有返回有效 JSON，请检查接口地址", code="model_invalid_response"
+        ) from None
 
 
 def list_models(provider: str, cfg: dict) -> list[str]:
@@ -249,7 +269,8 @@ def chat(provider: str, cfg: dict, messages: list, *, probe=False, timeout=None,
                 "num_predict": 64 if probe else 4096,
             }
         )
-        result = request_model(
+        result = diagnostics.model_call(
+            request_model,
             provider,
             cfg,
             "/api/chat",
@@ -259,7 +280,9 @@ def chat(provider: str, cfg: dict, messages: list, *, probe=False, timeout=None,
         message = result.get("message") or {}
         content = message.get("content", "") if isinstance(message, dict) else ""
         if not probe and result.get("done_reason") == "length":
-            raise AIError("本地模型输出被截断，请减少分析要求或选择更合适的模型")
+            raise AIError(
+                "本地模型输出被截断，请减少分析要求或选择更合适的模型", code="output_limit"
+            )
         usage = {
             "prompt_tokens": result.get("prompt_eval_count", 0),
             "completion_tokens": result.get("eval_count", 0),
@@ -267,7 +290,8 @@ def chat(provider: str, cfg: dict, messages: list, *, probe=False, timeout=None,
     else:
         if provider == "minimax":
             body.update(temperature=1.0, max_tokens=8192)
-        result = request_model(
+        result = diagnostics.model_call(
+            request_model,
             provider,
             cfg,
             "/chat/completions",
@@ -276,19 +300,23 @@ def chat(provider: str, cfg: dict, messages: list, *, probe=False, timeout=None,
         )
         choices = result.get("choices")
         if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
-            raise AIError("模型没有返回有效回答，请检查模型是否支持对话")
+            raise AIError(
+                "模型没有返回有效回答，请检查模型是否支持对话", code="model_invalid_response"
+            )
         message = choices[0].get("message") or {}
         content = message.get("content", "") if isinstance(message, dict) else ""
         usage = result.get("usage") or {}
         if not isinstance(usage, dict):
             usage = {}
         if choices[0].get("finish_reason") == "length":
-            raise AIError("模型输出被截断，请减少分析要求或选择输出容量更大的模型")
+            raise AIError(
+                "模型输出被截断，请减少分析要求或选择输出容量更大的模型", code="output_limit"
+            )
     if not isinstance(content, str):
-        raise AIError("模型返回的回答格式不正确")
+        raise AIError("模型返回的回答格式不正确", code="model_invalid_response")
     content = re.sub(r"<think>.*?</think>", "", content, flags=re.S).strip()
     if not content:
-        raise AIError("模型没有返回正文，请重试或切换模型")
+        raise AIError("模型没有返回正文，请重试或切换模型", code="model_empty_response")
     return content, usage
 
 

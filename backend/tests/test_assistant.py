@@ -202,7 +202,8 @@ def test_failure_scrubs_provider_error_and_preserves_task(assistant_client, monk
 
     monkeypatch.setattr(ai, "chat", fail)
     response = question(f, task)
-    assert response.status_code == 503 and "secret" not in response.text.lower()
+    assert response.status_code == (502 if isinstance(failure, ValueError) else 503)
+    assert "secret" not in response.text.lower()
     assert f.client.get(f"{PREFIX}/{task['id']}").json() == task
 
 
@@ -364,7 +365,7 @@ def test_invalid_model_reply_is_not_persisted(assistant_client, monkeypatch, res
     f = assistant_client
     task = create(f)
     monkeypatch.setattr(ai, "chat", lambda *_args, **_kwargs: (result, {}))
-    assert question(f, task).status_code == 503
+    assert question(f, task).status_code == 502
     assert f.client.get(f"{PREFIX}/{task['id']}").json()["messages"] == []
 
 

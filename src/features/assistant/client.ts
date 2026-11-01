@@ -23,12 +23,23 @@ export function validateTask(input: TaskInput) {
 }
 const http = axios.create({ baseURL: `${API_BASE}/assistant/tasks`, withCredentials: true, timeout: 150000 })
 http.interceptors.request.use(config => { if (config.data) config.data = snakeize(config.data); if (config.params) config.params = snakeize(config.params); return config })
-http.interceptors.response.use(response => { response.data = camelize(response.data); return response }, (error: unknown) => {
+export function assistantFailure(error: unknown) {
   const status = axios.isAxiosError(error) ? error.response?.status : undefined
   const detail = axios.isAxiosError(error) && typeof error.response?.data?.detail === 'string' ? error.response.data.detail : ''
+  const diagnostic = axios.isAxiosError(error) ? String(error.response?.headers?.['x-assistant-diagnostic-id'] || '') : ''
   if (status === 401) window.dispatchEvent(new Event('portal:unauthorized'))
-  return Promise.reject(problem(status === 409 ? '任务已在其他页面更新。当前问题已保留，请刷新任务后核对并重试。' : status === 401 ? '登录已失效，请重新登录。' : [403, 422, 502, 503, 504].includes(status || 0) && detail ? detail : status === 422 ? '请检查任务内容和模型配置，再重新发送。' : status === 404 ? '任务或所选模型不存在，或当前账号无权访问。' : status === 403 ? '当前账号无法使用此功能，请先确认登录状态。' : '请求未完成，问题仍保留。请检查模型配置或连接后重试。', status))
-})
+  if (axios.isAxiosError(error) && !error.response && ['ECONNABORTED', 'ETIMEDOUT', 'ERR_NETWORK'].includes(error.code || '')) {
+    let requestId = ''
+    try {
+      const data = typeof error.config?.data === 'string' ? JSON.parse(error.config.data) : error.config?.data
+      if (typeof data?.request_id === 'string' && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(data.request_id)) requestId = data.request_id
+    } catch { /* A failed request may not contain JSON. */ }
+    const message = error.code === 'ERR_NETWORK' ? '页面与服务的连接中断，问题已保留。' : '页面等待超时，问题已保留。'
+    return problem(`${message}请刷新任务核对结果。${requestId ? `（请求编号：${requestId}）` : ''}`)
+  }
+  return problem(status === 409 ? '任务已在其他页面更新。当前问题已保留，请刷新任务后核对并重试。' : status === 401 ? '登录已失效，请重新登录。' : ([403, 422, 502, 503, 504].includes(status || 0) || status === 500 && /^[0-9a-f]{32}$/.test(diagnostic)) && detail ? detail : status === 422 ? '请检查任务内容和模型配置，再重新发送。' : status === 404 ? '任务或所选模型不存在，或当前账号无权访问。' : status === 403 ? '当前账号无法使用此功能，请先确认登录状态。' : '请求未完成，问题仍保留。请检查模型配置或连接后重试。', status)
+}
+http.interceptors.response.use(response => { response.data = camelize(response.data); return response }, (error: unknown) => Promise.reject(assistantFailure(error)))
 export const assistantApi: AssistantClient = {
   list: async query => (await http.get('', { params: query })).data,
   get: async id => (await http.get(`/${encodeURIComponent(id)}`)).data,

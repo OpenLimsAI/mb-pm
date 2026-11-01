@@ -294,6 +294,10 @@ def test_redirects_and_http_errors_are_never_followed_or_echoed(monkeypatch, sta
         solution_ai.pinned_request("custom", config(), "/chat/completions", {})
     assert len(dns_calls) == len(socket_calls) == 1
     assert str(error.value) == "模型服务拒绝请求，请核对地址、模型、密钥与账户状态"
+    assert error.value.upstream_status == status
+    assert error.value.code == (
+        "model_auth" if status == 401 else "model_rate_limit" if status == 429 else "model_rejected"
+    )
     assert wire.closed
 
 
@@ -353,6 +357,9 @@ def test_connection_failures_are_sanitized(monkeypatch, failure):
     with pytest.raises(ai.AIError) as error:
         solution_ai.pinned_request("custom", config(), "/chat/completions", {})
     assert str(error.value) == "模型连接失败或响应无效，请检查个人模型地址与网络"
+    assert error.value.code == (
+        "model_timeout" if isinstance(failure, TimeoutError) else "model_network"
+    )
 
 
 def test_tls_verification_failure_closes_socket_without_sending_key(monkeypatch):
