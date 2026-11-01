@@ -1,6 +1,6 @@
 # 行业信息（已下线）
 
-2026-11-01 代码更新：工作台不再展示旧应用入口，`/information/*` 与 `/launch/information` 显示下线说明。`INFORMATION_APP_ENABLED=false` 为默认值，关闭信息管理接口和后台采集；已入库论文引用的原文下载仍按原权限校验提供；历史任务、原文、目录与已进入知识库的论文保留。新应用「知识源」目前仅进行 UI 设计，尚未接入或上线。本文以下流程保留为历史实现说明；生产是否已切换以发布回执为准。
+2026-11-01 已部署：工作台不再展示旧应用入口，`/information/*` 与 `/launch/information` 显示下线说明。`INFORMATION_APP_ENABLED=false` 为默认值，关闭信息管理接口和后台采集；已入库论文引用的原文下载仍按原权限校验提供；历史任务、原文、目录与已进入知识库的论文保留。新应用「知识源」目前仅进行 UI 设计，尚未接入或上线。本文以下流程保留为历史实现说明；生产验证、备份及回滚见[下线回执](../deploy/parallel-test/releases/20261101-industry-information-off.md)。
 
 [功能说明](features.md) · [配置](configuration.md#信息获取) · [本地开发](development.md#信息获取本地使用)
 
