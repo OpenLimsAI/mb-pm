@@ -108,8 +108,37 @@ def connected(operation, subject, **values):
         raise HTTPException(503, str(exc)) from exc
 
 
-def library(actor):
-    return connected("library", actor["subject"])
+def library(actor, store=None, imports=None):
+    # Core registers a package only after ingest. Ask the authenticated BFF to prove
+    # unindexed imports from its own durable receipts, never infer access from a path.
+    if imports is None:
+        imports = [
+            {"documentId": v["documentId"], "sha256": v["sha256"]}
+            for v in (store.records("version") if store else [])
+            if v.get("kbPath") and v.get("indexStatus") != "ready"
+        ]
+    chunks = [imports[i : i + 5000] for i in range(0, len(imports), 5000)] or [[]]
+    proofs = []
+    for chunk in chunks:
+        result = connected("library", actor["subject"], imports=chunk)
+        proofs.extend(result.get("pendingArchives", []))
+    return {**result, "pendingArchives": proofs}
+
+
+def pending_archive(version, catalogue):
+    if version.get("indexStatus") == "ready":
+        return None
+    return next(
+        (
+            proof
+            for proof in catalogue.get("pendingArchives", [])
+            if proof.get("documentId") == version["documentId"]
+            and proof.get("sha256") == version["sha256"]
+            and proof.get("path") == version.get("kbPath")
+            and proof.get("indexStatus") in ("not_requested", "pending", "failed")
+        ),
+        None,
+    )
 
 
 def classifications(store, document):
@@ -123,6 +152,7 @@ def paper_snapshot(store, actor, result):
     by_path = {v["kbPath"]: v for v in versions if v.get("kbPath")}
     memberships = result.get("memberships", {})
     assignments = result.get("assignments", {})
+    active_paths = {p["path"] for p in result.get("papers", []) if isinstance(p.get("path"), str)}
     papers = []
     for value in result.get("papers", []):
         path = value.get("path")
@@ -149,14 +179,24 @@ def paper_snapshot(store, actor, result):
         papers.append(paper)
     for version in versions:
         # A deleted/hidden Core paper must not reappear through its retained original.
-        if version.get("kbPath") or version["documentId"] not in docs:
+        if version["documentId"] not in docs:
+            continue
+        if version.get("kbPath") in active_paths:
+            continue
+        proof = pending_archive(version, result) if version.get("kbPath") else None
+        if version.get("kbPath") and not proof:
             continue
         doc = docs[version["documentId"]]
-        papers.append(archive_paper(store, doc, version, sources.get(doc["sourceId"])))
+        paper = archive_paper(store, doc, version, sources.get(doc["sourceId"]))
+        if proof:
+            paper["kbUrl"] = None
+            paper["indexStatus"] = proof["indexStatus"]
+        papers.append(paper)
     prefs = store.preferences(actor["subject"])
     stars = prefs.get("knowledgeSourceStars", [])
     for paper in papers:
-        paper["starred"] = paper["id"] in stars
+        alias = "archive:" + paper["versionId"] if paper.get("versionId") else None
+        paper["starred"] = paper["id"] in stars or alias in stars
     return papers
 
 
@@ -191,7 +231,7 @@ def snapshot(db: Session = Depends(get_db), actor: dict = Depends(principal)):
     store.ensure_source()
     result, issue = {}, None
     try:
-        result = library(actor)
+        result = library(actor, store)
     except HTTPException as exc:
         issue = str(exc.detail)
     folders = [{**f, "writable": bool(result.get("canWrite"))} for f in result.get("folders", [])]
@@ -239,8 +279,8 @@ def snapshot(db: Session = Depends(get_db), actor: dict = Depends(principal)):
     }
 
 
-def writable_library(actor):
-    result = library(actor)
+def writable_library(actor, store=None):
+    result = library(actor, store)
     if not result.get("canWrite"):
         raise HTTPException(403, "当前知识库角色没有文件夹整理权限")
     return result
@@ -268,7 +308,8 @@ def rename_folder(ident: str, body: FolderInput, actor: dict = Depends(principal
 
 @router.post("/papers/folders")
 def organize(body: FolderChange, db: Session = Depends(get_db), actor: dict = Depends(principal)):
-    result = writable_library(actor)
+    store = Store(db, actor["tenant"])
+    result = writable_library(actor, store)
     if result.get("revision") != body.revision:
         raise HTTPException(409, "文件夹已更新，请刷新后重试")
     folder_ids = list(dict.fromkeys(body.folder_ids))
@@ -281,7 +322,6 @@ def organize(body: FolderChange, db: Session = Depends(get_db), actor: dict = De
         raise HTTPException(409, "目标文件夹已不存在，请刷新后重试")
     if body.mode == "move" and body.from_folder_id not in known_folders:
         raise HTTPException(400, "移动须指定有效的当前文件夹")
-    store = Store(db, actor["tenant"])
     available = {p["id"]: p for p in paper_snapshot(store, actor, result)}
     ids = list(dict.fromkeys(body.paper_ids))
     if not all(ident in available for ident in ids):
@@ -332,12 +372,15 @@ def organize(body: FolderChange, db: Session = Depends(get_db), actor: dict = De
 @router.post("/stars")
 def star(body: StarInput, db: Session = Depends(get_db), actor: dict = Depends(principal)):
     store = Store(db, actor["tenant"])
-    result = library(actor)
-    available = {p["id"] for p in paper_snapshot(store, actor, result)}
+    result = library(actor, store)
+    available = {p["id"]: p for p in paper_snapshot(store, actor, result)}
     if body.paper_id not in available:
         raise HTTPException(404, "论文不存在或无权访问")
     prefs = store.preferences(actor["subject"])
     stars = set(prefs.get("knowledgeSourceStars", []))
+    paper = available[body.paper_id]
+    if paper.get("versionId"):
+        stars.discard("archive:" + paper["versionId"])
     stars.add(body.paper_id) if body.enabled else stars.discard(body.paper_id)
     if len(stars) > 5000:
         raise HTTPException(400, "收藏数量已达到上限")
@@ -505,8 +548,11 @@ def original(
     if version["documentId"] != document_id:
         raise HTTPException(404, "原文版本不存在")
     if version.get("kbPath"):
-        catalogue = library(actor)
-        if not any(p.get("path") == version["kbPath"] for p in catalogue.get("papers", [])):
+        catalogue = library(
+            actor, imports=[{"documentId": document_id, "sha256": version["sha256"]}]
+        )
+        active = any(p.get("path") == version["kbPath"] for p in catalogue.get("papers", []))
+        if not active and not pending_archive(version, catalogue):
             raise HTTPException(404, "知识库论文已删除或无权访问")
     path = store.archive_path(version)
     if not path.is_file():

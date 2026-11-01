@@ -31,11 +31,24 @@ def synchronize_classification(store, job, connector=bridge.call):
             continue
         try:
             authority(store.db, job["actorSubject"])
-            catalogue = connector("library", job["actorSubject"])
+            catalogue = connector(
+                "library",
+                job["actorSubject"],
+                imports=[{"documentId": version["documentId"], "sha256": version["sha256"]}],
+            )
             if not catalogue.get("canWrite"):
                 raise ValueError("原件已保存，文件夹同步需要知识库负责人权限")
             path = version["kbPath"]
             if not any(p.get("path") == path for p in catalogue.get("papers", [])):
+                pending = version.get("indexStatus") != "ready" and any(
+                    p.get("documentId") == version["documentId"]
+                    and p.get("sha256") == version["sha256"]
+                    and p.get("path") == path
+                    and p.get("indexStatus") in ("not_requested", "pending", "failed")
+                    for p in catalogue.get("pendingArchives", [])
+                )
+                if pending:
+                    continue
                 raise ValueError("知识库论文不可访问，不会恢复已删除资料")
             existing = set(catalogue.get("memberships", {}).get(path, []))
             known = {f["id"] for f in catalogue.get("folders", [])}
