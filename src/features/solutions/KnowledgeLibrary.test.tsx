@@ -46,10 +46,13 @@ describe('original library embedding', () => {
   })
 
   it('offers recovery when login, network or an older library prevents readiness', () => {
-    vi.useFakeTimers(); mount()
+    vi.useFakeTimers(); const { frame } = mount()
     act(() => vi.advanceTimersByTime(8000))
     expect(screen.getByText('资料视图暂未加载')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: '在新窗口打开知识库' })).toHaveAttribute('target', '_blank')
+    expect(screen.queryByRole('link', { name: '在新窗口打开知识库' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '重新加载' }))
+    expect(screen.getByTitle('原知识库资料')).not.toBe(frame)
+    expect(screen.queryByText('资料视图暂未加载')).not.toBeInTheDocument()
   })
 })
 
