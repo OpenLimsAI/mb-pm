@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ArrowUpRight, BookOpen, FilePlus2, LoaderCircle, Plus, RefreshCw } from 'lucide-react'
+import { BookOpen, FilePlus2, LoaderCircle, Plus, RefreshCw } from 'lucide-react'
 import { libraryEmbedUrl, readLibraryMessage } from './libraryEmbed'
 import './knowledge-library.css'
 
@@ -43,7 +43,7 @@ export default function KnowledgeLibrary({ preview, editable, busy, canAsk, onUs
         <button role="tab" id="ks-report-sources-tab" aria-controls="ks-report-sources-view" aria-selected={tab === 'report'} onClick={() => setTab('report')}>报告资料</button>
       </div>
       <div className="ks-library-actions">
-        {tab === 'library' ? <><button className="ks-button" onClick={refresh} aria-label="刷新知识库" title="刷新知识库"><RefreshCw size={14} /></button>{url && <a className="ks-button" href={url} target="_blank" rel="noreferrer" aria-label="在新窗口打开知识库" title="在新窗口打开知识库"><ArrowUpRight size={15} /></a>}</> : <button className="ks-button" onClick={onAdd}><Plus size={14} />添加资料</button>}
+        {tab === 'library' ? <button className="ks-button" onClick={refresh} aria-label="刷新知识库" title="刷新知识库"><RefreshCw size={14} /></button> : <button className="ks-button" onClick={onAdd}><Plus size={14} />添加资料</button>}
       </div>
     </div>
     <div id="ks-library-view" role="tabpanel" aria-labelledby="ks-library-tab" className="ks-library-view" hidden={tab !== 'library'}>
@@ -52,7 +52,7 @@ export default function KnowledgeLibrary({ preview, editable, busy, canAsk, onUs
         {!ready && <div className="ks-library-loading" role="status">
           {url && !delayed ? <><LoaderCircle size={23} className="ks-spin" /><strong>正在打开原知识库…</strong></> : <><BookOpen size={25} /><strong>{url ? '资料视图暂未加载' : '请在本地预览中查看知识库'}</strong></>}
           <p>{preview ? '此处复用原知识库界面，预览使用独立演示资料。' : '使用原知识库的账号权限，继续搜索、整理与阅读资料。'}</p>
-          {delayed && <p>{preview ? '请确认本地知识库预览服务已启动，再刷新。' : '可先在新窗口打开知识库完成登录，再刷新。知识库需支持资料嵌入视图。'}</p>}
+          {delayed && <p>{preview ? '请确认本地知识库预览服务已启动，再刷新。' : '请确认知识库服务和登录状态正常，再重新加载。'}</p>}
           {delayed && <button className="ks-button" onClick={refresh}><RefreshCw size={14} />重新加载</button>}
         </div>}
       </div>
