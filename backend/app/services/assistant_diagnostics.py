@@ -24,6 +24,13 @@ CURRENT = ContextVar("assistant_diagnostic", default=None)
 ERROR_HEADER = "X-Assistant-Error-Code"
 ID_HEADER = "X-Assistant-Diagnostic-ID"
 PUBLIC_ERRORS = {
+    "web_not_configured": (503, "联网搜索尚未配置，请联系管理员配置后使用。问题已保留。"),
+    "web_timeout": (503, "联网搜索超时，问题已保留。请稍后重试。"),
+    "web_auth": (503, "联网搜索密钥或权限不可用，请联系管理员检查搜索设置。"),
+    "web_rate_limit": (503, "联网搜索额度不足或请求过多，请稍后重试或联系管理员。"),
+    "web_unavailable": (503, "联网搜索服务暂时不可用，问题已保留。请稍后重试。"),
+    "web_invalid_response": (503, "联网搜索返回的资料无法读取，请稍后重试。"),
+    "web_no_results": (422, "本次联网检索未找到可引用的公开资料。请调整关键词后重试。"),
     "model_timeout": (503, "模型等待超时，问题已保留。请稍后重试或分批提问。"),
     "output_limit": (422, "回答达到模型输出上限，问题已保留。请分批整理。"),
     "response_too_large": (422, "模型回复超过接收容量，问题已保留。请缩小本轮范围。"),
@@ -38,6 +45,7 @@ PUBLIC_ERRORS = {
 FINISH_REASONS = {"stop", "length", "tool_calls", "function_call", "content_filter", "unload"}
 PROVIDERS = {"deepseek", "minimax", "ollama", "openai", "custom"}
 TOOLS = {
+    "web_search",
     "dikw_health",
     "retrieve_knowledge",
     "list_pages",
@@ -271,7 +279,7 @@ def tool_call(name):
     if not trace:
         yield
         return
-    trace.stage = "knowledge_tool"
+    trace.stage = "web_search" if name == "web_search" else "knowledge_tool"
     trace.tool_calls += 1
     tool = name if name in TOOLS else "unknown"
     started = monotonic()

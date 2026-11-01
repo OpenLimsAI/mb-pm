@@ -89,6 +89,9 @@ services:
       PORTAL_JWKS_URL: ${PORTAL_JWKS_URL:-}
       IAM_COOKIE_SECURE: "false"    # 测试经 SSH 隧道走 http；正式切到 HTTPS 域名时改 true
       AI_SETTINGS_PATH: /data/ai/ai-settings.json
+      ASSISTANT_WEB_ENABLED: ${ASSISTANT_WEB_ENABLED:-false}
+      ASSISTANT_WEB_API_KEY: ${ASSISTANT_WEB_API_KEY:-}
+      ASSISTANT_WEB_MAX_RESULTS: ${ASSISTANT_WEB_MAX_RESULTS:-5}
     volumes:
       - ai_settings:/data/ai
     ports:

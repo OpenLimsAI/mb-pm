@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     # 部署时指向持久化、受保护的目录。
     AI_SETTINGS_PATH: str = ".local/ai-settings.json"
 
+    # Public search is opt-in and server-owned; never expose this key to browsers.
+    ASSISTANT_WEB_ENABLED: bool = False
+    ASSISTANT_WEB_API_KEY: str = ""
+    ASSISTANT_WEB_MAX_RESULTS: int = Field(default=5, ge=1, le=8)
+
     # —— 信息获取（真实采集与受保护的原文归档）—— #
     KNOWLEDGE_NOTES_ORIGIN: str = "https://kb.openlims.ai"
     NOTES_WISDOM_CORE_URL: str = ""

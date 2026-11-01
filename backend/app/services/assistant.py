@@ -10,7 +10,14 @@ from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 
 from app.models.assistant import AssistantMessage, AssistantTask
-from app.services import ai, assistant_tool_chat, solution_ai, solution_knowledge
+from app.services import (
+    ai,
+    answer_modes,
+    assistant_tool_chat,
+    solution_ai,
+    solution_knowledge,
+    web_search,
+)
 from app.services import assistant_diagnostics as diagnostics
 
 CONFLICT = "任务已在其他页面更新，请保留当前输入并刷新任务后重试"
@@ -74,6 +81,10 @@ def detail(db, task):
                 "context": row.context,
                 "model": row.model,
                 "mode": "ai",
+                "answer_mode": row.answer_mode,
+                "requested_mode": row.requested_mode,
+                "mode_reason": row.mode_reason,
+                "web_references": row.web_references,
                 "created_at": timestamp(row.created_at),
             }
         )
@@ -181,6 +192,7 @@ def completed_request(db, task, payload):
         or prior.context != payload.context
         or prior.profile_id != payload.model_profile_id
         or prior.data_sources != json.dumps(payload.data_sources)
+        or prior.requested_mode != (payload.answer_mode or "")
     ):
         raise HTTPException(409, "该请求已使用不同内容，请刷新后重新发送")
     return detail(db, task)
@@ -231,23 +243,6 @@ def question(db, claims, task, payload):
     # Prior answers may contain sources that are no longer selected or accessible.
     # Rebuild evidence on every turn instead of forwarding old conversation text.
     diagnostics.configure_model("custom" if selected["kind"] == "private" else provider, cfg)
-    diagnostics.stage("application_data")
-    evidence = application_data(db, claims, payload)
-    scope_instruction = (
-        "已选择知识库数据。涉及知识库中的业务事实时，只能依据本轮选中应用提供的资料"
-        "和用户本轮提供的资料作答；历史问题仅用于理解追问，不是事实证据。"
-        "如果资料中未找到答案，请明确说明，不得用一般知识推测或编造业务事实。"
-        if payload.data_sources
-        else ""
-    )
-    messages = [{"role": "system", "content": SYSTEM_PROMPT + scope_instruction}]
-    if task.instructions:
-        messages.append(
-            {
-                "role": "user",
-                "content": json.dumps({"task_preferences": task.instructions}, ensure_ascii=False),
-            }
-        )
     history = list(
         reversed(
             db.scalars(
@@ -258,7 +253,52 @@ def question(db, claims, task, payload):
             ).all()
         )
     )
+    previous = next((message for message in reversed(history) if message.role == "assistant"), None)
+    previous_web_question = next(
+        (
+            message.content
+            for message in reversed(history)
+            if message.role == "user"
+            and previous is not None
+            and message.request_id == previous.request_id
+            and message.answer_mode == "web"
+        ),
+        "",
+    )
+    plan = (
+        answer_modes.Plan(
+            "knowledge" if payload.data_sources else "general", "沿用原有回答范围", payload.question
+        )
+        if payload.answer_mode is None
+        else answer_modes.decide(
+            payload.question,
+            payload.answer_mode,
+            knowledge_allowed="knowledge" in payload.data_sources,
+            previous_mode=previous.answer_mode if previous else "",
+            previous_web_question=previous_web_question,
+        )
+    )
+    use_knowledge = plan.mode == "knowledge"
+    diagnostics.stage("application_data")
+    evidence = application_data(db, claims, payload) if use_knowledge else {}
+    scope_instruction = (
+        "已选择知识库数据。涉及知识库中的业务事实时，只能依据本轮选中应用提供的资料"
+        "和用户本轮提供的资料作答；历史问题仅用于理解追问，不是事实证据。"
+        "如果资料中未找到答案，请明确说明，不得用一般知识推测或编造业务事实。"
+        if use_knowledge
+        else ""
+    )
+    messages = [{"role": "system", "content": SYSTEM_PROMPT + scope_instruction}]
+    if task.instructions:
+        messages.append(
+            {
+                "role": "user",
+                "content": json.dumps({"task_preferences": task.instructions}, ensure_ascii=False),
+            }
+        )
     for message in history:
+        if payload.answer_mode is not None and message.answer_mode != plan.mode:
+            continue
         if message.role == "user":
             messages.append(
                 {
@@ -268,10 +308,13 @@ def question(db, claims, task, payload):
                     ),
                 }
             )
-        elif (
-            not payload.data_sources
-            and message.data_sources == "[]"
-            and all(row.data_sources == "[]" for row in history)
+        elif not use_knowledge and (
+            (payload.answer_mode is not None and message.answer_mode == "general")
+            or (
+                payload.answer_mode is None
+                and message.data_sources == "[]"
+                and all(row.data_sources == "[]" for row in history)
+            )
         ):
             messages.append({"role": "assistant", "content": message.content[:3000]})
     messages.append(
@@ -291,8 +334,13 @@ def question(db, claims, task, payload):
     # Release the read transaction before waiting on any external model service.
     db.rollback()
     diagnostics.stage("model")
+    web_references = []
     try:
-        if "knowledge" in payload.data_sources:
+        if plan.mode == "web":
+            content, web_references = web_search.answer(
+                plan.query, selected=selected, provider=provider, cfg=cfg
+            )
+        elif use_knowledge:
             content = assistant_tool_chat.chat(
                 "custom" if selected["kind"] == "private" else provider,
                 cfg,
@@ -345,6 +393,10 @@ def question(db, claims, task, payload):
                 data_sources=json.dumps(payload.data_sources),
                 profile_id=payload.model_profile_id,
                 model=str(cfg.get("model", ""))[:200],
+                answer_mode=plan.mode,
+                requested_mode=payload.answer_mode or "",
+                mode_reason=plan.reason,
+                web_references=web_references if role == "assistant" else [],
                 created_at=now,
             )
         )

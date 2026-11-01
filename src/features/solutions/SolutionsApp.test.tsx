@@ -25,6 +25,26 @@ beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-writing-mode',
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
 describe('knowledge solution workspace', () => {
+  it('sends auto by default and shows the actual knowledge response when source restrictions apply', async () => {
+    const client = mockClient()
+    vi.mocked(client.ask).mockImplementation(async (_id, input) => ({ id: 'routed-answer', question: input.question, content: '仅依据指定资料整理。', createdAt: '2026-11-01T10:00:00Z', mode: 'ai', requestedMode: input.answerMode, answerMode: 'knowledge', modeReason: '仅在本次指定资料范围内查证', references: [], context: input.context, scope: '指定资料' }))
+    await mount(client)
+    expect(screen.getByRole('combobox', { name: '回答方式' })).toHaveValue('auto')
+    const frame = screen.getByTitle('原知识库资料') as HTMLIFrameElement, origin = new URL(frame.src).origin
+    act(() => {
+      window.dispatchEvent(new MessageEvent('message', { source: frame.contentWindow, origin, data: { type: 'mberp:knowledge-library:ready', version: 1, preview: true } }))
+      window.dispatchEvent(new MessageEvent('message', { source: frame.contentWindow, origin, data: { type: 'mberp:knowledge-library:selection', version: 1, path: 'sources/paper.md', title: source.title } }))
+    })
+    fireEvent.click(screen.getByRole('button', { name: '加入问答范围' }))
+    await screen.findByText(/已限定资料范围，本轮仅知识库/)
+    fireEvent.change(screen.getByRole('textbox', { name: '向AI提问' }), { target: { value: '这些材料的最新进展是什么' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送问题' }))
+    await screen.findByText('仅依据指定资料整理。')
+    expect(client.ask).toHaveBeenCalledWith('one', expect.objectContaining({ answerMode: 'auto', sourceIds: ['paper-1'] }))
+    expect(screen.getByText('知识库回答')).toBeInTheDocument()
+    expect(screen.queryByText('已联网检索')).not.toBeInTheDocument()
+  })
+
   it('preserves newer typing while an earlier autosave is still in flight', async () => {
     const client = mockClient(); await mount(client)
     let resolveSave!: (value: Solution) => void

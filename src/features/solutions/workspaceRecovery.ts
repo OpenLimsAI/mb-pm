@@ -1,6 +1,7 @@
 import type { ConversationDraft } from './conversations'
 import type { InlineQuestion } from './InlineAssistantEditor'
 import type { Answer, Solution } from './types'
+import type { AnswerMode } from '../answerModes/types'
 
 export const RECOVERY_TTL_MS = 2 * 60 * 60 * 1000
 export const RECOVERY_MAX_CHARS = 240_000
@@ -17,6 +18,7 @@ export interface WorkspaceRecovery {
   topicDrafts: Record<string, ConversationDraft>
   selectedSourceIds: string[]
   projectFilter: string
+  answerMode?: AnswerMode
   inlineCards: SavedCard[]
   interrupted: boolean
   pendingTopicId: string
@@ -42,6 +44,7 @@ function valid(value: unknown): value is WorkspaceRecovery {
     || !Array.isArray(value.selectedSourceIds) || value.selectedSourceIds.length > 100
     || !value.selectedSourceIds.every(source => text(source, 1200) && source.length > 0 && !Array.from(source).some(char => char.charCodeAt(0) < 32))
     || !text(value.projectFilter, 200) || typeof value.listOpen !== 'boolean'
+    || value.answerMode !== undefined && !['auto', 'general', 'knowledge', 'web'].includes(value.answerMode as string)
     || typeof value.interrupted !== 'boolean' || !text(value.pendingTopicId, 80)
     || !Array.isArray(value.inlineCards) || value.inlineCards.length > 40) return false
   const seen = new Set<string>()
@@ -87,6 +90,7 @@ export function writeWorkspaceRecovery(scope: string | null, state: WorkspaceRec
       question: state.question, context: state.context, showContext: state.showContext,
       topicDrafts: Object.fromEntries(Object.entries(state.topicDrafts).map(([key, entry]) => [key, { question: entry.question, context: entry.context, showContext: entry.showContext }])),
       selectedSourceIds: [...state.selectedSourceIds], projectFilter: state.projectFilter,
+      answerMode: state.answerMode,
       inlineCards: state.inlineCards.map(({ id, sectionId, offset, question, includeContext, status }) => ({ id, sectionId, offset, question, includeContext, status })),
       interrupted: state.interrupted, pendingTopicId: state.pendingTopicId, listOpen: state.listOpen,
     }

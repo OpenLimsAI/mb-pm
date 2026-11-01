@@ -8,6 +8,29 @@ describe('knowledge solution preview persistence and workflow', () => {
   afterEach(() => vi.unstubAllGlobals())
   const make = (scope = 'person-a') => createDemoClient(scope, scope, '研发专家')
 
+  it('previews auto web routing without networking and preserves web citations for report adoption', async () => {
+    const client = make(), report = (await client.list())[0], fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher)
+    const answer = await client.ask(report.id, { question: '总结最新研究进展', context: '私密报告正文', sourceIds: [], projectName: '', sectionId: report.sections[0].id, answerMode: 'auto' })
+    expect(answer).toMatchObject({ answerMode: 'web', requestedMode: 'auto', content: expect.stringContaining('界面演示 · 未实际联网') })
+    expect(answer.webReferences).toHaveLength(2)
+    expect(answer.webReferences?.every(source => source.publishedAt === null)).toBe(true)
+    for (const ref of answer.references) {
+      const source = await client.getSource(ref.sourceId)
+      expect(source).toMatchObject({ kind: 'web', version: ref.sourceVersion, content: ref.excerpt })
+    }
+    const saved = await client.save(report.id, { ...report, references: answer.references })
+    expect((await make().get(saved.id)).references).toEqual(answer.references)
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('keeps explicit private source restrictions even if a user chooses web', async () => {
+    const client = make(), report = (await client.list())[0]
+    const answer = await client.ask(report.id, { question: '缓冲体系的最新研究', context: '', sourceIds: ['demo-paper'], projectName: '', sectionId: report.sections[0].id, answerMode: 'web' })
+    expect(answer.answerMode).toBe('knowledge')
+    expect(answer.webReferences).toEqual([])
+    expect(answer.references.every(ref => ref.sourceId === 'demo-paper')).toBe(true)
+  })
+
   it('previews polish without external calls or changing the saved report', async () => {
     const client = make(), report = (await client.list())[0]
     const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher)

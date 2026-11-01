@@ -1,3 +1,4 @@
+import { previewCapabilities, previewProvenance, previewWebAnswer } from '../answerModes/preview'
 import type { Answer, KnowledgeSource, Solution, SolutionClient, SolutionInput, Version } from './types'
 import { emptySolution } from './template'
 import { exportPreview } from './export'
@@ -53,6 +54,7 @@ export function createDemoClient(namespace: string, userId: string, userName: st
   function verify(s: Solution, revision: number) { if (s.revision !== revision) throw Object.assign(new Error('报告已在其他页面更新，请先重新载入并比较当前草稿。'), { status: 409 }) }
   function newSolution(input: SolutionInput): Solution { return { ...clone(input), id: uid(), ownerId: userId, ownerName: userName, status: 'draft', revision: 1, version: 1, updatedAt: now(), reviewerId: null, reviewerName: '', reviewNotes: '', canEdit: true } }
   const client: SolutionClient = {
+    capabilities: async () => clone(previewCapabilities),
     list: async () => clone(read().solutions).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
     trash: async () => clone((read().trash || []).map(({ solution, deletedAt }) => ({ id: solution.id, title: solution.title, revision: solution.revision, deletedAt }))),
     remove: async (id, revision) => { const state = read(), s = get(state, id); if (s.ownerId !== userId) throw new Error('只有报告作者可删除'); verify(s, revision); s.revision++; (state.trash ||= []).unshift({ solution: s, deletedAt: now() }); state.solutions = state.solutions.filter(item => item.id !== id); write(state) },
@@ -96,6 +98,19 @@ export function createDemoClient(namespace: string, userId: string, userName: st
     knowledgeStatus: async () => ({ configured: false, available: false, message: '界面预览 · 示例资料仅保存在当前浏览器，未连接企业知识库或 AI 模型。' }),
     addSource: async input => { const state = read(); if (!input.title.trim() || !input.content.trim()) throw new Error('请填写资料标题与正文'); const source = { ...clone(input), id: uid(), version: '1', updatedAt: now() }; state.sources.unshift(source); write(state); return clone(source) },
     ask: async (id, input) => {
+      const provenance = input.answerMode ? previewProvenance(input.question, input.answerMode, true, !!input.sourceIds.length || !!input.projectName, (read().answers[id] || []).filter(answer => !input.conversationId || (answer.conversationId || answer.id) === input.conversationId).at(-1)?.answerMode) : undefined
+      if (provenance && provenance.answerMode !== 'knowledge') {
+        const state = read(); get(state, id)
+        if (!input.question.trim()) throw new Error('请输入问题')
+        const web = provenance.webReferences || []
+        const references = web.map(source => {
+          const sourceId = `web:${uid()}`
+          state.sources.unshift({ id: sourceId, title: source.title, kind: 'web', authors: '', date: '', projectName: '', tags: ['界面演示'], content: source.excerpt, locator: source.url, version: '1', url: source.url, updatedAt: source.retrievedAt })
+          return { id: uid(), sourceId, title: source.title, excerpt: source.excerpt, locator: source.url, sourceVersion: '1', sectionId: input.sectionId }
+        })
+        const answer: Answer = { id: uid(), conversationId: input.conversationId || uid(), question: input.question, context: input.context, scope: provenance.answerMode === 'web' ? '公开网络 · 界面演示' : '通用问答 · 不联网', createdAt: now(), mode: 'ai', references, ...provenance, content: provenance.answerMode === 'web' ? previewWebAnswer(input.question) : `> 界面演示 · 未实际联网\n\n这是一个通用问题，无需先从知识库选择资料。正式使用时，模型会直接解释概念、比较差异或整理思路。\n\n本轮问题：${input.question}\n\n当前仅展示自动选择通用回答的流程，没有调用模型生成实际答案。` }
+        ;(state.answers[id] ||= []).push(answer); write(state); return clone(answer)
+      }
       // Local fixture sources are refreshed as well, so removed documents cannot be cited from a stale cache.
       const externalIds = input.sourceIds.length ? input.sourceIds.filter(value => value.startsWith('kb:')) : read().sources.filter(source => source.id.startsWith('kb:') && (!input.projectName || source.projectName === input.projectName)).map(source => source.id)
       for (const sourceId of externalIds) {
@@ -114,6 +129,7 @@ export function createDemoClient(namespace: string, userId: string, userName: st
       const ranked = candidates.map(source => ({ source, score: terms.reduce((n, term) => n + (`${source.title} ${source.content}`.toLowerCase().includes(term) ? 1 : 0), 0) })).filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, 4)
       const references = ranked.map(({ source }) => ({ id: uid(), sourceId: source.id, title: source.title, excerpt: source.content.slice(0, 800), locator: source.locator, sourceVersion: source.version, sectionId: input.sectionId }))
       const answer: Answer = { id: uid(), conversationId: input.conversationId || uid(), question: input.question, context: input.context, scope: input.sourceIds.length ? `选定 ${input.sourceIds.length} 份资料` : input.projectName || '全部演示资料', createdAt: now(), mode: 'retrieval', references, content: references.length ? `找到 ${references.length} 份相关演示资料。以下是原文摘录，请核对条件后再采纳。\n\n${references.map((ref, i) => `[${i + 1}] ${ref.title}\n${ref.excerpt}`).join('\n\n')}\n\n待验证事项：这些为交互演示资料，未形成真实配方结论。` : '当前检索范围内未找到相关知识。可调整关键词、扩大所选资料范围或添加实践记录。' }
+      if (provenance) Object.assign(answer, provenance)
       ;(state.answers[id] ||= []).push(answer); write(state); return clone(answer)
     },
     polish: async (id, input) => {

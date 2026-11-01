@@ -312,6 +312,12 @@ def test_migration_is_repeatable_and_retains_legacy_tables():
                 expected = set(model.__table__.columns.keys())
                 if model is AssistantMessage:
                     expected.remove("data_sources")  # introduced by migration 012
+                    expected -= {
+                        "answer_mode",
+                        "requested_mode",
+                        "mode_reason",
+                        "web_references",
+                    }  # 014
                 assert set(actual) == expected
                 for column in model.__table__.columns:
                     if column.name in expected:

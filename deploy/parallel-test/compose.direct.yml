@@ -43,6 +43,9 @@ services:
       CASDOOR_ORG: mabpharm
       IAM_COOKIE_SECURE: "true"
       AI_SETTINGS_PATH: /data/ai/ai-settings.json
+      ASSISTANT_WEB_ENABLED: ${ASSISTANT_WEB_ENABLED:-false}
+      ASSISTANT_WEB_API_KEY: ${ASSISTANT_WEB_API_KEY:-}
+      ASSISTANT_WEB_MAX_RESULTS: ${ASSISTANT_WEB_MAX_RESULTS:-5}
     # OAuth 回调 URL 含短期凭据，不写访问日志
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
     volumes:
