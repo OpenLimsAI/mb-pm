@@ -21,7 +21,9 @@ from app.services import password_policy
 
 
 @pytest.fixture
-def information_portal(token_factory):
+def information_portal(token_factory, monkeypatch):
+    # Retained collection contracts are tested only with an explicit isolated opt-in.
+    monkeypatch.setattr(settings, "INFORMATION_APP_ENABLED", True)
     engine = create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )

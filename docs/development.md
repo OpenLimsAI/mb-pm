@@ -221,3 +221,6 @@ GitHub Actions 检查前端账号权限覆盖率、门户路由及构建、后�
 启动前端后打开 `/assistant?preview=1` 或 `/solutions?preview=1`，保留原有预览存储。默认 Auto，可分别尝试「什么是缓冲液」「总结柿子脱涩的最新研究进展」「知识库有哪些论文」，检查实际方式标记及高级范围限制。模拟联网回答逐轮显示「界面演示 · 未实际联网」，不代表科学结论或真实搜索结果。正式配置与未配置提示见[搜索说明](assistant-auto-search.md)。
 
 回归入口：`npm test -- src/features/answerModes src/features/assistant src/features/solutions src/pages/Assistant.test.tsx`；后端新增 `tests/test_assistant_answer_modes.py` 和 `tests/test_retrieval_quality.py`，并运行现有助手、报告与迁移测试。使用请求替身验证搜索错误、私有数据不发送至搜索、合法来源与报告采纳，不使用真实付费接口。上线仍需备份和迁移 `014`；本轮不部署生产。
+## 行业信息下线（2026-11-01，代码更新）
+
+旧应用入口已移除，直接链接显示下线说明。总开关 `INFORMATION_APP_ENABLED=false` 默认关闭管理 API 与后台任务；既有受保护原文下载保持可用；原文、文件夹、论文和任务数据不迁移、不删除。新「知识源」本轮仅做界面设计。前后端针对性验证与发布状态以本次回执为准，不将代码检查当作已部署。

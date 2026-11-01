@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     NOTES_WISDOM_TOKEN: str = ""
     NOTES_WISDOM_WORKER_ENABLED: bool = False
 
+    # 旧行业信息已下线；仅保留历史数据。新「知识源」在独立界面设计阶段。
+    INFORMATION_APP_ENABLED: bool = False
     INFORMATION_DATA_DIR: str = ".local/information"
     INFORMATION_MAX_ARCHIVE_MB: int = 5120
     INFORMATION_WORKER_ENABLED: bool = False

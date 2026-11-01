@@ -185,7 +185,7 @@ async def lifespan(_: FastAPI):
     # 项目团队：有任务的人补入团队名单（幂等）
     _backfill_team_members()
     worker = None
-    if settings.INFORMATION_WORKER_ENABLED:
+    if settings.INFORMATION_APP_ENABLED and settings.INFORMATION_WORKER_ENABLED:
         from app.services.information.worker import start_worker
 
         worker = start_worker()
