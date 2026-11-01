@@ -15,6 +15,7 @@ class AssistantTask(Base):
     issuer: Mapped[str] = mapped_column(String(255), nullable=False)
     owner_id: Mapped[str] = mapped_column(String(255), nullable=False)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
+    # Legacy grouping retained for stored tasks; no longer exposed or used by the assistant.
     project: Mapped[str] = mapped_column(String(200), nullable=False, default="")
     instructions: Mapped[str] = mapped_column(Text, nullable=False, default="")
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)

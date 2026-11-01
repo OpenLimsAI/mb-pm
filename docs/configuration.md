@@ -140,3 +140,5 @@ PM 回调为 `https://pm.openlims.ai/api/v1/auth/callback`，登出回跳为 `ht
 AI 助手正式运行需迁移到 `012`，新建个人任务和消息表。门户目录增加 `assistant.enabled`，所有有效门户账号均可使用，不要求 PM 成员或 KB 角色；API 按 issuer/sub 隔离、同源写入并执行临时密码检查。个人模型沿用研究报告加密设置，无新增密钥环境变量；企业默认沿用已有服务端配置。浏览器预览不连接模型或生产数据。当前只在隔离库验证迁移与请求替身，未部署。
 
 统一笔记的精确 CORS Origin 和可选后台检索连接：`KNOWLEDGE_NOTES_ORIGIN`、`NOTES_WISDOM_CORE_URL`、`NOTES_WISDOM_TOKEN`、`NOTES_WISDOM_WORKER_ENABLED`，配置说明见 [我的笔记](personal-notes.md#配置)。
+
+个人助手移除项目相关功能后，无新增环境变量或数据库迁移；可选应用数据源仅为知识库，仍复用现有知识库连接和实时权限。旧浏览器保存的 `projects` 选项不再生效，接口拒绝该选项。代码已实现，待部署。

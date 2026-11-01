@@ -31,11 +31,10 @@ def listing(
     db: Session = Depends(get_db),
     claims: dict = Depends(identity),
     search: str = Query(default="", max_length=200),
-    project: str | None = Query(default=None, max_length=200),
     trashed: bool = False,
     offset: int = Query(default=0, ge=0, le=1000000),
 ):
-    return service.listing(db, claims, search, project, trashed, offset)
+    return service.listing(db, claims, search, trashed, offset)
 
 
 @router.post("", status_code=201)

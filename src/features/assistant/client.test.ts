@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPreviewAssistantClient } from './client'
 
-const taskInput = (title = '研究任务') => ({ id: crypto.randomUUID(), title, project: '研发项目', instructions: '区分原文与待核实事项。' })
+const taskInput = (title = '研究任务') => ({ id: crypto.randomUUID(), title, instructions: '区分原文与待核实事项。' })
 const question = (text = '请整理研究目标。') => ({ requestId: crypto.randomUUID(), question: text, context: '用户提供的阅读摘录。', modelProfileId: 'system' })
 beforeEach(() => localStorage.clear())
 
@@ -22,6 +22,20 @@ describe('assistant preview persistence and private task conversations', () => {
     }
     expect(localStorage.getItem('kb-legacy-notes')).toBe('keep KB notes')
     expect(localStorage.getItem('mberp:personal-notes:preview:v1:issuer%3Aalice')).toBe('keep independent notes')
+  })
+
+  it('opens and edits legacy grouped tasks without displaying or searching the old group', async () => {
+    const client = createPreviewAssistantClient('legacy'), original = await client.create(taskInput('旧任务'))
+    const key = 'mberp:assistant:preview:v1:legacy'
+    localStorage.setItem(key, JSON.stringify([{ ...original, project: '旧分组专用词' }]))
+    expect(await client.get(original.id)).not.toHaveProperty('project')
+    expect((await client.list({ search: '旧分组专用词' })).total).toBe(0)
+    expect((await client.list({ search: '旧任务' })).items[0]).not.toHaveProperty('project')
+    const edited = await client.save(original, { title: '修改后任务', instructions: '保留内容' })
+    const answered = await client.send(edited, question())
+    expect(answered.messages).toHaveLength(2)
+    expect(answered).not.toHaveProperty('project')
+    expect(JSON.parse(localStorage.getItem(key)!)[0].project).toBe('旧分组专用词')
   })
 
   it('deduplicates create retries and rejects UUID collisions with changed content', async () => {
@@ -50,8 +64,8 @@ describe('assistant preview persistence and private task conversations', () => {
 
   it('rejects stale sends, edits and trash operations without overwriting the latest work', async () => {
     const client = createPreviewAssistantClient('owner'), old = await client.create(taskInput())
-    const latest = await client.save(old, { title: old.title, project: old.project, instructions: '最新任务指引' })
-    await expect(client.save(old, { title: '过时修改', project: '', instructions: '' })).rejects.toMatchObject({ status: 409 })
+    const latest = await client.save(old, { title: old.title, instructions: '最新任务指引' })
+    await expect(client.save(old, { title: '过时修改', instructions: '' })).rejects.toMatchObject({ status: 409 })
     await expect(client.send(old, question())).rejects.toMatchObject({ status: 409 })
     await expect(client.trash(old)).rejects.toMatchObject({ status: 409 })
     expect(await client.get(old.id)).toEqual(latest)

@@ -8,7 +8,7 @@ vi.mock('../api/client', async original => ({ ...await original<typeof import('.
 afterEach(() => { usePortal.setState({ status: 'loading', user: null, identityNamespace: undefined, applications: [], mustChangePassword: false }); window.history.replaceState({}, '', '/') })
 const identity = (enabled: boolean) => ({ user: { id: 'person', username: 'reader', display_name: '研究员' }, identity_namespace: 'issuer', applications: [{ id: 'assistant', enabled }, { id: 'kb', enabled: false }, { id: 'pm', enabled: false }], must_change_password: false })
 it('uses portal identity and owned assistant tasks independently of PM and KB', async () => {
-  const calls: string[] = [], summary = { id: 'task-id', title: '自己的 AI 任务', project: '个人研究', instructions: '', revision: 1, created_at: '2026-10-25T00:00:00Z', updated_at: '2026-10-25T00:00:00Z', deleted_at: null, message_count: 0 }
+  const calls: string[] = [], summary = { id: 'task-id', title: '自己的 AI 任务', instructions: '', revision: 1, created_at: '2026-10-25T00:00:00Z', updated_at: '2026-10-25T00:00:00Z', deleted_at: null, message_count: 0 }
   server.use(http.get('*/api/v1/portal/me', () => { calls.push('identity'); return HttpResponse.json(identity(true)) }))
   server.use(http.get('*/api/v1/assistant/tasks', () => { calls.push('list'); return HttpResponse.json({ items: [summary], total: 1 }) }))
   server.use(http.get('*/api/v1/assistant/tasks/task-id', () => { calls.push('task'); return HttpResponse.json({ ...summary, messages: [], artifacts: [] }) }))

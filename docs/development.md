@@ -211,3 +211,5 @@ GitHub Actions 检查前端账号权限覆盖率、门户路由及构建、后�
 行业信息针对性 5 文件 54 项、全量前端 45 文件 501 项测试通过，TypeScript、2 个相关 TSX 文件 ESLint、Vite 构建与差异格式检查通过。新增回归覆盖来源弹窗初始焦点、连续键盘编辑、Escape 关闭与焦点返回；既有收录、资料、笔记与选区流程保持通过。版本更新源已生成 52 条记录。
 
 浏览器核对 1267×713 的深蓝顶栏、侧栏、来源卡片、概览、批量收录与运行页，资料列表/阅读区及来源弹窗；678×923 下横向导航、两列来源范围、上下资料阅读布局可用且无横向溢出。截图留存在本地 `docs/知识方案应用/` 的 `行业信息统一风格*_20261026.png`。既有 Browserslist 与构建包体积提示仍存在；仅改前端外观和弹窗焦点，没有后端改动、迁移或真实采集验证，未推送或部署生产。
+
+个人助手移除项目功能的回归检查：`npm test -- src/features/assistant src/pages/Assistant.test.tsx`；后端在 `backend` 执行 `pytest tests/test_assistant.py tests/test_assistant_diagnostics.py tests/test_assistant_knowledge_tools.py`。覆盖旧分组任务继续使用、仅按任务名称搜索、旧数据源选项忽略、接口拒绝项目数据源，并保留回收站和诊断功能。旧浏览器任务及对话不清空；本次无需数据库迁移。

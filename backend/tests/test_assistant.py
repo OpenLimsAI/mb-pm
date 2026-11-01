@@ -44,7 +44,6 @@ def create(f, **changes):
         json={
             "id": str(uuid4()),
             "title": "整理研究计划",
-            "project": "项目甲",
             "instructions": "先列问题，再给行动建议",
             **changes,
         },
@@ -96,18 +95,16 @@ def test_chat_persists_pair_and_result_artifact(assistant_client):
 def test_create_retry_and_metadata_conflicts(assistant_client):
     f = assistant_client
     task = create(f)
-    original = {key: task[key] for key in ("id", "title", "project", "instructions")}
+    original = {key: task[key] for key in ("id", "title", "instructions")}
     assert f.client.post(PREFIX, json=original).json() == task
     assert f.client.post(PREFIX, json={**original, "title": "另一内容"}).status_code == 409
-    draft = {"revision": 1, "title": "新标题", "project": "新项目", "instructions": "简洁"}
+    draft = {"revision": 1, "title": "新标题", "instructions": "简洁"}
     changed = f.client.put(f"{PREFIX}/{task['id']}", json=draft).json()
     assert changed["title"] == "新标题" and changed["revision"] == 2
     assert f.client.put(f"{PREFIX}/{task['id']}", json=draft).status_code == 409
     assert question(f, task).status_code == 409 and f.calls == []
-    assert (
-        f.client.get(PREFIX, params={"project": "新项目", "search": "新标题"}).json()["total"] == 1
-    )
-    assert f.client.get(PREFIX, params={"project": "项目甲"}).json()["total"] == 0
+    assert f.client.get(PREFIX, params={"search": "新标题"}).json()["total"] == 1
+    assert f.client.get(PREFIX, params={"search": "整理研究计划"}).json()["total"] == 0
 
 
 def test_owner_and_issuer_isolate_every_route(assistant_client):
@@ -129,7 +126,7 @@ def test_owner_and_issuer_isolate_every_route(assistant_client):
     )
     assert (
         f.client.post(
-            PREFIX, json={key: task[key] for key in ("id", "title", "project", "instructions")}
+            PREFIX, json={key: task[key] for key in ("id", "title", "instructions")}
         ).status_code
         == 409
     )
@@ -334,7 +331,7 @@ def test_migration_is_repeatable_and_retains_legacy_tables():
     [
         {"title": " "},
         {"title": "字" * 201},
-        {"project": "字" * 201},
+        {"project": "已移除字段"},
         {"instructions": "字" * 4001},
         {"id": "bad"},
         {"owner_id": "other"},
@@ -400,9 +397,14 @@ def test_scope_isolation_and_replay(assistant_client, monkeypatch):
         "application_data",
         lambda db, claims, payload: {key: "机密应用数据" for key in payload.data_sources},
     )
+    monkeypatch.setattr(
+        service.assistant_tool_chat,
+        "chat",
+        lambda provider, cfg, messages, claims, **kwargs: ai.chat(provider, cfg, messages)[0],
+    )
     task = create(f)
     request_id = str(uuid4())
-    response = question(f, task, request_id=request_id, data_sources=["projects"])
+    response = question(f, task, request_id=request_id, data_sources=["knowledge"])
     assert response.status_code == 200
     task = response.json()
     assert "机密应用数据" in json.dumps(f.calls[-1]["messages"], ensure_ascii=False)
@@ -449,88 +451,35 @@ def test_knowledge_failure_does_not_call_model(assistant_client, monkeypatch):
     assert f.calls == []
 
 
-def test_projects_respect_live_role_and_visibility(assistant_client, monkeypatch):
-    from datetime import date
-
-    from app.core.config import settings
-    from app.models import IAMIdentity, Project, ProjectMember, SubProject, Task, User
-    from app.services import accounts
-
+def test_removed_project_source_is_rejected_before_model_call(assistant_client):
     f = assistant_client
-    f.db.add_all(
-        [
-            User(
-                id="u1",
-                username="author",
-                display_name="甲",
-                email="a@example.test",
-                role="admin",
-                is_active=True,
-            ),
-            User(
-                id="u2",
-                username="other",
-                display_name="乙",
-                email="b@example.test",
-                role="rd",
-                is_active=True,
-            ),
-        ]
-    )
-    f.db.flush()
-    f.db.add(IAMIdentity(issuer=settings.casdoor_issuer, subject="author", user_id="u1"))
-    for ident in ("visible", "hidden"):
-        f.db.add(
-            Project(
-                id=ident,
-                code=ident,
-                name=ident,
-                product_type="其他",
-                current_stage="立项",
-                target_stage="立项",
-                owner_id="u2",
-                status="活跃",
-                health="green",
-                progress=0,
-                planned_start=date(2026, 1, 1),
-                planned_end=date(2026, 12, 1),
-            )
-        )
-    f.db.flush()
-    f.db.add(ProjectMember(project_id="visible", user_id="u1"))
-    f.db.add(
-        SubProject(
-            id="sub",
-            project_id="visible",
-            name="子项目",
-            stage="立项",
-            module="其他",
-            status="进行中",
-            progress=0,
-        )
-    )
-    f.db.flush()
-    for ident, owner in (("own", "u1"), ("other", "u2")):
-        f.db.add(
-            Task(
-                id=ident,
-                code=ident,
-                name=ident,
-                sub_project_id="sub",
-                owner_id=owner,
-                status="进行中",
-                priority="中",
-                planned_start=date(2026, 1, 1),
-                planned_end=date(2026, 12, 1),
-            )
-        )
+    task = create(f)
+    assert question(f, task, data_sources=["projects"]).status_code == 422
+    assert question(f, task, data_sources=["projects", "knowledge"]).status_code == 422
+    assert f.calls == []
+    assert f.client.get(f"{PREFIX}/{task['id']}").json()["messages"] == []
+
+
+def test_legacy_grouped_task_remains_usable_without_exposing_group(assistant_client):
+    f = assistant_client
+    task = create(f)
+    row = f.db.get(AssistantTask, task["id"])
+    row.project = "旧分组专用词"
     f.db.commit()
-    monkeypatch.setattr(accounts, "live_roles", lambda subject: {"rd"})
-    response = question(f, create(f), data_sources=["projects"])
-    assert response.status_code == 200, response.text
-    data = json.loads(f.calls[-1]["messages"][-1]["content"])["application_data"]["projects"]
-    assert [row["name"] for row in data["projects"]] == ["visible"]
-    assert [row["name"] for row in data["tasks"]] == ["own"]
+    assert "project" not in f.client.get(f"{PREFIX}/{task['id']}").json()
+    assert f.client.get(PREFIX, params={"search": "旧分组专用词"}).json()["total"] == 0
+    assert f.client.get(PREFIX, params={"search": task["title"]}).json()["total"] == 1
+    edited = f.client.put(
+        f"{PREFIX}/{task['id']}",
+        json={"revision": task["revision"], "title": "修改后任务", "instructions": "新指引"},
+    )
+    assert edited.status_code == 200
+    assert "project" not in edited.json()
+    answered = question(f, edited.json())
+    assert answered.status_code == 200
+    assert answered.json()["message_count"] == 2
+    f.db.expire_all()
+    assert f.db.get(AssistantTask, task["id"]).project == "旧分组专用词"
 
 
 def test_data_sources_migration_upgrade_repeat_and_downgrade():

@@ -6,18 +6,12 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm.attributes import set_committed_value
 
-from app.core.config import settings
-from app.core.security import DEFAULT_ROLE, ROLE_PRIORITY
-from app.models import IAMIdentity, Project, SubProject, Task, User
 from app.models.assistant import AssistantMessage, AssistantTask
-from app.services import accounts, ai, assistant_tool_chat, solution_ai, solution_knowledge
+from app.services import ai, assistant_tool_chat, solution_ai, solution_knowledge
 from app.services import assistant_diagnostics as diagnostics
-from app.services.iam_admin import IAMError
-from app.services.scope import visible_project_ids_for, visible_task_ids_for
 
 CONFLICT = "任务已在其他页面更新，请保留当前输入并刷新任务后重试"
 SYSTEM_PROMPT = (
@@ -54,7 +48,6 @@ def summary(task, count):
         {
             "id": task.id,
             "title": task.title,
-            "project": task.project,
             "instructions": task.instructions,
             "revision": task.revision,
             "created_at": timestamp(task.created_at),
@@ -103,20 +96,13 @@ def detail(db, task):
     return {**summary(task, len(rows)), "messages": rows, "artifacts": artifacts}
 
 
-def listing(db, claims, search, project, trashed, offset):
+def listing(db, claims, search, trashed, offset):
     statement = select(AssistantTask).where(
         owned(claims),
         AssistantTask.deleted_at.is_not(None) if trashed else AssistantTask.deleted_at.is_(None),
     )
     if search.strip():
-        statement = statement.where(
-            or_(
-                AssistantTask.title.icontains(search.strip(), autoescape=True),
-                AssistantTask.project.icontains(search.strip(), autoescape=True),
-            )
-        )
-    if project is not None:
-        statement = statement.where(AssistantTask.project == project)
+        statement = statement.where(AssistantTask.title.icontains(search.strip(), autoescape=True))
     total = db.scalar(select(func.count()).select_from(statement.subquery()))
     tasks = db.scalars(
         statement.order_by(AssistantTask.updated_at.desc(), AssistantTask.id.desc())
@@ -202,57 +188,6 @@ def completed_request(db, task, payload):
 
 def application_data(db, claims, payload):
     evidence = {}
-    if "projects" in payload.data_sources:
-        try:
-            roles = accounts.live_roles(claims["sub"])
-        except IAMError as exc:
-            raise HTTPException(503, "暂时无法确认项目管理权限，请稍后重试") from exc
-        identity = db.get(IAMIdentity, (settings.casdoor_issuer, claims["sub"]))
-        user = db.get(User, identity.user_id) if identity else None
-        if not user or not user.is_active:
-            raise HTTPException(403, "请先登录项目管理并关联有效用户")
-        set_committed_value(
-            user, "role", next((role for role in ROLE_PRIORITY if role in roles), DEFAULT_ROLE)
-        )
-        project_ids = visible_project_ids_for(user, db)
-        task_ids = visible_task_ids_for(user, db)
-        projects = db.scalars(
-            select(Project)
-            .where(Project.id.in_(project_ids))
-            .order_by(Project.name, Project.id)
-            .limit(101)
-        ).all()
-        tasks = db.execute(
-            select(Task, SubProject.project_id)
-            .join(SubProject)
-            .where(Task.id.in_(task_ids), SubProject.project_id.in_(project_ids))
-            .order_by(Task.name, Task.id)
-            .limit(101)
-        ).all()
-        evidence["projects"] = {
-            "projects": [
-                {
-                    "id": p.id,
-                    "code": p.code,
-                    "name": p.name,
-                    "status": p.status,
-                    "progress": p.progress,
-                    "stage": p.current_stage,
-                }
-                for p in projects[:100]
-            ],
-            "tasks": [
-                {
-                    "project_id": pid,
-                    "name": t.name,
-                    "status": t.status,
-                    "progress": t.progress,
-                    "planned_end": str(t.planned_end),
-                }
-                for t, pid in tasks[:100]
-            ],
-            "truncated": len(projects) > 100 or len(tasks) > 100,
-        }
     if "knowledge" in payload.data_sources:
         paper_count = solution_knowledge.paper_count(claims)
         evidence["knowledge"] = {
@@ -299,7 +234,7 @@ def question(db, claims, task, payload):
     diagnostics.stage("application_data")
     evidence = application_data(db, claims, payload)
     scope_instruction = (
-        "已选择应用数据。涉及项目、任务或知识库等业务事实时，只能依据本轮选中应用提供的资料"
+        "已选择知识库数据。涉及知识库中的业务事实时，只能依据本轮选中应用提供的资料"
         "和用户本轮提供的资料作答；历史问题仅用于理解追问，不是事实证据。"
         "如果资料中未找到答案，请明确说明，不得用一般知识推测或编造业务事实。"
         if payload.data_sources

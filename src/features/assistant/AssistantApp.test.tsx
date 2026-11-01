@@ -5,7 +5,7 @@ import { createPreviewAssistantClient } from './client'
 import type { AssistantClient, AssistantTask } from './client'
 import type { ModelSettingsClient } from '../solutions/modelSettings'
 
-const input = (title: string) => ({ id: crypto.randomUUID(), title, project: '测试项目', instructions: '区分资料原文与待确认信息。' })
+const input = (title: string) => ({ id: crypto.randomUUID(), title, instructions: '区分资料原文与待确认信息。' })
 function models(defaultProfileId: string | null = null): ModelSettingsClient {
   return { get: vi.fn(async () => ({ revision: 1, defaultProfileId, profiles: [{ id: 'private-model', name: '我的模型', provider: 'openai' as const, model: 'my-model', baseUrl: 'https://api.openai.com/v1', keySet: false }] })), save: vi.fn(), test: vi.fn() }
 }
@@ -26,17 +26,17 @@ async function create(client: AssistantClient, title: string) { return client.cr
 beforeEach(() => localStorage.clear())
 
 describe('AI assistant task workspace', () => {
-  it('creates a named project task and saves changes through the task settings form', async () => {
+  it('creates a named task without project grouping and saves changes through the task settings form', async () => {
     const { client } = await mount()
     fireEvent.click(screen.getByRole('button', { name: '新建任务' }))
     const dialog = screen.getByRole('dialog', { name: '新建任务' })
     fireEvent.change(within(dialog).getByLabelText('任务名称'), { target: { value: '  本周研究梳理  ' } })
-    fireEvent.change(within(dialog).getByLabelText('项目'), { target: { value: '研究项目一' } })
+    expect(within(dialog).queryByLabelText('项目')).not.toBeInTheDocument()
     fireEvent.change(within(dialog).getByLabelText('任务指引'), { target: { value: '输出清晰的行动项。' } })
     fireEvent.click(within(dialog).getByRole('button', { name: '保存任务' }))
     await screen.findByRole('heading', { name: '本周研究梳理', level: 2 })
     let saved = (await client.list({ search: '本周研究梳理' })).items[0]
-    expect(saved).toMatchObject({ title: '本周研究梳理', project: '研究项目一', instructions: '输出清晰的行动项。' })
+    expect(saved).toMatchObject({ title: '本周研究梳理', instructions: '输出清晰的行动项。' })
     fireEvent.click(screen.getByRole('button', { name: '任务设置' }))
     const settings = screen.getByRole('dialog', { name: '任务设置' })
     fireEvent.change(within(settings).getByLabelText('任务名称'), { target: { value: '本周研究进展与计划' } })
@@ -101,13 +101,13 @@ describe('AI assistant task workspace', () => {
     const client = createPreviewAssistantClient('keyboard'), task = await create(client, '键盘发送'), send = vi.spyOn(client, 'send')
     await mount(client)
     await open(task.title)
-    fireEvent.change(composer(), { target: { value: '请整理项目进展' } })
+    fireEvent.change(composer(), { target: { value: '请整理研究进展' } })
     expect(fireEvent.keyDown(composer(), { key: 'Enter', shiftKey: true })).toBe(true)
     fireEvent.keyDown(composer(), { key: 'Enter', isComposing: true })
     fireEvent.keyDown(composer(), { key: 'Enter', keyCode: 229 })
     expect(send).not.toHaveBeenCalled()
     fireEvent.keyDown(composer(), { key: 'Enter' })
-    await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ id: task.id }), expect.objectContaining({ question: '请整理项目进展' })))
+    await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ id: task.id }), expect.objectContaining({ question: '请整理研究进展' })))
     await within(chat()).findByRole('button', { name: '查看产物' })
   })
 
@@ -117,14 +117,26 @@ describe('AI assistant task workspace', () => {
     await open(task.title)
     fireEvent.click(screen.getByRole('button', { name: /数据设置/ }))
     const dialog = screen.getByRole('dialog', { name: '数据设置' })
-    fireEvent.click(within(dialog).getByRole('checkbox', { name: /项目管理/ }))
+    expect(within(dialog).queryByRole('checkbox', { name: /项目管理/ })).not.toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: /知识库/ }))
     fireEvent.click(within(dialog).getByRole('button', { name: '保存设置' }))
-    fireEvent.change(composer(), { target: { value: '目前有哪些项目？' } })
+    fireEvent.change(composer(), { target: { value: '知识库有几篇论文？' } })
     fireEvent.click(screen.getByRole('button', { name: '发送任务消息' }))
-    await waitFor(() => expect(send).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ data_sources: ['projects'] })))
+    await waitFor(() => expect(send).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ data_sources: ['knowledge'] })))
     fireEvent.click(screen.getByRole('button', { name: /数据设置/ }))
-    expect(within(screen.getByRole('dialog', { name: '数据设置' })).getByRole('checkbox', { name: /项目管理/ })).toBeChecked()
-    expect(within(screen.getByRole('dialog', { name: '数据设置' })).getByRole('checkbox', { name: /知识库/ })).not.toBeChecked()
+    expect(within(screen.getByRole('dialog', { name: '数据设置' })).getByRole('checkbox', { name: /知识库/ })).toBeChecked()
+  })
+
+  it('ignores a legacy project source selection and preserves knowledge selection', async () => {
+    localStorage.setItem('assistant-data-sources:研究员:preview', JSON.stringify(['projects', 'knowledge', 'knowledge']))
+    const client = createPreviewAssistantClient('legacy-sources'), task = await create(client, '旧选项任务'), send = vi.spyOn(client, 'send')
+    await mount(client)
+    await open(task.title)
+    fireEvent.change(composer(), { target: { value: '请整理资料' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送任务消息' }))
+    await waitFor(() => expect(send).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ data_sources: ['knowledge'] })))
+    fireEvent.click(screen.getByRole('button', { name: /数据设置/ }))
+    expect(within(screen.getByRole('dialog', { name: '数据设置' })).getAllByRole('checkbox')).toHaveLength(1)
   })
 
   it('retains a failed question and retries with the same request UUID', async () => {
