@@ -163,6 +163,21 @@
   ],
   "releases": [
     {
+      "id": "notes-source-order-20261101",
+      "date": "2026-11-01",
+      "version": "笔记来源排序",
+      "title": "调整我的笔记来源顺序",
+      "summary": "来源分类按研究报告、知识库、行业信息、个人记录排列。",
+      "changes": [
+        {
+          "type": "调整",
+          "items": [
+            "侧栏与来源筛选使用相同顺序，便于按来源浏览笔记。"
+          ]
+        }
+      ]
+    },
+    {
       "id": "assistant-diagnostics-20261101",
       "date": "2026-11-01",
       "version": "个人助手请求诊断",

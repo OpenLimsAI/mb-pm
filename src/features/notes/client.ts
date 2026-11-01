@@ -14,7 +14,7 @@ export interface NotesClient {
   restore(note: PersonalNote): Promise<PersonalNote>
   share?(note: PersonalNote, enabled: boolean): Promise<PersonalNote>
 }
-export const noteSourceNames: Record<NoteSource, string> = { manual: '个人记录', solutions: '研究报告', information: '行业信息', knowledge: '知识库' }
+export const noteSourceNames: Record<NoteSource, string> = { solutions: '研究报告', knowledge: '知识库', information: '行业信息', manual: '个人记录' }
 export function noteSourceUrl(value: string): string | undefined {
   if (!value || value.includes('\\') || [...value].some(char => char.charCodeAt(0) < 32)) return undefined
   if (value.startsWith('/') && !value.startsWith('//')) return value
