@@ -141,4 +141,4 @@ AI 助手正式运行需迁移到 `012`，新建个人任务和消息表。门�
 
 统一笔记的精确 CORS Origin 和可选后台检索连接：`KNOWLEDGE_NOTES_ORIGIN`、`NOTES_WISDOM_CORE_URL`、`NOTES_WISDOM_TOKEN`、`NOTES_WISDOM_WORKER_ENABLED`，配置说明见 [我的笔记](personal-notes.md#配置)。
 
-个人助手移除项目相关功能后，无新增环境变量或数据库迁移；可选应用数据源仅为知识库，仍复用现有知识库连接和实时权限。旧浏览器保存的 `projects` 选项不再生效，接口拒绝该选项。代码已实现，待部署。
+个人助手移除项目相关功能后，无新增环境变量或数据库迁移；可选应用数据源仅为知识库，仍复用现有知识库连接和实时权限。旧浏览器保存的 `projects` 选项不再生效，接口拒绝该选项。两个生产实例已部署；验证范围及公网待补验事项见[发布记录](../deploy/parallel-test/releases/20261101-assistant-remove-projects.md)。
