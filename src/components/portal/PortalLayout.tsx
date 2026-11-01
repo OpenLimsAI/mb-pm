@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
-import { Link, NavLink } from 'react-router-dom'
+import { Link, NavLink, useLocation } from 'react-router-dom'
 import { LogOut, ShieldCheck } from 'lucide-react'
 import type { PortalUser } from '../../api/portal'
-import { usePortal } from '../../store/portal'
+import { workspaceSections } from './workspaceSections'
 import '../../styles/workspace.css'
 
 export default function PortalLayout({ user, logout, preview = false, children }: {
@@ -12,9 +12,10 @@ export default function PortalLayout({ user, logout, preview = false, children }
   children: ReactNode
 }) {
   const displayName = user?.displayName || user?.username || ''
-  const accountsEnabled = usePortal((state) => state.applications.some((entry) => entry.id === 'accounts' && entry.enabled))
+  const { pathname, hash } = useLocation()
+  const atWorkspace = pathname === '/'
   const suffix = preview ? '?preview=1' : ''
-  return <div className="workspace-shell">
+  return <div id="workspace-top" className="workspace-shell">
     <a className="portal-skip-link" href="#portal-content">跳至主要内容</a>
     <header className="workspace-header">
       <div className="workspace-header-inner">
@@ -23,11 +24,11 @@ export default function PortalLayout({ user, logout, preview = false, children }
           <span className="workspace-brand-copy"><strong>迈博药业</strong><span>数字化工作空间</span></span>
         </Link>
         <nav className="portal-navigation" aria-label="门户导航">
-          <NavLink to={'/' + suffix} end>工作台</NavLink>
-          {user && !preview && accountsEnabled && <NavLink to="/accounts">账号管理</NavLink>}
-          {user && <NavLink to={'/feedback' + suffix}>回音壁</NavLink>}
-          {user && <NavLink to={'/settings' + suffix}>我的设置</NavLink>}
-          {user && <NavLink to={'/model-settings' + suffix}>AI 设置</NavLink>}
+          <Link to={'/' + suffix} className={atWorkspace && !hash ? 'active' : undefined} aria-current={atWorkspace && !hash ? 'page' : undefined}>工作台</Link>
+          {(user || preview) && workspaceSections.map(section => {
+            const active = atWorkspace && hash === `#${section.id}`
+            return <Link key={section.id} to={'/' + suffix + `#${section.id}`} className={active ? 'active' : undefined} aria-current={active ? 'location' : undefined}>{section.label}</Link>
+          })}
           <NavLink to="/help">使用帮助</NavLink>
         </nav>
         <div className="workspace-account">

@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { ArrowRight, BookOpen, BriefcaseBusiness, Check, ChevronRight, FilePenLine, MessageSquareText, NotebookPen, Settings2, SlidersHorizontal, LayoutGrid, LockKeyhole, Radar, Sparkles, RefreshCw, ShieldCheck, UsersRound } from 'lucide-react'
 import PortalLayout from '../components/portal/PortalLayout'
+import { workspaceSections } from '../components/portal/workspaceSections'
 import { usePortalContext } from '../components/portal/context'
 import { knowledgeLaunchUrl, siteMode } from '../lib/site'
 
@@ -100,6 +101,16 @@ function ApplicationCard({ application, access, preview }: { application: Applic
 export default function Workspace({ user, applications, onRefresh, onLogout, preview = false }: WorkspaceProps) {
   const [refreshing, setRefreshing] = useState(false)
   const [notice, setNotice] = useState('')
+  const { hash, key } = useLocation()
+  useEffect(() => {
+    const section = workspaceSections.find(entry => hash === `#${entry.id}`)
+    if (hash && !section) return
+    const target = document.getElementById(section?.id || 'workspace-top')
+    if (!target) return
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    target.scrollIntoView?.({ block: 'start', behavior: reduceMotion ? 'instant' : 'smooth' })
+    if (section) target.focus({ preventScroll: true })
+  }, [hash, key])
   const displayName = user?.displayName || user?.username || ''
   // 账号管理仅向获得准入的人显示；界面预览和普通员工不显示。
   const showManagement = !preview && applications.some((entry) => entry.id === 'accounts' && entry.enabled)
@@ -137,12 +148,12 @@ export default function Workspace({ user, applications, onRefresh, onLogout, pre
           </div>
         </section>
 
-        <section className="workspace-category workspace-category--intelligence" aria-labelledby="workspace-intelligence-title">
+        <section id="workspace-intelligence" tabIndex={-1} className="workspace-category workspace-category--intelligence" aria-labelledby="workspace-intelligence-title">
           <div className="workspace-section-heading"><div><div className="workspace-section-label">AI INTELLIGENCE</div><h2 id="workspace-intelligence-title">AI 智能版块</h2><p>与 AI 一起拆解问题、整理资料，形成可继续使用的工作成果。</p></div><Sparkles size={25} aria-hidden="true" /></div>
           <div className="workspace-app-grid workspace-ai-grid">{assistantApps.map(application => <ApplicationCard key={application.id} application={application} access={applications.find(entry => entry.id === application.accessId)} preview={preview} />)}</div>
         </section>
 
-        <section className="workspace-apps workspace-category workspace-category--knowledge" aria-labelledby="workspace-knowledge-title">
+        <section id="workspace-knowledge" tabIndex={-1} className="workspace-apps workspace-category workspace-category--knowledge" aria-labelledby="workspace-knowledge-title">
           <div className="workspace-section-heading">
             <div><div className="workspace-section-label">KNOWLEDGE & INFORMATION</div><h2 id="workspace-knowledge-title">知识信息版块</h2><p>从资料与笔记出发，连接研究、知识和行业动态。</p></div>
             <button type="button" className="workspace-refresh" onClick={() => { void refreshIdentity() }} disabled={refreshing || preview}><RefreshCw size={16} className={refreshing ? 'workspace-spin' : undefined} aria-hidden="true" />{refreshing ? '正在刷新' : '刷新身份'}</button>
@@ -150,11 +161,11 @@ export default function Workspace({ user, applications, onRefresh, onLogout, pre
           <p className="workspace-notice" role="status" aria-live="polite">{notice}</p>
           <div className="workspace-app-grid">{knowledgeApps.map(application => <ApplicationCard key={application.id} application={application} access={applications.find(entry => entry.id === application.accessId)} preview={preview} />)}</div>
         </section>
-        <section className="workspace-category workspace-category--business" aria-labelledby="workspace-business-title">
+        <section id="workspace-business" tabIndex={-1} className="workspace-category workspace-category--business" aria-labelledby="workspace-business-title">
           <div className="workspace-section-heading"><div><div className="workspace-section-label">BUSINESS MANAGEMENT</div><h2 id="workspace-business-title">业务管理版块</h2><p>集中处理项目协作、人员事务与使用反馈。</p></div><BriefcaseBusiness size={25} aria-hidden="true" /></div>
           <div className="workspace-app-grid workspace-business-grid">{businessApps.map(application => <ApplicationCard key={application.id} application={application} access={applications.find(entry => entry.id === application.accessId)} preview={preview} />)}</div>
         </section>
-        <section className="workspace-category workspace-category--settings" aria-labelledby="workspace-settings-title">
+        <section id="workspace-settings" tabIndex={-1} className="workspace-category workspace-category--settings" aria-labelledby="workspace-settings-title">
           <div className="workspace-section-heading"><div><div className="workspace-section-label">PREFERENCES & TOOLS</div><h2 id="workspace-settings-title">功能设置版块</h2><p>管理个人偏好、AI 模型、主数据与账号权限。</p></div><Settings2 size={25} aria-hidden="true" /></div>
           <div className="workspace-app-grid">{settingApps.filter(application => application.id !== 'accounts' || showManagement).map(application => <ApplicationCard key={application.id} application={application} access={applications.find(entry => entry.id === application.accessId)} preview={preview} />)}</div>
         </section>
