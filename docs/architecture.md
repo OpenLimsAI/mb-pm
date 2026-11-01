@@ -186,4 +186,5 @@ AI 助手选择知识库时，`assistant_tool_chat.py` 为本轮模型注册六�
 
 个人助手的任务输入和返回结果不再包含 `project`，列表只按任务名称搜索；`data_sources` 只接受 `knowledge`。旧 `assistant_tasks.project` 列及预览记录中的历史归类值保留以避免破坏历史数据，但不参与当前接口、检索或模型上下文。
 
-模型价格是随前端版本发布的官方资料快照，统一由 `modelPricingData.ts` / `modelPricing.ts` 匹配服务商、基础地址与型号，`ModelPricePicker` 展示。价格数据不参与密钥保存或模型调用，不增加后台访问；Kimi 调用参数共用于普通生成与知识库工具轮次。范围见[模型价格参考](model-pricing.md)。
+
+助手对话展示由 `Conversation.tsx` 按相邻消息的 `requestId` 配对，每轮独立标注编号与时间；不改变消息存储、模型调用或任务数据，未匹配的历史消息仍完整显示。
