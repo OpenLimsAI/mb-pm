@@ -9,7 +9,7 @@ const requestId = '00112233-4455-6677-8899-aabbccddeeff'
 const task = { id: 'test-task', revision: 1 } as TaskSummary
 
 describe('assistant diagnostic errors', () => {
-  it.each([[502, '回答达到模型输出上限'], [504, '模型等待超时'], [503, '模型服务限流']])('keeps a safe server reason and diagnostic ID for %i', async (status, message) => {
+  it.each([[422, '回答达到模型输出上限'], [503, '模型等待超时'], [503, '模型服务限流']])('keeps a safe server reason and diagnostic ID for %i', async (status, message) => {
     const id = 'a'.repeat(32)
     server.use(http.post('*/api/v1/assistant/tasks/test-task/messages', () => HttpResponse.json({ detail: `${message}（诊断编号：${id}）` }, { status, headers: { 'X-Assistant-Diagnostic-ID': id } })))
     await expect(assistantApi.send(task, { requestId, question: 'question', context: '' })).rejects.toThrow(`${message}（诊断编号：${id}）`)
@@ -20,6 +20,14 @@ describe('assistant diagnostic errors', () => {
     const displayed = assistantFailure(error)
     expect(displayed.message).toContain(message)
     expect(displayed.message).toContain(requestId)
+    expect(displayed.message).not.toContain('SECRET')
+  })
+
+  it('keeps a request ID when an edge proxy replaces the server response', () => {
+    const error = new AxiosError('edge failure', 'ERR_BAD_RESPONSE', { headers: new AxiosHeaders(), data: JSON.stringify({ request_id: requestId, question: 'SECRET QUESTION' }) }, {}, { status: 502, statusText: 'Bad Gateway', data: { detail: 'UNTRUSTED EDGE BODY' }, headers: {}, config: { headers: new AxiosHeaders() } })
+    const displayed = assistantFailure(error)
+    expect(displayed.message).toContain(requestId)
+    expect(displayed.message).not.toContain('UNTRUSTED')
     expect(displayed.message).not.toContain('SECRET')
   })
 

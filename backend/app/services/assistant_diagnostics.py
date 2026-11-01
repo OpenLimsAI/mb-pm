@@ -24,15 +24,15 @@ CURRENT = ContextVar("assistant_diagnostic", default=None)
 ERROR_HEADER = "X-Assistant-Error-Code"
 ID_HEADER = "X-Assistant-Diagnostic-ID"
 PUBLIC_ERRORS = {
-    "model_timeout": (504, "模型等待超时，问题已保留。请稍后重试或分批提问。"),
-    "output_limit": (502, "回答达到模型输出上限，问题已保留。请分批整理。"),
-    "response_too_large": (502, "模型回复超过接收容量，问题已保留。请缩小本轮范围。"),
+    "model_timeout": (503, "模型等待超时，问题已保留。请稍后重试或分批提问。"),
+    "output_limit": (422, "回答达到模型输出上限，问题已保留。请分批整理。"),
+    "response_too_large": (422, "模型回复超过接收容量，问题已保留。请缩小本轮范围。"),
     "model_network": (503, "连接模型服务失败，问题已保留。请稍后重试。"),
     "model_auth": (503, "模型密钥或访问权限不可用，请检查所选模型设置。"),
     "model_rate_limit": (503, "模型服务限流或额度不足，问题已保留。请稍后重试或检查额度。"),
     "model_rejected": (503, "模型服务拒绝了请求，问题已保留。请检查所选模型设置。"),
-    "model_invalid_response": (502, "模型返回的格式无法读取，问题已保留。请重试或切换模型。"),
-    "model_empty_response": (502, "模型未返回回答正文，问题已保留。请重试或切换模型。"),
+    "model_invalid_response": (503, "模型返回的格式无法读取，问题已保留。请重试或切换模型。"),
+    "model_empty_response": (503, "模型未返回回答正文，问题已保留。请重试或切换模型。"),
     "model_error": (503, "AI 回答未完成，问题已保留。请提供诊断编号以便排查。"),
 }
 FINISH_REASONS = {"stop", "length", "tool_calls", "function_call", "content_filter", "unload"}
@@ -154,16 +154,20 @@ def request_scope(request_id):
     try:
         yield trace
     except HTTPException as exc:
+        # 502/504 can be replaced by an edge proxy, losing the diagnostic response.
+        # These are handled dependency failures; preserve their category and original status.
+        status = 503 if exc.status_code in (502, 504) else exc.status_code
         trace.emit(
             "request_failed",
             code=_http_code(exc),
-            status=exc.status_code,
+            status=status,
+            dependency_status=exc.status_code if status != exc.status_code else None,
             model_rounds=trace.model_rounds,
             tool_calls=trace.tool_calls,
         )
         detail = exc.detail if isinstance(exc.detail, str) else "请求未完成，问题已保留。"
         raise HTTPException(
-            exc.status_code,
+            status,
             f"{detail}（诊断编号：{trace.id}）",
             headers={**(exc.headers or {}), ID_HEADER: trace.id},
         ) from None

@@ -202,7 +202,7 @@ def test_failure_scrubs_provider_error_and_preserves_task(assistant_client, monk
 
     monkeypatch.setattr(ai, "chat", fail)
     response = question(f, task)
-    assert response.status_code == (502 if isinstance(failure, ValueError) else 503)
+    assert response.status_code == 503
     assert "secret" not in response.text.lower()
     assert f.client.get(f"{PREFIX}/{task['id']}").json() == task
 
@@ -365,7 +365,9 @@ def test_invalid_model_reply_is_not_persisted(assistant_client, monkeypatch, res
     f = assistant_client
     task = create(f)
     monkeypatch.setattr(ai, "chat", lambda *_args, **_kwargs: (result, {}))
-    assert question(f, task).status_code == 502
+    assert question(f, task).status_code == (
+        422 if isinstance(result, str) and len(result) > 80000 else 503
+    )
     assert f.client.get(f"{PREFIX}/{task['id']}").json()["messages"] == []
 
 
@@ -618,7 +620,7 @@ def test_kb_tool_failure_retains_task_and_request_for_retry(assistant_client, mo
     monkeypatch.setattr(assistant_tool_chat, "chat", unavailable)
     task = create(f)
     result = question(f, task, data_sources=["knowledge"])
-    assert result.status_code == 504 and "超时" in result.json()["detail"]
+    assert result.status_code == 503 and "超时" in result.json()["detail"]
     assert f.client.get(f"{PREFIX}/{task['id']}").json() == task
 
 

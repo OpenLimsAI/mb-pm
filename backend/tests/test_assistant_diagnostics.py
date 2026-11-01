@@ -28,8 +28,8 @@ def events(monkeypatch):
 @pytest.mark.parametrize(
     "failure, code, status, expected",
     [
-        (ai.AIError("SECRET", code="model_timeout"), "model_timeout", 504, "等待超时"),
-        (ai.AIError("SECRET", code="output_limit"), "output_limit", 502, "输出上限"),
+        (ai.AIError("SECRET", code="model_timeout"), "model_timeout", 503, "等待超时"),
+        (ai.AIError("SECRET", code="output_limit"), "output_limit", 422, "输出上限"),
         (
             ai.AIError("SECRET", code="model_rate_limit", upstream_status=429),
             "model_rate_limit",
@@ -37,8 +37,8 @@ def events(monkeypatch):
             "限流",
         ),
         (ai.AIError("SECRET", code="model_auth", upstream_status=401), "model_auth", 503, "权限"),
-        (TimeoutError("SECRET"), "model_timeout", 504, "等待超时"),
-        (ValueError("SECRET"), "model_invalid_response", 502, "格式"),
+        (TimeoutError("SECRET"), "model_timeout", 503, "等待超时"),
+        (ValueError("SECRET"), "model_invalid_response", 503, "格式"),
     ],
 )
 def test_failure_id_matches_logs_and_draft_is_not_saved(
@@ -88,7 +88,7 @@ def test_finish_reason_and_usage_retain_evidence_for_output_limit(
         ),
     )
     response = test_assistant.question(f, test_assistant.create(f))
-    assert response.status_code == 502
+    assert response.status_code == 422
     completed = next(e for e in events if e["event"] == "model_completed")
     assert completed["finish_reason"] == "length"
     assert completed["completion_tokens"] == 4096 and completed["reasoning_tokens"] == 4000
@@ -187,8 +187,9 @@ def test_total_query_timeout_is_not_reported_as_model_timeout(monkeypatch, event
     monkeypatch.setattr(runner.solution_knowledge, "check_access", lambda claims: None)
     with pytest.raises(HTTPException) as exc, diag.request_scope(uuid4()):
         runner.chat("deepseek", {"model": "test"}, [{"role": "system", "content": "s"}], {})
-    assert exc.value.status_code == 504
+    assert exc.value.status_code == 503
     assert events[-1]["code"] == "query_timeout" and events[-1]["model_rounds"] == 0
+    assert events[-1]["dependency_status"] == 504
 
 
 def test_unexpected_exception_is_sanitized_and_context_resets(events):
@@ -226,7 +227,7 @@ def test_enterprise_transport_recognizes_socket_and_url_timeouts(monkeypatch, ev
         except ai.NetworkError as error:
             assert error.code == "model_timeout"
             raise diag.model_http_error(error) from None
-    assert exc.value.status_code == 504
+    assert exc.value.status_code == 503
     assert next(e for e in events if e["event"] == "model_failed")["code"] == "model_timeout"
     assert events[-1]["code"] == "model_timeout" and "SECRET" not in json.dumps(events)
 
