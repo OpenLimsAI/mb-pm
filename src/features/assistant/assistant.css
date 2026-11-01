@@ -186,12 +186,6 @@
 .aa-form .aa-error { margin: 12px 0; }
 .aa-trash-action { display: flex; align-items: center; gap: 5px; margin-top: 15px; padding: 0; border: 0; color: #a57b70; background: none; font-size: 10px!important; }
 .aa-help { padding: 18px 0; color: #91a5b3; font-size: 11px; }
-.aa-projects { display: grid; gap: 10px; margin-bottom: 22px; }
-.aa-projects > button { display: flex; align-items: center; gap: 13px; padding: 15px; border: 1px solid #dce7ef; border-radius: 7px; color: #6b8ea5; background: #f9fbfd; text-align: left; }
-.aa-projects > button > span { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid #e1eaf2; border-radius: 7px; background: #edf4f9; }
-.aa-projects > button > div { flex: 1; }
-.aa-projects strong { display: block; color: #496e86; font-size: 13px; font-weight: 600; }
-.aa-projects small { color: #98acb8; font-size: 10px; }
 .aa-material-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 18px; }
 .aa-material-toolbar span { color: #8da1ae; font-size: 10px; }
 .aa-form-footer { display: flex; align-items: center; gap: 9px; padding-top: 16px; border-top: 1px solid #e2ebf2; }

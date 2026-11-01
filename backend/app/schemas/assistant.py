@@ -9,7 +9,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 class TaskInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     title: str = Field(default="新任务", min_length=1, max_length=200)
-    project: str = Field(default="", max_length=200)
     instructions: str = Field(default="", max_length=4000)
 
     @field_validator("title")
@@ -36,7 +35,7 @@ class TaskRevision(BaseModel):
 class TaskQuestion(TaskRevision):
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
     request_id: UUID
-    data_sources: list[Literal["projects", "knowledge"]] = Field(default_factory=list, max_length=2)
+    data_sources: list[Literal["knowledge"]] = Field(default_factory=list, max_length=1)
     question: str = Field(min_length=1, max_length=12000)
     context: str = Field(default="", max_length=20000)
     model_profile_id: str | None = Field(default=None, min_length=1, max_length=100)
