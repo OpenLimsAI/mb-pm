@@ -464,6 +464,178 @@ def test_pre_index_classification_syncs_without_copying_papers(ks, monkeypatch):
     assert s.get("ks_classification", classification["id"])["syncedVersions"] == [version["id"]]
 
 
+@pytest.mark.parametrize("index_status", ["not_requested", "pending", "failed"])
+def test_receipted_import_before_core_registration_remains_an_archive(ks, index_status):
+    client, db, session, _, state, calls = ks
+    s, _, doc, version = saved_document(db, linked=True)
+    version["indexStatus"] = index_status
+    s.put("version", version)
+    db.commit()
+    state["papers"] = []
+    state["pendingArchives"] = [
+        {
+            "documentId": doc["id"],
+            "sha256": version["sha256"],
+            "path": P1,
+            "indexStatus": index_status,
+        }
+    ]
+    data = client.get("/api/v1/knowledge-sources/snapshot", headers=session()).json()
+    assert len(data["papers"]) == 1
+    paper = data["papers"][0]
+    assert paper["id"] == "archive:" + version["id"]
+    assert paper["saved"] is True and paper["indexStatus"] == index_status
+    assert paper["kbUrl"] is None
+    assert calls[-1][2]["imports"] == [{"documentId": doc["id"], "sha256": version["sha256"]}]
+    assert (
+        client.get(paper["originalUrl"], headers=session()).content
+        == b"%PDF-actual-retained-original"
+    )
+    body = {"paperIds": [paper["id"]], "folderIds": [F2], "mode": "add", "revision": 0}
+    assert (
+        client.post(
+            "/api/v1/knowledge-sources/papers/folders", headers=headers(session), json=body
+        ).status_code
+        == 200
+    )
+    assert not any(op == "folderMutation" for op, _, _ in calls)
+    body = {"paperId": paper["id"], "enabled": True}
+    assert (
+        client.post(
+            "/api/v1/knowledge-sources/stars", headers=headers(session), json=body
+        ).status_code
+        == 200
+    )
+    current = client.get("/api/v1/knowledge-sources/snapshot", headers=session()).json()
+    assert current["starred"] == [paper["id"]]
+    assert current["papers"][0]["folderIds"] == [F1, F2]
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("documentId", "a" * 64),
+        ("sha256", "b" * 64),
+        ("path", "sources/different.md"),
+        ("indexStatus", "ready"),
+    ],
+)
+def test_missing_core_path_needs_exact_nonready_receipt_proof(ks, field, value):
+    client, db, session, _, state, _ = ks
+    s, _, doc, version = saved_document(db, linked=True)
+    version["indexStatus"] = "pending"
+    s.put("version", version)
+    db.commit()
+    proof = {
+        "documentId": doc["id"],
+        "sha256": version["sha256"],
+        "path": P1,
+        "indexStatus": "pending",
+    }
+    proof[field] = value
+    state["papers"] = []
+    state["pendingArchives"] = [proof]
+    assert (
+        client.get("/api/v1/knowledge-sources/snapshot", headers=session()).json()["papers"] == []
+    )
+    path = f'/api/v1/knowledge-sources/documents/{doc["id"]}/versions/{version["id"]}/original'
+    assert client.get(path, headers=session()).status_code == 404
+
+
+def test_previously_ready_or_newly_active_paper_never_duplicates_from_stale_proof(ks):
+    client, db, session, _, state, _ = ks
+    s, _, doc, version = saved_document(db, linked=True)
+    state["pendingArchives"] = [
+        {"documentId": doc["id"], "sha256": version["sha256"], "path": P1, "indexStatus": "pending"}
+    ]
+    state["papers"] = []
+    # Once ready, a missing Core source can be a deletion, even if a stale proof is present.
+    assert (
+        client.get("/api/v1/knowledge-sources/snapshot", headers=session()).json()["papers"] == []
+    )
+    path = f'/api/v1/knowledge-sources/documents/{doc["id"]}/versions/{version["id"]}/original'
+    assert client.get(path, headers=session()).status_code == 404
+    version["indexStatus"] = "pending"
+    s.put("version", version)
+    db.commit()
+    state["papers"] = [{"path": P1, "title": "Existing Paper"}]
+    data = client.get("/api/v1/knowledge-sources/snapshot", headers=session()).json()
+    assert len(data["papers"]) == 1 and data["papers"][0]["id"] == P1
+
+
+def test_pending_receipt_defers_classification_until_core_registers_paper(ks, monkeypatch):
+    _, db, _, _, state, _ = ks
+    s, _, doc, version = saved_document(db, linked=True)
+    version["indexStatus"] = "not_requested"
+    s.put("version", version)
+    classification = {
+        "id": s.key("ks_classification", doc["id"]),
+        "documentId": doc["id"],
+        "folderIds": [F2],
+        "removedFolderIds": [F1],
+    }
+    s.put("ks_classification", classification)
+    db.commit()
+    state["papers"] = []
+    state["pendingArchives"] = [
+        {
+            "documentId": doc["id"],
+            "sha256": version["sha256"],
+            "path": P1,
+            "indexStatus": "not_requested",
+        }
+    ]
+    monkeypatch.setattr(knowledge_source_worker, "authority", lambda *_: None)
+    job = {"actorSubject": "manager", "items": [{"versionId": version["id"]}]}
+    knowledge_source_worker.synchronize_classification(s, job, bridge.call)
+    retained = s.get("ks_classification", classification["id"])
+    assert "error" not in retained and not retained.get("syncedVersions")
+    state["papers"] = [{"path": P1, "title": "Existing Paper"}]
+    state["pendingArchives"] = []
+    knowledge_source_worker.synchronize_classification(s, job, bridge.call)
+    assert state["memberships"][P1] == [F2]
+    assert s.get("ks_classification", classification["id"])["syncedVersions"] == [version["id"]]
+
+
+def test_archive_star_survives_core_registration_and_can_be_removed(ks):
+    client, db, session, _, state, _ = ks
+    s, _, doc, version = saved_document(db, linked=True)
+    version["indexStatus"] = "pending"
+    s.put("version", version)
+    db.commit()
+    state["papers"] = []
+    state["pendingArchives"] = [
+        {"documentId": doc["id"], "sha256": version["sha256"], "path": P1, "indexStatus": "pending"}
+    ]
+    path = "/api/v1/knowledge-sources/stars"
+    assert (
+        client.post(
+            path,
+            headers=headers(session),
+            json={"paperId": "archive:" + version["id"], "enabled": True},
+        ).status_code
+        == 200
+    )
+    state["papers"] = [{"path": P1, "title": "Existing Paper"}]
+    state["pendingArchives"] = []
+    version["indexStatus"] = "ready"
+    s.put("version", version)
+    db.commit()
+    assert client.get("/api/v1/knowledge-sources/snapshot", headers=session()).json()[
+        "starred"
+    ] == [P1]
+    assert (
+        client.post(
+            path, headers=headers(session), json={"paperId": P1, "enabled": False}
+        ).status_code
+        == 200
+    )
+    assert (
+        client.get("/api/v1/knowledge-sources/snapshot", headers=session()).json()["starred"] == []
+    )
+    assert s.preferences("information-only")["knowledgeSourceStars"] == []
+
+
 def test_snapshot_hides_deleted_folder_references_without_changing_originals(ks):
     client, db, session, _, state, _ = ks
     store, _, doc, version = saved_document(db)
