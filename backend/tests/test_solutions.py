@@ -508,8 +508,15 @@ def test_migration_schema_matches_models_and_is_idempotent():
             for name in [*module.SCHEMAS, "solution_actors"]:
                 actual = {column["name"]: column for column in inspector.get_columns(name)}
                 expected = Base.metadata.tables[name]
-                assert set(actual) == set(expected.columns.keys())
+                later = (
+                    {"answer_mode", "requested_mode", "mode_reason", "web_references"}
+                    if name == "solution_answers"
+                    else set()
+                )
+                assert set(actual) == set(expected.columns.keys()) - later
                 for column in expected.columns:
+                    if column.name in later:
+                        continue
                     assert actual[column.name]["nullable"] == column.nullable
             assert "ix_solution_answers_solution_conversation" in {
                 index["name"] for index in inspector.get_indexes("solution_answers")
@@ -666,6 +673,7 @@ def test_reviewer_cannot_trash_authors_report(solution_client):
 
 def test_startup_adds_trash_column_to_existing_report_table(tmp_path, monkeypatch):
     from sqlalchemy import text
+
     import app.main as main
 
     engine = create_engine(f"sqlite:///{tmp_path / 'legacy-report.db'}")

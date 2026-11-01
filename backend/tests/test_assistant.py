@@ -312,6 +312,12 @@ def test_migration_is_repeatable_and_retains_legacy_tables():
                 expected = set(model.__table__.columns.keys())
                 if model is AssistantMessage:
                     expected.remove("data_sources")  # introduced by migration 012
+                    expected -= {
+                        "answer_mode",
+                        "requested_mode",
+                        "mode_reason",
+                        "web_references",
+                    }  # 014
                 assert set(actual) == expected
                 for column in model.__table__.columns:
                     if column.name in expected:
@@ -357,7 +363,9 @@ def test_pagination_and_literal_search(assistant_client):
     assert f.client.get(PREFIX, params={"offset": 10**30}).status_code == 422
 
 
-@pytest.mark.parametrize("result", ["", "  ", "字" * 80001, None])
+@pytest.mark.parametrize(
+    "result", ["", "  ", "字" * 80001, None], ids=["empty", "blank", "oversized", "null"]
+)
 def test_invalid_model_reply_is_not_persisted(assistant_client, monkeypatch, result):
     f = assistant_client
     task = create(f)

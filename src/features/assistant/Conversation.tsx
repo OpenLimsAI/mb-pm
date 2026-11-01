@@ -1,3 +1,4 @@
+import { AnswerEvidence } from '../answerModes/AnswerTools'
 import { ArrowRight, Copy, FileText, PanelRightOpen, Paperclip, Sparkles } from 'lucide-react'
 import type { AssistantArtifact, AssistantMessage } from './client'
 import MarkdownView from './MarkdownView'
@@ -34,7 +35,7 @@ export default function Conversation({ messages, artifacts, userName, onCopy, on
         {message.context && <details className="aa-context-details"><summary><Paperclip size={12} />本轮附带资料 · {message.context.length.toLocaleString()} 字</summary><pre>{message.context}</pre></details>}
       </article> : <article key={message.id} className="aa-message aa-assistant-message" aria-label="AI 回答">
         <div className="aa-message-overline"><span className="aa-mini-avatar aa-bot-avatar"><Sparkles size={14} /></span><strong>AI 回答</strong><span>{message.mode === 'preview' ? '演示' : message.model}</span></div>
-        <MarkdownView>{message.content}</MarkdownView>
+        <AnswerEvidence answer={message} preview={message.mode === 'preview'} part="status" /><MarkdownView>{message.content}</MarkdownView><AnswerEvidence answer={message} preview={message.mode === 'preview'} part="sources" />
         <button type="button" className="aa-artifact-card" onClick={() => onArtifact(message.id)}><span><FileText size={19} /></span><div><strong>{artifacts.find(a => a.id === message.id)?.title || '本轮产物'}</strong><small>查看完整内容 · Markdown</small></div><ArrowRight size={16} /></button>
         <div className="aa-message-actions"><button type="button" onClick={() => onCopy(message.content)}><Copy size={13} />复制回答</button><button type="button" onClick={() => onArtifact(message.id)}><PanelRightOpen size={13} />查看产物</button></div>
       </article>)}

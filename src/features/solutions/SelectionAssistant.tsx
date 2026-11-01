@@ -1,3 +1,4 @@
+import { AnswerEvidence } from '../answerModes/AnswerTools'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
@@ -112,7 +113,7 @@ export default function SelectionAssistant({ selection, modelLabel, preview, sco
         </div>
         <div className="ks-selection-original"><span>选中原文</span><blockquote>{session.selection.text}</blockquote></div>
         <div className="ks-selection-model"><Sparkles size={13} />{preview ? '本地演示' : modelLabel || '企业默认模型'}<span>{session.action === 'ask' ? `资料范围：${scope}` : '仅润色选中文字，保留事实、数值与限定条件'}</span></div>
-        {preview && <p className="ks-selection-preview-note">{session.action === 'ask' ? '预览只检索演示资料，不调用外部模型。' : '预览仅演示空格与标点整理，不调用外部模型；可编辑建议，体验替换与撤销。'}</p>}
+        {preview && <p className="ks-selection-preview-note">{session.action === 'ask' ? '预览仅演示回答方式和来源展示，不调用外部模型或联网搜索。' : '预览仅演示空格与标点整理，不调用外部模型；可编辑建议，体验替换与撤销。'}</p>}
         <form onSubmit={event => { event.preventDefault(); void generate() }}>
           <label className="ks-field">{session.action === 'ask' ? '想了解什么？' : '润色要求（可选）'}<textarea aria-label={session.action === 'ask' ? '关于选中文字的问题' : '润色要求'} rows={2} maxLength={session.action === 'ask' ? 4000 : 1000} disabled={busy} value={session.action === 'ask' ? question : instruction} placeholder={session.action === 'ask' ? '输入问题，选中原文会自动附带…' : '例如：表达更简洁，使用正式的研究报告语气'} onChange={event => session.action === 'ask' ? setQuestion(event.target.value) : setInstruction(event.target.value)} /></label>
           <div className="ks-selection-generate"><small>结果经你确认后才写入报告</small><button type="submit" className="ks-button ks-primary" disabled={busy || session.selection.text.length > 5000 || (session.action === 'ask' && !question.trim())}>{busy ? <><LoaderCircle size={14} className="ks-spin" />处理中…</> : <>{session.action === 'ask' ? '发送问题' : polish ? '重新润色' : '开始润色'}<ArrowRight size={14} /></>}</button></div>
@@ -120,7 +121,7 @@ export default function SelectionAssistant({ selection, modelLabel, preview, sco
         {session.selection.text.length > 5000 && <p className="ks-error-inline" role="alert">每次最多处理 5,000 字，请缩短选区后重试。</p>}
         {error && <p className="ks-error-inline" role="alert">{error}</p>}
         <div aria-live="polite">
-          {answer && <section className="ks-selection-result" aria-label="选中文字问答结果"><div className="ks-selection-result-heading"><strong>{answer.mode === 'ai' ? 'AI 回答' : '资料检索结果'}</strong><span>{answer.model}</span></div><div className="ks-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{answer.content}</ReactMarkdown></div><div className="ks-answer-citations">{answer.references.map((ref, index) => <button type="button" key={ref.id || index} onClick={() => { close(); onSource(ref.sourceId) }}><BookOpen size={12} />{index + 1}. {ref.title}</button>)}</div></section>}
+          {answer && <section className="ks-selection-result" aria-label="选中文字问答结果"><div className="ks-selection-result-heading"><strong>{answer.mode === 'ai' ? 'AI 回答' : '资料检索结果'}</strong><span>{answer.model}</span></div><AnswerEvidence answer={answer} preview={preview} part="status" /><div className="ks-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{answer.content}</ReactMarkdown></div><AnswerEvidence answer={answer} preview={preview} part="sources" /><div className="ks-answer-citations">{answer.references.map((ref, index) => <button type="button" key={ref.id || index} onClick={() => { close(); onSource(ref.sourceId) }}><BookOpen size={12} />{index + 1}. {ref.title}</button>)}</div></section>}
           {polish && <section className="ks-selection-result" aria-label="润色建议"><label className="ks-field">润色后 · 可继续修改<textarea aria-label="润色后的文字" rows={6} value={suggestion} onChange={event => setSuggestion(event.target.value)} /></label><small>{polish.mode === 'preview' ? '本地演示' : polish.model} · 采纳前请核对原意、数值和限定条件。</small></section>}
         </div>
         <footer><button type="button" className="ks-button" onClick={close}>保留原文</button>{answer && <button type="button" className="ks-button ks-primary" onClick={() => { close(); onAdopt(answer) }}><Check size={14} />插入报告…</button>}{polish && <button type="button" className="ks-button ks-primary" disabled={!suggestion.trim() || busy} onClick={() => { if (onReplace(session.selection, preserveSelectionWhitespace(session.selection.text, suggestion))) close(); else setError('原文已发生变化，请关闭窗口并重新选择文字，避免覆盖后续编辑。') }}><Check size={14} />替换选中文字</button>}</footer>

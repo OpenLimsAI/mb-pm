@@ -84,6 +84,7 @@ describe('separate report research conversations', () => {
 
   it('confirms each answer before inserting it, retains source records, and can undo', async () => {
     await mount()
+    fireEvent.change(screen.getByRole('combobox', { name: '回答方式' }), { target: { value: 'knowledge' } })
     const body = screen.getByRole('textbox', { name: '章节正文' }) as HTMLTextAreaElement
     const original = body.value
     await send('缓冲体系有哪些相关资料？')

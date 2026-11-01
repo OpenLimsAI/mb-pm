@@ -2,6 +2,7 @@
 """Authenticated solution application, independent of PM business membership."""
 
 from urllib.parse import quote
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
@@ -25,6 +26,7 @@ from app.schemas.solution import (
     SourceInput,
 )
 from app.schemas.solution_ai import ModelSettingsInput, ModelTestInput
+from app.services import assistant_diagnostics as diagnostics
 from app.services import password_policy, solution_ai, solution_knowledge
 from app.services import solutions as service
 
@@ -311,12 +313,19 @@ def versions(solution_id: str, db: Session = Depends(get_db), claims: dict = Dep
 def ask(
     solution_id: str,
     payload: AskInput,
+    response: Response,
     db: Session = Depends(get_db),
     claims: dict = Depends(identity),
 ):
-    return service.ask(
-        db, service.get_solution(db, solution_id, claims, owner=True), payload, claims
-    )
+    if payload.answer_mode is None:
+        return service.ask(
+            db, service.get_solution(db, solution_id, claims, owner=True), payload, claims
+        )
+    with diagnostics.request_scope(uuid4()) as trace:
+        response.headers[diagnostics.ID_HEADER] = trace.id
+        return service.ask(
+            db, service.get_solution(db, solution_id, claims, owner=True), payload, claims
+        )
 
 
 @router.post("/{solution_id}/polish")

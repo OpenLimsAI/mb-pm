@@ -1,3 +1,4 @@
+import { assistantApi } from '../assistant/client'
 import axios from 'axios'
 import { API_BASE, camelize, snakeize } from '../../api/client'
 import type { SolutionClient } from './types'
@@ -34,6 +35,7 @@ export function downloadBlob(blob: Blob, filename: string) {
 }
 
 export const solutionApi: SolutionClient = {
+  capabilities: () => assistantApi.capabilities!(),
   list: async () => (await http.get('')).data,
   trash: async () => (await http.get('/trash')).data,
   remove: async (id, revision) => { await http.post(`/${encodeURIComponent(id)}/trash`, { revision }) },

@@ -1,3 +1,4 @@
+import { AnswerEvidence } from '../answerModes/AnswerTools'
 import { useLayoutEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -248,7 +249,7 @@ export default function InlineAssistantEditor(props: Props) {
         {part.anchor.answer && <div className="ks-inline-answer">
           <div className="ks-inline-answer-label"><Sparkles size={14} /><strong>{part.anchor.answer.mode === 'ai' ? 'AI 回答' : '知识库检索结果'}</strong>{part.anchor.answer.model && <small>{part.anchor.answer.model}</small>}</div>
           <p className="ks-inline-answer-question">回答对应：{part.anchor.answer.question}</p>
-          <div className="ks-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{part.anchor.answer.content}</ReactMarkdown></div>
+          <AnswerEvidence answer={part.anchor.answer} preview={props.preview} part="status" /><div className="ks-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{part.anchor.answer.content}</ReactMarkdown></div><AnswerEvidence answer={part.anchor.answer} preview={props.preview} part="sources" />
           <div className="ks-answer-citations">{part.anchor.answer.references.map((ref, n) => <button type="button" key={`${ref.id}-${n}`} onClick={() => onSource(ref.sourceId)}><BookOpen size={13} />{n + 1}. {ref.title}</button>)}</div>
           <div className="ks-inline-adopt"><button type="button" className="ks-button ks-primary" disabled={disabled || part.anchor.status === 'asking'} onClick={() => onAdopt(part.anchor.id)}><Check size={14} />采纳到报告</button><button type="button" className="ks-button" onClick={() => onRemove(part.anchor.id)}>不采纳，移除卡片</button></div>
         </div>}

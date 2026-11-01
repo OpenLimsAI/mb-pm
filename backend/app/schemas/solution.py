@@ -81,6 +81,7 @@ class SolutionSave(SolutionInput):
 
 class SourceInput(Input):
     title: str = Field(min_length=1, max_length=300)
+    # Web snapshots are created only by the server from actual provider results.
     kind: Literal["paper", "practice", "note", "solution"]
     authors: str = Field(default="", max_length=500)
     date: str = Field(default="", max_length=40)
@@ -122,6 +123,7 @@ class SourceInput(Input):
 class AskInput(Input):
     model_config = ConfigDict(protected_namespaces=("model_validate", "model_dump"))
     model_profile_id: str | None = Field(default=None, min_length=1, max_length=80)
+    answer_mode: Literal["auto", "general", "knowledge", "web"] | None = None
     conversation_id: str | None = Field(
         default=None, min_length=1, max_length=80, pattern=r"^[A-Za-z0-9_-]+$"
     )

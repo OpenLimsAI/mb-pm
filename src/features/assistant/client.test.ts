@@ -6,6 +6,14 @@ const question = (text = '请整理研究目标。') => ({ requestId: crypto.ran
 beforeEach(() => localStorage.clear())
 
 describe('assistant preview persistence and private task conversations', () => {
+  it('does not turn an unauthorized internal question into a public web search preview', async () => {
+    const client = createPreviewAssistantClient('private-routing'), task = await client.create(taskInput())
+    await expect(client.send(task, { ...question('公司内部资料的最新进展'), answerMode: 'auto', data_sources: [] })).rejects.toMatchObject({ status: 422, message: expect.stringContaining('启用知识库') })
+    expect(await client.get(task.id)).toEqual(task)
+    const answered = await client.send(task, { ...question('公司内部资料的最新进展'), answerMode: 'auto', data_sources: ['knowledge'] })
+    expect(answered.messages.at(-1)).toMatchObject({ answerMode: 'knowledge', webReferences: [] })
+  })
+
   it('persists across reloads without changing other apps, and separates issuer/user namespaces', async () => {
     localStorage.setItem('kb-legacy-notes', 'keep KB notes')
     localStorage.setItem('mberp:personal-notes:preview:v1:issuer%3Aalice', 'keep independent notes')

@@ -13,7 +13,7 @@ from app.db.session import get_db
 from app.schemas.assistant import TaskCreate, TaskQuestion, TaskRevision, TaskSave
 from app.services import assistant as service
 from app.services import assistant_diagnostics as diagnostics
-from app.services import password_policy
+from app.services import password_policy, web_search
 
 router = APIRouter(prefix="/assistant/tasks", tags=["ai-assistant"])
 
@@ -40,6 +40,11 @@ def listing(
 @router.post("", status_code=201)
 def create(payload: TaskCreate, db: Session = Depends(get_db), claims: dict = Depends(identity)):
     return service.create(db, claims, payload)
+
+
+@router.get("/capabilities")
+def capabilities(claims: dict = Depends(identity)):
+    return web_search.capabilities()
 
 
 @router.get("/{task_id}")

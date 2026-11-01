@@ -31,6 +31,21 @@ async function open(client: SolutionClient) {
 beforeEach(() => { localStorage.clear(); sessionStorage.clear(); vi.restoreAllMocks() })
 
 describe('research workspace survives authentication remounts', () => {
+  it.each(['general', 'knowledge', 'web'] as const)('restores the %s restriction after authentication without automatically sending the draft', async answerMode => {
+    const client = mockClient(), view = await open(client)
+    fireEvent.change(screen.getByRole('combobox', { name: '回答方式' }), { target: { value: answerMode } })
+    fireEvent.change(screen.getByRole('textbox', { name: '向AI提问' }), { target: { value: '最新研究进展是否完整？' } })
+    expect(readWorkspaceRecovery(scope)?.answerMode).toBe(answerMode)
+    view.unmount()
+    render(app(client))
+    await screen.findByRole('textbox', { name: '向AI提问' })
+    expect(screen.getByRole('combobox', { name: '回答方式' })).toHaveValue(answerMode)
+    expect(screen.getByRole('textbox', { name: '向AI提问' })).toHaveValue('最新研究进展是否完整？')
+    expect(client.ask).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '发送问题' }))
+    await waitFor(() => expect(client.ask).toHaveBeenCalledWith('r1', expect.objectContaining({ answerMode, question: '最新研究进展是否完整？' })))
+  })
+
   it('restores the active report, chapter, question, context and separate topic drafts without model requests', async () => {
     const client = mockClient(), view = await open(client)
     fireEvent.click(screen.getByRole('button', { name: '打开章节：验证安排' }))
@@ -96,6 +111,7 @@ describe('research workspace survives authentication remounts', () => {
     vi.mocked(client.getSource).mockImplementation(() => new Promise(done => { resolve = done }))
     render(app(client))
     await screen.findByRole('textbox', { name: '向AI提问' })
+    expect(screen.getByRole('combobox', { name: '回答方式' })).toHaveValue('auto')
     expect(screen.getByRole('button', { name: '发送问题' })).toBeDisabled()
     await waitFor(() => expect(resolve).toBeDefined())
     await act(async () => resolve(paper))
@@ -111,7 +127,7 @@ describe('research workspace survives authentication remounts', () => {
     render(app(client))
     await screen.findByRole('textbox', { name: '向AI提问' })
     await waitFor(() => expect(screen.getByRole('button', { name: '发送问题' })).toBeEnabled())
-    expect(screen.getByText('指定 1 份资料 · 限于旧项目范围')).toBeVisible()
+    expect(screen.getByText('知识库范围：指定 1 份资料 · 限于旧项目范围')).toBeVisible()
     expect(screen.queryByRole('textbox', { name: '搜索知识资料' })).not.toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: '知识项目范围' })).not.toBeInTheDocument()
     expect(client.sources).not.toHaveBeenCalled()

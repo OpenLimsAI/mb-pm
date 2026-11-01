@@ -1,14 +1,17 @@
+import type { AnswerCapabilities, AnswerMode, AnswerProvenance } from '../answerModes/types'
+import { previewCapabilities, previewProvenance, previewWebAnswer } from '../answerModes/preview'
 import axios from 'axios'
 import { API_BASE, camelize, snakeize } from '../../api/client'
 
 export interface TaskInput { title: string; instructions: string }
 export interface TaskSummary extends TaskInput { id: string; revision: number; createdAt: string; updatedAt: string; deletedAt: string | null; messageCount: number }
-export interface AssistantMessage { id: string; role: 'user' | 'assistant'; content: string; context: string; model: string; mode: 'ai' | 'preview'; requestId: string; createdAt: string }
+export interface AssistantMessage extends AnswerProvenance { id: string; role: 'user' | 'assistant'; content: string; context: string; model: string; mode: 'ai' | 'preview'; requestId: string; createdAt: string }
 export interface AssistantArtifact { id: string; title: string; content: string; model: string; createdAt: string }
 export interface AssistantTask extends TaskSummary { messages: AssistantMessage[]; artifacts: AssistantArtifact[] }
 export interface TaskQuery { search?: string; trashed?: boolean; offset?: number }
-export interface TaskQuestion { requestId: string; question: string; context: string; modelProfileId?: string; data_sources?: string[] }
+export interface TaskQuestion { requestId: string; question: string; context: string; modelProfileId?: string; data_sources?: string[]; answerMode?: AnswerMode }
 export interface AssistantClient {
+  capabilities?(): Promise<AnswerCapabilities>
   list(query?: TaskQuery): Promise<{ items: TaskSummary[]; total: number }>
   get(id: string): Promise<AssistantTask>
   create(input: TaskInput & { id: string }): Promise<AssistantTask>
@@ -46,6 +49,7 @@ export function assistantFailure(error: unknown) {
 }
 http.interceptors.response.use(response => { response.data = camelize(response.data); return response }, (error: unknown) => Promise.reject(assistantFailure(error)))
 export const assistantApi: AssistantClient = {
+  capabilities: async () => (await http.get('/capabilities')).data,
   list: async query => (await http.get('', { params: query })).data,
   get: async id => (await http.get(`/${encodeURIComponent(id)}`)).data,
   create: async input => (await http.post('', input)).data,
@@ -93,6 +97,7 @@ export function createPreviewAssistantClient(namespace: string, storage: Storage
     write(rows.map(t => t.id === saved.id ? saved : t)); return publicTask(saved)
   }
   return {
+    capabilities: async () => structuredClone(previewCapabilities),
     list: async (query = {}) => {
       const search = query.search?.trim().toLocaleLowerCase() || '', offset = query.offset || 0
       const rows = read().filter(t => !!t.deletedAt === !!query.trashed && (!search || t.title.toLocaleLowerCase().includes(search))).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id))
@@ -114,15 +119,17 @@ export function createPreviewAssistantClient(namespace: string, storage: Storage
       const current = find(read(), task.id)
       const replay = current.messages.find(m => m.role === 'user' && m.requestId === input.requestId)
       if (replay) {
-        if (replay.content === input.question && replay.context === input.context && replay.model === (input.modelProfileId || 'enterprise')) return publicTask(current)
+        if (replay.content === input.question && replay.context === input.context && replay.model === (input.modelProfileId || 'enterprise') && replay.requestedMode === input.answerMode) return publicTask(current)
         throw problem('同一次请求的内容已经改变，请重新发送。', 409)
       }
       check(current, task)
       if (current.messages.length >= 200) throw problem('此任务已达到 100 轮对话，请新建任务继续。', 422)
-      const now = new Date().toISOString(), id = crypto.randomUUID(), content = previewAnswer(input.question, input.context, current.instructions)
+      const provenance = input.answerMode ? previewProvenance(input.question, input.answerMode, input.data_sources?.includes('knowledge') || false, false, current.messages.filter(message => message.role === 'assistant').at(-1)?.answerMode) : undefined
+      if (provenance?.answerMode === 'knowledge' && !input.data_sources?.includes('knowledge')) throw problem('请先在数据设置中启用知识库，再使用仅知识库回答。', 422)
+      const now = new Date().toISOString(), id = crypto.randomUUID(), content = provenance?.answerMode === 'web' ? previewWebAnswer(input.question) : previewAnswer(input.question, input.context, current.instructions)
       const messages: AssistantMessage[] = [...current.messages,
-        { id: crypto.randomUUID(), role: 'user', content: input.question, context: input.context, model: input.modelProfileId || 'enterprise', mode: 'preview', requestId: input.requestId, createdAt: now },
-        { id, role: 'assistant', content, context: '', model: '界面演示', mode: 'preview', requestId: input.requestId, createdAt: now },
+        { id: crypto.randomUUID(), role: 'user', content: input.question, context: input.context, model: input.modelProfileId || 'enterprise', mode: 'preview', requestId: input.requestId, requestedMode: input.answerMode, createdAt: now },
+        { id, role: 'assistant', content, context: '', model: '界面演示', mode: 'preview', requestId: input.requestId, createdAt: now, ...provenance },
       ]
       return change(task, { messages, messageCount: messages.length, artifacts: [...current.artifacts, { id, title: input.question.slice(0, 80), content, model: '界面演示', createdAt: now }] })
     },

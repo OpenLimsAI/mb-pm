@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { discardWorkspaceRecovery, readWorkspaceRecovery, recoveredInlineCards, RECOVERY_MAX_CHARS, RECOVERY_TTL_MS, workspaceRecoveryScope, writeWorkspaceRecovery } from './workspaceRecovery'
 import type { WorkspaceRecovery } from './workspaceRecovery'
 import type { Answer, Solution } from './types'
+import type { AnswerMode } from '../answerModes/types'
 
 const scope = workspaceRecoveryScope('issuer-org-sub-hash', 'author', false)!
 const snapshot = (): WorkspaceRecovery => ({ reportId: 'r1', sectionId: 's1', topicId: 'topic-1', question: '待发送的问题', context: '研究上下文', showContext: true, topicDrafts: { 'topic-2': { question: '另一个问题', context: '', showContext: false } }, selectedSourceIds: ['kb:sources/paper.md'], projectFilter: '', inlineCards: [{ id: 'inline-1', sectionId: 's1', offset: 2, question: '行内问题', includeContext: true, status: 'asking' }], interrupted: true, pendingTopicId: 'topic-1', listOpen: false })
@@ -9,6 +10,20 @@ const report = (): Solution => ({ id: 'r1', title: '研究报告', projectName: 
 beforeEach(() => { vi.unstubAllGlobals(); sessionStorage.clear(); vi.restoreAllMocks() })
 
 describe('bounded identity-scoped research recovery', () => {
+  it('preserves valid answer restrictions, accepts legacy records, and rejects unknown modes', () => {
+    for (const answerMode of ['auto', 'general', 'knowledge', 'web'] as AnswerMode[]) {
+      expect(writeWorkspaceRecovery(scope, { ...snapshot(), answerMode })).toBe(true)
+      expect(readWorkspaceRecovery(scope)?.answerMode).toBe(answerMode)
+    }
+    expect(writeWorkspaceRecovery(scope, snapshot())).toBe(true)
+    expect(readWorkspaceRecovery(scope)?.answerMode).toBeUndefined()
+    expect(writeWorkspaceRecovery(scope, { ...snapshot(), answerMode: 'unrestricted' } as unknown as WorkspaceRecovery)).toBe(false)
+    const tampered = JSON.parse(sessionStorage.getItem(scope + 'active')!)
+    tampered.state.answerMode = 'unrestricted'
+    sessionStorage.setItem(scope + 'active', JSON.stringify(tampered))
+    expect(readWorkspaceRecovery(scope)).toBeNull()
+  })
+
   it('recovers only the same portal identity, subject, report and live/preview mode', () => {
     expect(writeWorkspaceRecovery(scope, snapshot())).toBe(true)
     expect(readWorkspaceRecovery(scope, 'r1')).toEqual(snapshot())

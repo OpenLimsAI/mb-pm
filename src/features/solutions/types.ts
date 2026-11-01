@@ -1,3 +1,4 @@
+import type { AnswerCapabilities, AnswerMode, AnswerProvenance } from '../answerModes/types'
 export type SolutionStatus = 'draft' | 'in_review' | 'final' | 'archived'
 export interface Section { id: string; title: string; content: string }
 export interface FormulaRow {
@@ -19,19 +20,19 @@ export interface SolutionInput {
   title: string; projectName: string; productName: string; sections: Section[]
   formula: FormulaRow[]; references: Reference[]
 }
-export type SourceKind = 'paper' | 'practice' | 'note' | 'solution'
+export type SourceKind = 'paper' | 'practice' | 'note' | 'solution' | 'web'
 export interface KnowledgeSource {
   id: string; title: string; kind: SourceKind; authors: string; date: string
   projectName: string; tags: string[]; content: string; locator: string; version: string
   url: string; updatedAt: string
 }
 export type SourceInput = Omit<KnowledgeSource, 'id' | 'version' | 'updatedAt'>
-export interface Answer {
+export interface Answer extends AnswerProvenance {
   conversationId?: string | null
   id: string; question: string; content: string; createdAt: string; mode: 'ai' | 'retrieval'
   references: Reference[]; context: string; scope: string; model?: string
 }
-export interface AskInput { question: string; context: string; sourceIds: string[]; projectName: string; sectionId: string; modelProfileId?: string; conversationId?: string }
+export interface AskInput { question: string; context: string; sourceIds: string[]; projectName: string; sectionId: string; modelProfileId?: string; conversationId?: string; answerMode?: AnswerMode }
 export interface PolishInput { text: string; instruction: string; sectionId: string; modelProfileId?: string }
 export interface PolishResult { content: string; model: string; mode: 'ai' | 'preview' }
 export interface Version {
@@ -45,6 +46,7 @@ export interface ReviewAction {
 export interface Reviewer { id: string; name: string }
 export interface TrashedSolution { id: string; title: string; revision: number; deletedAt: string }
 export interface SolutionClient {
+  capabilities?(): Promise<AnswerCapabilities>
   trash(): Promise<TrashedSolution[]>
   remove(id: string, revision: number): Promise<void>
   restore(id: string, revision: number): Promise<Solution>

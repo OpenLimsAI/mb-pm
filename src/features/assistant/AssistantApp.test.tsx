@@ -26,6 +26,42 @@ async function create(client: AssistantClient, title: string) { return client.cr
 beforeEach(() => localStorage.clear())
 
 describe('AI assistant task workspace', () => {
+  it('defaults to automatic routing and shows a clearly labelled web preview with source cards', async () => {
+    const client = createPreviewAssistantClient('auto-web'), task = await create(client, '自动问答预览'), send = vi.spyOn(client, 'send')
+    await mount(client); await open(task.title)
+    expect(screen.getByRole('combobox', { name: '回答方式' })).toHaveValue('auto')
+    fireEvent.change(composer(), { target: { value: '帮我总结柿子脱涩的最新研究进展' } })
+    fireEvent.keyDown(composer(), { key: 'Enter' })
+    const round = await within(chat()).findByRole('region', { name: '第 1 轮对话' })
+    await within(round).findByText('联网检索流程演示')
+    expect(send).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ answerMode: 'auto' }))
+    expect(within(round).getAllByText('界面演示 · 未实际联网').length).toBeGreaterThan(0)
+    const sources = within(round).getByRole('region', { name: '演示来源卡片' })
+    expect(within(sources).getAllByRole('link')).toHaveLength(2)
+    expect(within(sources).getAllByText(/发表：未提供日期/)).toHaveLength(2)
+    fireEvent.change(screen.getByRole('combobox', { name: '回答方式' }), { target: { value: 'general' } })
+    fireEvent.change(composer(), { target: { value: '解释一下对照实验的作用' } })
+    fireEvent.keyDown(composer(), { key: 'Enter' })
+    const general = await within(chat()).findByRole('region', { name: '第 2 轮对话' })
+    expect(within(general).getByText('通用回答')).toBeInTheDocument()
+    expect(within(general).queryByRole('region', { name: '演示来源卡片' })).not.toBeInTheDocument()
+  })
+
+  it('creates a different retry request when the answering restriction changes', async () => {
+    const client = createPreviewAssistantClient('mode-retry'), task = await create(client, '模式重试'), send = vi.spyOn(client, 'send').mockRejectedValue(new Error('联网搜索尚未配置，请联系管理员开通。'))
+    await mount(client); await open(task.title)
+    fireEvent.change(composer(), { target: { value: '近期的研究进展' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送任务消息' }))
+    await screen.findByRole('alert')
+    expect(composer()).toHaveValue('近期的研究进展')
+    fireEvent.change(screen.getByRole('combobox', { name: '回答方式' }), { target: { value: 'general' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送任务消息' }))
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(2))
+    expect(send.mock.calls[1][1].requestId).not.toBe(send.mock.calls[0][1].requestId)
+    expect(send.mock.calls[1][1].answerMode).toBe('general')
+    expect(composer()).toHaveValue('近期的研究进展')
+  })
+
   it('creates a named task without project grouping and saves changes through the task settings form', async () => {
     const { client } = await mount()
     fireEvent.click(screen.getByRole('button', { name: '新建任务' }))

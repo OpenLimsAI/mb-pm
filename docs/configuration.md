@@ -160,3 +160,9 @@ AI 助手正式运行需迁移到 `012`，新建个人任务和消息表。门�
 个人助手移除项目相关功能后，无新增环境变量或数据库迁移；可选应用数据源仅为知识库，仍复用现有知识库连接和实时权限。旧浏览器保存的 `projects` 选项不再生效，接口拒绝该选项。两个生产实例已部署；验证范围及公网待补验事项见[发布记录](../deploy/parallel-test/releases/20261101-assistant-remove-projects.md)。
 
 Kimi 支持、模型价格显示与静态价格目录的维护规则见[模型价格参考](model-pricing.md)。
+
+## 助手公开搜索（开发预览）
+
+个人助手和研究助手共用后端 Tavily 适配。管理员在服务端设置 `ASSISTANT_WEB_ENABLED=true` 与 `ASSISTANT_WEB_API_KEY`，并可设置 `ASSISTANT_WEB_MAX_RESULTS`（默认 5，实际范围 1–8）；示例见 [`backend/.env.example`](../backend/.env.example)。默认禁用且不包含密钥；用户无需逐次指定是否联网，Auto 会判断。浏览器只读取是否就绪，不接收密钥或任意服务地址配置。模型配置仍独立，搜索就绪不代表模型已配置。
+
+正式运行须先备份并执行 Alembic `014`，保留既有问答。本地 `?preview=1` 只演示模式与来源，不调用搜索服务；真实接口未配置时返回明确错误，不伪装成已联网。本轮未部署或调用真实搜索；管理员完成配置后需验收来源、日期和引用。详见[自动问答与联网搜索](assistant-auto-search.md)。

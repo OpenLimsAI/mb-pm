@@ -53,6 +53,7 @@ describe('selected text model integration', () => {
     const dialog = screen.getByRole('dialog', { name: 'Polish 文字 · 润色' })
     fireEvent.click(within(dialog).getByRole('button', { name: '开始润色' }))
     await waitFor(() => expect(polish).toHaveBeenCalledWith('demo-solution', expect.objectContaining({ text, instruction: '', modelProfileId: 'my-profile' })))
+    expect(polish.mock.calls[0][1]).not.toHaveProperty('answerMode')
     expect(screen.getByRole('combobox', { name: '当前 AI 模型' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'AI模型设置' })).toBeDisabled()
     expect(body).toHaveValue(original)

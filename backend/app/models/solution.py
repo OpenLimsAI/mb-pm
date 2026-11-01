@@ -107,6 +107,18 @@ class SolutionAnswer(Base):
     context: Mapped[str] = mapped_column(Text, default="", nullable=False)
     scope: Mapped[str] = mapped_column(String(1000), nullable=False)
     model: Mapped[str] = mapped_column(String(160), default="", nullable=False)
+    answer_mode: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="", server_default=""
+    )
+    requested_mode: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="", server_default=""
+    )
+    mode_reason: Mapped[str] = mapped_column(
+        String(200), nullable=False, default="", server_default=""
+    )
+    web_references: Mapped[list] = mapped_column(
+        JSON, nullable=False, default=list, server_default="[]"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now, nullable=False
     )
