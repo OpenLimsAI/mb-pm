@@ -2,7 +2,8 @@ import DataScopeNotice from './DataScopeNotice'
 import { dataSourceLabel, normalizeDataSources, readDataSources, writeDataSources } from './dataSources'
 import type { ApplicationDataSource } from './dataSources'
 import { AnswerModeControl, SearchCapability } from '../answerModes/AnswerTools'
-import type { AnswerCapabilities, AnswerMode } from '../answerModes/types'
+import type { AnswerMode } from '../answerModes/types'
+import { listenForSearchConfigurationChanges, useSearchCapabilities } from '../answerModes/useSearchCapabilities'
 import { modelPriceLabel } from '../../lib/modelPricing'
 import ApplicationActions from '../../components/application/ApplicationActions'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -29,14 +30,14 @@ function download(artifact: AssistantArtifact) {
 export default function AssistantApp({ client, modelClient, userName, preview, namespace = userName }: Props) {
   const storageKey = `assistant-data-sources:${namespace}:${preview ? 'preview' : 'live'}`
   const [dataSources, setDataSources] = useState<ApplicationDataSource[]>(() => { try { return readDataSources(localStorage, storageKey) } catch { return [] } })
-  const [answerMode, setAnswerMode] = useState<AnswerMode>('auto'), [capabilities, setCapabilities] = useState<AnswerCapabilities | null>(null)
-  useEffect(() => { let current = true; void client.capabilities?.().then(value => { if (current) setCapabilities(value) }).catch(() => { if (current) setCapabilities(null) }); return () => { current = false } }, [client])
+  const [answerMode, setAnswerMode] = useState<AnswerMode>('auto')
   const [sourceDraft, setSourceDraft] = useState<ApplicationDataSource[]>(dataSources)
   const [tasks, setTasks] = useState<TaskSummary[]>([]), [total, setTotal] = useState(0), [task, setTask] = useState<AssistantTask | null>(null)
   const [search, setSearch] = useState(''), [trashed, setTrashed] = useState(false), [offset, setOffset] = useState(0), [reload, setReload] = useState(0)
   const [loading, setLoading] = useState(true), [opening, setOpening] = useState(false), [listError, setListError] = useState(''), [taskError, setTaskError] = useState(''), [notice, setNotice] = useState('')
   const [drafts, setDrafts] = useState<Record<string, Draft>>({}), [pending, setPending] = useState<Record<string, boolean>>({}), [errors, setErrors] = useState<Record<string, string>>({})
   const [modelSettings, setModelSettings] = useState<ModelSettings | null>(null), [model, setModel] = useState('enterprise'), [modelError, setModelError] = useState('')
+  const capabilities = useSearchCapabilities(client, model, modelSettings?.revision)
   const [dialog, setDialog] = useState<'create' | 'settings' | 'data' | 'materials' | 'delete' | null>(null), [formBusy, setFormBusy] = useState(false), [formError, setFormError] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false), [resultOpen, setResultOpen] = useState(true), [resultPeek, setResultPeek] = useState(false), [expanded, setExpanded] = useState(false)
   const [resultTab, setResultTab] = useState<'overview' | 'artifacts'>('artifacts'), [artifactId, setArtifactId] = useState(''), [materialDraft, setMaterialDraft] = useState(''), [materialLabel, setMaterialLabel] = useState(''), [materialError, setMaterialError] = useState(''), [parsing, setParsing] = useState(false)
@@ -67,10 +68,10 @@ export default function AssistantApp({ client, modelClient, userName, preview, n
     return () => { current = false; clearTimeout(timer) }
   }, [client, search, trashed, offset, reload, openTask])
   useEffect(() => {
-    let current = true, initialized = false
-    const load = () => { modelClient.get().then(value => { if (!current) return; setModelSettings(value); setModelError(''); const initialLoad = !initialized; initialized = true; setModel(previous => !initialLoad && previous === 'enterprise' || value.profiles.some(p => p.id === previous) ? previous : value.defaultProfileId || 'enterprise') }).catch(() => { if (current) setModelError('模型配置暂时无法读取，可打开 AI 模型设置后重试。') }) }
-    load(); window.addEventListener('focus', load)
-    return () => { current = false; window.removeEventListener('focus', load) }
+    let current = true, initialized = false, generation = 0
+    const load = () => { const token = ++generation; modelClient.get().then(value => { if (!current || token !== generation) return; setModelSettings(value); setModelError(''); const initialLoad = !initialized; initialized = true; setModel(previous => !initialLoad && previous === 'enterprise' || value.profiles.some(p => p.id === previous) ? previous : value.defaultProfileId || 'enterprise') }).catch(() => { if (current && token === generation) setModelError('模型配置暂时无法读取，可打开 AI 模型设置后重试。') }) }
+    load(); const stopListening = listenForSearchConfigurationChanges(load)
+    return () => { current = false; generation += 1; stopListening() }
   }, [modelClient])
   useEffect(() => { messagesEnd.current?.scrollIntoView?.({ block: 'end' }) }, [task?.id, task?.messageCount])
   useEffect(() => { const keyboard = (event: KeyboardEvent) => { if (event.key === 'Escape' && !dialog) { setSidebarOpen(false); setResultPeek(false); setExpanded(false) } }; document.addEventListener('keydown', keyboard); return () => document.removeEventListener('keydown', keyboard) }, [dialog])

@@ -35,7 +35,7 @@ export function downloadBlob(blob: Blob, filename: string) {
 }
 
 export const solutionApi: SolutionClient = {
-  capabilities: () => assistantApi.capabilities!(),
+  capabilities: modelProfileId => assistantApi.capabilities!(modelProfileId),
   list: async () => (await http.get('')).data,
   trash: async () => (await http.get('/trash')).data,
   remove: async (id, revision) => { await http.post(`/${encodeURIComponent(id)}/trash`, { revision }) },

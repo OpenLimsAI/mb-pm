@@ -25,9 +25,11 @@ ERROR_HEADER = "X-Assistant-Error-Code"
 ID_HEADER = "X-Assistant-Diagnostic-ID"
 PUBLIC_ERRORS = {
     "web_not_configured": (503, "联网搜索尚未配置，请联系管理员配置后使用。问题已保留。"),
+    "web_balance": (402, "联网搜索账户余额不足，请为当前搜索账户充值后重试。问题已保留。"),
+    "web_invalid_query": (422, "请输入有效的搜索问题，问题不能为空。"),
     "web_timeout": (503, "联网搜索超时，问题已保留。请稍后重试。"),
     "web_auth": (503, "联网搜索密钥或权限不可用，请联系管理员检查搜索设置。"),
-    "web_rate_limit": (503, "联网搜索额度不足或请求过多，请稍后重试或联系管理员。"),
+    "web_rate_limit": (503, "联网搜索请求过多，请稍后重试。"),
     "web_unavailable": (503, "联网搜索服务暂时不可用，问题已保留。请稍后重试。"),
     "web_invalid_response": (503, "联网搜索返回的资料无法读取，请稍后重试。"),
     "web_no_results": (422, "本次联网检索未找到可引用的公开资料。请调整关键词后重试。"),

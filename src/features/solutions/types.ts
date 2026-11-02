@@ -46,7 +46,7 @@ export interface ReviewAction {
 export interface Reviewer { id: string; name: string }
 export interface TrashedSolution { id: string; title: string; revision: number; deletedAt: string }
 export interface SolutionClient {
-  capabilities?(): Promise<AnswerCapabilities>
+  capabilities?(modelProfileId?: string): Promise<AnswerCapabilities>
   trash(): Promise<TrashedSolution[]>
   remove(id: string, revision: number): Promise<void>
   restore(id: string, revision: number): Promise<Solution>

@@ -92,7 +92,9 @@ describe('model settings panel', () => {
     await screen.findByText('全部模型配置已保存。')
     expect(screen.getByLabelText('API 密钥')).toHaveValue('')
     expect(client.save).toHaveBeenCalledTimes(2)
-    expect(localStorage.length).toBe(0)
+    expect(localStorage.length).toBe(1)
+    expect(localStorage.key(0)).toBe('mberp:model-settings-change:v1')
+    expect(localStorage.getItem('mberp:model-settings-change:v1')).toMatch(/^[0-9a-f-]{36}$/)
   })
 
   it('never carries a typed or stored key to a changed endpoint without explicit replacement or clearing', async () => {

@@ -240,6 +240,7 @@ def test_explicit_report_scope_and_safe_followups():
 
 def enable_search(monkeypatch):
     monkeypatch.setattr(settings, "ASSISTANT_WEB_ENABLED", True)
+    monkeypatch.setattr(settings, "ASSISTANT_WEB_PROVIDER", "tavily")
     monkeypatch.setattr(settings, "ASSISTANT_WEB_API_KEY", "isolated-search-secret")
 
 
@@ -288,7 +289,7 @@ def test_adapter_uses_fixed_provider_bounded_text_and_real_metadata(monkeypatch)
     assert refs[0]["published_at"] == "2026-10-31" and refs[1]["published_at"] is None
     assert refs[0]["retrieved_at"].endswith("+00:00")
     call = calls[0]
-    assert call["method"] == "POST" and call["url"] == web_search.ENDPOINT
+    assert call["method"] == "POST" and call["url"] == web_search.TAVILY_ENDPOINT
     assert call["json"]["query"] == "公开问题"
     assert (
         call["json"]["include_raw_content"] == "markdown"

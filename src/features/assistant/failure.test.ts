@@ -9,7 +9,7 @@ const requestId = '00112233-4455-6677-8899-aabbccddeeff'
 const task = { id: 'test-task', revision: 1 } as TaskSummary
 
 describe('assistant diagnostic errors', () => {
-  it.each([[422, '回答达到模型输出上限'], [503, '模型等待超时'], [503, '模型服务限流']])('keeps a safe server reason and diagnostic ID for %i', async (status, message) => {
+  it.each([[402, 'DeepSeek 搜索余额不足，请检查当前模型账户余额。'], [422, '回答达到模型输出上限'], [503, '模型等待超时'], [503, '模型服务限流']])('keeps a safe server reason and diagnostic ID for %i', async (status, message) => {
     const id = 'a'.repeat(32)
     server.use(http.post('*/api/v1/assistant/tasks/test-task/messages', () => HttpResponse.json({ detail: `${message}（诊断编号：${id}）` }, { status, headers: { 'X-Assistant-Diagnostic-ID': id } })))
     await expect(assistantApi.send(task, { requestId, question: 'question', context: '' })).rejects.toThrow(`${message}（诊断编号：${id}）`)
