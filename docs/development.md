@@ -126,6 +126,7 @@ node scripts/test-portal-routing.mjs
 ```
 
 构建会先生成版本更新 HTML，再做 TypeScript 检查及 Vite 编译。
+普通构建保留演示模式能力；生产发布改用固定提交的 `npm run build:production`，校验最终产物并运行匿名登录表单检查，见[生产构建检查](production-build.md)。
 门户脚本核对域名分流、固定应用目标、深链接和不安全返回地址，不访问真实 IAM。
 Vitest 使用 jsdom、Testing Library 和 MSW 测试真实界面及 HTTP 客户端。账号权限覆盖范围包括 `src/components/accounts/`、`PortalAccounts.tsx`、`accountAdmin.ts`、`api/accounts.ts`，逐文件要求语句、行、函数、分支均不低于 90%；报告输出到 `coverage/`。其他业务模块不计入该新功能门槛。
 

@@ -94,6 +94,7 @@ node scripts/test-portal-routing.mjs
 
 环境状态、备份、发版、验收与回滚以 [部署交接简明](docs/部署交接简明.md) 为准，
 历史发布材料见 [部署记录](deploy/parallel-test/README.md)。数据库结构变更需单独规划迁移。
+生产前端使用 `SOURCE_REVISION=<固定完整提交> npm run build:production`；发布前校验最终产物及匿名登录表单，见[生产构建检查](docs/production-build.md)。
 
 ## 更新记录链接
 

@@ -176,3 +176,7 @@ Kimi 支持、模型价格显示与静态价格目录的维护规则见[模型�
 个人助手和研究助手共用搜索适配。默认 `ASSISTANT_WEB_PROVIDER=deepseek`，管理员设置 `ASSISTANT_WEB_ENABLED=true` 后，复用当前所选官方 DeepSeek 模型密钥；企业默认与本人个人配置分别解析，不从其他模型或其他账号借用。仅 provider=deepseek 且 HTTPS 官方 `api.deepseek.com` 根地址或 `/v1` 可复用；第三方转发地址不能发送密钥到官方搜索。可选 `ASSISTANT_WEB_MAX_RESULTS` 默认 5、范围 1–8。只有显式选择 `ASSISTANT_WEB_PROVIDER=tavily` 时才使用服务端 `ASSISTANT_WEB_API_KEY`，不自动跨服务商回退。示例见 [`backend/.env.example`](../backend/.env.example)。默认禁用；浏览器只读取当前模型就绪状态，切换/保存后刷新，不接收密钥。生产需将变量透传至两个应用并重新创建容器，保留完整运行覆盖。
 
 正式运行须先备份并执行 Alembic `014`，保留既有问答。本地 `?preview=1` 只演示模式与来源，不调用搜索服务；真实接口未配置时返回明确错误，不伪装成已联网。DeepSeek 搜索适配本身没有新增迁移；实际生产版本、联网结果和验收边界以发布记录为准。详见[自动问答与联网搜索](assistant-auto-search.md)。
+
+## 生产前端构建参数
+
+生产发布使用 `SOURCE_REVISION=<固定完整提交> npm run build:production`，该入口固定 `VITE_USE_API=true` 和 `VITE_API_URL=/api/v1`，Vite 根据实际构建环境写入不含密钥的产物清单。普通开发/预览构建仍允许关闭 API。前端环境变量在编译时内联，不能用运行容器环境变量补救错误静态包；校验、预构建镜像和匿名登录检查见[生产构建检查](production-build.md)。

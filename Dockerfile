@@ -17,15 +17,17 @@ COPY tsconfig.json tsconfig.app.json tsconfig.node.json ./
 COPY src ./src
 COPY public ./public
 # npm prebuild 生成版本更新 HTML；仅引入说明内容与生成器。
-COPY scripts/build-release-notes.mjs ./scripts/build-release-notes.mjs
+COPY scripts/build-release-notes.mjs scripts/build-production.mjs scripts/production-build.mjs scripts/verify-production-build.mjs ./scripts/
 COPY docs/releases/notes.json docs/releases/style.css ./docs/releases/
 
 # 同源部署：前端调用后端相对路径 /api/v1，并启用真实 API（非 mock）
 ARG VITE_APP_MODE
+ARG SOURCE_REVISION
 ENV VITE_APP_MODE=$VITE_APP_MODE \
+    SOURCE_REVISION=$SOURCE_REVISION \
     VITE_USE_API=true \
     VITE_API_URL=/api/v1
-RUN npm run build          # 产物 → /web/dist
+RUN npm run build:production # 产物 → /web/dist，校验生产 API 与源码版本
 
 # ============ Stage 2: 后端 + 静态资源 运行镜像 ============
 FROM python:3.11-slim AS app
