@@ -31,6 +31,8 @@ RUN npm run build:production # 产物 → /web/dist，校验生产 API 与源码
 
 # ============ Stage 2: 后端 + 静态资源 运行镜像 ============
 FROM python:3.11-slim AS app
+ARG SOURCE_REVISION
+LABEL org.opencontainers.image.revision=$SOURCE_REVISION
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
