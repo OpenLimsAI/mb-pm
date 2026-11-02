@@ -289,7 +289,9 @@ export default function SolutionsApp({ client, userId, userName, preview, modelC
       if (!active) return
       setSolutions(list)
       const recovery = readWorkspaceRecovery(recoveryScope)
-      const resume = recovery && !recovery.listOpen && list.some(item => item.id === recovery.reportId) ? recovery.reportId : undefined
+      const requestedReport = new URLSearchParams(window.location.search).get('report')
+      const linkedReport = list.find(item => item.id === requestedReport)?.id
+      const resume = linkedReport || (recovery && !recovery.listOpen && list.some(item => item.id === recovery.reportId) ? recovery.reportId : undefined)
       if (resume || list[0] && !initialHome) await openDoc(resume || list[0].id)
       else { setListOpen(true); setLoading(false) }
     }).catch(reason => { if (active) { setError(message(reason)); setLoading(false) } })

@@ -2,6 +2,7 @@
 
 import base64
 import copy
+import hashlib
 import logging
 import threading
 import time
@@ -100,33 +101,90 @@ def run_step(store, official, *, extract=extract_pdf, connector=bridge.call, job
     store.put("job", job)
     db.commit()
     item = copy.deepcopy(pending)
+
+    def phase(value):
+        item["phase"] = value
+        current = store.lock("job", jobid)
+        for position, entry in enumerate(current["items"]):
+            if entry.get("documentId", entry.get("scope")) == item.get(
+                "documentId", item.get("scope")
+            ):
+                current["items"][position] = copy.deepcopy(item)
+                break
+        current["updatedAt"] = iso()
+        store.put("job", current)
+        db.commit()
+
     try:
         if job["kind"] in ("check", "monitor"):
             scope = item["scope"]
             documents = official.catalogue(scope)
             store.apply_catalogue(job["sourceId"], scope, documents)
             item.update(status="saved", count=len(documents), error=None)
+        elif job["kind"] == "verify" and app == "knowledge-sources":
+            from app.services.knowledge_source_status import meter_download
+
+            doc = store.get("document", item["documentId"])
+            phase("download")
+            content = official.pdf(doc["url"])
+            meter_download(store, len(content))
+            digest = hashlib.sha256(content).hexdigest()
+            known_hashes = {
+                v["sha256"] for v in store.records("version") if v["documentId"] == doc["id"]
+            }
+            if (doc.get("verifiedSha256") and doc["verifiedSha256"] != digest) or (
+                not doc.get("verifiedSha256") and digest not in known_hashes
+            ):
+                store.event(
+                    "官网文件变化",
+                    doc["title"],
+                    doc["sourceId"],
+                    doc["id"],
+                    summary="官方原件校验值变化，历史原件保留；请核对版本并按需下载。",
+                )
+            doc.update(verifiedSha256=digest, verifiedAt=iso())
+            store.put("document", doc)
+            item.update(status="saved", phase="done", error=None)
         else:
             doc = store.get("document", item["documentId"])
-            if item.get("phase") == "index" and item.get("versionId"):
+            resume_phase = item.get("phase")
+            if resume_phase in ("index", "resume_saved") and item.get("versionId"):
                 version = store.get("version", item["versionId"])
                 content = b""
             else:
+                phase("download")
                 content = official.pdf(doc["url"])
+                sha = hashlib.sha256(content).hexdigest()
+                item["result"] = (
+                    "reused"
+                    if store.get("version", store.key("version", doc["id"] + sha), required=False)
+                    else "new"
+                )
+                if app == "knowledge-sources":
+                    from app.services.knowledge_source_status import meter_download
+
+                    meter_download(store, len(content))
+                    db.commit()
                 version = store.archive(doc["id"], content)
+                if app == "knowledge-sources":
+                    doc = store.get("document", doc["id"])
+                    doc.update(verifiedSha256=sha, verifiedAt=iso())
+                    store.put("document", doc)
                 db.commit()
             item["versionId"] = version["id"]
             text = version.get("text", "")
             try:
                 if not text:
+                    phase("parse")
                     text = extract(store.archive_path(version))
                     version.update(text=text, parseStatus="ready", error=None)
                     store.put("version", version)
                     store.describe_version_change(version)
                     db.commit()
                 if job.get("folderId"):
+                    phase("index")
                     if (
-                        item.get("phase") == "index"
+                        resume_phase == "index"
                         and version.get("kbTaskId")
                         and version.get("indexStatus") != "failed"
                     ):
@@ -171,10 +229,10 @@ def run_step(store, official, *, extract=extract_pdf, connector=bridge.call, job
                             error=None,
                         )
                     else:
-                        item.update(status="saved", error=None)
+                        item.update(status="saved", phase="done", error=None)
                 else:
                     version["indexStatus"] = "not_requested"
-                    item.update(status="saved", error=None)
+                    item.update(status="saved", phase="done", error=None)
                 version["error"] = None
             except Exception as exc:
                 if not text:
@@ -182,7 +240,11 @@ def run_step(store, official, *, extract=extract_pdf, connector=bridge.call, job
                 elif job.get("folderId"):
                     version["indexStatus"] = "failed"
                 version["error"] = safe_error(exc)
-                item.update(status="failed", error=version["error"])
+                item.update(
+                    status="failed",
+                    failurePhase="parse" if not text else "index",
+                    error=version["error"],
+                )
             store.put("version", version)
             doc = store.get("document", doc["id"])
             doc["folderIds"] = sorted(
@@ -194,7 +256,9 @@ def run_step(store, official, *, extract=extract_pdf, connector=bridge.call, job
         db.commit()
     except Exception as exc:
         db.rollback()
-        item.update(status="failed", error=safe_error(exc))
+        item.update(
+            status="failed", failurePhase=item.get("phase", "download"), error=safe_error(exc)
+        )
         transient = isinstance(exc, httpx.TimeoutException | httpx.NetworkError) or (
             isinstance(exc, httpx.HTTPStatusError)
             and exc.response.status_code in (429, 500, 502, 503, 504)
@@ -252,6 +316,19 @@ def complete_job(store, job):
         }
         store.finish_check(job["sourceId"], statuses)
         job["scopeStatus"] = statuses
+    elif job["kind"] == "verify" and job.get("app") == "knowledge-sources":
+        store.put(
+            "event",
+            {
+                "id": store.key("event", "batch:" + job["id"]),
+                "kind": "版本核验",
+                "title": f'版本核验：已检查 {job["processed"]} / {job["total"]} 份',
+                "sourceId": job["sourceId"],
+                "createdAt": iso(),
+                "summary": f'失败 {job["failed"]} 份；仅核对官方文件校验值，不新增或覆盖服务器原件。',
+                "read": False,
+            },
+        )
     else:
         # Stable event identity makes completion/retry of this batch idempotent.
         eventid = store.key("event", "batch:" + job["id"])
