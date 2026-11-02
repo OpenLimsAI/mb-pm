@@ -1,9 +1,7 @@
 """Personal AI task conversations authenticated by the portal."""
 # ruff: noqa: B008
 
-from datetime import UTC, datetime
-
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_same_origin
@@ -88,8 +86,7 @@ def trash(
     claims: dict = Depends(identity),
 ):
     task = service.get_task(db, task_id, claims)
-    service.active(task)
-    return service.change(db, claims, task, payload.revision, {"deleted_at": datetime.now(UTC)})
+    return service.set_trashed(db, claims, task, payload.revision, trashed=True)
 
 
 @router.post("/{task_id}/restore")
@@ -100,6 +97,4 @@ def restore(
     claims: dict = Depends(identity),
 ):
     task = service.get_task(db, task_id, claims)
-    if task.deleted_at is None:
-        raise HTTPException(409, "任务已恢复")
-    return service.change(db, claims, task, payload.revision, {"deleted_at": None})
+    return service.set_trashed(db, claims, task, payload.revision, trashed=False)

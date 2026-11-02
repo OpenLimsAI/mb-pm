@@ -340,7 +340,7 @@ def test_detail_artifacts_and_completed_request_cannot_replay_revoked_projects(p
     assert len(f.calls) == 1
 
 
-def test_known_revoked_history_does_not_commit_task_metadata_before_rejection(pm):
+def test_known_revoked_history_blocks_save_but_allows_owner_soft_delete(pm):
     f = pm
     identifier = project(f)
     task = test_assistant.create(f)
@@ -353,11 +353,15 @@ def test_known_revoked_history_does_not_commit_task_metadata_before_rejection(pm
     )
     assert response.status_code == 403
     removed = f.client.post(f"{PREFIX}/{task['id']}/trash", json={"revision": saved["revision"]})
-    assert removed.status_code == 403
+    assert removed.status_code == 200
+    assert "messages" not in removed.json() and "artifacts" not in removed.json()
     f.db.expire_all()
     stored = f.db.get(AssistantTask, task["id"])
-    assert stored.title == task["title"] and stored.revision == saved["revision"]
-    assert stored.deleted_at is None
+    assert stored.title == task["title"] and stored.revision == saved["revision"] + 1
+    assert stored.deleted_at is not None
+    restored = f.client.post(f"{PREFIX}/{task['id']}/restore", json={"revision": stored.revision})
+    assert restored.status_code == 200 and "messages" not in restored.json()
+    assert f.client.get(f"{PREFIX}/{task['id']}").status_code == 403
 
 
 def test_legacy_project_history_without_lineage_is_not_returned(pm):

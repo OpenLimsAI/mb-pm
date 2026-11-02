@@ -225,6 +225,37 @@ def active(task):
         raise HTTPException(409, "任务已移至回收站，请先恢复")
 
 
+def set_trashed(db, claims, task, revision, *, trashed):
+    """Manage an owned task without reading or returning its protected history."""
+    if task.revision != revision:
+        raise HTTPException(409, CONFLICT)
+    if trashed:
+        active(task)
+    elif task.deleted_at is None:
+        raise HTTPException(409, "任务已恢复")
+    task_id = task.id
+    now = datetime.now(UTC)
+    state = AssistantTask.deleted_at.is_(None) if trashed else AssistantTask.deleted_at.is_not(None)
+    changed = db.execute(
+        update(AssistantTask)
+        .where(
+            AssistantTask.id == task_id, owned(claims), AssistantTask.revision == revision, state
+        )
+        .values(deleted_at=now if trashed else None, revision=revision + 1, updated_at=now)
+    )
+    if changed.rowcount != 1:
+        db.rollback()
+        raise HTTPException(409, CONFLICT)
+    db.commit()
+    current = get_task(db, task_id, claims)
+    count = db.scalar(
+        select(func.count())
+        .select_from(AssistantMessage)
+        .where(AssistantMessage.task_id == task_id)
+    )
+    return summary(current, count)
+
+
 def completed_request(db, task, payload, claims):
     prior = db.scalar(
         select(AssistantMessage).where(

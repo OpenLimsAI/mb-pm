@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AssistantApp from './AssistantApp'
 import { createPreviewAssistantClient } from './client'
-import type { AssistantClient, AssistantTask } from './client'
+import type { AssistantClient, AssistantTask, TaskSummary } from './client'
 import type { ModelSettings, ModelSettingsClient } from '../solutions/modelSettings'
 import type { AnswerCapabilities } from '../answerModes/types'
 
@@ -20,7 +20,7 @@ const composer = () => screen.getByRole('textbox', { name: '给 AI 助手的任�
 const chat = () => screen.getByLabelText('任务对话')
 async function open(title: string) {
   const sidebar = screen.getByRole('complementary', { name: '任务导航' })
-  fireEvent.click(await within(sidebar).findByRole('button', { name: new RegExp(title) }))
+  fireEvent.click(await within(sidebar).findByRole('button', { name: `打开任务：${title}` }))
   await screen.findByRole('heading', { name: title, level: 2 })
 }
 async function create(client: AssistantClient, title: string) { return client.create(input(title)) }
@@ -118,25 +118,167 @@ describe('AI assistant task workspace', () => {
     fireEvent.change(composer(), { target: { value: '保留这条对话' } })
     fireEvent.click(screen.getByRole('button', { name: '发送任务消息' }))
     await within(chat()).findByRole('button', { name: '查看产物' })
-    fireEvent.click(screen.getByRole('button', { name: '删除任务' }))
+    fireEvent.click(await screen.findByRole('button', { name: `删除任务：${task.title}` }))
     let dialog = screen.getByRole('dialog', { name: '删除任务' })
     expect(within(dialog).getByText(/待整理任务/)).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('button', { name: '取消' }))
     expect((await client.list({})).items.some(item => item.id === task.id)).toBe(true)
-    fireEvent.click(screen.getByRole('button', { name: '删除任务' }))
+    fireEvent.click(screen.getByRole('button', { name: `删除任务：${task.title}` }))
     dialog = screen.getByRole('dialog', { name: '删除任务' })
     fireEvent.click(within(dialog).getByRole('button', { name: '移至回收站' }))
     await waitFor(async () => expect((await client.list({})).items.some(item => item.id === task.id)).toBe(false))
     fireEvent.click(screen.getByRole('button', { name: '回收站' }))
     await open(task.title)
     expect(within(chat()).getAllByText('保留这条对话').length).toBeGreaterThan(0)
-    expect(screen.queryByRole('button', { name: '删除任务' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '恢复任务' }))
+    expect(screen.queryByRole('button', { name: `删除任务：${task.title}` })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: `恢复任务：${task.title}` }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: '恢复任务' })).getByRole('button', { name: '确认恢复' }))
     await waitFor(async () => expect((await client.list({})).items.some(item => item.id === task.id)).toBe(true))
     fireEvent.click(screen.getByRole('button', { name: '返回任务' }))
     await open(task.title)
     expect(within(chat()).getAllByText('保留这条对话').length).toBeGreaterThan(0)
     expect((await client.get(task.id)).artifacts).toHaveLength(1)
+  })
+
+  it('deletes and restores from list summaries when historical detail is forbidden, without fetching detail to act', async () => {
+    const client = createPreviewAssistantClient('forbidden-actions'), target = await create(client, '无法打开的旧任务')
+    const get = vi.spyOn(client, 'get'), originalGet = get.getMockImplementation()!
+    get.mockImplementation(id => id === target.id ? Promise.reject(Object.assign(new Error('无权读取这项任务的历史内容。'), { status: 403 })) : originalGet(id))
+    const trash = vi.spyOn(client, 'trash'), restore = vi.spyOn(client, 'restore')
+    const view = render(<AssistantApp client={client} modelClient={models()} userName="研究员" preview />)
+    await screen.findByText('无权读取这项任务的历史内容。')
+    expect(view.container.querySelector('.aa-app')).toHaveClass('aa-sidebar-visible')
+    expect(screen.getByRole('button', { name: '任务列表' })).toBeInTheDocument()
+    const sidebar = screen.getByRole('complementary', { name: '任务导航' })
+    expect(sidebar.querySelector('button button')).toBeNull()
+    fireEvent.click(within(sidebar).getByRole('button', { name: `删除任务：${target.title}` }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: '删除任务' })).getByRole('button', { name: '移至回收站' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(trash).toHaveBeenCalledWith(expect.objectContaining({ id: target.id, revision: target.revision }))
+    expect(trash.mock.calls[0][0]).not.toHaveProperty('messages')
+    expect(get.mock.calls.filter(([id]) => id === target.id)).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: '回收站' }))
+    fireEvent.click(await screen.findByRole('button', { name: `恢复任务：${target.title}` }))
+    const callsBeforeRestore = get.mock.calls.filter(([id]) => id === target.id).length
+    fireEvent.click(within(screen.getByRole('dialog', { name: '恢复任务' })).getByRole('button', { name: '确认恢复' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(restore).toHaveBeenCalledWith(expect.objectContaining({ id: target.id, revision: target.revision + 1 }))
+    expect(get.mock.calls.filter(([id]) => id === target.id)).toHaveLength(callsBeforeRestore)
+    expect((await client.list({ search: target.title })).items[0].id).toBe(target.id)
+  })
+
+  it('keeps the current conversation and draft when deleting an unopened task', async () => {
+    const client = createPreviewAssistantClient('delete-unopened'), target = await create(client, '未打开的任务 A'), current = await create(client, '保留草稿的任务 B')
+    const get = vi.spyOn(client, 'get')
+    await mount(client); await open(current.title)
+    fireEvent.change(composer(), { target: { value: '任务 B 的未发送草稿' } })
+    get.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: `删除任务：${target.title}` }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: '删除任务' })).getByRole('button', { name: '移至回收站' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByRole('heading', { level: 2, name: current.title })).toBeInTheDocument()
+    expect(composer()).toHaveValue('任务 B 的未发送草稿')
+    expect(get).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: `打开任务：${target.title}` })).not.toBeInTheDocument()
+  })
+
+  it('does not clear a newly opened task when an earlier deletion finishes late', async () => {
+    const client = createPreviewAssistantClient('delete-navigation'), target = await create(client, '异步删除任务 A'), next = await create(client, '切换后的任务 B')
+    const originalTrash = client.trash
+    let finish!: () => void
+    vi.spyOn(client, 'trash').mockImplementation(async summary => {
+      const result = await originalTrash(summary)
+      return new Promise<TaskSummary>(resolve => { finish = () => resolve(result) })
+    })
+    await mount(client); await open(target.title)
+    fireEvent.click(screen.getByRole('button', { name: `删除任务：${target.title}` }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: '删除任务' })).getByRole('button', { name: '移至回收站' }))
+    await waitFor(() => expect(finish).toBeDefined())
+    await open(next.title)
+    fireEvent.change(composer(), { target: { value: '新任务中保留的草稿' } })
+    await act(async () => finish())
+    expect(screen.getByRole('heading', { name: next.title, level: 2 })).toBeInTheDocument()
+    expect(composer()).toHaveValue('新任务中保留的草稿')
+  })
+
+  it('invalidates a delayed detail response after deleting the task being opened', async () => {
+    const client = createPreviewAssistantClient('delete-opening'), target = await create(client, '正在打开的任务 A'), next = await create(client, '剩余任务 B')
+    await mount(client); await open(next.title)
+    fireEvent.change(composer(), { target: { value: '剩余任务的草稿' } })
+    const originalGet = client.get
+    let finish!: () => void
+    vi.spyOn(client, 'get').mockImplementation(async id => {
+      const result = await originalGet(id)
+      return id === target.id ? new Promise<AssistantTask>(resolve => { finish = () => resolve(result) }) : result
+    })
+    fireEvent.click(screen.getByRole('button', { name: `打开任务：${target.title}` }))
+    await waitFor(() => expect(finish).toBeDefined())
+    fireEvent.click(screen.getByRole('button', { name: `删除任务：${target.title}` }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: '删除任务' })).getByRole('button', { name: '移至回收站' }))
+    await screen.findByRole('heading', { name: next.title, level: 2 })
+    await act(async () => finish())
+    expect(screen.getByRole('heading', { name: next.title, level: 2 })).toBeInTheDocument()
+    expect(composer()).toHaveValue('剩余任务的草稿')
+    expect(screen.queryByRole('button', { name: `打开任务：${target.title}` })).not.toBeInTheDocument()
+  })
+
+  it('preserves the list and draft on a failed delete and lets the user retry', async () => {
+    const client = createPreviewAssistantClient('delete-retry'), target = await create(client, '删除重试任务 A'), current = await create(client, '保持打开的任务 B')
+    const originalTrash = client.trash, trash = vi.spyOn(client, 'trash').mockRejectedValueOnce(new Error('连接暂时中断。')).mockImplementationOnce(originalTrash)
+    await mount(client); await open(current.title)
+    fireEvent.change(composer(), { target: { value: '失败时也不能丢失的草稿' } })
+    fireEvent.click(screen.getByRole('button', { name: `删除任务：${target.title}` }))
+    const dialog = screen.getByRole('dialog', { name: '删除任务' })
+    fireEvent.click(within(dialog).getByRole('button', { name: '移至回收站' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('任务和草稿已保留，可重试')
+    expect(screen.getByRole('button', { name: `删除任务：${target.title}` })).toBeEnabled()
+    expect(composer()).toHaveValue('失败时也不能丢失的草稿')
+    expect(within(dialog).getByRole('button', { name: '返回列表并刷新' })).toBeEnabled()
+    fireEvent.click(within(dialog).getByRole('button', { name: '移至回收站' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(trash).toHaveBeenCalledTimes(2)
+    expect(composer()).toHaveValue('失败时也不能丢失的草稿')
+  })
+
+  it('refreshes a conflicting summary before the user explicitly retries deletion', async () => {
+    const client = createPreviewAssistantClient('delete-conflict'), target = await create(client, '已在其他页面更新的任务'), current = await create(client, '保留当前输入的任务')
+    const get = vi.spyOn(client, 'get'), trash = vi.spyOn(client, 'trash'), list = vi.spyOn(client, 'list')
+    await mount(client); await open(current.title)
+    fireEvent.change(composer(), { target: { value: '刷新列表不会丢失的草稿' } })
+    const updated = await client.save(target, { title: target.title, instructions: '其他页面刚保存的新指引' })
+    get.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: `删除任务：${target.title}` }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: '删除任务' })).getByRole('button', { name: '移至回收站' }))
+    const error = await within(screen.getByRole('dialog', { name: '删除任务' })).findByRole('alert')
+    expect(error).toHaveTextContent('刷新')
+    const listCalls = list.mock.calls.length
+    fireEvent.click(within(error).getByRole('button', { name: '返回列表并刷新' }))
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(listCalls + 1))
+    await waitFor(() => expect(screen.queryByText('读取任务…')).not.toBeInTheDocument())
+    expect(trash).toHaveBeenCalledTimes(1)
+    expect(composer()).toHaveValue('刷新列表不会丢失的草稿')
+    fireEvent.click(await screen.findByRole('button', { name: `删除任务：${target.title}` }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: '删除任务' })).getByRole('button', { name: '移至回收站' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(trash).toHaveBeenLastCalledWith(expect.objectContaining({ id: target.id, revision: updated.revision }))
+    expect(get).not.toHaveBeenCalled()
+    expect(composer()).toHaveValue('刷新列表不会丢失的草稿')
+  })
+
+  it('restores an unopened summary without clearing another recycled task or loading its history', async () => {
+    const client = createPreviewAssistantClient('restore-unopened'), target = await create(client, '不打开直接恢复的任务'), current = await create(client, '继续查看的回收站任务')
+    await client.trash(target); await client.trash(current)
+    await mount(client)
+    fireEvent.click(screen.getByRole('button', { name: '回收站' }))
+    await open(current.title)
+    const get = vi.spyOn(client, 'get')
+    fireEvent.click(screen.getByRole('button', { name: `恢复任务：${target.title}` }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: '恢复任务' })).getByRole('button', { name: '确认恢复' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByRole('heading', { name: current.title, level: 2 })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: `恢复任务：${target.title}` })).not.toBeInTheDocument()
+    expect(get).not.toHaveBeenCalled()
+    expect((await client.list({ search: target.title })).items[0].id).toBe(target.id)
   })
 
   it('sends the current question and chosen material, then displays its independent answer artifact', async () => {
