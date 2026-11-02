@@ -300,6 +300,7 @@ def test_keyless_cloud_saves_but_test_and_ask_reject(solution_client, monkeypatc
 
 
 def test_custom_keyless_connection_and_error_redaction(solution_client, monkeypatch):
+    monkeypatch.setenv("AI_ALLOWED_INTERNAL_ORIGINS", "http://127.0.0.1:11434")
     f = solution_client
     monkeypatch.setattr(solution_ai, "chat", lambda *_a, **_kw: ("OK", {}))
     response = f.client.post(

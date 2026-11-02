@@ -2,13 +2,14 @@
 
 from datetime import date
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.schemas.business_values import DatedInput, Health, ProjectStatus, reject_null_fields
 from app.schemas.finance import ProjectFinanceBase
 from app.schemas.task import SubProjectCreate, TaskCreate, TaskDependencyCreate
 
 
-class ProjectBase(BaseModel):
+class ProjectBase(DatedInput):
     code: str = Field(..., max_length=40)
     name: str = Field(..., max_length=200)
     product_type: str
@@ -16,9 +17,9 @@ class ProjectBase(BaseModel):
     target_stage: str
     owner_id: str
     member_ids: list[str] = Field(default_factory=list, description="项目团队成员（可选）")
-    status: str
-    health: str
-    progress: int = 0
+    status: ProjectStatus
+    health: Health
+    progress: int = Field(default=0, ge=0, le=100)
     planned_start: date
     planned_end: date
     template_id: str | None = None
@@ -30,16 +31,23 @@ class ProjectCreate(ProjectBase):
     id: str | None = None
 
 
-class ProjectUpdate(BaseModel):
+class ProjectUpdate(DatedInput):
     name: str | None = None
     owner_id: str | None = None
     member_ids: list[str] | None = None
-    status: str | None = None
-    health: str | None = None
-    progress: int | None = None
+    status: ProjectStatus | None = None
+    health: Health | None = None
+    progress: int | None = Field(default=None, ge=0, le=100)
     planned_start: date | None = None
     planned_end: date | None = None
     description: str | None = None
+
+    @model_validator(mode="after")
+    def required_fields_not_null(self):
+        return reject_null_fields(
+            self,
+            {"name", "owner_id", "status", "health", "progress", "planned_start", "planned_end"},
+        )
 
 
 class ProjectImportRequest(BaseModel):

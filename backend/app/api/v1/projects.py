@@ -18,6 +18,8 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
+from app.schemas.business_values import validate_date_patch
+
 from app.api.deps import get_current_user, require_role
 from app.api.v1.mdm_integration import reference_user
 from app.db.session import get_db
@@ -273,6 +275,7 @@ def update_project(
         raise HTTPException(status.HTTP_403_FORBIDDEN, "only owner / admin / cmc_lead can edit")
 
     update_dict = payload.model_dump(exclude_unset=True, exclude={"member_ids"})
+    validate_date_patch(project, update_dict)
     for k, v in update_dict.items():
         setattr(project, k, v)
 

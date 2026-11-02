@@ -9,19 +9,14 @@
 """
 
 import hashlib
-import http.client
-import ipaddress
 import json
 import os
 import re
 import tempfile
 import threading
 import time
-import urllib.error
-import urllib.request
 from datetime import date
 from pathlib import Path
-from urllib.parse import urlsplit
 
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import inspect, select
@@ -173,73 +168,33 @@ def save_settings(draft: AISettingsInput) -> dict:
         return public_settings(load_settings())
 
 
-class NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        return None
-
-
 def request(provider: str, cfg: dict, path: str, body=None, timeout=25) -> dict:
     key = cfg.get("api_key", "")
     if provider in ("deepseek", "minimax", "kimi") and not key:
         raise AIError("尚未填写 API Key，请在 AI 设置中保存密钥")
-    headers = {"Content-Type": "application/json", "Accept": "application/json"}
-    if key and provider != "ollama":
-        headers["Authorization"] = "Bearer " + key
-    url = cfg["base_url"].rstrip("/") + path
-    host = urlsplit(url).hostname
+    from app.schemas.model_network import enterprise_url
+    from app.services.solution_ai import pinned_request
+
     try:
-        local = host == "localhost" or ipaddress.ip_address(host).is_loopback
+        endpoint = enterprise_url(provider, cfg["base_url"])
     except ValueError:
-        local = host == "localhost"
-    # Local model requests must not be routed through the system HTTP proxy.
-    handlers = [NoRedirect()]
-    if local:
-        handlers.append(urllib.request.ProxyHandler({}))
-    opener = urllib.request.build_opener(*handlers)
-    req = urllib.request.Request(
-        url, data=json.dumps(body).encode() if body is not None else None, headers=headers
-    )
+        raise AIError(
+            "模型地址未获批准，请核对官方地址或联系管理员批准内部模型",
+            code="model_invalid_response",
+        ) from None
+    # Same bounded, DNS-pinned transport as personal profiles. No system proxies.
     try:
-        with opener.open(req, timeout=timeout) as response:
-            diagnostics.transport_status(getattr(response, "status", None))
-            raw = response.read(2_000_001)
-        if len(raw) > 2_000_000:
-            raise AIError("模型回复过长，请缩小分析范围", code="response_too_large")
-        result = json.loads(raw)
-        if not isinstance(result, dict):
-            raise AIError("服务返回的格式不正确，请检查接口地址", code="model_invalid_response")
-        base_response = result.get("base_resp") or {}
-        if not isinstance(base_response, dict):
-            raise AIError("服务返回的格式不正确，请检查接口地址", code="model_invalid_response")
-        if result.get("error") or base_response.get("status_code") not in (None, 0):
-            raise AIError(
-                "模型服务拒绝了请求，请检查模型名称、密钥和账户额度", code="model_rejected"
-            )
-        return result
-    except urllib.error.HTTPError as e:
-        message = {
-            401: "密钥无效",
-            403: "没有模型访问权限",
-            404: "接口或模型不存在",
-            429: "调用额度不足或请求过于频繁",
-        }.get(e.code, "服务请求失败")
-        raise AIError(
-            f"{message}（HTTP {e.code}），请检查 AI 设置",
-            code=diagnostics.upstream_code(e.code),
-            upstream_status=e.code,
-        ) from None
-    except (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException) as exc:
-        timed_out = isinstance(exc, TimeoutError) or isinstance(
-            getattr(exc, "reason", None), TimeoutError
+        return pinned_request(
+            provider,
+            {**cfg, "base_url": endpoint, "api_key": key if provider != "ollama" else ""},
+            path,
+            body,
+            timeout,
         )
-        raise NetworkError(
-            "模型服务连接失败或超时，请检查地址、网络及本地模型是否已启动",
-            code="model_timeout" if timed_out else "model_network",
-        ) from None
-    except (ValueError, UnicodeError):
-        raise AIError(
-            "服务没有返回有效 JSON，请检查接口地址", code="model_invalid_response"
-        ) from None
+    except AIError as exc:
+        if exc.code in {"model_network", "model_timeout"}:
+            raise NetworkError(str(exc), code=exc.code) from None
+        raise
 
 
 def list_models(provider: str, cfg: dict) -> list[str]:

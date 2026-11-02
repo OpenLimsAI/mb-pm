@@ -9,6 +9,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.schemas.business_values import MAX_EFFORT, DatedInput
 from app.schemas.finance import ProjectFinanceUpdate
 
 
@@ -19,7 +20,7 @@ def _text(value: str) -> str:
     return value
 
 
-class StructureTaskIn(BaseModel):
+class StructureTaskIn(DatedInput):
     id: str | None = Field(default=None, max_length=64)
     key: str = Field(min_length=1, max_length=80)
     code: str = Field(min_length=1, max_length=50)
@@ -28,7 +29,7 @@ class StructureTaskIn(BaseModel):
     owner_id: str = Field(min_length=1, max_length=64)
     planned_start: date
     planned_end: date
-    estimated_effort: Decimal = Field(default=Decimal(0), ge=0, le=100000)
+    estimated_effort: Decimal = Field(default=Decimal(0), ge=0, le=MAX_EFFORT)
     cost_budget: Decimal | None = Field(default=None, ge=0, le=99_999_999)
     notes: str | None = Field(default=None, max_length=2000)
     predecessors: list[str] = Field(default_factory=list, max_length=200)

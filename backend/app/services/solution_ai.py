@@ -15,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.security import seal, unseal
 from app.models.solution_ai import SolutionAISettings
+from app.schemas.model_network import internal_approved
 from app.schemas.solution_ai import ModelSettingsInput, allowed_address, model_url
 from app.services import ai
 from app.services import assistant_diagnostics as diagnostics
@@ -141,7 +142,7 @@ def select_model(db, claims, profile_id):
     return {"kind": "private", "config": _ready(profile)}
 
 
-def resolved_addresses(host, port):
+def resolved_addresses(host, port, *, allow_private=False):
     try:
         try:
             candidates = [str(ipaddress.ip_address(host))]
@@ -151,7 +152,11 @@ def resolved_addresses(host, port):
                     item[4][0] for item in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
                 )
             )
-        if not candidates or any(not allowed_address(address) for address in candidates):
+        if not candidates or any(
+            not allowed_address(address)
+            or (not allow_private and not ipaddress.ip_address(address).is_global)
+            for address in candidates
+        ):
             raise ai.AIError("模型地址解析到禁止访问的网络地址", code="model_network")
         return candidates
     except (socket.gaierror, ValueError):
@@ -187,7 +192,9 @@ def pinned_request(provider, cfg, path, body=None, timeout=60):
         endpoint = model_url(cfg["base_url"])
         parts = urlsplit(endpoint)
         port = parts.port or (443 if parts.scheme == "https" else 80)
-        addresses = resolved_addresses(parts.hostname, port)
+        addresses = resolved_addresses(
+            parts.hostname, port, allow_private=internal_approved(endpoint)
+        )
         connection_type = PinnedHTTPSConnection if parts.scheme == "https" else PinnedHTTPConnection
         deadline = time.monotonic() + timeout
         connection = connection_type(parts.hostname, port, addresses[0], timeout=timeout)
@@ -196,7 +203,10 @@ def pinned_request(provider, cfg, path, body=None, timeout=60):
             headers["Authorization"] = "Bearer " + cfg["api_key"]
         # HTTPConnection creates Host from the original host; no proxy or redirect is used.
         connection.request(
-            "POST", parts.path.rstrip("/") + path, json.dumps(body).encode(), headers
+            "POST" if body is not None else "GET",
+            parts.path.rstrip("/") + path,
+            json.dumps(body).encode() if body is not None else None,
+            headers,
         )
         remaining = deadline - time.monotonic()
         if remaining <= 0:

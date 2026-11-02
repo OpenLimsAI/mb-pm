@@ -1,8 +1,7 @@
 import { AnswerEvidence } from '../answerModes/AnswerTools'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import SafeMarkdown from '../../components/SafeMarkdown'
 import { ArrowRight, BookOpen, Check, LoaderCircle, MessageSquare, NotebookPen, Sparkles, WandSparkles, X } from 'lucide-react'
 import type { Answer, PolishResult } from './types'
 import { preserveSelectionWhitespace } from './editorFormatting'
@@ -121,7 +120,7 @@ export default function SelectionAssistant({ selection, modelLabel, preview, sco
         {session.selection.text.length > 5000 && <p className="ks-error-inline" role="alert">每次最多处理 5,000 字，请缩短选区后重试。</p>}
         {error && <p className="ks-error-inline" role="alert">{error}</p>}
         <div aria-live="polite">
-          {answer && <section className="ks-selection-result" aria-label="选中文字问答结果"><div className="ks-selection-result-heading"><strong>{answer.mode === 'ai' ? 'AI 回答' : '资料检索结果'}</strong><span>{answer.model}</span></div><AnswerEvidence answer={answer} preview={preview} part="status" /><div className="ks-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{answer.content}</ReactMarkdown></div><AnswerEvidence answer={answer} preview={preview} part="sources" /><div className="ks-answer-citations">{answer.references.map((ref, index) => <button type="button" key={ref.id || index} onClick={() => { close(); onSource(ref.sourceId) }}><BookOpen size={12} />{index + 1}. {ref.title}</button>)}</div></section>}
+          {answer && <section className="ks-selection-result" aria-label="选中文字问答结果"><div className="ks-selection-result-heading"><strong>{answer.mode === 'ai' ? 'AI 回答' : '资料检索结果'}</strong><span>{answer.model}</span></div><AnswerEvidence answer={answer} preview={preview} part="status" /><div className="ks-markdown"><SafeMarkdown>{answer.content}</SafeMarkdown></div><AnswerEvidence answer={answer} preview={preview} part="sources" /><div className="ks-answer-citations">{answer.references.map((ref, index) => <button type="button" key={ref.id || index} onClick={() => { close(); onSource(ref.sourceId) }}><BookOpen size={12} />{index + 1}. {ref.title}</button>)}</div></section>}
           {polish && <section className="ks-selection-result" aria-label="润色建议"><label className="ks-field">润色后 · 可继续修改<textarea aria-label="润色后的文字" rows={6} value={suggestion} onChange={event => setSuggestion(event.target.value)} /></label><small>{polish.mode === 'preview' ? '本地演示' : polish.model} · 采纳前请核对原意、数值和限定条件。</small></section>}
         </div>
         <footer><button type="button" className="ks-button" onClick={close}>保留原文</button>{answer && <button type="button" className="ks-button ks-primary" onClick={() => { close(); onAdopt(answer) }}><Check size={14} />插入报告…</button>}{polish && <button type="button" className="ks-button ks-primary" disabled={!suggestion.trim() || busy} onClick={() => { if (onReplace(session.selection, preserveSelectionWhitespace(session.selection.text, suggestion))) close(); else setError('原文已发生变化，请关闭窗口并重新选择文字，避免覆盖后续编辑。') }}><Check size={14} />替换选中文字</button>}</footer>

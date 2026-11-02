@@ -6,10 +6,12 @@ from sqlalchemy import Date, ForeignKey, Integer, PrimaryKeyConstraint, String, 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
+from app.db.business_constraints import table_constraints
 
 
 class Project(Base, TimestampMixin):
     __tablename__ = "projects"
+    __table_args__ = table_constraints("projects")
 
     # 前端生成的项目 ID 及其派生的组合 ID 较长，统一用 64（issue #4）。
     id: Mapped[str] = mapped_column(String(64), primary_key=True)

@@ -26,7 +26,7 @@ export function ForcedPasswordChange({ name, submit, onDone, onLogout }: {
         <PasswordChangeForm submit={submit} onDone={onDone} currentLabel="临时密码（管理员告诉你的）"
           className="bg-white rounded-xl border border-[#dfe7ed] p-6 space-y-4" title="设置新密码"
           description="新密码在门户、项目管理和知识库中同时生效。"
-          successNotice="密码已修改，正在进入…" />
+          successNotice="密码已修改，请使用新密码重新登录…" />
         <button type="button" onClick={onLogout} className="text-sm text-ink-500 hover:text-ink-900 inline-flex items-center gap-1.5">
           <LogOut className="w-4 h-4" />退出登录
         </button>

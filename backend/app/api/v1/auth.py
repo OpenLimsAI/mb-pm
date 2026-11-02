@@ -81,7 +81,7 @@ def login_error(code: str):
         settings.pms_origin + LOGIN_PAGE + "?" + urlencode({"error": code}), 303
     )
     response.delete_cookie(LOGIN_COOKIE, path="/")
-    response.delete_cookie(SESSION_COOKIE, path="/")
+    # An invalid/unrelated OAuth callback must not log out an existing session.
     return no_cache(response)
 
 

@@ -141,6 +141,7 @@ class FakeCasdoor:
         if form["newPassword"] == form["oldPassword"]:
             return self.error("新密码必须与当前密码不同")
         user["password"] = form["newPassword"]
+        user["needUpdatePassword"] = False
         return self.ok()
 
     def _update_user(self, params, body, form):
@@ -162,6 +163,16 @@ class FakeCasdoor:
 
     def _get_roles(self, params, body, form):
         return self.ok([*self.roles.values(), *self.foreign_roles])
+
+    def _get_sessions(self, params, body, form):
+        assert params["owner"] == ORG and params["field"] == "name"
+        assert params["pageSize"] == "100" and params["p"] == "1"
+        return self.ok([])
+
+    def _get_tokens(self, params, body, form):
+        assert params["organization"] == ORG and params["field"] == "user"
+        assert params["pageSize"] == "100" and params["p"] == "1"
+        return self.ok([])
 
     def _get_permissions(self, params, body, form):
         return self.ok(self.permissions)
@@ -304,7 +315,7 @@ def test_change_password_checks_current_password_and_signs_out_other_devices(
     body = {"current_password": PASSWORD, "new_password": "Brand-new-2026"}
     assert client.post("/api/v1/account/password", json=body, headers=cookie).status_code == 204
     assert casdoor.users[user_id]["password"] == "Brand-new-2026"
-    assert row(IAMSession, id=security.digest(current)) is not None
+    assert row(IAMSession, id=security.digest(current)) is None
     assert row(IAMSession, id=security.digest(elsewhere)) is None
     assert row(IAMSession, id=security.digest(unrelated)) is not None
 

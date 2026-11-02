@@ -97,7 +97,7 @@ def stream(monkeypatch, chunks, *, status=200, block=False):
         def close(self):
             self.closed = True
 
-    def resolve(host, port):
+    def resolve(host, port, *, allow_private=False):
         addresses.append((host, port))
         return ["93.184.216.34"]
 
@@ -202,7 +202,7 @@ def test_private_unofficial_endpoint_still_uses_validated_pinned_transport(monke
     }
     called = []
 
-    def resolve(host, port):
+    def resolve(host, port, *, allow_private=False):
         called.append((host, port))
         raise ai.AIError("禁止访问", code="model_network")
 
@@ -333,60 +333,46 @@ def test_no_context_keeps_existing_sync_contract(monkeypatch):
 
 @pytest.mark.parametrize(
     "provider, base_url",
-    [("ollama", "http://127.0.0.1:11434"), ("openai", "https://gateway.example/v1")],
+    [("ollama", "http://127.0.0.1:11434"), ("minimax", "https://api.minimaxi.com/v1")],
 )
-def test_enterprise_transport_tracks_connections_preserves_proxy_policy_and_bounds_io(
+def test_enterprise_transport_tracks_pinned_connections_and_bounds_io(
     monkeypatch, provider, base_url
 ):
-    response = Response([b'{"choices":[{"message":{"content":"ok"},"finish_reason":"stop"}]}'])
-    handlers_seen, requests_seen, connections = [], [], []
-
-    def connect(connection):
-        connection.sock = Socket()
-        connections.append(connection)
-
-    monkeypatch.setattr(generation.http.client.HTTPConnection, "connect", connect)
-    monkeypatch.setattr(generation.http.client.HTTPSConnection, "connect", connect)
-
-    class Opener:
-        def open(self, req, timeout):
-            requests_seen.append((req, timeout))
-            handler_type = (
-                generation.urllib.request.HTTPSHandler
-                if base_url.startswith("https:")
-                else generation.urllib.request.HTTPHandler
-            )
-            handler = next(h for h in handlers_seen if isinstance(h, handler_type))
-
-            def do_open(cls, request, **_kwargs):
-                connection = cls(request.host, timeout=timeout)
-                connection.connect()
-                return response
-
-            handler.do_open = do_open
-            return (
-                handler.https_open(req) if base_url.startswith("https:") else handler.http_open(req)
-            )
-
-    def opener(*handlers):
-        handlers_seen.extend(handlers)
-        return Opener()
-
-    monkeypatch.setattr(generation.urllib.request, "build_opener", opener)
-    cfg = {"base_url": base_url, "model": "generic-model", "api_key": "chosen-key"}
     if provider == "ollama":
-        response.chunks = [b'{"message":{"content":"ok"},"done_reason":"stop"}']
+        monkeypatch.setenv("AI_ALLOWED_INTERNAL_ORIGINS", base_url)
+        chunks = [b'{"message":{"content":"ok"},"done_reason":"stop"}']
+    else:
+        chunks = [b'{"choices":[{"message":{"content":"ok"},"finish_reason":"stop"}]}']
+    response, connections, addresses = stream(monkeypatch, chunks)
+    # The same fake connection is used for explicitly approved HTTP origins.
+    monkeypatch.setattr(
+        generation.solution_ai, "PinnedHTTPConnection", generation.solution_ai.PinnedHTTPSConnection
+    )
+    cfg = {"base_url": base_url, "model": "generic-model", "api_key": "chosen-key"}
     with generation.run_context(lambda _row: None):
         assert generation.call(provider, cfg, MESSAGES)[0] == "ok"
-    assert connections[0].timeout <= 15 and connections[0].sock is None  # Closed by transport.
-    assert any(isinstance(h, ai.NoRedirect) for h in handlers_seen)
-    proxies = [h for h in handlers_seen if isinstance(h, generation.urllib.request.ProxyHandler)]
+    assert connections[0].timeout <= 15 and connections[0].closed
+    assert response.closed and addresses
+    headers = connections[0].request_data[3]
     if provider == "ollama":
-        assert proxies and proxies[0].proxies == {}
-        assert requests_seen[0][0].get_header("Authorization") is None
+        assert "Authorization" not in headers
     else:
-        assert not proxies  # build_opener supplies the existing environment proxy handler.
-        assert requests_seen[0][0].get_header("Authorization") == "Bearer chosen-key"
+        assert headers["Authorization"] == "Bearer chosen-key"
+
+
+@pytest.mark.parametrize(
+    "url", ["http://127.0.0.1:11434", "http://169.254.169.254", "https://collector.example"]
+)
+def test_enterprise_generation_cannot_bypass_destination_policy(monkeypatch, url):
+    monkeypatch.delenv("AI_ALLOWED_INTERNAL_ORIGINS", raising=False)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("unapproved model initiated network I/O")
+
+    monkeypatch.setattr(generation.solution_ai, "resolved_addresses", forbidden)
+    cfg = {"base_url": url, "model": "generic", "api_key": "synthetic"}
+    with generation.run_context(lambda _row: None), pytest.raises(ai.AIError):
+        generation.call("deepseek", cfg, MESSAGES)
 
 
 def test_json_tool_round_is_monitored_and_does_not_duplicate_model_diagnostics(monkeypatch):

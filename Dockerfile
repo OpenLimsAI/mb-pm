@@ -4,7 +4,7 @@
 # 数据库为独立的 PostgreSQL 实例，通过 DATABASE_URL 注入（见 docker-compose.yml）。
 
 # ============ Stage 1: 构建前端 SPA ============
-FROM node:20-alpine AS frontend
+FROM node:24-alpine@sha256:8a32c8cf649a49915a66e81e7a609223c708d0adabf288ee3f4077d765542f85 AS frontend
 WORKDIR /web
 
 # 依赖层缓存：仅 package 清单变更才重新安装
@@ -30,20 +30,24 @@ ENV VITE_APP_MODE=$VITE_APP_MODE \
 RUN npm run build:production # 产物 → /web/dist，校验生产 API 与源码版本
 
 # ============ Stage 2: 后端 + 静态资源 运行镜像 ============
-FROM python:3.11-slim AS app
+FROM python:3.11-slim@sha256:db20d8506e2f15b6db39b40b6015ca46bae855dec6dd326d462cfe79ae972893 AS app
 ARG SOURCE_REVISION
 LABEL org.opencontainers.image.revision=$SOURCE_REVISION
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     STATIC_DIR=/code/static \
-    APP_ENV=production
+    APP_ENV=production \
+    AUTO_SEED=false \
+    AUTO_MIGRATE_SCHEMA=false
 
 WORKDIR /code
 
 # psycopg[binary] 自带 libpq，无需系统级编译依赖，镜像保持精简
-COPY backend/requirements.txt ./
-RUN pip install -r requirements.txt
+COPY backend/requirements.lock ./
+RUN pip install --require-hashes -r requirements.lock
+RUN groupadd --gid 10001 app && useradd --uid 10001 --gid app --no-create-home app \
+    && mkdir -p /code/.local && chown app:app /code/.local
 
 # 后端源码（含 app/seed/seed.json 种子）
 COPY backend/app ./app
@@ -53,7 +57,8 @@ COPY backend/alembic.ini ./alembic.ini
 # 前端构建产物 → 后端同源托管目录
 COPY --from=frontend /web/dist ./static
 
+USER 10001:10001
 EXPOSE 8000
 
-# 启动即由 lifespan 自动建表 + 库空时灌种子（幂等），随后提供 SPA + /api/v1
+# Production schema upgrades run once via python -m app.db.upgrade with separate owner credentials.
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

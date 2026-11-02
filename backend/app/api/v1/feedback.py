@@ -4,12 +4,14 @@
 from typing import Literal
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
+from starlette.datastructures import UploadFile
 
+from app.api.multipart import upload_form
 from app.api.v1 import portal
 from app.api.v1.solutions import identity
 from app.db.session import get_db
@@ -63,26 +65,33 @@ def listing(db: Session = Depends(get_db), claims: dict = Depends(identity)):
 
 @router.post("", status_code=201)
 async def create(
-    category: Literal["bug", "feature"] = Form(...),
-    description: str = Form(...),
-    images: list[UploadFile] = File(default=[]),
+    request: Request,
     db: Session = Depends(get_db),
     claims: dict = Depends(identity),
 ):
-    description = description.strip()
-    if not description or len(description) > 5000:
-        raise HTTPException(422, "请填写 1 至 5000 字的反馈描述")
-    if len(images) > 3:
-        raise HTTPException(422, "最多上传 3 张图片")
-    attachments = []
-    for file in images:
-        data = await file.read(MAX_IMAGE + 1)
-        if len(data) > MAX_IMAGE:
-            raise HTTPException(413, "每张图片不能超过 5 MB")
-        content_type = image_type(data)
-        if not content_type:
-            raise HTTPException(422, "仅支持 PNG、JPEG 或 WebP 图片")
-        attachments.append(FeedbackImage(id=uuid4().hex, content_type=content_type, content=data))
+    # Parse only after identity has passed. Never declare File/Form dependencies here.
+    async with upload_form(request, max_files=3, max_fields=2, max_part_size=20_000) as form:
+        category = form.get("category")
+        description = form.get("description")
+        images = form.getlist("images")
+        if category not in ("bug", "feature"):
+            raise HTTPException(422, "请选择反馈类型")
+        if not isinstance(description, str) or not 1 <= len(description.strip()) <= 5000:
+            raise HTTPException(422, "请填写 1 至 5000 字的反馈描述")
+        description = description.strip()
+        attachments = []
+        for file in images:
+            if not isinstance(file, UploadFile):
+                raise HTTPException(422, "图片字段必须是文件")
+            data = await file.read(MAX_IMAGE + 1)
+            if len(data) > MAX_IMAGE:
+                raise HTTPException(413, "每张图片不能超过 5 MB")
+            content_type = image_type(data)
+            if not content_type:
+                raise HTTPException(422, "仅支持 PNG、JPEG 或 WebP 图片")
+            attachments.append(
+                FeedbackImage(id=uuid4().hex, content_type=content_type, content=data)
+            )
     name = claims.get("displayName") or claims.get("name") or claims["sub"]
     row = Feedback(
         id=uuid4().hex,

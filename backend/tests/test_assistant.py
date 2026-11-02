@@ -442,6 +442,9 @@ def test_scope_isolation_and_replay(assistant_client, monkeypatch):
     from app.services import assistant as service
 
     f = assistant_client
+    from app.services import solution_knowledge
+
+    monkeypatch.setattr(solution_knowledge, "check_access", lambda claims: None)
     monkeypatch.setattr(
         service,
         "application_data",
@@ -474,6 +477,9 @@ def test_knowledge_question_supplies_full_catalogue_count(assistant_client, monk
     from app.services import solution_knowledge
 
     f = assistant_client
+    from app.services import solution_knowledge
+
+    monkeypatch.setattr(solution_knowledge, "check_access", lambda claims: None)
     monkeypatch.setattr(solution_knowledge, "paper_count", lambda claims: 63)
     monkeypatch.setattr(solution_knowledge, "check_access", lambda claims: None)
     from app.services import assistant_tool_chat
@@ -588,6 +594,9 @@ def test_kb_tools_route_uses_pinned_private_transport(assistant_client, monkeypa
     from app.services import assistant_tool_chat, solution_knowledge
 
     f = assistant_client
+    from app.services import solution_knowledge
+
+    monkeypatch.setattr(solution_knowledge, "check_access", lambda claims: None)
     assert test_solution_ai.save(f).status_code == 200
     monkeypatch.setattr(solution_knowledge, "paper_count", lambda claims: 63)
     monkeypatch.setattr(solution_knowledge, "check_access", lambda claims: None)
