@@ -62,4 +62,6 @@ Word 导出生成可编辑的段落、标题、列表、表格、图片及参考
 | `PUT/DELETE /solutions/{id}/topics/{topic_id}` | 修订号保护的重命名、归档或逻辑删除 |
 | `GET /notes/{id}` | 当前账号未删除的笔记来源 |
 
-迁移 `017_report_workbench` 在 `016` 后添加报告 `pinned`、`tags` 与 `solution_templates`、`solution_topics` 表；旧报告默认不置顶、标签为空。章节层级在既有 JSON 中保存，无父级的旧章节视为顶层。自动快照复用既有版本表。本轮 Word 导出使用标准库 OOXML 打包，未增加 Python 运行依赖；富文本与 PDF 导出新增的前端依赖由锁文件固定。
+迁移 `019_report_workbench` 在 `018` 后添加报告 `pinned`、`tags` 与 `solution_templates`、`solution_topics` 表；旧报告默认不置顶、标签为空。章节层级在既有 JSON 中保存，无父级的旧章节视为顶层。自动快照复用既有版本表。本轮 Word 导出使用标准库 OOXML 打包，未增加 Python 运行依赖；富文本与 PDF 导出新增的前端依赖由锁文件固定。
+
+生产应用以受限数据库角色运行，`AUTO_MIGRATE_SCHEMA=false`。部署时由独立维护身份明确执行 `alembic upgrade 019`，再验证运行角色对新增表具备 DML 权限；不要让应用容器自行建表，也不要以恢复备份代替镜像回滚。既有 MDM `007` 为另一条迁移分支，本次不改变该链。

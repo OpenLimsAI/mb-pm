@@ -24,6 +24,8 @@ class Settings(BaseSettings):
 
     # 启动时若库为空则自动建表 + 灌种子数据
     AUTO_SEED: bool = True
+    # Production images migrate once with a separate database owner before rollout.
+    AUTO_MIGRATE_SCHEMA: bool = True
 
     # —— 前端静态资源 —— #
     # 设为已构建的 SPA 目录（含 index.html）即由后端同源托管前端；
@@ -40,6 +42,9 @@ class Settings(BaseSettings):
     ASSISTANT_WEB_PROVIDER: Literal["deepseek", "tavily"] = "deepseek"
     ASSISTANT_WEB_API_KEY: str = ""
     ASSISTANT_WEB_MAX_RESULTS: int = Field(default=5, ge=1, le=8)
+    ASSISTANT_PER_USER_PENDING: int = Field(default=3, ge=1, le=20)
+    ASSISTANT_GLOBAL_QUEUED: int = Field(default=100, ge=1, le=1000)
+    ASSISTANT_PER_USER_RUNNING: int = Field(default=1, ge=1, le=4)
     ASSISTANT_REQUEST_WORKER_ENABLED: bool = True
     ASSISTANT_REQUEST_TOTAL_SECONDS: int = Field(default=300, ge=30, le=900)
     ASSISTANT_REQUEST_LEASE_SECONDS: int = Field(default=45, ge=15, le=120)

@@ -7,7 +7,6 @@ No transport retries, model fallback, credentials or reasoning text are exposed.
 
 import codecs
 import http.client
-import ipaddress
 import json
 import math
 import queue
@@ -16,12 +15,12 @@ import socket
 import threading
 import time
 import urllib.error
-import urllib.request
 from contextlib import contextmanager
 from contextvars import ContextVar, copy_context
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
+from app.schemas.model_network import enterprise_url, internal_approved
 from app.services import ai, solution_ai
 from app.services import assistant_diagnostics as diagnostics
 
@@ -205,6 +204,7 @@ def _monitor(work, *, content=False):
                     stage = "generating"
                     if not first:
                         first = True
+                        progress(first_content=True)
                         trace = diagnostics.CURRENT.get()
                         if trace is not None:
                             trace.emit(
@@ -218,6 +218,17 @@ def _monitor(work, *, content=False):
             elif kind == "result":
                 guard()
                 return value
+    except Exception:
+        # Incremental writes are throttled. Persist the last safe visible chunk
+        # on a timeout/length error without extending the model wait budget.
+        # The request callback still fences cancelled/expired worker tokens.
+        visible = _visible(text)
+        if visible and len(visible) <= MAX_CONTENT:
+            try:
+                progress(final_partial=True, partial_content=visible)
+            except Exception:
+                pass  # Never replace the original failure or bypass a fence.
+        raise
     finally:
         wire.abort()
         thread.join(timeout=1)
@@ -227,7 +238,9 @@ def _pinned_open(cfg, path, body, wire):
     endpoint = solution_ai.model_url(cfg["base_url"])
     parts = urlsplit(endpoint)
     port = parts.port or (443 if parts.scheme == "https" else 80)
-    addresses = solution_ai.resolved_addresses(parts.hostname, port)
+    addresses = solution_ai.resolved_addresses(
+        parts.hostname, port, allow_private=internal_approved(endpoint)
+    )
     cls = (
         solution_ai.PinnedHTTPSConnection
         if parts.scheme == "https"
@@ -251,47 +264,19 @@ def _pinned_open(cfg, path, body, wire):
 
 
 def _enterprise_open(provider, cfg, path, body, wire):
-    url = cfg["base_url"].rstrip("/") + path
-    host = urlsplit(url).hostname
-    try:
-        local = host == "localhost" or ipaddress.ip_address(host).is_loopback
-    except ValueError:
-        local = host == "localhost"
-
-    class TrackedConnection:
-        def __init__(self, *args, **kwargs):
-            kwargs["timeout"] = wire.timeout(CONNECT_SECONDS)
-            super().__init__(*args, **kwargs)
-            wire.install(connection=self)
-
-        def connect(self):
-            super().connect()
-            self.sock.settimeout(wire.timeout(IDLE_SECONDS))
-
-    class HTTP(TrackedConnection, http.client.HTTPConnection):
-        pass
-
-    class HTTPS(TrackedConnection, http.client.HTTPSConnection):
-        pass
-
-    class HTTPHandler(urllib.request.HTTPHandler):
-        def http_open(self, req):
-            return self.do_open(HTTP, req)
-
-    class HTTPSHandler(urllib.request.HTTPSHandler):
-        def https_open(self, req):
-            return self.do_open(HTTPS, req, context=self._context)
-
-    handlers = [ai.NoRedirect(), HTTPHandler(), HTTPSHandler()]
-    if local:
-        handlers.append(urllib.request.ProxyHandler({}))
-    headers = {"Content-Type": "application/json", "Accept": "application/json"}
-    if cfg.get("api_key") and provider != "ollama":
-        headers["Authorization"] = "Bearer " + cfg["api_key"]
-    req = urllib.request.Request(url, data=json.dumps(body).encode(), headers=headers)
-    response = urllib.request.build_opener(*handlers).open(req, timeout=wire.timeout(IDLE_SECONDS))
-    wire.install(response=response)
-    return response
+    endpoint = enterprise_url(provider, cfg["base_url"])
+    # Keep the cancellable connection registration and bounded reads, while
+    # using the same approved, DNS-pinned destination policy as every model call.
+    return _pinned_open(
+        {
+            **cfg,
+            "base_url": endpoint,
+            "api_key": cfg.get("api_key", "") if provider != "ollama" else "",
+        },
+        path,
+        body,
+        wire,
+    )
 
 
 def _check_status(response):

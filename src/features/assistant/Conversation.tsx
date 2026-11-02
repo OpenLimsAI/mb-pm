@@ -1,5 +1,6 @@
+import type { AnswerMode } from '../answerModes/types'
 import { AnswerEvidence } from '../answerModes/AnswerTools'
-import { ArrowRight, Copy, FileText, PanelRightOpen, Paperclip, Sparkles } from 'lucide-react'
+import { Copy, PanelRightOpen, Paperclip, Sparkles } from 'lucide-react'
 import type { AssistantArtifact, AssistantMessage } from './client'
 import MarkdownView from './MarkdownView'
 
@@ -9,6 +10,9 @@ interface Props {
   userName: string
   onCopy: (content: string) => void
   onArtifact: (id: string) => void
+  onSource?: (path: string) => void
+  onReask?: (question: string, context: string, mode: AnswerMode) => void
+  busy?: boolean
 }
 
 // Pair only the answer belonging to the preceding question. Preserve unmatched
@@ -24,7 +28,7 @@ function conversationTurns(messages: AssistantMessage[]) {
 }
 
 const dateFormat = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' })
-export default function Conversation({ messages, artifacts, userName, onCopy, onArtifact }: Props) {
+export default function Conversation({ messages, userName, onCopy, onArtifact, onSource, onReask, busy }: Props) {
   return <div className="aa-turn-list">{conversationTurns(messages).map((turn, index) => {
     const started = new Date(turn[0].createdAt)
     return <section key={turn[0].id} className="aa-turn" aria-label={`第 ${index + 1} 轮对话`}>
@@ -36,8 +40,10 @@ export default function Conversation({ messages, artifacts, userName, onCopy, on
       </article> : <article key={message.id} className="aa-message aa-assistant-message" aria-label="AI 回答">
         <div className="aa-message-overline"><span className="aa-mini-avatar aa-bot-avatar"><Sparkles size={14} /></span><strong>AI 回答</strong><span>{message.mode === 'preview' ? '演示' : message.model}</span></div>
         <AnswerEvidence answer={message} preview={message.mode === 'preview'} part="status" showSourceScope /><MarkdownView>{message.content}</MarkdownView><AnswerEvidence answer={message} preview={message.mode === 'preview'} part="sources" />
-        <button type="button" className="aa-artifact-card" onClick={() => onArtifact(message.id)}><span><FileText size={19} /></span><div><strong>{artifacts.find(a => a.id === message.id)?.title || '本轮产物'}</strong><small>查看完整内容 · Markdown</small></div><ArrowRight size={16} /></button>
+        {message.sourceSummary && (message.sourceSummary.materialCount != null || message.usedSources?.includes('knowledge') || !!message.knowledgeReferences?.length) && <p className="aa-source-summary">{message.sourceSummary.materialCount != null ? `知识库共 ${message.sourceSummary.materialCount} 份资料（含论文及其他文档） · ` : ''}本轮目录返回 {message.sourceSummary.cataloguedCount || 0} 项 · 检索命中 {message.sourceSummary.retrievedCount || 0} 份 · 阅读 {message.sourceSummary.readCount || 0} 份 · 可核验引用 {message.sourceSummary.citedCount || 0} 份{message.sourceSummary.truncated ? ' · 来源列表已截取，并非完整清单' : ''}</p>}
+        {!!message.knowledgeReferences?.length && <details className="aa-knowledge-sources"><summary>查看本轮知识库来源</summary>{message.knowledgeReferences.map(source => <button type="button" key={source.path} className="aa-button" onClick={() => onSource?.(source.path)}>{source.title} · {source.cited ? '已引用' : source.kind === 'read' ? '已阅读' : source.kind === 'retrieved' ? '检索命中' : '目录条目'}</button>)}</details>}
         <div className="aa-message-actions"><button type="button" onClick={() => onCopy(message.content)}><Copy size={13} />复制回答</button><button type="button" onClick={() => onArtifact(message.id)}><PanelRightOpen size={13} />查看产物</button></div>
+        {onReask && turn[0].role === 'user' && <details className="aa-reask"><summary>换个范围重新回答</summary><p>重新回答会生成新一轮，原回答仍保留。</p>{([{ mode: 'general', label: '通用回答' }, { mode: 'knowledge', label: '仅知识库' }, { mode: 'web', label: '联网检索' }] as const).map(option => <button type="button" className="aa-button" key={option.mode} disabled={busy} onClick={() => onReask(turn[0].content, turn[0].context, option.mode)}>改用{option.label}重新回答</button>)}</details>}
       </article>)}
     </section>
   })}</div>

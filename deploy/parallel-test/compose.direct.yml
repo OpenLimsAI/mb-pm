@@ -1,8 +1,8 @@
-# IP 直连应急入口 —— Cloudflare 隧道不可用时，用户直接访问服务器公网 IP：
-#   项目管理  https://36.154.190.9:8443        IAM 登录  https://36.154.190.9:18443
-# （这台服务器的 80 / 443 入站被封，8443 / 18443 可达。）
+# 受限应急入口：仅绑定服务器回环地址，通过已认证 SSH 通道维护。
+# 不再向公网暴露 8443/18443；正常用户继续通过 Cloudflare 域名访问。
+# 内部 CA 证书必须验证；不得关闭 TLS 校验或指导用户忽略浏览器证书错误。
+# SSH 维护示例与发布/回滚步骤见 ../security/README.md。
 #
-# - 证书为 Caddy 内置 CA 签发的自签名证书：浏览器首次访问提示不安全，点「高级 → 继续访问」。
 # - 与域名入口共用同一数据库和 IAM，两个入口的数据实时一致。
 # - token 的签发方（issuer）仍是 https://iam.openlims.ai；应用发往签发方的浏览器跳转
 #   由 direct-proxy 改写到本入口的 :18443（见 direct/Caddyfile），无需改代码。
@@ -67,8 +67,8 @@ services:
       casdoor:
         condition: service_started
     ports:
-      - "0.0.0.0:8443:8443"
-      - "0.0.0.0:18443:18443"
+      - "127.0.0.1:8443:8443"
+      - "127.0.0.1:18443:18443"
     volumes:
       - ./direct/Caddyfile:/etc/caddy/Caddyfile:ro
       - direct_caddy_data:/data   # 内置 CA 与证书持久化，重启后证书不变

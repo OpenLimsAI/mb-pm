@@ -1,19 +1,24 @@
 # CTO Lite 后端运行依赖 —— 默认 SQLite，零外部数据库，开箱即跑。
-fastapi==0.115.0
-uvicorn[standard]==0.32.0
+fastapi==0.162.0
+starlette==1.10.0
+uvicorn[standard]==0.54.0
 
 # 数据层（SQLite 内置于 Python 标准库，无需额外驱动）
 sqlalchemy==2.0.36
+# Explicit platform dependencies so the same hashed lock installs on Linux/Python 3.11.
+greenlet==3.5.6
+importlib-metadata==10.1.0
+zipp==4.1.2
 
 # 数据校验
-pydantic==2.9.2
-pydantic-settings==2.6.0
+pydantic==2.14.2
+pydantic-settings==2.16.2
 email-validator==2.2.0
 
 # 认证（mb-casd / Casdoor IAM：RS256 JWT 验签 + 会话令牌加密；httpx 用于换取授权码、拉取 JWKS）
-python-jose[cryptography]==3.3.0
-httpx==0.27.2
-python-multipart==0.0.12
+python-jose[cryptography]==3.5.0
+httpx==0.28.1
+python-multipart==0.0.33
 
 # 业务
 openpyxl==3.1.5                   # 模板 Excel 导入/导出
@@ -21,13 +26,13 @@ python-dateutil==2.9.0
 
 # PostgreSQL 驱动（部署默认数据库；binary 轮子自带 libpq，无需系统依赖）
 # SQLite 仍是默认本地后端，装上它不影响 SQLite 运行。
-psycopg[binary]==3.2.3
+psycopg[binary]==3.3.6
 
 # 数据库迁移（PostgreSQL 部署时由 `alembic upgrade head` 建表/迁移；SQLite 本地走自动建表）
-alembic==1.13.3
+alembic==1.20.1
 
 # —— 可选（按需安装）——
-# 开发/测试：             pytest==8.3.3  ruff==0.7.0（见 requirements-dev.txt）
+# 开发/测试：             pytest==9.2.0  ruff==0.7.0（见 requirements-dev.txt）
 
 # 公开 PDF 正文解析（独立受限进程；扫描件明确待 OCR）
-pypdf==6.21.2
+pypdf==6.21.4

@@ -1,9 +1,8 @@
-"""临时密码须先修改：标记、检查、本人改密与会话失效，门户 / 项目管理 / 账号管理共用。
+"""Shared temporary-password policy and provider-wide password revocation.
 
-账号管理新建账号或重置密码后写入标记；本人在门户或项目管理里用临时密码改成新密码后清除。
-不用 Casdoor 的「需要更新密码」：3.100.0 打开它后，托管登录页会把人带到 IAM 自己的「我的账户」页、
-不再回到应用（刷新也停在那里）。标记期间后端只放行查询身份、改密码和退出（Bearer 访问同样拦截）。
-知识库等其他应用直接登录时不受此限制。
+IAM needUpdatePassword is authoritative across applications. Local markers also
+protect existing accounts until the live IAM password timestamp proves completion.
+Successful changes end every session, including the initiating browser.
 """
 
 import time
@@ -16,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.security import unseal
 from app.models import IAMSession, PasswordChangeRequired, PortalSession
-from app.services import iam_admin
+from app.services import iam_admin, oidc_logout
 
 CHANGE_FIRST = "管理员为你设置了临时密码，请先修改密码后再继续"
 # 标记期间仍可调用的接口（其余返回 403）
@@ -46,6 +45,33 @@ def change_required(db: Session, subject: str | None) -> bool:
         bool(subject)
         and db.get(PasswordChangeRequired, (settings.casdoor_issuer, subject)) is not None
     )
+
+
+def observe_identity(db: Session, claims: dict) -> bool:
+    """Consume only state attached by the fresh, subject-bound IAM status check."""
+    state = claims.get("_iam_password_state")
+    if not isinstance(state, dict):
+        return False
+    marker = db.get(PasswordChangeRequired, (settings.casdoor_issuer, claims["sub"]))
+    if state["required"] and marker is None:
+        require_change(db, claims["sub"], "iam")
+        db.flush()
+        return True
+    if not state["required"] and marker and state["changed_at"] >= marker.required_at:
+        db.delete(marker)
+        db.flush()
+        return True
+    return False
+
+
+def revoke_local_authorizations(db: Session, subject: str) -> int:
+    """Shared database markers cover PM/portal/delegated Bearer tokens on all instances."""
+    now = int(time.time())
+    for audience in {settings.CASDOOR_CLIENT_ID, settings.portal_client_id} - {""}:
+        oidc_logout.apply_revocation(
+            db, {"iss": settings.casdoor_issuer, "sub": subject, "iat": now}, audience
+        )
+    return end_sessions(db, subject)
 
 
 def flagged_subjects(db: Session) -> set[str]:
@@ -89,12 +115,22 @@ def end_sessions(db: Session, subject: str, keep: set[str] = frozenset()) -> int
 def change_own_password(
     db: Session, subject: str, current: str, new: str, keep: set[str] = frozenset()
 ) -> None:
-    """本人改密：Casdoor 校验当前密码与组织密码规则；成功后清除标记，其他设备上的会话退出。
+    """Verify the current password, change it, then revoke all app/SSO authorizations.
 
-    必须带当前密码：应用凭据调用 set-password 时若旧密码为空，Casdoor 不做校验（管理员重置正是如此）。
+    `keep` is retained only for API compatibility and deliberately ignored.
+    A password change cannot be rolled back on a provider outage. Persist local
+    revocation even if the provider cleanup fails, and never report that as success.
     """
     account = iam_admin.get_user_by_sub(subject)
+    iam_admin.check_revocation_available(account)
     iam_admin.set_password(account["name"], current, new)
     clear_change(db, subject)
-    end_sessions(db, subject, keep)
+    revoke_local_authorizations(db, subject)
     db.commit()
+    try:
+        iam_admin.revoke_user_authorizations(subject)
+    except (iam_admin.IAMError, HTTPException):
+        raise HTTPException(
+            503,
+            "密码已修改且本系统会话已退出，但统一身份会话撤销未完成，请联系管理员处理，勿重复提交旧密码",
+        ) from None

@@ -54,6 +54,8 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     from app.services.oidc_status import ensure_active_token
 
     ensure_active_token(token, claims, expected_audience=settings.CASDOOR_CLIENT_ID)
+    if password_policy.observe_identity(db, claims):
+        db.commit()
     user = resolve_identity(claims, db)
     password_policy.enforce(db, claims["sub"], request.url.path)
     return user

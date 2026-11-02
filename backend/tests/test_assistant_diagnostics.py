@@ -201,25 +201,37 @@ def test_unexpected_exception_is_sanitized_and_context_resets(events):
     assert diag.CURRENT.get() is None
 
 
-@pytest.mark.parametrize("wrapped", [False, True])
-def test_enterprise_transport_recognizes_socket_and_url_timeouts(monkeypatch, events, wrapped):
-    import urllib.error
+@pytest.mark.parametrize("read_timeout", [False, True])
+def test_enterprise_transport_recognizes_socket_and_read_timeouts(
+    monkeypatch, events, read_timeout
+):
+    from app.services import solution_ai
 
-    failure = TimeoutError("SECRET")
-    if wrapped:
-        failure = urllib.error.URLError(failure)
+    class Connection:
+        def __init__(self, *args, **kwargs):
+            self.sock = self
 
-    class Opener:
-        def open(self, *a, **kw):
-            raise failure
+        def settimeout(self, seconds):
+            pass
 
-    monkeypatch.setattr(ai.urllib.request, "build_opener", lambda *a: Opener())
+        def request(self, *args, **kwargs):
+            if not read_timeout:
+                raise TimeoutError("SECRET")
+
+        def getresponse(self):
+            raise TimeoutError("SECRET")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(solution_ai, "resolved_addresses", lambda *a, **kw: ["8.8.8.8"])
+    monkeypatch.setattr(solution_ai, "PinnedHTTPSConnection", Connection)
     with pytest.raises(HTTPException) as exc, diag.request_scope(uuid4()):
         try:
             diag.model_call(
                 ai.request,
                 "deepseek",
-                {"base_url": "https://api.test", "api_key": "SECRET"},
+                {"base_url": "https://api.deepseek.com", "api_key": "SECRET"},
                 "/chat/completions",
                 {},
                 timeout=60,

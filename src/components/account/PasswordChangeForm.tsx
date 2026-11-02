@@ -39,7 +39,7 @@ export function PasswordChangeForm({ submit, disabled = false, className, title 
       setCurrent('')
       setNext('')
       setConfirm('')
-      setNotice(successNotice ?? '密码已修改。其他设备上的登录已退出，下次登录请使用新密码。')
+      setNotice(successNotice ?? '密码已修改，所有登录已退出，请使用新密码重新登录。')
       setBusy(false)
       onDone?.()
     } catch (err) {

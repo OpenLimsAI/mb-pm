@@ -214,10 +214,11 @@ def test_workbench_migration_is_idempotent(solution_client):
     from alembic.migration import MigrationContext
     from alembic.operations import Operations
 
-    path = Path(__file__).parents[1] / "alembic/versions/2026_11_02_0200-017_report_workbench.py"
+    path = Path(__file__).parents[1] / "alembic/versions/2026_11_02_0400-019_report_workbench.py"
     spec = importlib.util.spec_from_file_location("report_workbench_migration", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    assert module.revision == "019" and module.down_revision == "018"
     engine = create_engine("sqlite://")
     with engine.begin() as connection:
         connection.execute(text("CREATE TABLE knowledge_solutions (id VARCHAR(64) PRIMARY KEY)"))

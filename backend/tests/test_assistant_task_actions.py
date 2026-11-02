@@ -108,6 +108,9 @@ def test_owner_can_trash_and_restore_without_reading_protected_messages(
             "updated_at",
             "deleted_at",
             "message_count",
+            "memory",
+            "pinned",
+            "final_artifact_id",
         }
         assert payload["message_count"] == len(original)
         assert CONTENT not in response.text and CONTEXT not in response.text

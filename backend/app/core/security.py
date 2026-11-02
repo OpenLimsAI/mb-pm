@@ -132,7 +132,7 @@ def decode_access_token(
 
 
 def pm_role(claims: dict) -> str:
-    """令牌中本组织启用的项目管理角色里最高的一个；没有则为默认的员工角色。"""
+    """当前身份中本组织启用的最高项目角色；生产请求以实时 IAM 状态覆盖 JWT 快照。"""
     entries = claims.get("roles")
     held = {
         r.get("name")

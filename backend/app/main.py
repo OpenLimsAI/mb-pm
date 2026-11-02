@@ -41,6 +41,7 @@ from app.core.auth_logging import CallbackQueryFilter, audit_auth_request
 from app.core.config import settings
 from app.db.base import Base
 from app.db.session import SessionLocal, engine
+from app.middleware.request_limits import RequestLimitsMiddleware
 from app.models import User
 
 logging.basicConfig(level=settings.LOG_LEVEL)
@@ -86,6 +87,12 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("assistant_messages", "web_references", "JSON NOT NULL DEFAULT '[]'"),
     ("assistant_messages", "application_scope", "JSON NOT NULL DEFAULT '{}'"),
     ("assistant_tasks", "active_request_id", "VARCHAR(64)"),
+    ("assistant_tasks", "memory", "TEXT NOT NULL DEFAULT ''"),
+    ("assistant_tasks", "pinned", "BOOLEAN NOT NULL DEFAULT false"),
+    ("assistant_tasks", "final_artifact_id", "VARCHAR(64)"),
+    ("assistant_messages", "knowledge_references", "JSON NOT NULL DEFAULT '[]'"),
+    ("assistant_messages", "source_summary", "JSON NOT NULL DEFAULT '{}'"),
+    ("assistant_requests", "first_content_at", "TIMESTAMP WITH TIME ZONE"),
     ("solution_answers", "answer_mode", "VARCHAR(20) NOT NULL DEFAULT ''"),
     ("solution_answers", "requested_mode", "VARCHAR(20) NOT NULL DEFAULT ''"),
     ("solution_answers", "mode_reason", "VARCHAR(200) NOT NULL DEFAULT ''"),
@@ -167,9 +174,9 @@ def _backfill_team_members() -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     # 建表（SQLite 首次运行即创建文件）
-    Base.metadata.create_all(bind=engine)
-    # 老库补齐新增列
-    _ensure_schema()
+    if settings.AUTO_MIGRATE_SCHEMA:
+        Base.metadata.create_all(bind=engine)
+        _ensure_schema()
 
     # 库为空则灌种子（幂等：已有数据时不覆盖用户编辑/新建项目）
     if settings.AUTO_SEED:
@@ -186,9 +193,9 @@ async def lifespan(_: FastAPI):
         else:
             logger.info("数据库已有数据 → 跳过种子")
     # 任务手动顺序：老数据 / 种子补齐顺序号（幂等）
-    _backfill_task_order()
-    # 项目团队：有任务的人补入团队名单（幂等）
-    _backfill_team_members()
+    if settings.AUTO_MIGRATE_SCHEMA:
+        _backfill_task_order()
+        _backfill_team_members()
     worker = None
     if settings.INFORMATION_APP_ENABLED and settings.INFORMATION_WORKER_ENABLED:
         from app.services.information.worker import start_worker
@@ -237,6 +244,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+app.add_middleware(RequestLimitsMiddleware)
 app.middleware("http")(audit_auth_request)
 
 app.add_middleware(
@@ -279,6 +288,12 @@ async def knowledge_notes_cors(request, call_next):
 async def prevent_auth_response_caching(request, call_next):
     # API 响应均依赖登录身份：禁止缓存，且不向外泄露 Referer。
     response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Content-Security-Policy"] = (
+        "object-src 'none'; base-uri 'self'; frame-ancestors 'self' https://www.openlims.ai https://pm.openlims.ai"
+    )
     if request.url.path.startswith("/api/v1/"):
         response.headers["Cache-Control"] = "no-store"
         response.headers["Referrer-Policy"] = "no-referrer"

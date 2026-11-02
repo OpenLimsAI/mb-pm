@@ -28,6 +28,6 @@ export default function PortalGate() {
   if (!USE_API || status === 'anonymous') return <Navigate to="/login" state={{ from: location.pathname + location.search + location.hash }} replace />
   if (status === 'error') return <IdentityProblem message={error} onLogout={logout} />
   if (status !== 'ready' || !user) return <BootSplash message="正在确认登录身份 …" />
-  if (mustChangePassword) return <ForcedPasswordChange name={user.displayName} submit={changePortalPassword} onDone={() => { void refresh() }} onLogout={logout} />
+  if (mustChangePassword) return <ForcedPasswordChange name={user.displayName} submit={changePortalPassword} onDone={() => window.location.assign('/login?signed_out=1&password_changed=1')} onLogout={logout} />
   return <>{refreshError && <IdentityRetryNotice message={refreshError} onRetry={() => { void refresh() }} />}<Outlet context={{ user, identityNamespace, applications, preview: false, refresh, logout } satisfies PortalContext} /></>
 }

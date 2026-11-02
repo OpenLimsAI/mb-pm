@@ -77,3 +77,32 @@
   #knowledge-source-app .kso-catalog-download > .kso-actions .kso-btn { flex: 1; }
 }
 @media (prefers-reduced-motion: reduce) { #knowledge-source-app .kso-spin { animation: none; } }
+
+/* Catalogue choices remain readable at the same density as the saved-paper list. */
+#knowledge-source-app .kso-catalog-compact .kso-catalog-row { padding-block: 8px; gap: 12px; }
+#knowledge-source-app .kso-catalog-compact .kso-catalog-document strong { line-height: 1.45; }
+#knowledge-source-app .kso-catalog-compact .kso-catalog-document small { margin-top: 2px; line-height: 1.4; }
+#knowledge-source-app .kso-catalog-compact .kso-catalog-row-meta { gap: 3px; }
+#knowledge-source-app .kso-catalog-document strong > .kso-chip { margin-left: 7px; font-size: 10px; }
+#knowledge-source-app .kso-catalog-scopes > button small { margin-left: 7px; padding: 0 4px; border-radius: 3px; background: #e9eff4; color: #526f85; }
+#knowledge-source-app .kso-selection-summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 20px; border-bottom: 1px solid #dce7f0; background: #f0f7fb; }
+#knowledge-source-app .kso-selection-summary > div { display: grid; gap: 3px; font-size: 12px; color: #45647b; }
+#knowledge-source-app .kso-selection-summary small { color: #8d682b; }
+#knowledge-source-app .kso-catalog-destination { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 12px; color: #45647b; }
+#knowledge-source-app .kso-catalog-destination select { min-height: 30px; padding: 3px 8px; max-width: 220px; }
+#knowledge-source-app .kso-catalog-row-links { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+#knowledge-source-app .kso-catalog-row-links button { padding: 0; border: 0; background: none; color: #087b9c; font-size: 11px; cursor: pointer; }
+#knowledge-source-app .kso-catalog-row-links button:disabled { opacity: .5; cursor: default; }
+#knowledge-source-app .kso-official-warning { color: #986520; font-weight: 600; }
+#knowledge-source-app .kso-schedule { display: grid; gap: 10px; border: 1px solid #dfe7ed; border-radius: 7px; padding: 13px; min-width: 0; }
+#knowledge-source-app .kso-schedule legend { padding: 0 6px; font-size: 12px; font-weight: 600; color: #45647b; }
+#knowledge-source-app .kso-schedule .kso-field { max-width: 280px; }
+#knowledge-source-app .kso-schedule p { margin: 0; line-height: 1.7; }
+#knowledge-source-app .kso-catalog-tools .kso-select { max-width: min(100%, 190px); }
+@media (max-width: 620px) {
+  #knowledge-source-app .kso-selection-summary { align-items: flex-start; flex-wrap: wrap; padding-inline: 16px; }
+  #knowledge-source-app .kso-catalog-row-links { gap: 8px; }
+  #knowledge-source-app .kso-catalog-destination small { width: 100%; }
+  #knowledge-source-app .kso-catalog-compact .kso-catalog-row { padding-block: 8px; gap: 4px; }
+  #knowledge-source-app .kso-catalog-row-meta > .kso-chip { white-space: normal; }
+}

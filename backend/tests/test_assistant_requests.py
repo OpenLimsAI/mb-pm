@@ -77,7 +77,9 @@ def test_queue_survives_reopen_and_only_worker_generates(assistant_client, monke
     assert called == [1] and f.db.get(AssistantTask, task["id"]).active_request_id is None
 
 
-def test_failure_keeps_question_but_does_not_publish_partial(assistant_client, monkeypatch):
+def test_failure_retains_owned_incomplete_draft_without_publishing_answer(
+    assistant_client, monkeypatch
+):
     from app.services import ai
 
     f = assistant_client
@@ -98,7 +100,8 @@ def test_failure_keeps_question_but_does_not_publish_partial(assistant_client, m
     f.db.expire_all()
     state = f.client.get(f"{PREFIX}/{task['id']}/requests/{payload['request_id']}").json()
     assert state["status"] == "failed" and state["question"] == payload["question"]
-    assert state["partial_content"] == "" and "SECRET" not in json.dumps(state)
+    assert state["partial_content"] == "未完成的正文" and "SECRET" not in json.dumps(state)
+    assert state["can_continue"] is True and state["error_code"] == "model_timeout"
     assert len(state["diagnostic_id"]) == 32
     assert f.client.get(f"{PREFIX}/{task['id']}").json()["messages"] == []
     assert f.db.get(AssistantTask, task["id"]).active_request_id is None
@@ -124,7 +127,7 @@ def test_migration_016_repeatable_additive_and_refuses_to_drop_requests():
             module.upgrade()
             assert {
                 c["name"] for c in inspect(connection).get_columns("assistant_requests")
-            } == set(AssistantRequest.__table__.columns.keys())
+            } == set(AssistantRequest.__table__.columns.keys()) - {"first_content_at"}
             assert connection.execute(
                 text("SELECT legacy,active_request_id FROM assistant_tasks WHERE id='old'")
             ).one() == ("KEEP", None)

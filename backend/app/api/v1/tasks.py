@@ -20,6 +20,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.schemas.business_values import validate_date_patch
+
 from app.api.deps import get_current_user, require_role
 from app.db.session import get_db
 from app.models import AuditLog, Project, SubProject, Task, User
@@ -204,6 +206,7 @@ def update_task(
         sub = db.query(SubProject).filter_by(id=task.sub_project_id).first()
         ensure_in_team(db, db.get(Project, sub.project_id), added)
 
+    validate_date_patch(task, changes)
     old_status = task.status
     for k, v in changes.items():
         setattr(task, k, v)

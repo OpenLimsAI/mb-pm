@@ -84,7 +84,10 @@ def test_special_and_metadata_networks_are_denied(address):
         ("https://模型.example/v1", "https://xn--xgs754b.example/v1"),
     ],
 )
-def test_valid_urls_are_canonicalized_without_changing_destination(supplied, expected):
+def test_valid_urls_are_canonicalized_without_changing_destination(supplied, expected, monkeypatch):
+    from urllib.parse import urlsplit
+    parts = urlsplit(expected)
+    monkeypatch.setenv("AI_ALLOWED_INTERNAL_ORIGINS", f"{parts.scheme}://{parts.netloc}")
     assert model_url(supplied) == expected
 
 
@@ -157,7 +160,7 @@ def test_dns_resolution_deduplicates_and_preserves_safe_addresses(monkeypatch):
         return dns_records("8.8.8.8", "8.8.8.8", "192.168.1.5")
 
     monkeypatch.setattr(solution_ai.socket, "getaddrinfo", lookup)
-    assert solution_ai.resolved_addresses("model.example", 8443) == ["8.8.8.8", "192.168.1.5"]
+    assert solution_ai.resolved_addresses("model.example", 8443, allow_private=True) == ["8.8.8.8", "192.168.1.5"]
     assert calls == [("model.example", 8443, {"type": socket.SOCK_STREAM})]
 
 
@@ -206,7 +209,7 @@ def config(base_url="https://model.example:8443/api/v1"):
     return {"base_url": base_url, "model": "self-hosted", "api_key": "fake-secret"}
 
 
-def mock_wire(monkeypatch, wire, *, resolved="192.168.2.5"):
+def mock_wire(monkeypatch, wire, *, resolved="8.8.8.8"):
     dns_calls, socket_calls, tls_calls = [], [], []
 
     def lookup(host, port, **kwargs):
@@ -245,7 +248,7 @@ def test_https_uses_one_dns_pin_original_host_and_sni_ignoring_proxy(monkeypatch
     result = solution_ai.pinned_request("custom", config(), "/chat/completions", body, timeout=9)
     assert result["choices"][0]["message"]["content"] == "ok"
     assert dns_calls == [("model.example", 8443)]
-    assert socket_calls == [(("192.168.2.5", 8443), 9)]
+    assert socket_calls == [(("8.8.8.8", 8443), 9)]
     assert tls_calls == [(wire, "model.example")]
     headers, encoded = bytes(wire.sent).split(b"\r\n\r\n", 1)
     assert headers.startswith(b"POST /api/v1/chat/completions HTTP/1.1\r\n")
@@ -259,6 +262,7 @@ def test_https_uses_one_dns_pin_original_host_and_sni_ignoring_proxy(monkeypatch
 
 
 def test_literal_http_self_host_uses_no_dns_or_tls_and_supports_no_key(monkeypatch):
+    monkeypatch.setenv("AI_ALLOWED_INTERNAL_ORIGINS", "http://127.0.0.1:11434")
     wire = WireSocket()
     dns_calls, socket_calls, tls_calls = mock_wire(monkeypatch, wire)
     cfg = {**config("http://127.0.0.1:11434/v1"), "api_key": ""}

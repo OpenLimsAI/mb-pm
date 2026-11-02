@@ -122,8 +122,7 @@ def list_roles() -> list[dict]:
 def create_user(name: str, display_name: str, password: str, email: str) -> dict:
     """建普通账号；Casdoor 负责密码哈希与组织的密码规则。返回新账号（含 sub）。
 
-    不打开 Casdoor 的「需要更新密码」：3.100.0 打开后登录会被带到 IAM 自己的「我的账户」页、不回到应用。
-    首次登录改密由本系统完成（services/password_policy.py）。
+    needUpdatePassword 由 IAM 统一执行，其他应用直登同样必须先修改临时密码。
     """
     _call(
         "POST",
@@ -135,6 +134,7 @@ def create_user(name: str, display_name: str, password: str, email: str) -> dict
             "password": password,
             "email": email,
             "type": "normal-user",
+            "needUpdatePassword": True,
         },
     )
     user = get_user_by_name(name)
@@ -203,3 +203,74 @@ def name_shared_across_orgs(name: str) -> bool:
                 if member_name == name and owner != settings.CASDOOR_ORG:
                     return True
     return False
+
+
+def _authorization_records(account: dict, *, sessions: bool) -> list[dict]:
+    """Only retain target user's non-secret identifiers from the IAM admin response.
+
+    Casdoor v3.152.0 only applies field/value when pagination is specified. Its
+    filter may return partial matches: recheck organization and exact username.
+    """
+    path = "get-sessions" if sessions else "get-tokens"
+    records = []
+    for page in range(1, 101):
+        params = {
+            "owner": settings.CASDOOR_ORG if sessions else "",
+            "field": "name" if sessions else "user",
+            "value": account["name"],
+            "pageSize": "100",
+            "p": str(page),
+        }
+        if not sessions:
+            params["organization"] = settings.CASDOOR_ORG
+        rows = _call("GET", path, params=params).get("data")
+        if not isinstance(rows, list):
+            raise IAMError("IAM 会话列表格式无效")
+        for row in rows:
+            if not isinstance(row, dict):
+                raise IAMError("IAM 会话列表格式无效")
+            if sessions:
+                if row.get("owner") != account["owner"] or row.get("name") != account["name"]:
+                    continue
+                keys = ("owner", "name", "application")
+            else:
+                if (
+                    row.get("organization") != account["owner"]
+                    or row.get("user") != account["name"]
+                ):
+                    continue
+                keys = ("owner", "name", "organization")
+            if any(not isinstance(row.get(key), str) or not row[key] for key in keys):
+                raise IAMError("IAM 会话标识无效")
+            records.append({key: row[key] for key in keys})
+        if len(rows) < 100:
+            return records
+    raise IAMError("IAM 会话数量超出安全处理范围，请联系管理员")
+
+
+def check_revocation_available(account: dict) -> None:
+    """Preflight before changing a password; no credentials are exposed or logged."""
+    _authorization_records(account, sessions=True)
+    _authorization_records(account, sessions=False)
+
+
+def revoke_user_authorizations(subject: str) -> None:
+    """Delete only this immutable subject's SSO sessions and access/refresh records.
+
+    SSO is removed first to prevent silent reauthentication. A second enumeration
+    also catches token rotations racing with cleanup. Non-convergence is an error.
+    """
+    account = get_user_by_sub(subject)
+    for _ in range(3):
+        sessions = _authorization_records(account, sessions=True)
+        tokens = _authorization_records(account, sessions=False)
+        if not sessions and not tokens:
+            return
+        for item in sessions:
+            _call("POST", "delete-session", json=item)
+        for item in tokens:
+            _call("POST", "delete-token", json=item)
+    if _authorization_records(account, sessions=True) or _authorization_records(
+        account, sessions=False
+    ):
+        raise IAMError("IAM 仍存在登录授权，撤销尚未完成")

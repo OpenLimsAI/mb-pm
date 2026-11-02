@@ -17,7 +17,7 @@ class LocalPdfData {
 export async function readPdfText(buffer: ArrayBuffer, signal?: AbortSignal): Promise<string> {
   const header = new TextDecoder().decode(buffer.slice(0, 1024))
   if (!header.includes('%PDF-')) throw new Error('Invalid PDF header')
-  const task = getDocument({ data: new Uint8Array(buffer), BinaryDataFactory: LocalPdfData, isEvalSupported: false, useWorkerFetch: false, stopAtErrors: true })
+  const task = getDocument({ data: new Uint8Array(buffer), BinaryDataFactory: LocalPdfData, useWorkerFetch: false, stopAtErrors: true })
   const cancel = () => { void task.destroy() }
   signal?.addEventListener('abort', cancel, { once: true })
   try {

@@ -90,7 +90,7 @@ def test_settings_secrets_preserved_cleared_and_not_forwarded(client, auth_heade
     payload["providers"]["deepseek"]["api_key"] = ""
     client.put("/api/v1/ai/settings", json=payload, headers=auth_headers)
     assert ai.load_settings()["providers"]["deepseek"]["api_key"] == "test-secret-not-real"
-    payload["providers"]["deepseek"]["base_url"] = "https://changed.example/v1"
+    payload["providers"]["deepseek"]["base_url"] = "https://api.deepseek.com/v1"
     client.put("/api/v1/ai/settings", json=payload, headers=auth_headers)
     assert not ai.load_settings()["providers"]["deepseek"]["api_key"]
     payload["providers"]["deepseek"].update(api_key="replacement", clear_key=False)
@@ -111,7 +111,7 @@ def test_settings_validation_and_permissions(client, auth_headers):
     assert client.put("/api/v1/ai/settings", json=payload, headers=auth_headers).status_code == 422
 
 
-def test_real_http_transports_and_connection_check(client, auth_headers):
+def test_real_http_transports_and_connection_check(client, auth_headers, monkeypatch):
     calls = []
 
     class Handler(BaseHTTPRequestHandler):
@@ -142,6 +142,7 @@ def test_real_http_transports_and_connection_check(client, auth_headers):
             )
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    monkeypatch.setenv("AI_ALLOWED_INTERNAL_ORIGINS", f"http://127.0.0.1:{server.server_port}")
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:

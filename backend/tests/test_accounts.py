@@ -152,11 +152,11 @@ class FakeCasdoor:
     def _add_user(self, params, body, form):
         assert body["owner"] == ORG and body["type"] == "normal-user"
         # 不打开 Casdoor 的「需要更新密码」（会把人带到 IAM 自己的页面），首次改密由本系统完成
-        assert "needUpdatePassword" not in body and "isAdmin" not in body
+        assert body["needUpdatePassword"] is True and "isAdmin" not in body
         if body["name"] in self.users:
             return self.error("用户名已存在")
         self.add(body["name"], display=body["displayName"], email=body["email"])
-        self.users[body["name"]].update(password=body["password"])
+        self.users[body["name"]].update(password=body["password"], needUpdatePassword=True)
         return self.ok("Affected")
 
     def _update_user(self, params, body, form):
@@ -188,12 +188,23 @@ class FakeCasdoor:
         if form["oldPassword"] and user["password"] != form["oldPassword"]:
             return self.error("密码或验证码错误")
         user["password"] = form["newPassword"]
+        user["needUpdatePassword"] = False
         return self.ok()
 
     def _delete_user(self, params, body, form):
         assert body["owner"] == ORG
         self.users.pop(body["name"])  # 真实 Casdoor 不清理角色成员
         return self.ok("Affected")
+
+    def _get_sessions(self, params, body, form):
+        assert params["owner"] == ORG and params["field"] == "name"
+        assert params["pageSize"] == "100" and params["p"] == "1"
+        return self.ok([])
+
+    def _get_tokens(self, params, body, form):
+        assert params["organization"] == ORG and params["field"] == "user"
+        assert params["pageSize"] == "100" and params["p"] == "1"
+        return self.ok([])
 
     def _get_permissions(self, params, body, form):
         return self.ok([])
@@ -642,7 +653,6 @@ def test_inactive_account_cannot_be_repaired(client, casdoor, admin):
     [
         ("username", "update-user"),
         ("password", "set-password"),
-        ("repair", "update-user"),
         ("delete", "delete-user"),
     ],
 )
@@ -904,7 +914,7 @@ def test_create_maps_identity_and_opens_both_apps(
     assert client.post(URL, json=body, headers=headers).status_code == 204
     name = body["username"]
     user = casdoor.users[name]
-    assert user["password"] == "Welcome-2026" and user["needUpdatePassword"] is False
+    assert user["password"] == "Welcome-2026" and user["needUpdatePassword"] is True
     assert flagged(user["id"])  # 首次登录须在工作台内改密
     assert casdoor.roles_of(name) == iam_roles
     member = fetch(User, username=name)
@@ -1140,7 +1150,7 @@ def test_reset_password_requires_change_on_next_login(client, casdoor, admin, to
     ok = client.post(f"{URL}/{sub}/password", json={"password": "Reset-2026a"}, headers=headers)
     assert ok.status_code == 204
     assert casdoor.users[name]["password"] == "Reset-2026a"
-    assert casdoor.users[name]["needUpdatePassword"] is False and flagged(sub)
+    assert casdoor.users[name]["needUpdatePassword"] is True and flagged(sub)
     assert fetch(PortalSession, id=security.digest(old_session)) is None  # 已登录的会话失效
     log = fetch(AuditLog, action="重置密码", target_id=sub[:40])
     assert "Reset-2026a" not in log.detail
@@ -1182,17 +1192,17 @@ def test_repair_member_does_not_grant_knowledge_editor(client, casdoor, admin):
 # —— 首次登录 / 重置后的改密在工作台内完成 —— #
 
 
-def test_casdoor_force_flag_is_reported_and_migrated(client, casdoor, admin):
+def test_casdoor_force_flag_is_preserved_by_repair(client, casdoor, admin):
     _, _, headers = admin()
     name = uid("stuck")
     sub = casdoor.add(name, "kb_editor", needUpdatePassword=True)  # 如在 IAM 管理台打开过该开关
     _, issues = listing(client, headers)
     assert ("iam_password_flag", name) in {(i["kind"], i["username"]) for i in issues}
     assert client.post(f"{URL}/{sub}/repair", headers=headers).status_code == 204
-    assert casdoor.users[name]["needUpdatePassword"] is False and flagged(sub)
+    assert casdoor.users[name]["needUpdatePassword"] is True and flagged(sub)
     accounts, issues = listing(client, headers)
     assert accounts[name]["must_change_password"] is True
-    assert not [i for i in issues if i["username"] == name]
+    assert [(i["kind"]) for i in issues if i["username"] == name] == ["iam_password_flag"]
 
 
 def test_portal_password_change_clears_flag(client, casdoor, admin, token_factory):
@@ -1216,7 +1226,7 @@ def test_portal_password_change_clears_flag(client, casdoor, admin, token_factor
     assert client.post(url, json=good, headers=no_origin).status_code == 403
     assert client.post(url, json=good, headers=own).status_code == 204
     assert casdoor.users[name]["password"] == "Brand-new-2026" and not flagged(sub)
-    assert client.get("/api/v1/portal/me", headers=own).json()["must_change_password"] is False
+    assert client.get("/api/v1/portal/me", headers=own).status_code == 401
 
 
 def test_flagged_admin_must_change_password_before_account_management(client, casdoor, admin):

@@ -18,7 +18,7 @@ from app.core.auth_logging import auth_failure
 from app.core.config import settings
 from app.core.security import decode_access_token, digest, seal, unseal
 from app.models import IAMSession, PortalSession
-from app.services import oidc_logout, oidc_status
+from app.services import oidc_logout, oidc_status, password_policy
 
 
 def _refresh_token(value) -> str | None:
@@ -98,13 +98,19 @@ def _checked_decode(token, request, *, portal, allow_expired=False):
         ) from None
 
 
-def _checked_status(token, claims, request, *, db, audience, portal):
+def _checked_status(token, claims, request, *, db, audience, portal, authenticated_iat=None):
     try:
         oidc_logout.ensure_not_revoked(db, claims, audience)
     except HTTPException as exc:
         raise auth_failure(request, "revoked", exc.detail, exc.status_code) from None
     try:
-        oidc_status.ensure_active_token(token, claims, expected_audience=audience, portal=portal)
+        oidc_status.ensure_active_token(
+            token,
+            claims,
+            expected_audience=audience,
+            portal=portal,
+            authenticated_iat=authenticated_iat,
+        )
     except HTTPException as exc:
         reason = (
             "provider_unavailable"
@@ -243,6 +249,16 @@ def session_claims(request: Request, db: Session, *, portal: bool = False) -> di
                 raise auth_failure(request, "session_expired", "本次登录已达到最长时间，请重新登录")
             if now >= last_seen + settings.IAM_SESSION_SECONDS:
                 raise auth_failure(request, "session_idle", "登录会话闲置超时，请重新登录")
+            if settings.OIDC_GLOBAL_LOGOUT_ENABLED and (
+                not isinstance(data.get("authenticated_iat"), int)
+                or isinstance(data.get("authenticated_iat"), bool)
+                or not 0 < data["authenticated_iat"] <= started + 10
+            ):
+                # Legacy refresh cookies cannot prove when their authorization
+                # began; a newly issued token must not resurrect a pre-reset chain.
+                raise auth_failure(
+                    request, "session_invalid", "登录会话缺少原始认证时间，请重新登录"
+                )
             data.setdefault("authenticated_iat", claims.get("iat"))
             data.setdefault("authenticated_sid", claims.get("sid", ""))
             _check_chain(auth_db, claims, data, audience, request)
@@ -258,6 +274,7 @@ def session_claims(request: Request, db: Session, *, portal: bool = False) -> di
                         db=auth_db,
                         audience=audience,
                         portal=portal,
+                        authenticated_iat=data.get("authenticated_iat"),
                     )
                 except HTTPException as exc:
                     if exc.status_code == 503:
@@ -272,13 +289,22 @@ def session_claims(request: Request, db: Session, *, portal: bool = False) -> di
                 changed = True
             else:
                 _checked_status(
-                    access, claims, request, db=auth_db, audience=audience, portal=portal
+                    access,
+                    claims,
+                    request,
+                    db=auth_db,
+                    audience=audience,
+                    portal=portal,
+                    authenticated_iat=data.get("authenticated_iat"),
                 )
             if now - last_seen >= 60:
                 data["last_seen_at"] = now
                 changed = True
         else:
             _checked_status(access, claims, request, db=auth_db, audience=audience, portal=portal)
+        if password_policy.observe_identity(auth_db, claims):
+            changed = True
+        password_policy.enforce(auth_db, claims["sub"], request.url.path)
         if changed:
             row.tokens = seal(data)
             auth_db.commit()

@@ -6,17 +6,18 @@ import { previewApplicationAnswer, previewPersonalProvenance } from './previewSc
 import axios from 'axios'
 import { API_BASE, camelize, snakeize } from '../../api/client'
 
-export interface TaskInput { title: string; instructions: string }
-export interface TaskSummary extends TaskInput { id: string; revision: number; createdAt: string; updatedAt: string; deletedAt: string | null; messageCount: number }
-export interface AssistantMessage extends AnswerProvenance { id: string; role: 'user' | 'assistant'; content: string; context: string; model: string; mode: 'ai' | 'preview'; requestId: string; createdAt: string; dataSources?: ApplicationDataSource[]; usedSources?: ApplicationDataSource[] }
+export interface TaskInput { title: string; instructions: string; memory?: string; pinned?: boolean; finalArtifactId?: string | null }
+export interface TaskSummary extends TaskInput { id: string; revision: number; createdAt: string; updatedAt: string; deletedAt: string | null; messageCount: number; excerpt?: string }
+export interface KnowledgeReference { title: string; path: string; url?: string; kind: 'catalogued' | 'retrieved' | 'read'; cited: boolean }
+export interface AssistantMessage extends AnswerProvenance { knowledgeReferences?: KnowledgeReference[]; sourceSummary?: { materialCount?: number; cataloguedCount?: number; truncated?: boolean; countBasis?: string; retrievedCount?: number; readCount?: number; citedCount?: number };  id: string; role: 'user' | 'assistant'; content: string; context: string; model: string; mode: 'ai' | 'preview'; requestId: string; createdAt: string; dataSources?: ApplicationDataSource[]; usedSources?: ApplicationDataSource[] }
 export interface AssistantArtifact { id: string; title: string; content: string; model: string; createdAt: string }
 export interface AssistantTask extends TaskSummary { messages: AssistantMessage[]; artifacts: AssistantArtifact[] }
 export interface TaskQuery { search?: string; trashed?: boolean; offset?: number }
-export interface TaskQuestion { requestId: string; question: string; context: string; modelProfileId?: string; data_sources?: string[]; answerMode?: AnswerMode }
+export interface TaskQuestion { requestId: string; question: string; context: string; modelProfileId?: string; data_sources?: string[]; answerMode?: AnswerMode; continueFromRequest?: string }
 export interface AssistantRequest {
   requestId: string
   taskId: string
-  status: 'queued' | 'running' | 'completed' | 'failed'
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
   stage: string
   question: string
   context: string
@@ -25,11 +26,20 @@ export interface AssistantRequest {
   modelProfileId?: string | null
   partialContent: string
   error: string
+  errorCode?: string
+  canContinue?: boolean
+  payloadExpired?: boolean
+  startedAt?: string | null
+  finishedAt?: string | null
   diagnosticId: string
   createdAt: string
   updatedAt: string
 }
+export interface AssistantPreflight { ready: boolean; checks: { key: string; status: 'ready' | 'warning' | 'blocked'; message: string }[]; message?: string }
 export interface AssistantClient {
+  getSource?(taskId: string, path: string, offset?: number): Promise<{ title: string; path: string; body: string; offset: number; totalChars: number; nextOffset: number | null }>
+  preflight?(input: { modelProfileId?: string; answerMode: AnswerMode; dataSources: ApplicationDataSource[]; question?: string; taskId?: string; referenceMaterialAvailable?: boolean }): Promise<AssistantPreflight>
+  cancelRequest?(taskId: string, requestId: string): Promise<AssistantRequest>
   capabilities?(modelProfileId?: string): Promise<AnswerCapabilities>
   submitRequest?(task: TaskSummary, input: TaskQuestion): Promise<AssistantRequest>
   getRequest?(taskId: string, requestId: string): Promise<AssistantRequest>
@@ -67,10 +77,13 @@ export function assistantFailure(error: unknown) {
   if (status && status >= 500 && !/^[0-9a-f]{32}$/.test(diagnostic)) {
     return problem(`服务未返回可识别的错误信息，问题已保留。${requestId ? `请提供请求编号排查。（请求编号：${requestId}）` : '请稍后重试。'}`, status)
   }
-  return problem(status === 409 ? '任务已在其他页面更新。当前问题已保留，请刷新任务后核对并重试。' : status === 401 ? '登录已失效，请重新登录。' : ([402, 403, 422, 502, 503, 504].includes(status || 0) || status === 500 && /^[0-9a-f]{32}$/.test(diagnostic)) && detail ? detail : status === 422 ? '请检查任务内容和模型配置，再重新发送。' : status === 404 ? '任务或所选模型不存在，或当前账号无权访问。' : status === 403 ? '当前账号无法使用此功能，请先确认登录状态。' : '请求未完成，问题仍保留。请检查模型配置或连接后重试。', status)
+  return problem(status === 409 ? '任务已在其他页面更新。当前问题已保留，请刷新任务后核对并重试。' : status === 401 ? '登录已失效，请重新登录。' : ([402, 403, 422, 429, 502, 503, 504].includes(status || 0) || status === 500 && /^[0-9a-f]{32}$/.test(diagnostic)) && detail ? detail : status === 422 ? '请检查任务内容和模型配置，再重新发送。' : status === 404 ? '任务或所选模型不存在，或当前账号无权访问。' : status === 403 ? '当前账号无法使用此功能，请先确认登录状态。' : '请求未完成，问题仍保留。请检查模型配置或连接后重试。', status)
 }
 http.interceptors.response.use(response => { response.data = camelize(response.data); return response }, (error: unknown) => Promise.reject(assistantFailure(error)))
 export const assistantApi: AssistantClient = {
+  getSource: async (taskId, path, offset = 0) => (await http.get(`/${encodeURIComponent(taskId)}/sources`, { params: { path, offset, length: 8000 }, timeout: 20000 })).data,
+  preflight: async input => (await http.post('/preflight', input, { timeout: 15000 })).data,
+  cancelRequest: async (taskId, requestId) => (await http.post(`/${encodeURIComponent(taskId)}/requests/${encodeURIComponent(requestId)}/cancel`, {}, { timeout: 15000 })).data,
   capabilities: async modelProfileId => (await http.get('/capabilities', { params: modelProfileId ? { modelProfileId } : undefined })).data,
   list: async query => (await http.get('', { params: query })).data,
   get: async id => (await http.get(`/${encodeURIComponent(id)}`)).data,
@@ -83,13 +96,13 @@ export const assistantApi: AssistantClient = {
   trash: async task => (await http.post(`/${encodeURIComponent(task.id)}/trash`, { revision: task.revision })).data,
   restore: async task => (await http.post(`/${encodeURIComponent(task.id)}/restore`, { revision: task.revision })).data,
 }
-export const taskSummary = (task: TaskSummary): TaskSummary => ({ id: task.id, title: task.title, instructions: task.instructions, revision: task.revision, createdAt: task.createdAt, updatedAt: task.updatedAt, deletedAt: task.deletedAt, messageCount: task.messageCount })
+export const taskSummary = (task: TaskSummary): TaskSummary => ({ id: task.id, title: task.title, instructions: task.instructions, revision: task.revision, createdAt: task.createdAt, updatedAt: task.updatedAt, deletedAt: task.deletedAt, messageCount: task.messageCount, ...(task.memory !== undefined ? { memory: task.memory } : {}), ...(task.pinned !== undefined ? { pinned: task.pinned } : {}), ...(task.finalArtifactId !== undefined ? { finalArtifactId: task.finalArtifactId } : {}), ...(task.excerpt !== undefined ? { excerpt: task.excerpt } : {}) })
 const intro = `# 欢迎使用 AI 助手\n\n这里是你的个人 AI 工作空间。把问题、资料和目标放在同一项任务中，持续讨论并整理成果。\n\n## 1. 创建任务\n\n在左侧新建任务，填写目标。每项任务保留独立的对话记录和任务指引。\n\n## 2. 围绕资料讨论\n\n输入问题，或导入 Word、PDF、Markdown 资料，明确选择本轮要使用的材料。发送前可预览附带的正文。\n\n## 3. 留下可复用的成果\n\n右侧在「概览」和「产物」之间切换。每次回答都可以单独查看、复制，或导出为 Markdown。\n\n## 4. 选择自己的模型\n\n通过侧栏「AI 模型设置」管理个人模型，沿用工作台现有设置。\n\n> 当前是本地交互演示，不调用外部模型。示例内容用于体验工作流程。`
 function seed(): AssistantTask[] {
   const time = '2026-10-25T08:00:00.000Z', id = 'c0c19d0d-c4e8-4e47-bf17-5474f2baf877', reply = '874e5145-3532-4be5-a8f3-5b25fb156c02'
   const task: AssistantTask = { id, title: '认识 AI 助手工作空间', instructions: '', revision: 1, createdAt: time, updatedAt: time, deletedAt: null, messageCount: 2, messages: [
     { id: 'intro-question', role: 'user', content: '介绍一下如何使用 AI 助手。', context: '', model: 'enterprise', mode: 'preview', requestId: 'intro', createdAt: time },
-    { id: reply, role: 'assistant', content: '欢迎使用 AI 助手。\n\n你可以把目标、资料和对话放在同一项任务中，让每一步思考都有迹可循。\n\n- **新建任务**：为每个任务保留独立对话。\n- **导入资料**：围绕文档持续讨论。\n- **留存产物**：查看、复制并导出每轮回答。\n\n已为你准备好一份使用指南，点击下方产物卡片查看。', context: '', model: '界面演示', mode: 'preview', requestId: 'intro', createdAt: time },
+    { id: reply, role: 'assistant', content: '欢迎使用 AI 助手。\n\n你可以把目标、资料和对话放在同一项任务中，让每一步思考都有迹可循。\n\n- **新建任务**：为每个任务保留独立对话。\n- **导入资料**：围绕文档持续讨论。\n- **留存产物**：查看、复制并导出每轮回答。\n\n已为你准备好一份使用指南，点击下方“查看产物”查看。', context: '', model: '界面演示', mode: 'preview', requestId: 'intro', createdAt: time },
   ], artifacts: [{ id: reply, title: 'AI 助手使用指南', content: intro, model: '界面演示', createdAt: time }] }
   return [task]
 }
@@ -125,7 +138,7 @@ export function createPreviewAssistantClient(namespace: string, storage: Storage
     capabilities: async () => structuredClone(previewCapabilities),
     list: async (query = {}) => {
       const search = query.search?.trim().toLocaleLowerCase() || '', offset = query.offset || 0
-      const rows = read().filter(t => !!t.deletedAt === !!query.trashed && (!search || t.title.toLocaleLowerCase().includes(search))).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id))
+      const rows = read().filter(t => !!t.deletedAt === !!query.trashed && (!search || [t.title, t.instructions, ...t.messages.map(message => message.content)].join('\n').toLocaleLowerCase().includes(search))).sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id))
       return { items: rows.slice(offset, offset + 100).map(taskSummary), total: rows.length }
     },
     get: async id => publicTask(find(read(), id)),

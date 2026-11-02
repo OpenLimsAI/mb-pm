@@ -1,6 +1,6 @@
 # 开发/测试依赖（运行依赖见 requirements.txt；httpx / alembic 已在其中）。
 -r requirements.txt
 
-pytest==8.3.3
+pytest==9.2.0
 pytest-cov==6.0.0     # 账号权限模块的分支覆盖率门槛
 ruff==0.7.0            # 格式 + lint

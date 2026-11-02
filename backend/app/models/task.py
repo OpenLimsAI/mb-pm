@@ -16,12 +16,14 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
+from app.db.business_constraints import table_constraints
 
 
 class SubProject(Base, TimestampMixin):
     """Level 2: 子项目（按阶段+模块切分）。"""
 
     __tablename__ = "sub_projects"
+    __table_args__ = table_constraints("sub_projects")
 
     # 组合 ID `${projectId}-${子项目code}` 可达 ~24 字符，故用 64（issue #4）。
     # FK 列（project_id 等）未显式声明类型，自动继承所引用主键的宽度。
@@ -47,6 +49,7 @@ class Task(Base, TimestampMixin):
     """Level 3: 任务（叶子节点）。三级 WBS 强约束。"""
 
     __tablename__ = "tasks"
+    __table_args__ = table_constraints("tasks")
 
     # 组合 ID `${projectId}-${taskCode}` 可达 ~30 字符，故用 64（issue #4）。
     id: Mapped[str] = mapped_column(String(64), primary_key=True)

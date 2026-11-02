@@ -1,6 +1,7 @@
 # ruff: noqa: B008
 """Knowledge-source library manager. Original information application remains retired."""
 
+import time
 from typing import Literal
 from urllib.parse import urlsplit
 
@@ -16,8 +17,16 @@ from app.db.session import get_db
 from app.services import password_policy
 from app.services.iam_admin import IAMError
 from app.services.information import bridge
-from app.services.information.store import Store, tenant_key
+from app.services.information.store import Store, iso, tenant_key
 from app.services.information.worker import active_account, can_manage
+from app.services.knowledge_source_folders import folder_action, organize_papers, undo_organization
+from app.services.knowledge_source_status import (
+    job_revision,
+    public_jobs,
+    public_source,
+    resources,
+    version_state,
+)
 
 router = APIRouter(prefix="/knowledge-sources", tags=["knowledge-sources"])
 APP = "knowledge-sources"
@@ -40,6 +49,19 @@ class FolderChange(Input):
     revision: int = Field(ge=0)
 
 
+class FolderActionInput(Input):
+    action: Literal["delete", "merge", "metadata"]
+    revision: int = Field(ge=0)
+    target_folder_id: str | None = Field(None, alias="targetFolderId", max_length=100)
+    kind: Literal["source", "topic"] | None = None
+    parent_id: str | None = Field(None, alias="parentId", max_length=100)
+
+
+class UndoInput(Input):
+    token: str = Field(min_length=1, max_length=100)
+    revision: int = Field(ge=0)
+
+
 class SourceInput(Input):
     name: str = Field(min_length=1, max_length=60)
     url: str = Field(min_length=8, max_length=2048)
@@ -51,11 +73,26 @@ class SourceInput(Input):
     enabled: Literal[False] = False
 
 
+class ScheduleInput(Input):
+    frequency: Literal["off", "daily", "weekly"] = "off"
+    download_updates: bool = Field(False, alias="downloadUpdates")
+    index_updates: bool = Field(False, alias="indexUpdates")
+
+
 class SourceChange(Input):
+    schedule: ScheduleInput | None = None
     name: str | None = Field(None, min_length=1, max_length=60)
     scopes: list[Literal["Q", "S", "E", "M"]] | None = Field(None, min_length=1, max_length=4)
     folder_id: str | None = Field(None, alias="folderId", max_length=100)
     auto_index: bool | None = Field(None, alias="autoIndex")
+
+
+class ReadInput(Input):
+    document_ids: list[str] = Field(alias="documentIds", min_length=1, max_length=1500)
+
+
+class VerifyInput(Input):
+    document_ids: list[str] | None = Field(None, alias="documentIds", max_length=1500)
 
 
 class JobInput(Input):
@@ -175,7 +212,9 @@ def paper_snapshot(store, actor, result):
             "type": "知识库论文",
         }
         if doc and version:
-            paper.update(archive_paper(store, doc, version, source), id=path, folderIds=folders)
+            paper.update(
+                archive_paper(store, doc, version, source, versions), id=path, folderIds=folders
+            )
         papers.append(paper)
     for version in versions:
         # A deleted/hidden Core paper must not reappear through its retained original.
@@ -187,11 +226,27 @@ def paper_snapshot(store, actor, result):
         if version.get("kbPath") and not proof:
             continue
         doc = docs[version["documentId"]]
-        paper = archive_paper(store, doc, version, sources.get(doc["sourceId"]))
+        paper = archive_paper(store, doc, version, sources.get(doc["sourceId"]), versions)
         if proof:
             paper["kbUrl"] = None
             paper["indexStatus"] = proof["indexStatus"]
         papers.append(paper)
+    # One logical document may have several readable archived versions. Expose a
+    # preferred version without removing historical rows or changing their IDs.
+    for docid, document in docs.items():
+        group = [p for p in papers if p.get("documentId") == docid]
+        if not group:
+            continue
+        verified_ids = {
+            v["id"]
+            for v in versions
+            if v["documentId"] == docid and v["sha256"] == document.get("verifiedSha256")
+        }
+        preferred = max(
+            group, key=lambda p: (p.get("versionId") in verified_ids, p.get("createdAt") or "")
+        )
+        for paper in group:
+            paper["latest"] = paper["id"] == preferred["id"]
     prefs = store.preferences(actor["subject"])
     stars = prefs.get("knowledgeSourceStars", [])
     for paper in papers:
@@ -200,7 +255,7 @@ def paper_snapshot(store, actor, result):
     return papers
 
 
-def archive_paper(store, doc, version, source):
+def archive_paper(store, doc, version, source, versions=None):
     classification = classifications(store, doc["id"])
     return {
         "id": "archive:" + version["id"],
@@ -221,6 +276,17 @@ def archive_paper(store, doc, version, source):
         "kbUrl": version.get("kbUrl"),
         "type": doc.get("documentType", "官方资料"),
         "language": doc.get("language", "来源未标注"),
+        "officialDate": version.get("officialDate"),
+        "officialStatus": doc.get("officialStatus"),
+        "downloadedAt": version["createdAt"],
+        "versionStatus": version_state(
+            doc,
+            [
+                v
+                for v in (versions if versions is not None else store.records("version"))
+                if v["documentId"] == doc["id"]
+            ],
+        ),
         "error": version.get("error") or (classification.get("error") if classification else None),
     }
 
@@ -237,13 +303,20 @@ def snapshot(db: Session = Depends(get_db), actor: dict = Depends(principal)):
     folders = [{**f, "writable": bool(result.get("canWrite"))} for f in result.get("folders", [])]
     sources = []
     for source in store.records("source"):
-        sources.append(
-            {
-                **{k: v for k, v in source.items() if k != "managerSubject"},
-                "enabled": False,
-                "autoIndex": source.get("knowledgeSourceAutoIndex", True),
-            }
-        )
+        if not source.get("archiveFolderId"):
+            canonical = "ICH" if source["adapter"] == "ich" else source["name"]
+            match = next(
+                (f for f in folders if f["name"] == canonical and f.get("kind") != "topic"), None
+            )
+            if match:
+                source["archiveFolderId"] = match["id"]
+                store.put("source", source)
+        sources.append(public_source(source))
+    source_folders = {s.get("archiveFolderId") for s in sources}
+    for folder in folders:
+        folder.setdefault("kind", "source" if folder["id"] in source_folders else "topic")
+    prefs = store.preferences(actor["subject"])
+    read_documents = prefs.get("knowledgeSourceRead", {})
     docs = store.documents()
     versions = store.records("version")
     source_scopes = {source["id"]: set(source.get("scopes", [])) for source in sources}
@@ -255,11 +328,15 @@ def snapshot(db: Session = Depends(get_db), actor: dict = Depends(principal)):
         doc["versions"] = [
             store.public_version(v) for v in versions if v["documentId"] == doc["id"]
         ]
-    jobs = [
-        {k: v for k, v in j.items() if k != "actorSubject"}
-        for j in store.records("job")
-        if j.get("app") == APP
-    ]
+        doc["versionStatus"] = version_state(doc, doc["versions"])
+        doc["unread"] = bool(
+            doc.get("firstNewAt") and doc.get("firstNewAt", "") > read_documents.get(doc["id"], "")
+        )
+        for version in doc["versions"]:
+            version["originalUrl"] = (
+                f'/api/v1/knowledge-sources/documents/{doc["id"]}/versions/{version["id"]}/original'
+            )
+    jobs = public_jobs(store)
     papers = paper_snapshot(store, actor, result)
     known_folders = {folder["id"] for folder in result.get("folders", [])}
     for paper in papers:
@@ -270,7 +347,18 @@ def snapshot(db: Session = Depends(get_db), actor: dict = Depends(principal)):
         "folders": folders,
         "sources": sources,
         "documents": docs,
-        "jobs": jobs[-100:],
+        "jobs": jobs,
+        "changes": [
+            {
+                **e,
+                "summary": (e.get("summary") or "")[:2000],
+                "read": not e.get("documentId")
+                or e.get("createdAt", "") <= read_documents.get(e.get("documentId"), ""),
+            }
+            for e in store.records("event", limit=100)
+        ],
+        "resources": resources(store),
+        "refreshedAt": iso(),
         "catalogRevision": result.get("revision", 0),
         "canManage": actor["manage"],
         "canOrganize": bool(result.get("canWrite")),
@@ -314,63 +402,47 @@ def rename_folder(ident: str, body: FolderInput, actor: dict = Depends(principal
 def organize(body: FolderChange, db: Session = Depends(get_db), actor: dict = Depends(principal)):
     store = Store(db, actor["tenant"])
     result = writable_library(actor, store)
-    if result.get("revision") != body.revision:
-        raise HTTPException(409, "文件夹已更新，请刷新后重试")
-    folder_ids = list(dict.fromkeys(body.folder_ids))
-    if body.mode == "remove" and not folder_ids and body.from_folder_id:
-        folder_ids = [body.from_folder_id]
-    if not folder_ids:
-        raise HTTPException(400, "请选择文件夹")
-    known_folders = {f["id"] for f in result.get("folders", [])}
-    if not set(folder_ids) <= known_folders:
-        raise HTTPException(409, "目标文件夹已不存在，请刷新后重试")
-    if body.mode == "move" and body.from_folder_id not in known_folders:
-        raise HTTPException(400, "移动须指定有效的当前文件夹")
-    available = {p["id"]: p for p in paper_snapshot(store, actor, result)}
-    ids = list(dict.fromkeys(body.paper_ids))
-    if not all(ident in available for ident in ids):
-        raise HTTPException(404, "部分论文已删除或无权访问，请刷新后重试")
-    paths = [ident for ident in ids if not ident.startswith("archive:")]
-    if paths:
-        mutation = {
-            "operation": body.mode,
-            "revision": body.revision,
-            "paths": paths,
-            "folderIds": folder_ids,
-        }
-        if body.mode == "move" and body.from_folder_id:
-            mutation["fromFolderId"] = body.from_folder_id
-        connected("folderMutation", actor["subject"], mutation=mutation)
-    for ident in ids:
-        if not ident.startswith("archive:"):
-            continue
-        paper = available[ident]
-        doc_id = paper["documentId"]
-        doc = store.lock("document", doc_id)
-        current = classifications(store, doc_id)
-        memberships = set(current["folderIds"] if current else doc.get("folderIds", []))
-        removed = set(current.get("removedFolderIds", []) if current else [])
-        if body.mode == "move":
-            memberships.discard(body.from_folder_id)
-            removed.add(body.from_folder_id)
-        if body.mode == "remove":
-            memberships -= set(folder_ids)
-            removed |= set(folder_ids)
-        else:
-            memberships |= set(folder_ids)
-            removed -= set(folder_ids)
-        store.put(
-            "ks_classification",
-            {
-                "id": store.key("ks_classification", doc_id),
-                "documentId": doc_id,
-                "folderIds": sorted(memberships),
-                "removedFolderIds": sorted(removed),
-            },
-        )
-    store.audit(actor["subject"], "knowledge_source_organized", str(len(ids)))
-    db.commit()
-    return {"saved": True}
+    return organize_papers(
+        store,
+        actor,
+        body.model_dump(by_alias=True),
+        catalogue=result,
+        connect=connected,
+        papers=paper_snapshot(store, actor, result),
+    )
+
+
+@router.post("/folders/{ident}/actions")
+def folder_actions(
+    ident: str,
+    body: FolderActionInput,
+    db: Session = Depends(get_db),
+    actor: dict = Depends(principal),
+):
+    store = Store(db, actor["tenant"])
+    result = writable_library(actor, store)
+    return folder_action(
+        store,
+        actor,
+        ident,
+        body.model_dump(by_alias=True, exclude_unset=True),
+        catalogue=result,
+        connect=connected,
+    )
+
+
+@router.post("/papers/folders/undo")
+def undo_folders(body: UndoInput, db: Session = Depends(get_db), actor: dict = Depends(principal)):
+    store = Store(db, actor["tenant"])
+    result = writable_library(actor, store)
+    return undo_organization(
+        store,
+        actor,
+        body.model_dump(),
+        catalogue=result,
+        connect=connected,
+        papers=paper_snapshot(store, actor, result),
+    )
 
 
 @router.post("/stars")
@@ -404,6 +476,7 @@ def source_folder(store, actor, source, selected=None):
     name = "ICH" if source["adapter"] == "ich" else source["name"]
     folder = connected("createFolder", actor["subject"], name=name)["id"]
     source["folderId"] = folder
+    source.setdefault("archiveFolderId", folder)
     store.put("source", source)
     return folder
 
@@ -454,6 +527,20 @@ def change_source(
     changes = body.model_dump(by_alias=True, exclude_unset=True)
     if any(value is None for key, value in changes.items() if key != "folderId"):
         raise HTTPException(400, "来源设置不能为空")
+    if "schedule" in changes:
+        schedule = body.schedule.model_dump(by_alias=True)
+        changes["schedule"] = schedule
+        if source["adapter"] != "ich":
+            raise HTTPException(400, "该来源尚未适配，不能设置自动检查")
+        if schedule["indexUpdates"] and not schedule["downloadUpdates"]:
+            raise HTTPException(400, "自动索引需要同时启用下载更新")
+        if schedule["frequency"] != "off":
+            require_worker()
+            if schedule["downloadUpdates"]:
+                source_folder(store, actor, source, changes.get("folderId"))
+        seconds = {"off": 0, "daily": 86400, "weekly": 604800}[schedule["frequency"]]
+        schedule["nextCheckAt"] = iso(time.time() + seconds) if seconds else None
+        changes["scheduleSubject"] = actor["subject"] if seconds else None
     if "autoIndex" in changes:
         source["knowledgeSourceAutoIndex"] = changes.pop("autoIndex")
     if "scopes" in changes:
@@ -535,6 +622,53 @@ def retry_document(ident: str, db: Session = Depends(get_db), actor: dict = Depe
     job = new_job(
         store, actor, source, kind="import", document_ids=[ident], folder_id=target, parse=True
     )
+    versions = doc["versions"]
+    if versions:
+        job["items"][0].update(versionId=versions[-1]["id"], phase="resume_saved", result="reused")
+        store.put("job", job)
+    db.commit()
+    return {"id": job["id"]}
+
+
+@router.get("/jobs/status")
+def job_status(db: Session = Depends(get_db), actor: dict = Depends(principal)):
+    jobs = public_jobs(Store(db, actor["tenant"]))
+    return {"jobs": jobs, "revision": job_revision(jobs), "refreshedAt": iso()}
+
+
+@router.post("/changes/read")
+def mark_read(body: ReadInput, db: Session = Depends(get_db), actor: dict = Depends(principal)):
+    store = Store(db, actor["tenant"])
+    prefs = store.preferences(actor["subject"])
+    read = prefs.get("knowledgeSourceRead", {})
+    for ident in set(body.document_ids):
+        store.get("document", ident)
+        read[ident] = iso()
+    store.save_preferences(actor["subject"], {"knowledgeSourceRead": read})
+    db.commit()
+    return {"saved": True}
+
+
+@router.post("/sources/{ident}/verify", status_code=202)
+def verify_source(
+    ident: str, body: VerifyInput, db: Session = Depends(get_db), actor: dict = Depends(manager)
+):
+    store = Store(db, actor["tenant"])
+    source = store.source(ident)
+    available = {
+        d["id"]
+        for d in store.documents()
+        if d["sourceId"] == ident and set(d["scopes"]) & set(source["scopes"])
+    }
+    saved_ids = {v["documentId"] for v in store.records("version")}
+    ids = (
+        list(dict.fromkeys(body.document_ids))
+        if body.document_ids is not None
+        else sorted(available & saved_ids)
+    )
+    if not ids or not set(ids) <= available & saved_ids:
+        raise HTTPException(400, "请选择本来源已保存的资料进行版本核验")
+    job = new_job(store, actor, source, kind="verify", document_ids=ids)
     db.commit()
     return {"id": job["id"]}
 
