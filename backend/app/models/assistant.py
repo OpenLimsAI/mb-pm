@@ -26,6 +26,7 @@ class AssistantTask(Base):
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    active_request_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class AssistantMessage(Base):
@@ -67,3 +68,34 @@ class AssistantMessage(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
+
+
+class AssistantRequest(Base):
+    __tablename__ = "assistant_requests"
+    __table_args__ = (
+        UniqueConstraint("task_id", "request_id", name="uq_assistant_requests_request"),
+        Index("ix_assistant_requests_queue", "status", "created_at"),
+    )
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    task_id: Mapped[str] = mapped_column(ForeignKey("assistant_tasks.id"), nullable=False)
+    request_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="queued")
+    stage: Mapped[str] = mapped_column(String(30), nullable=False, default="queued")
+    application_scope: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    partial_content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    error: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    error_status: Mapped[int] = mapped_column(Integer, nullable=False, default=503)
+    error_code: Mapped[str] = mapped_column(String(50), nullable=False, default="")
+    diagnostic_id: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    worker_token: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -6,6 +6,7 @@ import time
 
 from fastapi import HTTPException
 
+from app.core.config import settings
 from app.services import ai, solution_knowledge
 from app.services import assistant_diagnostics as diagnostics
 from app.services import assistant_knowledge as knowledge
@@ -46,17 +47,30 @@ def _message(result, ollama):
 
 
 def chat(provider, cfg, messages, claims, *, request_fn=None):
+    from app.services import assistant_generation
+
     request_model = request_fn or ai.request
+    if assistant_generation.active():
+        original = request_fn
+
+        def request_model(p, c, path, body=None, timeout=120):
+            return assistant_generation.request(
+                p, c, path, body, timeout=timeout, request_fn=original
+            )
+
     solution_knowledge.check_access(claims)
     history = [dict(m) for m in messages]
     history[0] = {**history[0], "content": history[0]["content"] + INSTRUCTIONS}
     ollama = provider == "ollama"
+    budget = (
+        settings.ASSISTANT_REQUEST_TOTAL_SECONDS if assistant_generation.active() else MAX_SECONDS
+    )
     started = time.monotonic()
     used = 0
     evidence_size = 0
     ids = set()
     for turn in range(MAX_ROUNDS + 1):
-        remaining = MAX_SECONDS - (time.monotonic() - started)
+        remaining = (budget) - (time.monotonic() - started)
         if remaining <= 0:
             raise HTTPException(
                 504,
@@ -80,7 +94,7 @@ def chat(provider, cfg, messages, claims, *, request_fn=None):
             cfg,
             "/api/chat" if ollama else "/chat/completions",
             body,
-            timeout=min(60, remaining),
+            timeout=min(120 if assistant_generation.active() else 60, remaining),
         )
         message = _message(result, ollama)
         calls = message.get("tool_calls") or []
@@ -146,7 +160,7 @@ def chat(provider, cfg, messages, claims, *, request_fn=None):
                 raise ai.AIError("模型推理回复过长", code="response_too_large")
             history[-1]["reasoning_content"] = message["reasoning_content"]
         for call in normalized:
-            if time.monotonic() - started >= MAX_SECONDS:
+            if time.monotonic() - started >= budget:
                 raise HTTPException(
                     504,
                     "知识库查询超时，请缩小问题范围后重试",
@@ -166,8 +180,10 @@ def chat(provider, cfg, messages, claims, *, request_fn=None):
                         arguments = json.loads(raw) if len(raw) <= 8000 else None
                     else:
                         arguments = raw
+                    assistant_generation.guard()
                     with diagnostics.tool_call(function["name"]):
                         value = knowledge.execute(claims, function["name"], arguments)
+                    assistant_generation.guard()
                 except (ValueError, TypeError):
                     value = {"error": "工具参数不是有效 JSON 对象，请按定义重试"}
             encoded = knowledge.encoded_result(

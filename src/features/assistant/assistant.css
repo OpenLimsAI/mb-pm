@@ -294,3 +294,14 @@
 .aa-sidebar-model { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 38px; padding: 8px 11px; border-radius: 6px; color: #6a8190; text-decoration: none; font-size: 12px; }
 .aa-sidebar-model:hover { color: #23486f; background: #edf3f7; }
 .aa-sidebar-model svg:last-child { margin-left: auto; }
+
+.aa-request-progress { margin: 18px 0 24px; padding: 18px 20px; border: 1px solid #cbdfea; border-radius: 12px; background: #f7fbfd; overflow-wrap: anywhere; }
+.aa-request-progress .aa-thinking { margin: 0; padding: 0; }
+.aa-request-progress .aa-thinking strong { font-size: 13px; font-weight: 600; }
+.aa-pending-question { margin-top: 14px; padding: 12px 14px; border-radius: 8px; background: #dfedf7; color: #294f6c; }
+.aa-pending-question > span, .aa-partial-answer > span { display: block; font-size: 11px; color: #617e93; }
+.aa-pending-question > p { margin: 5px 0 0; white-space: pre-wrap; font-size: 13px; line-height: 1.7; }
+.aa-partial-answer { margin-top: 16px; padding-top: 14px; border-top: 1px solid #dbe6ed; }
+.aa-partial-answer > span { margin-bottom: 10px; }
+.aa-request-hint { margin: 12px 0 0; font-size: 11px; color: #71899a; }
+.aa-request-progress.is-failed { border-color: #e5c9c3; background: #fffaf8; }

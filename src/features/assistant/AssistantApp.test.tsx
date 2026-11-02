@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AssistantApp from './AssistantApp'
 import { createPreviewAssistantClient } from './client'
-import type { AssistantClient, AssistantTask, TaskSummary } from './client'
+import type { AssistantClient, AssistantRequest, AssistantTask, TaskSummary } from './client'
 import type { ModelSettings, ModelSettingsClient } from '../solutions/modelSettings'
 import type { AnswerCapabilities } from '../answerModes/types'
 
@@ -503,5 +503,77 @@ describe('AI assistant task workspace', () => {
     await act(async () => { fireEvent.focus(window) })
     expect(modelClient.get).toHaveBeenCalledTimes(2)
     expect(select).toHaveValue('enterprise')
+  })
+})
+
+
+describe('background assistant generation in the workspace', () => {
+  const record = (task: AssistantTask, patch: Partial<AssistantRequest> = {}): AssistantRequest => ({ requestId: crypto.randomUUID(), taskId: task.id, question: '分析培养因素', context: '', status: 'queued', stage: 'queued', partialContent: '', error: '', diagnosticId: '', createdAt: task.createdAt, updatedAt: task.updatedAt, ...patch })
+  it('shows saved request progress and partial text, prevents double sends, then displays the saved answer', async () => {
+    const client = createPreviewAssistantClient('background-ui'), task = await create(client, '后台生成任务')
+    let queued = record(task)
+    client.submitRequest = vi.fn(async (_task, input) => { queued = { ...queued, requestId: input.requestId, question: input.question }; return queued })
+    client.activeRequest = vi.fn(async () => ({ request: null }))
+    client.getRequest = vi.fn(async () => queued)
+    await mount(client); await open(task.title)
+    fireEvent.change(composer(), { target: { value: '分析培养因素' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送任务消息' }))
+    const progress = await screen.findByRole('region', { name: '本轮生成进度' })
+    await within(progress).findByText('问题已保存，等待处理…')
+    expect(screen.getByRole('button', { name: '发送任务消息' })).toBeDisabled()
+    fireEvent.keyDown(composer(), { key: 'Enter' })
+    expect(client.submitRequest).toHaveBeenCalledTimes(1)
+    queued = { ...queued, status: 'running', stage: 'generating', partialContent: '首先分析细胞活率。' }
+    fireEvent(window, new Event('focus'))
+    await within(progress).findByText('首先分析细胞活率。')
+    expect(within(progress).queryByRole('button', { name: '复制回答' })).not.toBeInTheDocument()
+    const sent = vi.mocked(client.submitRequest).mock.calls[0][1]
+    await client.send(task, sent)
+    queued = { ...queued, status: 'completed', stage: 'saving' }
+    fireEvent(window, new Event('focus'))
+    await waitFor(() => expect(screen.queryByRole('region', { name: '本轮生成进度' })).not.toBeInTheDocument())
+    expect(await within(chat()).findByRole('article', { name: 'AI 回答' })).toBeInTheDocument()
+    expect(composer()).toHaveValue('')
+  })
+
+  it('restores a failed background request after remount and uses a new ID for an explicit retry', async () => {
+    const client = createPreviewAssistantClient('background-refresh'), task = await create(client, '刷新后继续查看')
+    let current = record(task)
+    client.submitRequest = vi.fn(async (_task, input) => { current = { ...current, requestId: input.requestId, question: input.question, context: input.context, status: 'running', stage: 'waiting_model', error: '', diagnosticId: '', partialContent: '' }; return current })
+    client.activeRequest = vi.fn(async () => ({ request: null }))
+    client.getRequest = vi.fn(async () => current)
+    const view = await mount(client); await open(task.title)
+    fireEvent.change(composer(), { target: { value: '分析培养因素' } }); fireEvent.click(screen.getByRole('button', { name: '发送任务消息' }))
+    await screen.findByText('正在等待模型响应…')
+    const firstId = current.requestId
+    view.unmount()
+    current = { ...current, status: 'failed', error: '模型读取超时', diagnosticId: 'a'.repeat(32), partialContent: '只生成了一部分' }
+    await mount(client); await open(task.title)
+    expect(await screen.findByRole('alert')).toHaveTextContent('模型读取超时')
+    expect(screen.getByRole('alert')).toHaveTextContent('a'.repeat(32))
+    expect(composer()).toHaveValue('分析培养因素')
+    expect(screen.getByText('未完成的部分内容，不能作为完整回答')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '发送任务消息' }))
+    await waitFor(() => expect(client.submitRequest).toHaveBeenCalledTimes(2))
+    expect(vi.mocked(client.submitRequest).mock.calls[1][1].requestId).not.toBe(firstId)
+  })
+
+  it('does not replace another task or its draft when a background answer finishes', async () => {
+    const client = createPreviewAssistantClient('background-navigation'), first = await create(client, '后台中的 A'), second = await create(client, '正在编辑的 B')
+    let current = record(first)
+    client.submitRequest = vi.fn(async (_task, input) => { current = { ...current, requestId: input.requestId, question: input.question }; return current })
+    client.activeRequest = vi.fn(async () => ({ request: null }))
+    client.getRequest = vi.fn(async () => current)
+    await mount(client); await open(first.title)
+    fireEvent.change(composer(), { target: { value: '分析培养因素' } }); fireEvent.click(screen.getByRole('button', { name: '发送任务消息' }))
+    await screen.findByText('问题已保存，等待处理…')
+    await open(second.title)
+    fireEvent.change(composer(), { target: { value: 'B 的新草稿' } })
+    await client.send(first, vi.mocked(client.submitRequest).mock.calls[0][1])
+    current = { ...current, status: 'completed', stage: 'saving' }
+    fireEvent(window, new Event('focus'))
+    await waitFor(() => expect(localStorage.getItem(`assistant-request:研究员:preview:${first.id}`)).toBeNull())
+    expect(screen.getByRole('heading', { name: second.title, level: 2 })).toBeInTheDocument()
+    expect(composer()).toHaveValue('B 的新草稿')
   })
 })

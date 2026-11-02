@@ -347,6 +347,8 @@ def test_migration_is_repeatable_and_retains_legacy_tables():
                     column["name"]: column for column in info.get_columns(model.__tablename__)
                 }
                 expected = set(model.__table__.columns.keys())
+                if model is AssistantTask:
+                    expected.remove("active_request_id")  # introduced by migration 016
                 if model is AssistantMessage:
                     expected.remove("data_sources")  # introduced by migration 012
                     expected -= {
