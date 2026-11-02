@@ -83,7 +83,7 @@ function Workspace({ preview, allowed, userName, storageKey }: { preview: boolea
   const d = data || EMPTY
   const folderName = (id: string) => d.folders.find(f => f.id === id)?.name || '未指定'
   const folderCount = (id: string) => new Set(d.papers.filter(p => p.folderIds.includes(id)).map(p=>p.documentId || p.id)).size
-  const sourceFolderIds = d.folders.filter(f=>f.kind === 'source').map(f=>f.id).concat(d.sources.flatMap(s=>s.archiveFolderId ? [s.archiveFolderId] : d.folders.some(f=>f.kind) ? [] : s.folderId ? [s.folderId] : []))
+  const sourceFolderIds = d.folders.filter(f=>f.kind ? f.kind === 'source' : d.sources.some(s=>(s.archiveFolderId || s.folderId)===f.id)).map(f=>f.id)
   const sourceFolders = new Set(sourceFolderIds)
   const unsorted = (p: SourcePaper) => !p.folderIds.some(id => !sourceFolders.has(id))
   const q = search.trim().toLocaleLowerCase()

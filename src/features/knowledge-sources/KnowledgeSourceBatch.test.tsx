@@ -19,3 +19,9 @@ it('keeps an undo receipt after the second batch fails',async()=>{
  mocks.mutate.mockImplementationOnce(async()=>{data.catalogRevision=2;return {undoToken:'first',revision:2}}).mockRejectedValueOnce(new Error('interrupted'))
  render(<MemoryRouter><KnowledgeSourceApp/></MemoryRouter>);await screen.findByRole('button',{name:/论文0/});fireEvent.click(screen.getByLabelText('全选当前论文'));fireEvent.click(screen.getByLabelText('将选中的 501 篇论文放入 目标文件夹'));await waitFor(()=>expect(screen.getByRole('alert')).toBeInTheDocument());expect(screen.getByText('上次整理可撤销（1 批）')).toBeInTheDocument();expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(101)
 })
+
+it('respects explicit topic classification even when the folder is a source archive and download destination',async()=>{
+ data.papers=[{id:'p',title:'已整理资料',folderIds:['f'],saved:true,indexStatus:'ready'}]
+ data.sources=[{id:'ich',name:'ICH',url:'https://www.ich.org',scopes:['Q'],folderId:'f',archiveFolderId:'f',frequency:'daily',enabled:false,adapter:'ich',status:'ok',scopeStatus:{}}]
+ render(<MemoryRouter><KnowledgeSourceApp/></MemoryRouter>);await screen.findByRole('button',{name:/已整理资料/});fireEvent.click(screen.getByRole('button',{name:/^待整理/}));expect(screen.queryByRole('button',{name:/已整理资料/})).not.toBeInTheDocument()
+})
