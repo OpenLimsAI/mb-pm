@@ -222,6 +222,7 @@ class Store:
                 }
                 current = {k: fresh.get(k) for k in previous}
                 if previous != current and baseline:
+                    fresh["catalogueChangedAt"] = iso()
                     kind = (
                         "官方状态变化"
                         if previous["officialStatus"] != current["officialStatus"]
@@ -240,6 +241,7 @@ class Store:
                         ),
                     )
             elif baseline:
+                fresh["firstNewAt"] = iso()
                 self.event("新资料", fresh["title"], source_id, ident)
             # NEW describes additions since this scope's preceding successful scan.
             # First scans establish a baseline, while failed/unscanned scopes keep
@@ -332,6 +334,9 @@ class Store:
             "sha256": sha,
             "size": len(content),
             "createdAt": iso(),
+            "officialDate": doc.get("officialDate"),
+            "officialStatus": doc.get("officialStatus"),
+            "sourceUrl": doc.get("url"),
             "parseStatus": parse_status,
             "indexStatus": "not_requested",
             "text": text,
@@ -490,6 +495,15 @@ class Store:
 
     def control_job(self, ident, action):
         job = self.lock("job", ident)
+        if action in ("resume", "retry"):
+            self.lock("source", job["sourceId"])
+            if any(
+                other["id"] != ident
+                and other["sourceId"] == job["sourceId"]
+                and other.get("app") == job.get("app")
+                for other in self.active_jobs()
+            ):
+                raise HTTPException(409, "此来源已有其他未完成任务，请先处理当前任务")
         if action == "pause" and job["status"] in ("running", "queued"):
             job["status"] = "paused"
         elif action == "cancel" and job["status"] in ("running", "queued", "paused"):
@@ -501,7 +515,11 @@ class Store:
                 if item["status"] == "failed":
                     item["status"] = "pending"
                     item["error"] = None
-                    item.pop("phase", None)
+                    if job.get("app") == "knowledge-sources" and item.get("versionId"):
+                        item["phase"] = "resume_saved"
+                    else:
+                        item.pop("phase", None)
+                    item.pop("attempts", None)
                     item.pop("nextAttemptAt", None)
             job["status"] = "queued"
             job["error"] = None

@@ -10,6 +10,7 @@ vi.mock('../../components/portal/context', () => ({ usePortalContext: () => ({ u
 
 let snapshot: KnowledgeSourceSnapshot
 beforeEach(() => {
+  localStorage.clear(); sessionStorage.clear()
   mocks.preview = false; mocks.allowed = true
   snapshot = {
     papers: [{ id: 'sources/existing.md', title: '已有研究论文', sourceName: '知识库', folderIds: ['topic'], saved: false, indexStatus: 'unknown', kbUrl: 'https://kb.openlims.ai/?paper=existing' }, { id: 'archive:version', title: '已下载的ICH指南', sourceName: 'ICH', sourceId: 'ich', folderIds: ['ich'], saved: true, indexStatus: 'failed', originalUrl: '/api/v1/knowledge-sources/documents/doc/versions/v/original', documentId: 'doc', versionId: 'v', createdAt: '2026-11-01T10:00:00Z' }],
