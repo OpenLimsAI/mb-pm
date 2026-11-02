@@ -92,6 +92,30 @@ def active_overlay(after, image):
     return "\n".join(lines) + "\n"
 
 
+def validate_portal_configuration(live_env, effective, service):
+    """Independent portal credentials are optional per instance, never optional to preserve."""
+    required = ("PORTAL_PUBLIC_URL", "PORTAL_CLIENT_ID", "PORTAL_CLIENT_SECRET")
+    portal_keys = {
+        key for key in live_env.keys() | effective.keys() if key.startswith("PORTAL_")
+    }
+    for key in portal_keys:
+        if (key in live_env, live_env.get(key)) != (
+            key in effective,
+            effective.get(key),
+        ):
+            raise SystemExit(
+                "Live portal configuration would be added, lost or changed: "
+                + service
+                + "/"
+                + key
+            )
+    present = [bool(live_env.get(key, "").strip()) for key in required]
+    if any(present) and not all(present):
+        raise SystemExit(
+            "Existing independent portal configuration is incomplete: " + service
+        )
+
+
 def validate_configs(before, after, containers, old_image_env, new_image_env, image):
     for service in SERVICES:
         old, new = before["services"][service], after["services"][service]
@@ -119,6 +143,7 @@ def validate_configs(before, after, containers, old_image_env, new_image_env, im
         )
         live_env = env_map(live["Config"]["Env"])
         effective = {**new_image_env, **compose_env(new.get("environment", {}))}
+        validate_portal_configuration(live_env, effective, service)
         for key, value in live_env.items():
             if key in CHANGED_ENV:
                 continue
@@ -135,7 +160,6 @@ def validate_configs(before, after, containers, old_image_env, new_image_env, im
         for key in (
             "APP_SECRET",
             "CASDOOR_CLIENT_SECRET",
-            "PORTAL_CLIENT_SECRET",
             "SOLUTION_KB_TOKEN",
             "SOLUTION_KB_CORE_URL",
             "SOLUTION_KB_PUBLIC_URL",
