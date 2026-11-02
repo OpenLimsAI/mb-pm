@@ -92,6 +92,40 @@ def test_chat_persists_pair_and_result_artifact(assistant_client):
     )
 
 
+@pytest.mark.parametrize("context", ["", "  \n  "], ids=["empty", "whitespace"])
+@pytest.mark.parametrize("sources", [[], ["knowledge"]], ids=["disabled", "allowed"])
+def test_general_question_does_not_send_empty_application_or_reference_fields(
+    assistant_client, monkeypatch, context, sources
+):
+    from app.services import assistant as service
+
+    f = assistant_client
+
+    def unused(*_args, **_kwargs):
+        pytest.fail("general answer must not retrieve application or web data")
+
+    monkeypatch.setattr(service, "application_data", unused)
+    monkeypatch.setattr(service.assistant_tool_chat, "chat", unused)
+    monkeypatch.setattr(service.web_search, "answer", unused)
+    prompt = "你觉得上游培养过程中有哪些因素能影响抗体片段的产生？或者说能降低抗体片段的百分比？"
+    response = question(
+        f,
+        create(f),
+        question=prompt,
+        context=context,
+        data_sources=sources,
+        answer_mode="auto",
+    )
+    assert response.status_code == 200, response.text
+    assert json.loads(f.calls[-1]["messages"][-1]["content"]) == {"question": prompt}
+    saved = response.json()
+    answer = saved["messages"][-1]
+    assert answer["answer_mode"] == "general" and answer["used_sources"] == []
+    assert answer["web_references"] == []
+    assert saved["messages"][0]["context"] == context
+    assert saved["artifacts"][0]["content"] == answer["content"]
+
+
 def test_create_retry_and_metadata_conflicts(assistant_client):
     f = assistant_client
     task = create(f)
