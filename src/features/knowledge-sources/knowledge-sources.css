@@ -127,10 +127,17 @@
 #knowledge-source-app .kso-source-card { padding: 20px; gap: 20px; }
 #knowledge-source-app .kso-job { padding: 20px; gap: 16px; }
 #knowledge-source-app .kso-table thead { background: #f8fafb; }
-#knowledge-source-app .kso-table th { padding-block: 11px; color: #768e9e; }
-#knowledge-source-app .kso-table td { padding-block: 14px; }
-#knowledge-source-app .kso-paper-title { color: #263e4a; font-weight: 600; font-size: 13px; line-height: 1.7; }
-#knowledge-source-app .kso-paper-sub { color: #8297a5; }
+#knowledge-source-app .kso-table th { padding-block: 8px; color: #768e9e; }
+#knowledge-source-app .kso-table td { padding-block: 8px; }
+#knowledge-source-app .kso-paper-button { gap: 8px; }
+#knowledge-source-app .kso-paper-button .kso-doc-icon { padding: 4px; margin-top: 1px; }
+#knowledge-source-app .kso-doc-icon svg { width: 16px; height: 16px; }
+#knowledge-source-app .kso-paper-title { color: #263e4a; font-weight: 600; font-size: 13px; line-height: 1.45; }
+#knowledge-source-app .kso-paper-sub { color: #8297a5; margin-top: 2px; line-height: 1.4; }
+#knowledge-source-app .kso-table .kso-chip { padding-block: 1px; line-height: 1.4; }
+#knowledge-source-app .kso-table .kso-folders-cell { gap: 3px; }
+#knowledge-source-app .kso-status { gap: 2px; }
+#knowledge-source-app .kso-status > .kso-small { line-height: 1.4; }
 #knowledge-source-app .kso-inspector { padding: 20px 18px; background: #f8fafb; }
 #knowledge-source-app .kso-inspector h2 { color: #263e4a; line-height: 1.7; }
 #knowledge-source-app .kso-inspector dd { color: #405965; }
