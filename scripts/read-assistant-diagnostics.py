@@ -35,6 +35,7 @@ EVENTS = {
     "request_started",
     "stage_started",
     "model_started",
+    "model_first_content",
     "model_completed",
     "model_failed",
     "tool_started",

@@ -10,6 +10,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowDownToLine, ArrowUp, Bot, Check, ChevronDown, ChevronRight, Copy, ExternalLink, FileText, LoaderCircle, Maximize2, Menu, MessageSquare, Minimize2, MoreHorizontal, PanelLeftClose, PanelRightClose, PanelRightOpen, Paperclip, Plus, RefreshCw, RotateCcw, Search, Settings2, ShieldCheck, Sparkles, Trash2, X } from 'lucide-react'
 import { taskSummary } from './client'
 import type { AssistantArtifact, AssistantClient, AssistantTask, TaskInput, TaskQuestion, TaskSummary } from './client'
+import useAssistantRequests from './useAssistantRequests'
+import RequestProgressView from './RequestProgressView'
 import type { ModelSettings, ModelSettingsClient } from '../solutions/modelSettings'
 import { parseReportFile, REPORT_IMPORT_ACCEPT } from '../solutions/reportImport'
 import AssistantDialog from './AssistantDialog'
@@ -35,7 +37,7 @@ export default function AssistantApp({ client, modelClient, userName, preview, n
   const [tasks, setTasks] = useState<TaskSummary[]>([]), [total, setTotal] = useState(0), [task, setTask] = useState<AssistantTask | null>(null)
   const [search, setSearch] = useState(''), [trashed, setTrashed] = useState(false), [offset, setOffset] = useState(0), [reload, setReload] = useState(0)
   const [loading, setLoading] = useState(true), [opening, setOpening] = useState(false), [listError, setListError] = useState(''), [taskError, setTaskError] = useState(''), [notice, setNotice] = useState('')
-  const [drafts, setDrafts] = useState<Record<string, Draft>>({}), [pending, setPending] = useState<Record<string, boolean>>({}), [errors, setErrors] = useState<Record<string, string>>({})
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({}), [legacyPending, setPending] = useState<Record<string, boolean>>({}), [errors, setErrors] = useState<Record<string, string>>({})
   const [modelSettings, setModelSettings] = useState<ModelSettings | null>(null), [model, setModel] = useState('enterprise'), [modelError, setModelError] = useState('')
   const capabilities = useSearchCapabilities(client, model, modelSettings?.revision)
   const [dialog, setDialog] = useState<'create' | 'settings' | 'data' | 'materials' | 'delete' | 'restore' | null>(null), [formBusy, setFormBusy] = useState(false), [formError, setFormError] = useState('')
@@ -48,14 +50,36 @@ export default function AssistantApp({ client, modelClient, userName, preview, n
   const invalidate = useCallback(() => { openSequence.current++; listSequence.current++; importRequest.current?.abort() }, [])
   useEffect(() => { alive.current = true; return () => { alive.current = false; invalidate() } }, [invalidate])
   const refreshList = () => { setOffset(0); setReload(n => n + 1) }
+  const requests = useAssistantRequests(client, `${namespace}:${preview ? 'preview' : 'live'}`, {
+    restore(job) {
+      setDrafts(old => {
+        return old[job.taskId] ? old : { ...old, [job.taskId]: { question: job.question, context: job.context, label: job.context ? '本轮资料' : '' } }
+      })
+    },
+    complete(row, job) {
+      setTasks(old => old.map(item => item.id === row.id ? taskSummary(row) : item)); refreshList()
+      if (active.current === row.id) { openSequence.current++; setTask(row); setOpening(false); setArtifactId(row.artifacts.at(-1)?.id || ''); setResultTab('artifacts'); setResultOpen(true) }
+      setDrafts(old => {
+        const latest = old[row.id] || emptyDraft()
+        return latest.question.trim() === job.question && latest.context === job.context ? { ...old, [row.id]: emptyDraft() } : old
+      })
+      setErrors(old => ({ ...old, [row.id]: '' })); delete retries.current[row.id]
+    },
+    fail(taskId, message, job) {
+      if (job?.status === 'failed') delete retries.current[taskId]
+      setErrors(old => ({ ...old, [taskId]: message }))
+    },
+  })
+  const resumeRequest = requests.resume
+  const pending = { ...legacyPending, ...requests.pending }
   const openTask = useCallback(async (id: string) => {
     const token = ++openSequence.current
     active.current = id; setTask(null); setOpening(true); setTaskError(''); setArtifactId(''); setSidebarOpen(false); setExpanded(false); setResultPeek(false)
     importRequest.current?.abort(); setParsing(false)
-    try { const row = await client.get(id); if (alive.current && token === openSequence.current) setTask(row) }
+    try { const row = await client.get(id); if (alive.current && token === openSequence.current) { setTask(row); if (!row.deletedAt) resumeRequest(id) } }
     catch (reason) { if (alive.current && token === openSequence.current) { setTaskError(issue(reason)); setSidebarOpen(true) } }
     finally { if (alive.current && token === openSequence.current) setOpening(false) }
-  }, [client])
+  }, [client, resumeRequest])
   useEffect(() => {
     const token = ++listSequence.current
     let current = true
@@ -102,13 +126,13 @@ export default function AssistantApp({ client, modelClient, userName, preview, n
     finally { formLock.current = false; if (alive.current) setFormBusy(false) }
   }
   function chooseAction(target: TaskSummary, restore: boolean) {
-    if (formLock.current || locked.current.has(target.id)) return
+    if (formLock.current || locked.current.has(target.id) || pending[target.id]) return
     setActionTarget(taskSummary(target)); setFormError(''); setDialog(restore ? 'restore' : 'delete')
   }
   async function move() {
     if (!actionTarget || formLock.current) return
     const target = actionTarget, restore = dialog === 'restore'
-    if (locked.current.has(target.id)) { setFormError('请等待此任务的回答完成后再操作。'); return }
+    if (locked.current.has(target.id) || pending[target.id]) { setFormError('请等待此任务的回答完成后再操作。'); return }
     formLock.current = true; moving.current.add(target.id); setFormBusy(true); setFormError('')
     try {
       await (restore ? client.restore(target) : client.trash(target))
@@ -123,7 +147,7 @@ export default function AssistantApp({ client, modelClient, userName, preview, n
     finally { formLock.current = false; moving.current.delete(target.id); if (alive.current) setFormBusy(false) }
   }
   async function send() {
-    if (!task || task.deletedAt || locked.current.has(task.id) || moving.current.has(task.id)) return
+    if (!task || task.deletedAt || pending[task.id] || locked.current.has(task.id) || moving.current.has(task.id)) return
     const target = task, sent = { ...draft }, chosenModel = model
     if (!sent.question.trim() || sent.question.length > 12000 || sent.context.length > 20000) return
     const fingerprint = JSON.stringify([sent.question, sent.context, chosenModel, dataSources, answerMode]), retry = retries.current[target.id]
@@ -131,6 +155,7 @@ export default function AssistantApp({ client, modelClient, userName, preview, n
     retries.current[target.id] = { fingerprint, requestId: input.requestId }
     locked.current.add(target.id); setPending(old => ({ ...old, [target.id]: true })); setErrors(old => ({ ...old, [target.id]: '' }))
     try {
+      if (requests.enabled) { await requests.submit(target, input); return }
       const row = await client.send(target, input)
       if (!alive.current) return
       setTasks(old => old.map(item => item.id === row.id ? taskSummary(row) : item)); refreshList()
@@ -173,7 +198,7 @@ export default function AssistantApp({ client, modelClient, userName, preview, n
         <div className="aa-chat-header"><div className="aa-task-heading"><div className="aa-breadcrumb"><span>个人助手</span><ChevronRight size={11} /><span>任务</span></div><h2>{opening ? '正在打开任务…' : task?.title || '今天想完成什么？'}</h2></div><div className="aa-chat-tools">{task && <button type="button" className="aa-icon-button" aria-label="任务设置" title="任务设置" disabled={busy || !!task.deletedAt} onClick={() => { setFormError(''); setDialog('settings') }}><MoreHorizontal size={20} /></button>}<button type="button" className="aa-icon-button aa-desktop-result" aria-label={resultOpen ? '隐藏结果区' : '展开结果区'} title="切换结果区" onClick={() => setResultOpen(v => !v)}>{resultOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}</button><button type="button" className="aa-icon-button aa-mobile-result" aria-label="查看结果区" onClick={() => setResultPeek(true)}><PanelRightOpen size={18} /></button></div></div>
         {notice && <div className="aa-notice" role="status"><Check size={14} /><span>{notice}</span><button type="button" className="aa-icon-button" aria-label="关闭提示" onClick={() => setNotice('')}><X size={13} /></button></div>}
         {taskError && <div className="aa-error" role="alert"><span>{taskError}</span><button type="button" className="aa-button" onClick={() => setSidebarOpen(true)}>任务列表</button>{active.current && <button type="button" className="aa-button" onClick={() => void openTask(active.current!)}>重新打开</button>}</div>}
-        <div className="aa-messages" aria-label="任务对话">{!task && !opening && !taskError && <div className="aa-welcome"><span className="aa-welcome-icon"><Sparkles size={29} /></span><h2>把一个想法，变成一份成果</h2><p>与 AI 一起解读资料、整理思路、规划任务和撰写内容。</p><button className="aa-button aa-primary" type="button" onClick={newTask}><Plus size={15} />创建第一项任务</button></div>}{task && !task.messages.length && <div className="aa-welcome"><span className="aa-welcome-icon"><Bot size={29} /></span><h2>从一个清晰的目标开始</h2><p>告诉助手你想完成什么，也可以先导入资料。</p></div>}{task && <Conversation messages={task.messages} artifacts={task.artifacts} userName={userName} onCopy={content => void copy(content)} onArtifact={showArtifact} />}{busy && <div className="aa-thinking" role="status"><LoaderCircle size={16} className="aa-spin" />{preview ? '正在演示自动判断与回答流程…' : '正在判断并查找所需资料…'}</div>}<div ref={messagesEnd} /></div>
+        <div className="aa-messages" aria-label="任务对话">{!task && !opening && !taskError && <div className="aa-welcome"><span className="aa-welcome-icon"><Sparkles size={29} /></span><h2>把一个想法，变成一份成果</h2><p>与 AI 一起解读资料、整理思路、规划任务和撰写内容。</p><button className="aa-button aa-primary" type="button" onClick={newTask}><Plus size={15} />创建第一项任务</button></div>}{task && !task.messages.length && !busy && <div className="aa-welcome"><span className="aa-welcome-icon"><Bot size={29} /></span><h2>从一个清晰的目标开始</h2><p>告诉助手你想完成什么，也可以先导入资料。</p></div>}{task && <Conversation messages={task.messages} artifacts={task.artifacts} userName={userName} onCopy={content => void copy(content)} onArtifact={showArtifact} />}{task && requests.progress[task.id] ? <RequestProgressView progress={requests.progress[task.id]} /> : busy && <div className="aa-thinking" role="status"><LoaderCircle size={16} className="aa-spin" />{preview ? '正在演示自动判断与回答流程…' : '正在判断并查找所需资料…'}</div>}<div ref={messagesEnd} /></div>
         {task?.deletedAt ? <div className="aa-readonly"><Trash2 size={17} /><span>此任务在回收站，对话和产物仍保留。</span><button className="aa-button" type="button" onClick={() => setSidebarOpen(true)}>在任务列表中恢复</button></div> : <div className="aa-composer-wrap">{task && errors[task.id] && <div className="aa-error" role="alert">{errors[task.id]}<button type="button" className="aa-button" onClick={() => void openTask(task.id)}>刷新任务</button></div>}<div className="aa-composer-mode"><AnswerModeControl value={answerMode} onChange={setAnswerMode} disabled={busy} /><small aria-label="当前应用数据范围">应用数据：{dataSourceLabel(dataSources)}</small></div><form className="aa-composer" onSubmit={event => { event.preventDefault(); void send() }}><textarea aria-label="给 AI 助手的任务" placeholder={task ? '描述你想完成的工作，或继续追问…' : '先新建任务，开始与 AI 协作'} value={draft.question} maxLength={12000} disabled={!task || opening} onChange={event => updateDraft({ question: event.target.value })} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) { event.preventDefault(); void send() } }} />{draft.context && <div className="aa-attached"><button type="button" onClick={materials}><Paperclip size={13} />{draft.label || '本轮资料'} · {draft.context.length.toLocaleString()} 字</button><button type="button" aria-label="移除本轮资料" onClick={() => updateDraft({ context: '', label: '' })}><X size={12} /></button></div>}<div className="aa-composer-actions"><button className="aa-icon-button" type="button" aria-label="添加任务资料" title="导入或粘贴本轮资料" disabled={!task} onClick={materials}><Plus size={20} /></button><span className="aa-composer-spacer" /><label className="aa-model-select"><Bot size={13} /><select aria-label="助手回答模型" value={model} onChange={event => setModel(event.target.value)} disabled={busy}><option value="enterprise">企业默认模型</option>{modelSettings?.profiles.map(profile => <option value={profile.id} key={profile.id}>{profile.name} · {modelPriceLabel(profile.provider, profile.baseUrl, profile.model)}</option>)}</select><ChevronDown size={12} /></label><button className="aa-send" aria-label="发送任务消息" title="发送 · Enter" type="submit" disabled={!task || busy || !draft.question.trim() || opening}>{busy ? <LoaderCircle size={17} className="aa-spin" /> : <ArrowUp size={18} />}</button></div></form>{modelError && <p className="aa-model-error" role="status">{modelError}</p>}<p className="aa-disclaimer">{preview ? '本地交互演示 · 不调用外部模型' : 'AI 生成内容请核对后使用'}<span>Enter 发送 · Shift + Enter 换行</span></p></div>}
       </main>
       {resultPeek && <button className="aa-result-scrim" aria-label="收起结果区" onClick={() => setResultPeek(false)} />}

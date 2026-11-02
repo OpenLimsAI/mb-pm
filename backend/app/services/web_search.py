@@ -317,10 +317,21 @@ def answer(question, *, selected, provider, cfg):
             ),
         },
     ]
+    from app.services import assistant_generation
+
     content, _ = (
-        solution_ai.chat(cfg, messages, timeout=60)
-        if selected["kind"] == "private"
-        else ai.chat(provider, cfg, messages, timeout=60)
+        assistant_generation.call(
+            "custom" if selected["kind"] == "private" else provider,
+            cfg,
+            messages,
+            request_fn=solution_ai.pinned_request if selected["kind"] == "private" else None,
+        )
+        if assistant_generation.active()
+        else (
+            solution_ai.chat(cfg, messages, timeout=60)
+            if selected["kind"] == "private"
+            else ai.chat(provider, cfg, messages, timeout=60)
+        )
     )
     if not isinstance(content, str) or not content.strip():
         raise ai.AIError("empty response", code="model_empty_response")
