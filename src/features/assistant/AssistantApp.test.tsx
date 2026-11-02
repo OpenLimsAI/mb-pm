@@ -317,6 +317,31 @@ describe('AI assistant task workspace', () => {
     await within(chat()).findByRole('button', { name: '查看产物' })
   })
 
+  it('shows the source summary belonging to each selected artifact without rewriting its content', async () => {
+    const client = createPreviewAssistantClient('artifact-sources'), task = await create(client, '产物来源')
+    const general = await client.send(task, { requestId: crypto.randomUUID(), question: '解释一下什么是缓冲液', context: '', answerMode: 'general', data_sources: ['knowledge'] })
+    const latest = await client.send(general, { requestId: crypto.randomUUID(), question: '搜索最新研究进展', context: '', answerMode: 'web', data_sources: [] })
+    await mount(client); await open(task.title)
+    const result = screen.getByRole('complementary', { name: '任务结果区' })
+    expect(within(result).getByRole('group', { name: '本轮回答来源' })).toHaveTextContent('联网检索流程演示')
+    fireEvent.change(within(result).getByRole('combobox', { name: '选择任务产物' }), { target: { value: general.artifacts[0].id } })
+    const scope = within(result).getByRole('group', { name: '本轮回答来源' })
+    expect(within(scope).getByText('通用回答')).toBeInTheDocument()
+    expect(within(scope).getByText('未查询知识库')).toBeInTheDocument()
+    expect(within(scope).getByText('未联网')).toBeInTheDocument()
+    expect(within(result).queryByText('联网检索流程演示')).not.toBeInTheDocument()
+    expect(await client.get(task.id)).toEqual(latest)
+  })
+
+  it('does not guess source usage for an orphaned historical artifact', async () => {
+    const client = createPreviewAssistantClient('orphaned-artifact'), task = await create(client, '旧产物')
+    vi.spyOn(client, 'get').mockResolvedValue({ ...task, artifacts: [{ id: 'orphan', title: '历史产物', content: '旧正文保留：application_data。', model: '旧模型', createdAt: task.createdAt }] })
+    await mount(client); await open(task.title)
+    const result = screen.getByRole('complementary', { name: '任务结果区' })
+    expect(within(result).getByText('旧正文保留：application_data。')).toBeInTheDocument()
+    expect(within(result).queryByRole('group', { name: '本轮回答来源' })).not.toBeInTheDocument()
+  })
+
   it('saves the selected data sources and sends them with subsequent questions', async () => {
     const client = createPreviewAssistantClient('sources'), task = await create(client, '数据问答'), send = vi.spyOn(client, 'send')
     await mount(client)
@@ -399,7 +424,8 @@ describe('AI assistant task workspace', () => {
     fireEvent.keyDown(composer(), { key: 'Enter' })
     await waitFor(() => expect(send).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ data_sources: selected, answerMode: 'auto' })))
     expect(await within(chat()).findByText('通用回答')).toBeInTheDocument()
-    expect(within(chat()).getByText('本轮未读取应用数据')).toBeInTheDocument()
+    expect(within(chat()).getByText('未查询知识库')).toBeInTheDocument()
+    expect(within(chat()).getByText('未联网')).toBeInTheDocument()
   })
 
   it('keeps a project question private until explicitly enabled, then labels the project demo honestly', async () => {

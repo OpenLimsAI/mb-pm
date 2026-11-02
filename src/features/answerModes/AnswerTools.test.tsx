@@ -4,6 +4,30 @@ import { AnswerEvidence, SearchCapability } from './AnswerTools'
 import { safeWebSourceUrl } from './sourceUrl'
 
 describe('answer provenance', () => {
+  it('summarizes a personal general answer from its actual mode and source usage', () => {
+    render(<AnswerEvidence showSourceScope part="status" answer={{ answerMode: 'general', requestedMode: 'auto', usedSources: [] }} />)
+    const scope = screen.getByRole('group', { name: '本轮回答来源' })
+    expect(within(scope).getByText('通用回答')).toBeInTheDocument()
+    expect(within(scope).getByText('未查询知识库')).toBeInTheDocument()
+    expect(within(scope).getByText('未联网')).toBeInTheDocument()
+    expect(screen.queryByText('本轮未读取应用数据')).not.toBeInTheDocument()
+  })
+
+  it('keeps used knowledge and completed web search distinct in a personal source summary', () => {
+    const { rerender } = render(<AnswerEvidence showSourceScope answer={{ answerMode: 'application', usedSources: ['projects', 'knowledge'] }} />)
+    expect(screen.getByText('本轮应用数据：项目管理、知识库')).toBeInTheDocument()
+    expect(screen.getByText('未联网')).toBeInTheDocument()
+    expect(screen.queryByText('未查询知识库')).not.toBeInTheDocument()
+    rerender(<AnswerEvidence showSourceScope answer={{ answerMode: 'web', usedSources: [] }} />)
+    expect(screen.getByText('已联网检索')).toBeInTheDocument()
+    expect(screen.getByText('未查询知识库')).toBeInTheDocument()
+    expect(screen.queryByText('未联网')).not.toBeInTheDocument()
+    rerender(<AnswerEvidence showSourceScope answer={{ answerMode: 'knowledge' }} />)
+    expect(screen.getByText('知识库回答')).toBeInTheDocument()
+    expect(screen.queryByText('未查询知识库')).not.toBeInTheDocument()
+    expect(screen.queryByText('本轮应用数据：知识库')).not.toBeInTheDocument()
+  })
+
   it('shows official DeepSeek readiness only when confirmed by the server', () => {
     const capability = { webSearch: { configured: true, provider: 'deepseek' as const, message: '复用当前模型密钥' }, modes: [] }
     const { rerender } = render(<SearchCapability value={capability} />)

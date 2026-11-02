@@ -141,7 +141,7 @@ def test_project_permission_is_not_an_instruction_to_read_data(assistant_client,
         data_sources=["projects", "knowledge"],
     )
     assert response.status_code == 200, response.text
-    assert evidence(f) == {}
+    assert "application_data" not in json.loads(f.calls[-1]["messages"][-1]["content"])
     assert response.json()["messages"][-1]["answer_mode"] == "general"
     assert stored_scope(f)["used_sources"] == []
 
