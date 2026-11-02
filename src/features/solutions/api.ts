@@ -35,6 +35,14 @@ export function downloadBlob(blob: Blob, filename: string) {
 }
 
 export const solutionApi: SolutionClient = {
+  snapshot: async (id, revision, name) => (await http.post(`/${encodeURIComponent(id)}/versions`, { revision, name })).data,
+  restoreSection: async (id, versionId, revision, sectionId) => (await http.post(`/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}/restore-section`, { revision, sectionId })).data,
+  templates: async () => (await http.get('/templates')).data,
+  createTemplate: async (name, sections) => (await http.post('/templates', { name, sections })).data,
+  deleteTemplate: async id => { await http.delete(`/templates/${encodeURIComponent(id)}`) },
+  topics: async id => (await http.get(`/${encodeURIComponent(id)}/topics`)).data,
+  saveTopic: async (id, topic) => (await http.put(`/${encodeURIComponent(id)}/topics/${encodeURIComponent(topic.id)}`, { title: topic.title, archived: topic.archived, revision: topic.revision })).data,
+  deleteTopic: async (id, topicId, revision) => { await http.delete(`/${encodeURIComponent(id)}/topics/${encodeURIComponent(topicId)}`, { data: { revision } }) },
   capabilities: modelProfileId => assistantApi.capabilities!(modelProfileId),
   list: async () => (await http.get('')).data,
   trash: async () => (await http.get('/trash')).data,
@@ -50,7 +58,7 @@ export const solutionApi: SolutionClient = {
   getSource: async (id, solutionId) => (await http.get(`/sources/${encodeURIComponent(id)}`, { params: { solutionId } })).data,
   knowledgeStatus: async () => (await http.get('/knowledge/status')).data,
   addSource: async input => (await http.post('/sources', input)).data,
-  ask: async (id, input) => (await http.post(`/${encodeURIComponent(id)}/ask`, input, { timeout: 300000 })).data,
+  ask: async (id, input, signal) => (await http.post(`/${encodeURIComponent(id)}/ask`, input, { timeout: 300000, signal })).data,
   polish: async (id, input) => (await http.post(`/${encodeURIComponent(id)}/polish`, input, { timeout: 300000 })).data,
   history: async id => (await http.get(`/${encodeURIComponent(id)}/history`)).data,
   exportWord: async id => {

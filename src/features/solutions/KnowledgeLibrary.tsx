@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { BookOpen, FilePlus2, LoaderCircle, Plus, RefreshCw } from 'lucide-react'
-import { libraryEmbedUrl, readLibraryMessage } from './libraryEmbed'
+import { libraryEmbedUrl, readLibraryMessage, validLibraryPath } from './libraryEmbed'
+import type { LibraryQuote, LibraryNavigation } from './libraryEmbed'
 import './knowledge-library.css'
 
 interface Props {
@@ -9,15 +10,16 @@ interface Props {
   editable: boolean
   busy: boolean
   canAsk: boolean
-  onUse: (path: string, action: 'ask' | 'cite') => void
+  onUse: (path: string, action: 'ask' | 'cite', quote?: LibraryQuote) => void
+  navigateTo?: LibraryNavigation | null
   scope: ReactNode
 }
 
-export default function KnowledgeLibrary({ preview, editable, busy, canAsk, onUse, scope }: Props) {
+export default function KnowledgeLibrary({ preview, editable, busy, canAsk, onUse, scope, navigateTo }: Props) {
   const [reload, setReload] = useState(0)
   const [ready, setReady] = useState(false)
   const [delayed, setDelayed] = useState(false)
-  const [selected, setSelected] = useState<{ path: string; title: string } | null>(null)
+  const [selected, setSelected] = useState<{ path: string; title: string; quote?: LibraryQuote } | null>(null)
   const frame = useRef<HTMLIFrameElement>(null)
   const url = libraryEmbedUrl(preview)
   useEffect(() => {
@@ -26,12 +28,16 @@ export default function KnowledgeLibrary({ preview, editable, busy, canAsk, onUs
     const listen = (event: MessageEvent) => {
       const message = readLibraryMessage(event, frame.current?.contentWindow ?? null, origin)
       if (message?.type === 'ready' && message.preview === preview) setReady(true)
-      else if (message?.type === 'selection') setSelected(message.path ? { path: message.path, title: message.title } : null)
+      else if (message?.type === 'selection') setSelected(message.path ? { path: message.path, title: message.title, quote: message.quote } : null)
     }
     window.addEventListener('message', listen)
     const timer = window.setTimeout(() => setDelayed(true), 8000)
     return () => { window.removeEventListener('message', listen); window.clearTimeout(timer) }
   }, [url, reload, preview])
+  useEffect(() => {
+    if (!ready || !url || !navigateTo || !validLibraryPath(navigateTo.path)) return
+    frame.current?.contentWindow?.postMessage({ type: 'mberp:knowledge-library:navigate', version: 1, path: navigateTo.path, title: navigateTo.title.slice(0, 1000), excerpt: navigateTo.excerpt.slice(0, 4000) }, new URL(url).origin)
+  }, [ready, url, navigateTo])
   function refresh() { setReady(false); setSelected(null); setDelayed(false); setReload(value => value + 1) }
   return <div className="ks-library-workspace">
     <div className="ks-library-toolbar">
@@ -49,10 +55,10 @@ export default function KnowledgeLibrary({ preview, editable, busy, canAsk, onUs
         </div>}
       </div>
       <div className="ks-library-selection">
-        <span title={selected?.title}>{selected ? selected.title : '打开一份资料，可用于问答或引用'}</span>
+        <span title={selected?.quote?.excerpt || selected?.title}>{selected ? <>{selected.title}{selected.quote && <small> · 已选原文 {selected.quote.excerpt.length} 字</small>}</> : '打开一份资料，可用于问答；选中原文可精确引用'}</span>
         <div>
           <button className="ks-button" disabled={!ready || !selected || busy || !canAsk} onClick={() => selected && onUse(selected.path, 'ask')}><Plus size={13} />加入问答范围</button>
-          <button className="ks-button" disabled={!ready || !selected || busy || !editable} onClick={() => selected && onUse(selected.path, 'cite')}><FilePlus2 size={13} />引用到章节</button>
+          <button className="ks-button" disabled={!ready || !selected || busy || !editable} onClick={() => { if (selected) { if (selected.quote) onUse(selected.path, 'cite', selected.quote); else onUse(selected.path, 'cite') } }}><FilePlus2 size={13} />{selected?.quote ? '引用选中段落' : '引用到章节'}</button>
         </div>
       </div>
     </div>

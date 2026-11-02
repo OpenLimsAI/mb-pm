@@ -4,6 +4,7 @@
 from urllib.parse import quote
 from uuid import uuid4
 
+from anyio import from_thread
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.routing import APIRoute
@@ -19,15 +20,21 @@ from app.models.solution import KnowledgeSolution, SolutionAnswer, SolutionSourc
 from app.schemas.solution import (
     AskInput,
     PolishInput,
+    RestoreSectionInput,
     ReviewAction,
+    SnapshotInput,
     SolutionInput,
     SolutionRevision,
     SolutionSave,
     SourceInput,
+    TemplateInput,
+    TopicInput,
+    TopicRevision,
 )
 from app.schemas.solution_ai import ModelSettingsInput, ModelTestInput
 from app.services import assistant_diagnostics as diagnostics
 from app.services import password_policy, solution_ai, solution_knowledge
+from app.services import solution_workbench as workbench
 from app.services import solutions as service
 
 router = APIRouter(prefix="/solutions", tags=["solutions"])
@@ -272,6 +279,88 @@ def source_detail(
     raise HTTPException(404, "来源不存在或无权访问")
 
 
+@router.get("/templates")
+def templates(db: Session = Depends(get_db), claims: dict = Depends(identity)):
+    return workbench.templates(db, claims)
+
+
+@router.post("/templates", status_code=201)
+def create_template(
+    payload: TemplateInput, db: Session = Depends(get_db), claims: dict = Depends(identity)
+):
+    return workbench.create_template(db, payload, claims)
+
+
+@router.delete("/templates/{template_id}", status_code=204)
+def delete_template(
+    template_id: str, db: Session = Depends(get_db), claims: dict = Depends(identity)
+):
+    workbench.delete_template(db, template_id, claims)
+    return Response(status_code=204)
+
+
+@router.post("/{solution_id}/versions", status_code=201)
+def create_version(
+    solution_id: str,
+    payload: SnapshotInput,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    return workbench.manual_snapshot(
+        db, service.get_solution(db, solution_id, claims, owner=True), payload, claims
+    )
+
+
+@router.post("/{solution_id}/versions/{version_id}/restore-section")
+def restore_section(
+    solution_id: str,
+    version_id: str,
+    payload: RestoreSectionInput,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    return workbench.restore_section(
+        db, service.get_solution(db, solution_id, claims, owner=True), version_id, payload, claims
+    )
+
+
+@router.get("/{solution_id}/topics")
+def topics(solution_id: str, db: Session = Depends(get_db), claims: dict = Depends(identity)):
+    return workbench.topics(db, service.get_solution(db, solution_id, claims, owner=True), claims)
+
+
+@router.put("/{solution_id}/topics/{topic_id}")
+def organize_topic(
+    solution_id: str,
+    topic_id: str,
+    payload: TopicInput,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    return workbench.change_topic(
+        db, service.get_solution(db, solution_id, claims, owner=True), topic_id, payload, claims
+    )
+
+
+@router.delete("/{solution_id}/topics/{topic_id}", status_code=204)
+def delete_topic(
+    solution_id: str,
+    topic_id: str,
+    payload: TopicRevision,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    workbench.change_topic(
+        db,
+        service.get_solution(db, solution_id, claims, owner=True),
+        topic_id,
+        payload,
+        claims,
+        delete=True,
+    )
+    return Response(status_code=204)
+
+
 @router.get("/{solution_id}")
 def get(solution_id: str, db: Session = Depends(get_db), claims: dict = Depends(identity)):
     row = service.get_solution(db, solution_id, claims)
@@ -313,18 +402,27 @@ def versions(solution_id: str, db: Session = Depends(get_db), claims: dict = Dep
 def ask(
     solution_id: str,
     payload: AskInput,
+    request: Request,
     response: Response,
     db: Session = Depends(get_db),
     claims: dict = Depends(identity),
 ):
     if payload.answer_mode is None:
         return service.ask(
-            db, service.get_solution(db, solution_id, claims, owner=True), payload, claims
+            db,
+            service.get_solution(db, solution_id, claims, owner=True),
+            payload,
+            claims,
+            is_cancelled=lambda: from_thread.run(request.is_disconnected),
         )
     with diagnostics.request_scope(uuid4()) as trace:
         response.headers[diagnostics.ID_HEADER] = trace.id
         return service.ask(
-            db, service.get_solution(db, solution_id, claims, owner=True), payload, claims
+            db,
+            service.get_solution(db, solution_id, claims, owner=True),
+            payload,
+            claims,
+            is_cancelled=lambda: from_thread.run(request.is_disconnected),
         )
 
 
@@ -353,6 +451,7 @@ def history(solution_id: str, db: Session = Depends(get_db), claims: dict = Depe
         )
         .order_by(SolutionAnswer.created_at)
     ).all()
+    rows = workbench.visible_answers(db, rows)
     for row in rows:
         service.check_references(db, row.references, claims, existing=row.references)
     return [service.answer_out(row) for row in rows]

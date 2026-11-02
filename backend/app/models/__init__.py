@@ -8,6 +8,7 @@ from app.models.ai import FinanceAIAnalysis, ProjectAIAnalysis  # noqa: F401
 from app.models.assistant import AssistantMessage, AssistantRequest, AssistantTask  # noqa: F401
 from app.models.audit_log import AuditLog  # noqa: F401
 from app.models.baseline import ProjectBaseline  # noqa: F401
+from app.models.feedback import Feedback, FeedbackImage  # noqa: F401
 from app.models.finance import ProjectFinance  # noqa: F401
 from app.models.iam import (  # noqa: F401
     IAMIdentity,
@@ -16,6 +17,11 @@ from app.models.iam import (  # noqa: F401
     PasswordChangeRequired,
 )
 from app.models.information import InformationEntry, InformationLease, InformationText  # noqa: F401
+from app.models.mdm_integration import (  # noqa: F401
+    MDMProjectReceipt,
+    OIDCLogoutReplay,
+    OIDCRevocation,
+)
 from app.models.note import PersonalNote  # noqa: F401
 from app.models.portal import PortalLogin, PortalSession  # noqa: F401
 from app.models.project import Project, ProjectMember  # noqa: F401
@@ -25,13 +31,11 @@ from app.models.solution import (  # noqa: F401
     SolutionAnswer,
     SolutionEvent,
     SolutionSource,
+    SolutionTemplate,
+    SolutionTopic,
     SolutionVersion,
 )
 from app.models.solution_ai import SolutionAISettings  # noqa: F401
 from app.models.task import SubProject, Task, TaskDependency  # noqa: F401
 from app.models.template import Template, TemplateVersion  # noqa: F401
 from app.models.user import User  # noqa: F401
-
-from app.models.mdm_integration import MDMProjectReceipt, OIDCRevocation, OIDCLogoutReplay  # noqa: F401
-
-from app.models.feedback import Feedback, FeedbackImage  # noqa: F401

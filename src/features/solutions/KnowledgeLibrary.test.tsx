@@ -53,6 +53,26 @@ describe('original library embedding', () => {
     expect(screen.getByTitle('原知识库资料')).not.toBe(frame)
     expect(screen.queryByText('资料视图暂未加载')).not.toBeInTheDocument()
   })
+
+  it('passes the selected excerpt separately from a document identifier', () => {
+    const { message, onUse } = mount()
+    message('ready'); message('selection', { path: 'sources/paper.md', title: '文献', excerpt: '精确引用内容', locator: '结果段' })
+    fireEvent.click(screen.getByRole('button', { name: '引用选中段落' }))
+    expect(onUse).toHaveBeenCalledWith('sources/paper.md', 'cite', { excerpt: '精确引用内容', locator: '结果段' })
+    message('selection', { path: 'sources/paper.md', title: '文献', excerpt: 'x'.repeat(4001), locator: '结果段' })
+    expect(screen.queryByRole('button', { name: '引用选中段落' })).not.toBeInTheDocument()
+  })
+
+  it('navigates citations through only the trusted library frame after readiness', () => {
+    const target = { id: 1, path: 'sources/paper.md', title: '原文', excerpt: '结果内容' }
+    render(<KnowledgeLibrary preview editable busy={false} canAsk onUse={vi.fn()} scope={null} navigateTo={target} />)
+    const frame = screen.getByTitle('原知识库资料') as HTMLIFrameElement
+    const send = vi.spyOn(frame.contentWindow!, 'postMessage')
+    expect(send).not.toHaveBeenCalled()
+    const origin = new URL(frame.src).origin
+    act(() => window.dispatchEvent(new MessageEvent('message', { source: frame.contentWindow, origin, data: { type: 'mberp:knowledge-library:ready', version: 1, preview: true } })))
+    expect(send).toHaveBeenCalledWith({ type: 'mberp:knowledge-library:navigate', version: 1, path: target.path, title: target.title, excerpt: target.excerpt }, origin)
+  })
 })
 
 it.each(['sources/../secret.md', 'sources//a.md', 'sources/a%2f.md', 'sources/a\\b.md', 'wisdom/private.md', 'sources/a\n.md', 'sources/a.pdf'])('rejects an unsafe source path %s', path => expect(validLibraryPath(path)).toBe(false))

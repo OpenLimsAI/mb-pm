@@ -38,6 +38,8 @@ class KnowledgeSolution(Base):
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     project_name: Mapped[str] = mapped_column(String(200), default="", nullable=False)
     product_name: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+    pinned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    tags: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
     requires_kb: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     revision: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
@@ -136,3 +138,25 @@ class SolutionEvent(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now, nullable=False
     )
+
+
+class SolutionTemplate(Base):
+    __tablename__ = "solution_templates"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    issuer: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    owner_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    sections: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
+
+
+class SolutionTopic(Base):
+    __tablename__ = "solution_topics"
+    solution_id: Mapped[str] = mapped_column(ForeignKey("knowledge_solutions.id"), primary_key=True)
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    title: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+    archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, default=1, nullable=False)

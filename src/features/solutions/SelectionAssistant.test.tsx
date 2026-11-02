@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import InlineAssistantEditor from './InlineAssistantEditor'
 import type { InlineQuestion } from './InlineAssistantEditor'
 import type { Answer, PolishResult } from './types'
@@ -27,6 +27,8 @@ function openPolish(body: HTMLTextAreaElement) {
   fireEvent.click(within(screen.getByRole('toolbar', { name: '选中文字操作' })).getByRole('button', { name: 'Polish 文字' }))
   return screen.getByRole('dialog', { name: 'Polish 文字 · 润色' })
 }
+
+beforeEach(() => { localStorage.setItem('ks-editor-mode', 'markdown') })
 
 describe('selected report text assistant', () => {
   it('offers two actions after selecting text, without sending requests or editing', () => {

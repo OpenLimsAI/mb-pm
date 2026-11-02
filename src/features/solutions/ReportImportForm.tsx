@@ -46,8 +46,8 @@ export default function ReportImportForm({ busy, error, onCancel, onImport }: {
     {parsed && <div className="ks-import-preview">
       <div className="ks-import-file"><FileText size={16} /><strong>{parsed.fileName}</strong><span>{parsed.characters.toLocaleString()} 字 · {parsed.input.sections.length} 个章节</span></div>
       <label>报告名称<input required maxLength={200} value={title} disabled={busy} onChange={event => setTitle(event.target.value)} /></label>
-      <label>正文预览<textarea aria-label="导入正文预览" readOnly value={parsed.input.sections.map(section => section.content).join('')} /></label>
-      <p className="ks-import-note">{parsed.kind === 'markdown' ? '保留 Markdown 标记。' : parsed.kind === 'pdf' ? '提取 PDF 中的文字，不保留图片和原版式；扫描件需先进行文字识别。' : '提取正文文字，不保留图片、原版式和复杂表格。'}{parsed.input.sections.length > 1 && ' 较长正文已分为续章。'}</p>
+      <label>正文预览<textarea aria-label="导入正文预览" readOnly value={parsed.input.sections.map(section => `# ${section.title}\n\n${section.content}`).join('\n\n')} /></label>
+      <p className="ks-import-note">{parsed.kind === 'markdown' ? '识别标题结构，保留 Markdown 表格及内嵌图片。' : parsed.kind === 'pdf' ? '提取 PDF 中的文字，不保留图片和原版式；扫描件需先进行文字识别。' : '保留标题、列表、表格和不超过 1 MB 的 PNG / JPEG 图片；复杂版式会转换为可编辑正文。'}{parsed.input.sections.length > 1 && ' 已按标题及正文长度划分章节。'}</p>
     </div>}
     <footer><span className="ks-import-note">当前报告会保留。</span><button type="button" className="ks-button" disabled={busy} onClick={onCancel}>取消</button><button type="submit" className="ks-button ks-primary" disabled={!parsed || !title.trim() || parsing || busy}>{busy && <LoaderCircle size={14} className="ks-spin" />}{busy ? '正在导入…' : '导入为新报告'}</button></footer>
   </form>

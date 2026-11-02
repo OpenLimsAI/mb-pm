@@ -1,8 +1,11 @@
 import { AnswerEvidence } from '../answerModes/AnswerTools'
 import { useLayoutEffect, useRef, useState } from 'react'
+import { RichBodySegment } from './RichBodySegment'
+import type { RichHandle, RichRange } from './RichBodySegment'
+import { readReportImage } from './reportMarkup'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Bold, BookOpen, Check, Heading2, Italic, List, LoaderCircle, Quote, Redo2, Send, Sparkles, Undo2, X } from 'lucide-react'
+import { Bold, BookOpen, Check, Heading2, Italic, List, LoaderCircle, Quote, Redo2, Send, Sparkles, Undo2, X, Table, ImagePlus } from 'lucide-react'
 import type { Answer, PolishResult } from './types'
 import SelectionAssistant from './SelectionAssistant'
 import type { EditorSelection } from './SelectionAssistant'
@@ -24,6 +27,7 @@ export interface InlineQuestion extends InlineAnchor {
 
 interface Props {
   content: string
+  onCursorChange?: (range: { from: number; to: number; text: string; content: string }) => void
   cards: InlineQuestion[]
   disabled: boolean
   scope: string
@@ -149,6 +153,11 @@ function BodySegment({ segmentKey, value, segmented, finalSegment, label, disabl
 
 export default function InlineAssistantEditor(props: Props) {
   const { content, cards, disabled, scope, onEdit, onSelection, onCreate, onUpdate, onRemove, onAsk, onAdopt, onSource } = props
+  const [mode, setMode] = useState<'visual' | 'markdown'>(() => localStorage.getItem('ks-editor-mode') === 'markdown' ? 'markdown' : 'visual')
+  const rich = useRef<RichHandle | null>(null)
+  const richEditors = useRef(new Map<string, RichHandle>())
+  const imageInput = useRef<HTMLInputElement>(null)
+  const [editorError, setEditorError] = useState('')
   const [menu, setMenu] = useState<{ key: string; offset: number } | null>(null)
   const [selectedText, setSelectedText] = useState<EditorSelection | null>(null)
   const editor = useRef<HTMLDivElement>(null), activeInput = useRef<HTMLTextAreaElement | null>(null)
@@ -185,6 +194,8 @@ export default function InlineAssistantEditor(props: Props) {
   }
   function selectText(input: HTMLTextAreaElement) {
     const start = input.selectionStart, end = input.selectionEnd, text = input.value.slice(start, end)
+    const part = parts.find(part => part.type === 'text' && part.key === input.dataset.segmentKey)
+    if (part?.type === 'text') props.onCursorChange?.({ from: part.from + start, to: part.from + end, text, content })
     if (disabled || !text.trim()) { setSelectedText(null); return }
     const line = caretLine(input), rect = input.getBoundingClientRect()
     const bottom = Math.min(window.innerHeight, input.closest('.ks-paper-scroll')?.getBoundingClientRect().bottom || window.innerHeight)
@@ -193,6 +204,12 @@ export default function InlineAssistantEditor(props: Props) {
       left: Math.max(8, Math.min(rect.left + line.left, window.innerWidth - (props.onSaveNote ? 400 : 260))), top: Math.max(8, Math.min(rect.top + line.top - input.scrollTop + line.lineHeight + 7, bottom - (props.onSaveNote && window.innerWidth < 440 ? 90 : 48))) })
   }
   function replaceSelectedText(selected: EditorSelection, replacement: string) {
+    if (selected.rich && mode === 'visual') {
+      const target = richEditors.current.get(selected.key)
+      if (disabled || content !== selected.document || !target || target.editor.isDestroyed) return false
+      target.editor.chain().focus().setTextSelection({ from: selected.rich.from, to: selected.rich.to }).insertContent(replacement, { contentType: 'markdown' }).run()
+      setSelectedText(null); onSelection(''); return true
+    }
     const part = parts.find(part => part.type === 'text' && part.key === selected.key)
     if (disabled || content !== selected.document || !part || part.type !== 'text' || part.text.slice(selected.start, selected.end) !== selected.text) return false
     const end = selected.start + replacement.length
@@ -202,6 +219,15 @@ export default function InlineAssistantEditor(props: Props) {
     return true
   }
   function format(format: TextFormat | 'continue', input?: HTMLTextAreaElement): boolean {
+    if (mode === 'visual' && rich.current) {
+      const chain = rich.current.editor.chain().focus()
+      if (format === 'heading') return chain.toggleHeading({ level: 2 }).run()
+      if (format === 'bold') return chain.toggleBold().run()
+      if (format === 'italic') return chain.toggleItalic().run()
+      if (format === 'list') return chain.toggleBulletList().run()
+      if (format === 'quote') return chain.toggleBlockquote().run()
+      return false
+    }
     const target = input ?? (activeInput.current?.isConnected ? activeInput.current : editor.current?.querySelector<HTMLTextAreaElement>('textarea[data-segment-key]'))
     if (disabled || !target) return false
     const next = format === 'continue' ? continueEditorList(target.value, target.selectionStart, target.selectionEnd) : formatEditorText(target.value, target.selectionStart, target.selectionEnd, format)
@@ -214,6 +240,7 @@ export default function InlineAssistantEditor(props: Props) {
   }
   function moveHistory(direction: 'undo' | 'redo') {
     if (disabled) return
+    if (mode === 'visual' && rich.current) { const chain = rich.current.editor.chain().focus(); if (direction === 'undo') chain.undo().run(); else chain.redo().run(); return }
     const undo = direction === 'undo', step = (undo ? history.past : history.future).at(-1)
     if (!step) return
     const next = undo ? step.before : step.after
@@ -223,15 +250,32 @@ export default function InlineAssistantEditor(props: Props) {
     onEdit(textEditFromValues(content, next), step.precedingIds)
   }
   function choose() { if (!menu || disabled || content[menu.offset] !== '/') return; const index = parts.findIndex(part => part.key === menu.key); onCreate(menu.offset, parts.slice(0, index).filter(part => part.type === 'card').map(part => part.anchor.id)); setMenu(null) }
+  function selectRich(key: string, range: RichRange | null) {
+    if (!range) { setSelectedText(null); return }
+    const part = parts.find(p => p.key === key)
+    if (part?.type !== 'text') return
+    props.onCursorChange?.({ from: part.from + range.start, to: part.from + range.end, text: content.slice(part.from + range.start, part.from + range.end), content })
+    onSelection(range.text)
+    if (!range.text.trim() || disabled) { setSelectedText(null); return }
+    setSelectedText({ key, start: range.start, end: range.end, text: range.text, document: content, rich: { from: range.from, to: range.to }, input: range.input, host: range.input.closest<HTMLElement>('.ks-app') || document.body, left: Math.max(8, Math.min(range.left, window.innerWidth - 400)), top: Math.max(8, Math.min(range.top + 7, window.innerHeight - 100)) })
+  }
+  async function insertImage(file?: File) {
+    if (!file || !rich.current) return
+    try { const src = await readReportImage(file); if (content.length + src.length > 4_000_000) throw new Error('本章节图片与文字合计超过容量，请压缩图片或拆分章节。'); rich.current.editor.chain().focus().setImage({ src, alt: file.name }).run(); setEditorError('') } catch (error) { setEditorError(error instanceof Error ? error.message : '图片读取失败') }
+  }
   return <div className="ks-inline-editor" ref={editor}>
     <div className="ks-editor-formatbar" role="toolbar" aria-label="正文格式">
       {([{ id: 'heading', label: '标题', icon: Heading2 }, { id: 'bold', label: '加粗', icon: Bold }, { id: 'italic', label: '斜体', icon: Italic }, { id: 'list', label: '项目列表', icon: List }, { id: 'quote', label: '引用段落', icon: Quote }] as const).map(({ id, label, icon: Icon }) => <button key={id} type="button" aria-label={label} title={`${label}${id === 'bold' ? ' · Ctrl/⌘ B' : id === 'italic' ? ' · Ctrl/⌘ I' : ''}`} disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => format(id)}><Icon size={16} /></button>)}
       <span className="ks-format-divider" />
-      <button type="button" aria-label="撤销正文编辑" title="撤销 · Ctrl/⌘ Z" disabled={disabled || !history.past.length} onMouseDown={event => event.preventDefault()} onClick={() => moveHistory('undo')}><Undo2 size={16} /></button>
-      <button type="button" aria-label="重做正文编辑" title="重做 · Ctrl/⌘ Shift Z" disabled={disabled || !history.future.length} onMouseDown={event => event.preventDefault()} onClick={() => moveHistory('redo')}><Redo2 size={16} /></button>
+      <button type="button" aria-label="撤销正文编辑" title="撤销 · Ctrl/⌘ Z" disabled={disabled || (mode === 'markdown' && !history.past.length)} onMouseDown={event => event.preventDefault()} onClick={() => moveHistory('undo')}><Undo2 size={16} /></button>
+      <button type="button" aria-label="重做正文编辑" title="重做 · Ctrl/⌘ Shift Z" disabled={disabled || (mode === 'markdown' && !history.future.length)} onMouseDown={event => event.preventDefault()} onClick={() => moveHistory('redo')}><Redo2 size={16} /></button>
+      {mode === 'visual' && <><button type="button" aria-label="插入表格" title="插入 3 × 3 表格" disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => rich.current?.editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}><Table size={16} /></button><button type="button" aria-label="插入图片" title="插入 PNG / JPEG / WebP 图片，最多 1 MB" disabled={disabled} onClick={() => imageInput.current?.click()}><ImagePlus size={16} /></button></>}
+      <div className="ks-editor-mode" role="group" aria-label="编辑方式">{(['visual', 'markdown'] as const).map(value => <button type="button" key={value} aria-pressed={mode === value} onClick={() => { setMode(value); setSelectedText(null); setMenu(null); localStorage.setItem('ks-editor-mode', value) }}>{value === 'visual' ? '可视编辑' : 'Markdown'}</button>)}</div>
       <span className="ks-format-hint"><Sparkles size={13} />输入 <kbd>/</kbd> 插入 AI 问答</span>
     </div>
-    {parts.map((part, index) => part.type === 'text' ? <BodySegment key={part.key} segmentKey={part.key} value={part.text} segmented={cards.length > 0} finalSegment={index === parts.length - 1}
+    <input ref={imageInput} type="file" accept="image/png,image/jpeg,image/webp" aria-label="选择正文图片" hidden onChange={event => { void insertImage(event.target.files?.[0]); event.target.value = '' }} />
+    {editorError && <p className="ks-editor-error" role="alert">{editorError}</p>}
+    {parts.map((part, index) => part.type === 'text' ? mode === 'visual' ? <RichBodySegment key={part.key} value={part.text} label={index === 0 ? '章节正文' : `章节正文（续 ${Math.ceil(index / 2)}）`} disabled={disabled} onChange={(value, start, end) => record(part.key, { value, start, end })} onActive={handle => { rich.current = handle; richEditors.current.set(part.key, handle) }} onRange={range => selectRich(part.key, range)} onSlash={offset => onCreate(part.from + offset, parts.slice(0, index).filter(p => p.type === 'card').map(p => p.anchor.id))} /> : <BodySegment key={part.key} segmentKey={part.key} value={part.text} segmented={cards.length > 0} finalSegment={index === parts.length - 1}
       label={index === 0 ? '章节正文' : `章节正文（续 ${Math.ceil(index / 2)}）`} disabled={disabled}
       onChange={(value, start, end, inputType) => record(part.key, { value, start, end }, inputType)}
       onActive={input => { activeInput.current = input }} onFormat={format} onHistory={moveHistory}

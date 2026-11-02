@@ -17,7 +17,7 @@ describe('report file import', () => {
   it('reads UTF-8 Markdown, retains markup and creates fresh section ids without evidence or formula', async () => {
     const first = await parseReportFile(textFile('研究报告.md', '\uFEFF# 研究报告\r\n\r\n**证据**与[来源](https://example.org)'))
     const second = await parseReportFile(textFile('研究报告.md', '# 内容'))
-    expect(first.input).toMatchObject({ title: '研究报告', projectName: '', productName: '', formula: [], references: [], sections: [{ title: '导入正文', content: '# 研究报告\n\n**证据**与[来源](https://example.org)' }] })
+    expect(first.input).toMatchObject({ title: '研究报告', projectName: '', productName: '', formula: [], references: [], sections: [{ title: '研究报告', content: '**证据**与[来源](https://example.org)' }] })
     expect(first.input.sections[0].id).not.toBe(second.input.sections[0].id)
   })
   it('preserves every character when splitting long text, including paragraph boundaries and emoji', () => {
@@ -33,6 +33,13 @@ describe('report file import', () => {
     await expect(parseReportFile(textFile('x.md', 'a\u0000b'))).rejects.toThrow('无法读取')
     await expect(parseReportFile({ name: 'x.md', size: 1, arrayBuffer: async () => new Uint8Array([0xff]).buffer } as File)).rejects.toThrow('UTF-8')
     expect(() => reportFromText('x.md', 'x'.repeat(200_001), 'markdown')).toThrow('20 万字')
+  })
+  it('splits heading hierarchy without treating code fence headings as chapters', () => {
+    const value = reportFromText('报告.md', '# 背景\n\n第一段\n\n## 方法\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n```text\n# 非章节\n```', 'markdown')
+    expect(value.input.sections.map(section => section.title)).toEqual(['背景', '方法'])
+    expect(value.input.sections[1].parentId).toBe(value.input.sections[0].id)
+    expect(value.input.sections[1].content).toContain('# 非章节')
+    expect(value.input.sections[1].content).toContain('| 1 | 2 |')
   })
   it('explains empty PDF text and never reports a scan as imported', () => {
     expect(() => reportFromText('scan.pdf', '\n\n', 'pdf')).toThrow('OCR')

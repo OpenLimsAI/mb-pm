@@ -18,6 +18,7 @@ export interface DeletedChapter {
   nextSectionId: string | null
   references: Reference[]
   formulaBindings: FormulaBinding[]
+  promotedChildren?: { id: string; parentId: string | null }[]
 }
 
 export function deleteChapter(solution: Solution, sectionId: string): {
@@ -47,7 +48,7 @@ export function deleteChapter(solution: Solution, sectionId: string): {
 
   return {
     patch: {
-      sections: solution.sections.filter(section => section.id !== sectionId),
+      sections: solution.sections.filter(section => section.id !== sectionId).map(section => section.parentId === sectionId ? { ...section, parentId: solution.sections[index].parentId || null } : section),
       references: solution.references.filter(reference => reference.sectionId !== sectionId),
       formula,
     },
@@ -59,6 +60,7 @@ export function deleteChapter(solution: Solution, sectionId: string): {
       nextSectionId: solution.sections[index + 1]?.id ?? null,
       references: references.map(reference => ({ ...reference })),
       formulaBindings,
+      promotedChildren: solution.sections.filter(section => section.parentId === sectionId).map(section => ({ id: section.id, parentId: solution.sections[index].parentId || null })),
     },
     affectedFormulaCount: formulaBindings.length,
   }
@@ -85,11 +87,11 @@ export function restoreChapter(solution: Solution, undo: DeletedChapter): Chapte
   if (solution.id !== undo.solutionId || solution.sections.length >= 60
     || solution.sections.some(section => section.id === undo.section.id)) return null
 
-  const sections = [...solution.sections]
+  const sections = solution.sections.map(section => undo.promotedChildren?.some(child => child.id === section.id && (section.parentId || null) === child.parentId) ? { ...section, parentId: undo.section.id } : section)
   const previousIndex = sections.findIndex(section => section.id === undo.previousSectionId)
   const nextIndex = sections.findIndex(section => section.id === undo.nextSectionId)
   const index = previousIndex >= 0 ? previousIndex + 1 : nextIndex >= 0 ? nextIndex : Math.min(undo.index, sections.length)
-  sections.splice(index, 0, { ...undo.section })
+  sections.splice(index, 0, { ...undo.section, ...(undo.section.parentId && !solution.sections.some(section => section.id === undo.section.parentId) ? { parentId: null } : {}) })
 
   const references = [...solution.references]
   const referencesById = new Map(references.map(reference => [reference.id, reference]))

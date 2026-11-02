@@ -32,7 +32,7 @@ function insertCard() {
   fireEvent.click(screen.getByRole('menuitem', { name: /AI 问答/ }))
   return screen.getByRole('region', { name: '正文 AI 问答' })
 }
-beforeEach(() => { localStorage.clear(); sessionStorage.clear(); localStorage.setItem('ks-writing-mode', 'split') })
+beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-editor-mode', 'markdown'); sessionStorage.clear(); localStorage.setItem('ks-writing-mode', 'split') })
 
 describe('knowledge report model integration', () => {
   it('refreshes current-model search readiness after saving the same profile and when choosing retrieval', async () => {
@@ -84,7 +84,7 @@ describe('knowledge report model integration', () => {
     fireEvent.change(screen.getByRole('combobox', { name: '回答方式' }), { target: { value: 'knowledge' } })
     fireEvent.change(screen.getByRole('textbox', { name: '向AI提问' }), { target: { value: '缓冲体系有哪些证据？' } })
     fireEvent.click(screen.getByRole('button', { name: '发送问题' }))
-    await waitFor(() => expect(ask).toHaveBeenCalledWith('demo-solution', expect.objectContaining({ modelProfileId: 'profile-two', question: '缓冲体系有哪些证据？', answerMode: 'knowledge' })))
+    await waitFor(() => expect(ask).toHaveBeenCalledWith('demo-solution', expect.objectContaining({ modelProfileId: 'profile-two', question: '缓冲体系有哪些证据？', answerMode: 'knowledge' }), expect.any(AbortSignal)))
     expect(await screen.findByText(/找到 .* 份相关演示资料/)).toBeVisible()
     expect(select).toHaveValue('profile-two')
   })
@@ -138,7 +138,7 @@ describe('knowledge report model integration', () => {
     expect(ask).not.toHaveBeenCalled()
     fireEvent.change(screen.getByRole('combobox', { name: '当前 AI 模型' }), { target: { value: 'retrieval' } })
     fireEvent.click(screen.getByRole('button', { name: '发送问题' }))
-    await waitFor(() => expect(ask).toHaveBeenCalledWith('demo-solution', expect.objectContaining({ modelProfileId: 'retrieval' })))
+    await waitFor(() => expect(ask).toHaveBeenCalledWith('demo-solution', expect.objectContaining({ modelProfileId: 'retrieval' }), expect.any(AbortSignal)))
   })
 
   it('does not let a late initial load overwrite a newly saved default', async () => {

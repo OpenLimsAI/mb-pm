@@ -1,5 +1,5 @@
 // Check the DOCX container before expanding it. ZIP64 and oversized archives are
-// intentionally rejected; imported reports only need the document's plain text.
+// intentionally rejected to bound decompression before rich document conversion.
 function checkContainer(buffer: ArrayBuffer) {
   const view = new DataView(buffer)
   let end = -1
@@ -21,7 +21,14 @@ function checkContainer(buffer: ArrayBuffer) {
 export async function readWordText(buffer: ArrayBuffer): Promise<string> {
   checkContainer(buffer)
   const mammoth = await import('mammoth')
-  // Never insert converted HTML, embedded images or document links into the DOM.
-  const result = await mammoth.extractRawText({ arrayBuffer: buffer })
-  return result.value
+  const { htmlToReportMarkdown } = await import('./reportMarkup')
+  const result = await mammoth.convertToHtml({ arrayBuffer: buffer }, {
+    convertImage: mammoth.images.imgElement(async image => {
+      if (!['image/png', 'image/jpeg'].includes(image.contentType)) return { src: '', alt: '不支持的图片格式' }
+      const data = await image.read('base64')
+      if (data.length > 1_398_104) return { src: '', alt: '图片超过 1 MB，请压缩后手动插入' }
+      return { src: `data:${image.contentType};base64,${data}` }
+    }),
+  })
+  return htmlToReportMarkdown(result.value)
 }

@@ -159,6 +159,23 @@ python -m pytest tests/ -q --cov=app.services.accounts --cov=app.schemas.account
 信息获取从工作台卡片或 `/information` 进入，复用门户会话。仅在 `VITE_USE_API=false` 的开发预览可直接打开 `/information?preview=1`；页面常驻演示标识。
 真实 API 模式连接持久后端，并按[配置说明](configuration.md#信息获取)启用 worker 与可选 KB 桥接。原文使用独立目录，不指向客户备份。预览仅使用内存演示数据，不能写真实接口；真实接口失败不会回落到演示资料。详见[信息获取](information.md)。
 
+## 研究报告工作台验证
+
+2026-11-02 工作台改进的行为、格式边界和 API 见[研究报告工作台](research-report-workbench.md)。真实服务端需应用迁移 `017`，前端依赖以 `npm ci` 安装；不能用生产库运行自动测试。配套知识库须包含原文选段传递功能，只有门户新版而 KB 仍为旧版时无法从 KB 发送新选段。
+
+建议在一次性测试库或既有测试夹具中验证：
+
+```sh
+npx vitest run src/features/solutions --maxWorkers=4
+npx tsc -b
+(cd backend && python -m pytest tests/test_solution*.py tests/test_notes.py -q)
+(cd backend && ruff format --check app)
+```
+
+本轮新增后端测试覆盖历史快照、CAS 冲突、单章恢复保留其他章节、模板和主题账号隔离、删除主题拒绝迟到答案、断开连接不提交答案、原文引用防伪造、Word 表格图片与域，以及 `017` 重复升级 / 降级保留原报告数据。迁移夹具只使用独立 SQLite；PostgreSQL 的真实迁移验收必须在单独数据库执行。既有 `test_ai.py::test_real_http_transports_and_connection_check` 需要监听 `127.0.0.1` 随机端口，仅访问本机 HTTP 替身，不调用付费模型。
+
+浏览器验收应同时检查宽屏和窄栏：中文组合输入、富文本选区、跨章节拖动、粘贴表格和图片、冲突提示、导出前保存、单章恢复、切换报告时的迟到请求、笔记来源失效与 KB 原文定位。接口测试不替代真实账号登录和跨应用会话验收，自动测试通过也不代表已部署。以下带日期的本地预览记录保留为历史过程。
+
 ## 知识报告开发
 
 开发预览可直接打开 `/solutions?preview=1`（`VITE_USE_API=false`），不连接真实服务。正式模式需要门户登录及后端，方案使用数据库持久化。企业知识库适配另需服务端连接配置；没有模型配置时返回资料检索结果，不假装生成 AI 回答。完整范围见[应用说明](knowledge-solutions.md)。

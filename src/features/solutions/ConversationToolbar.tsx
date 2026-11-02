@@ -1,13 +1,13 @@
+import { useState } from 'react'
 import { MessageSquare, Plus } from 'lucide-react'
 import type { ConversationTopic } from './conversations'
-
-export default function ConversationToolbar({ topics, activeId, onSelect, onNew }: {
-  topics: ConversationTopic[]; activeId: string; onSelect: (id: string) => void; onNew: () => void
+import type { TopicMetadata } from './types'
+export default function ConversationToolbar({topics,activeId,onSelect,onNew,metadata=[],onSave,onDelete,busy=false}: {
+ topics:ConversationTopic[]; activeId:string; onSelect:(id:string)=>void; onNew:()=>void;metadata?:TopicMetadata[];onSave?:(topic:TopicMetadata)=>Promise<void>;onDelete?:(topic:TopicMetadata)=>Promise<void>;busy?:boolean
 }) {
-  return <div className="ks-conversation-toolbar" role="group" aria-label="对话主题管理">
-    <label><MessageSquare size={14} /><span>对话主题</span><select aria-label="对话主题" value={activeId} onChange={event => onSelect(event.target.value)}>
-      {topics.map(topic => <option key={topic.id} value={topic.id}>{topic.title} · {topic.count ? `${topic.count} 轮` : '草稿'}</option>)}
-    </select></label>
-    <button className="ks-button ks-new-conversation" type="button" onClick={onNew}><Plus size={14} />新建对话</button>
-  </div>
+ const [query,setQuery]=useState(''),[manage,setManage]=useState(false),[name,setName]=useState(''),[archived,setArchived]=useState(false),[error,setError]=useState(''),[saving,setSaving]=useState(false)
+ const current=metadata.find(t=>t.id===activeId)||{id:activeId,title:topics.find(t=>t.id===activeId)?.title||'新的对话',archived:false,revision:0}
+ const options=topics.map(t=>({...t,...metadata.find(m=>m.id===t.id)})).filter(t=>t.id===activeId || (!!t.archived===archived && t.title.toLowerCase().includes(query.toLowerCase())))
+ async function perform(action:()=>Promise<void>){setSaving(true);setError('');try{await action();setManage(false)}catch(e){setError(e instanceof Error?e.message:'操作未完成')}finally{setSaving(false)}}
+ return <div className="ks-topics-panel"><div className="ks-conversation-toolbar" role="group" aria-label="对话主题管理"><label><MessageSquare size={14}/><span>对话主题</span><select aria-label="对话主题" value={activeId} onChange={e=>{onSelect(e.target.value);setName(metadata.find(t=>t.id===e.target.value)?.title || topics.find(t=>t.id===e.target.value)?.title || '新的对话')}}>{options.map(topic=><option key={topic.id} value={topic.id}>{topic.archived?'[归档] ':''}{topic.title} · {topic.count?`${topic.count} 轮`:'草稿'}</option>)}</select></label><button className="ks-button ks-new-conversation" type="button" onClick={onNew}><Plus size={14}/>新建对话</button>{onSave&&<button className="ks-button" onClick={()=>{setManage(!manage);setName(current.title);setError('')}} disabled={busy}>管理主题</button>}</div>{onSave&&manage&&<div className="ks-topic-search"><input aria-label="搜索对话主题" placeholder="搜索对话主题" value={query} onChange={e=>setQuery(e.target.value)}/><label><input type="checkbox" checked={archived} onChange={e=>setArchived(e.target.checked)}/>查看已归档</label></div>}{manage&&<div className="ks-topic-management"><label>主题名称<input maxLength={200} aria-label="主题名称" value={name} onChange={e=>setName(e.target.value)}/></label><button className="ks-button" disabled={saving||!name.trim()} onClick={()=>void perform(()=>onSave!({...current,title:name.trim()}))}>保存名称</button><button className="ks-button" disabled={saving} onClick={()=>void perform(()=>onSave!({...current,archived:!current.archived}))}>{current.archived?'取消归档':'归档主题'}</button>{onDelete&&<button className="ks-button ks-danger" disabled={saving} onClick={()=>{if(window.confirm('删除此主题及全部问答？已经采纳到报告中的正文和引用会保留。'))void perform(()=>onDelete(current))}}>删除主题</button>}{error&&<p role="alert">{error}</p>}</div>}</div>
 }

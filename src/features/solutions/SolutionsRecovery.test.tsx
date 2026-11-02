@@ -28,7 +28,7 @@ async function open(client: SolutionClient) {
   await screen.findByRole('textbox', { name: '章节正文' })
   return view
 }
-beforeEach(() => { localStorage.clear(); sessionStorage.clear(); vi.restoreAllMocks() })
+beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-editor-mode', 'markdown'); sessionStorage.clear(); vi.restoreAllMocks() })
 
 describe('research workspace survives authentication remounts', () => {
   it.each(['general', 'knowledge', 'web'] as const)('restores the %s restriction after authentication without automatically sending the draft', async answerMode => {
@@ -43,7 +43,7 @@ describe('research workspace survives authentication remounts', () => {
     expect(screen.getByRole('textbox', { name: '向AI提问' })).toHaveValue('最新研究进展是否完整？')
     expect(client.ask).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: '发送问题' }))
-    await waitFor(() => expect(client.ask).toHaveBeenCalledWith('r1', expect.objectContaining({ answerMode, question: '最新研究进展是否完整？' })))
+    await waitFor(() => expect(client.ask).toHaveBeenCalledWith('r1', expect.objectContaining({ answerMode, question: '最新研究进展是否完整？' }), expect.any(AbortSignal)))
   })
 
   it('restores the active report, chapter, question, context and separate topic drafts without model requests', async () => {
@@ -118,7 +118,7 @@ describe('research workspace survives authentication remounts', () => {
     expect(screen.getByRole('button', { name: '发送问题' })).toBeEnabled()
     expect(client.ask).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: '发送问题' }))
-    await waitFor(() => expect(client.ask).toHaveBeenCalledWith('r1', expect.objectContaining({ sourceIds: ['paper-1'] })))
+    await waitFor(() => expect(client.ask).toHaveBeenCalledWith('r1', expect.objectContaining({ sourceIds: ['paper-1'] }), expect.any(AbortSignal)))
   })
 
   it('preserves a legacy cached project scope without restoring the removed report-material controls', async () => {
@@ -133,7 +133,7 @@ describe('research workspace survives authentication remounts', () => {
     expect(client.sources).not.toHaveBeenCalled()
     expect(client.ask).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: '发送问题' }))
-    await waitFor(() => expect(client.ask).toHaveBeenCalledWith('r1', expect.objectContaining({ sourceIds: ['paper-1'], projectName: '旧项目范围' })))
+    await waitFor(() => expect(client.ask).toHaveBeenCalledWith('r1', expect.objectContaining({ sourceIds: ['paper-1'], projectName: '旧项目范围' }), expect.any(AbortSignal)))
     fireEvent.click(screen.getByRole('button', { name: '清除原范围，使用全部授权资料' }))
     expect(readWorkspaceRecovery(scope)?.projectFilter).toBe('')
     expect(readWorkspaceRecovery(scope)?.selectedSourceIds).toEqual([])

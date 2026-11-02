@@ -13,6 +13,16 @@ export default function NotesWorkspace({ client, mode = 'embedded', userName, ac
   const [offset, setOffset] = useState(0), [reload, setReload] = useState(0), [loading, setLoading] = useState(true), [error, setError] = useState(''), [notice, setNotice] = useState('')
   const [editing, setEditing] = useState<PersonalNote | NoteDraft | null>(null), [busy, setBusy] = useState(false), [undo, setUndo] = useState<PersonalNote | null>(null)
   const request = useRef(0), currentClient = useRef(client)
+  const [linkedId] = useState(() => new URLSearchParams(window.location.search).get('note')?.slice(0, 128) || '')
+  const [linkedResult, setLinkedResult] = useState<{ client: NotesClient; note: PersonalNote | null; error: string } | null>(null)
+  const linkedNote = mode === 'app' && linkedResult?.client === client ? linkedResult.note : null
+  const linkedError = mode === 'app' && linkedResult?.client === client ? linkedResult.error : ''
+  useEffect(() => {
+    let active = true
+    if (mode !== 'app' || !linkedId || !client.get) return
+    client.get(linkedId).then(note => { if (active) setLinkedResult({ client, note, error: '' }) }).catch(() => { if (active) setLinkedResult({ client, note: null, error: '无法打开引用的笔记：笔记可能已删除，或不属于当前登录账号。' }) })
+    return () => { active = false }
+  }, [client, linkedId, mode])
   useEffect(() => {
     const token = ++request.current
     let active = true
@@ -85,6 +95,8 @@ export default function NotesWorkspace({ client, mode = 'embedded', userName, ac
       <div className="pn-tools"><label className="pn-search"><Search size={16} aria-hidden="true" /><input aria-label="搜索我的笔记" placeholder="搜索笔记标题或正文…" maxLength={200} value={search} onChange={event => filter(() => setSearch(event.target.value))} /></label>{!app && <><select aria-label="笔记来源筛选" value={source} onChange={event => filter(() => setSource(event.target.value as NoteSource | ''))}><option value="">全部来源</option>{Object.entries(noteSourceNames).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><button className={`pn-button ${trashed ? 'is-active' : ''}`} type="button" onClick={() => filter(() => setTrashed(value => !value))}><Trash2 size={15} aria-hidden="true" />{trashed ? '返回笔记' : '回收站'}</button></>}<button type="button" className="pn-button pn-refresh" aria-label="刷新笔记" title="刷新笔记" onClick={refresh}><RefreshCw size={15} aria-hidden="true" /></button>{!app && createButton}{app && <span className="pn-sort-label">按最近更新排列</span>}</div>
       {notice && <div className="pn-notice" role="status">{notice}{undo && <button type="button" className="pn-button" disabled={busy} onClick={() => void move(undo, true)}>撤销移除</button>}</div>}
       {error && <div role="alert" className="pn-error">{error}<button className="pn-button" type="button" onClick={refresh}>重试读取</button></div>}
+      {linkedError && <p role="alert" className="pn-error">{linkedError}</p>}
+      {linkedNote && <section className="pn-card" aria-label="引用的笔记"><h3>{linkedNote.title}</h3><p style={{ whiteSpace: 'pre-wrap' }}>{linkedNote.content}</p><footer><span>来源笔记 · {new Date(linkedNote.updatedAt).toLocaleString('zh-CN')}</span><button type="button" className="pn-button" onClick={() => { setEditing(linkedNote); setLinkedResult(null) }}>编辑这条笔记</button><button type="button" className="pn-button" onClick={() => setLinkedResult(null)}>收起</button></footer></section>}
       <div className="pn-list-title">{!app && <h2>{trashed ? '回收站' : '全部笔记'} <span>{total}</span></h2>}{loading && <span role="status"><LoaderCircle size={15} className="pn-spin" />读取中…</span>}</div>
       {!items.length && !loading && !error && <div className="pn-empty"><span className="pn-empty-icon">{trashed ? <Trash2 size={27} /> : <NotebookPen size={27} />}</span><h3>{search || source ? '没有匹配的笔记' : trashed ? '回收站为空' : '还没有笔记'}</h3><p>{search || source ? '试试调整关键词和来源筛选。' : trashed ? '移除的笔记会暂存在这里，你可以随时恢复。' : '创建个人记录，或在研究报告、行业信息中选中文字存入笔记。'}</p></div>}
       <div className="pn-grid">{items.map(note => { const Icon = SourceIcon[note.sourceApp]; return <article className="pn-card" key={note.id}>

@@ -1,0 +1,18 @@
+.ks-rich-segment { position: relative; flex: 1; min-height: 240px; }
+.ks-rich-document { min-height: 240px; outline: none; padding: 12px 0 28px; line-height: 1.85; color: #284452; overflow-wrap: anywhere; }
+.ks-rich-document p { margin: .55em 0; }
+.ks-rich-document h1,.ks-rich-document h2,.ks-rich-document h3 { color: #24476b; line-height: 1.4; margin: 1.1em 0 .5em; }
+.ks-rich-document h1 { font-size: 1.8em; }.ks-rich-document h2 { font-size: 1.5em; }.ks-rich-document h3 { font-size: 1.2em; }
+.ks-rich-document ul,.ks-rich-document ol { padding-left: 1.6em; }.ks-rich-document ul { list-style: disc; }.ks-rich-document ol { list-style: decimal; }
+.ks-rich-document blockquote { border-left: 3px solid #a4c4d4; background: #f1f7fa; margin: 1em 0; padding: .4em 1em; }
+.ks-rich-document table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+.ks-rich-document td,.ks-rich-document th { border: 1px solid #c5d5e1; padding: 8px; vertical-align: top; position: relative; min-width: 50px; }
+.ks-rich-document th { background: #edf5fb; }.ks-rich-document .selectedCell { background: #dceef9; }
+.ks-rich-document img { max-width: 100%; height: auto; display: block; margin: 12px auto; }
+.ks-rich-document pre { background: #eff3f6; padding: 12px; border-radius: 6px; overflow: auto; }
+.ks-rich-document .ProseMirror-selectednode { outline: 2px solid #007e9b; }.ks-rich-document .column-resize-handle { position:absolute; right:-2px; top:0; bottom:-2px; width:4px; background:#62abc4; }
+.ks-rich-document .tableWrapper { overflow-x:auto; }
+.ks-editor-mode { margin-left:auto; display:flex; gap:3px; }.ks-editor-mode button[aria-pressed=true] { background:#e7f2fa; color:#24476b; }
+.ks-rich-slash { position:absolute; z-index:8; bottom:10px; display:flex; background:white; border:1px solid #c9dce9; box-shadow:0 4px 20px #25496d20; border-radius:8px; padding:8px; }
+.ks-rich-slash button { padding:8px; color:#24476b; }.ks-editor-error { color:#a83838; font-size:12px; padding:6px 0; }
+.ks-image-dialog { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:8px; background:#edf5fb; }
