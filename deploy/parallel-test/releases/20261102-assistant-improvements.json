@@ -1,0 +1,131 @@
+{
+  "feature_pr": "https://github.com/OpenLimsAI/mb-pm/pull/126",
+  "ci": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41484634563",
+  "deployed_at": "2026-11-02T12:00:46-05:00",
+  "verification": {
+    "actual_image_login_smoke_artifact_sha256": "247484c233e9f4431d639b42f47eb4ac0127f5107c4eee8e8e28acd315d1b081",
+    "compose_only_image_changed": true,
+    "image": "mb-pm:assistant-improvements-cdf13df-20261102",
+    "image_id": "sha256:fd68e9dd66aea5a40c3bf22785904d0bcd8801ad2a3b8c74113609c043256552",
+    "instances": {
+      "mb-pm-v2-app-1": {
+        "anonymous_api": 401,
+        "application_scope_column": true,
+        "assistant_entry": 200,
+        "database": "mb_pm",
+        "health": 200,
+        "index_sha256": "06aec8719c6487d6e2a7aa2022cd7dda5cb9df76835220d351ce9eb315299487",
+        "knowledge_source_materials": 280,
+        "production_artifact": {
+          "api_base": "/api/v1",
+          "app_mode": "domain",
+          "files_verified": 163,
+          "index_sha256": "06aec8719c6487d6e2a7aa2022cd7dda5cb9df76835220d351ce9eb315299487",
+          "production_api": true,
+          "schema": 1,
+          "source": "cdf13df013a946979e03aa3eb250737997ecc220"
+        },
+        "routing_cases": 6,
+        "web_configured": true
+      },
+      "mb-pm-v2-app-direct-1": {
+        "anonymous_api": 401,
+        "application_scope_column": true,
+        "assistant_entry": 200,
+        "database": "mb_pm",
+        "health": 200,
+        "index_sha256": "06aec8719c6487d6e2a7aa2022cd7dda5cb9df76835220d351ce9eb315299487",
+        "knowledge_source_materials": 280,
+        "production_artifact": {
+          "api_base": "/api/v1",
+          "app_mode": "domain",
+          "files_verified": 163,
+          "index_sha256": "06aec8719c6487d6e2a7aa2022cd7dda5cb9df76835220d351ce9eb315299487",
+          "production_api": true,
+          "schema": 1,
+          "source": "cdf13df013a946979e03aa3eb250737997ecc220"
+        },
+        "routing_cases": 6,
+        "web_configured": true
+      }
+    },
+    "migration": "017",
+    "model_settings_preserved": true,
+    "other_containers_unchanged": 16,
+    "prior_assistant_messages_unchanged": true,
+    "prior_record_ids_retained": true,
+    "rollback_database_downgrade": false,
+    "rollback_image": "mb-pm:knowledge-source-complete-dbf3782-20261102",
+    "source": "cdf13df013a946979e03aa3eb250737997ecc220",
+    "tables_checked": 40
+  },
+  "candidate": {
+    "async_request_e2e": {
+      "accept_seconds": 0.02,
+      "answer_characters": 2514,
+      "answer_sha256": "39db3ce8e946a523ecd1ea6afad21d7d36c75745f8d7d3702cdd671aac247865",
+      "claim_once": true,
+      "cloned_customer_rows_unchanged": true,
+      "completed_pair_and_artifact_atomic": true,
+      "diagnostics_content_free": true,
+      "fulltext_search": true,
+      "generation_seconds": 29.206,
+      "http_submit": 202,
+      "isolated_database_only": true,
+      "largest_observed_partial_characters": 2424,
+      "memory_pin_final_artifact_saved": true,
+      "model_calls": 1,
+      "partial_not_published_as_final": true,
+      "partial_persistence_observed": true,
+      "persisted_before_model": true,
+      "preflight_without_inference": true,
+      "production_tasks_modified": false,
+      "queued_cancel_idempotent": true,
+      "reopen_recovers_same_request": true,
+      "repeat_submit_does_not_generate": true,
+      "retention_tombstone_idempotent": true,
+      "unmodified_model_body": true,
+      "web_or_knowledge_calls": 0
+    },
+    "migration": "017",
+    "permissions": {
+      "missing_profile_does_not_fallback": true,
+      "personal_default_capabilities_checked": 2
+    },
+    "prior_data_preserved": true,
+    "probe": {
+      "anonymous_api": 401,
+      "application_scope_column": true,
+      "assistant_entry": 200,
+      "database": "assistant_improvements_check_cdf13df_20261102",
+      "health": 200,
+      "index_sha256": "06aec8719c6487d6e2a7aa2022cd7dda5cb9df76835220d351ce9eb315299487",
+      "knowledge_source_materials": 280,
+      "routing_cases": 6,
+      "web_configured": true
+    }
+  },
+  "public": {
+    "manifest": {
+      "source": "cdf13df013a946979e03aa3eb250737997ecc220",
+      "production_api": true,
+      "files": 163
+    },
+    "assistant": {
+      "status": 200,
+      "sha256": "3c049594681709dc597138e1c0c3b9f0be7cecf80062829f371a040a296e2f36"
+    },
+    "login": {
+      "status": 200,
+      "sha256": "3c049594681709dc597138e1c0c3b9f0be7cecf80062829f371a040a296e2f36"
+    },
+    "checked_at_unix": 1793638887,
+    "real_customer_sso_tested": false
+  },
+  "rollback": {
+    "image": "mb-pm:knowledge-source-complete-dbf3782-20261102",
+    "image_id": "sha256:7f1b3797f7480e404f01827c16c12f8bf6ca438fb82e32749a7c778d4f118787",
+    "database_downgrade": false
+  },
+  "real_customer_sso_tested": false
+}
