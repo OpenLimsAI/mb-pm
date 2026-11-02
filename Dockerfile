@@ -47,6 +47,8 @@ RUN pip install -r requirements.txt
 
 # 后端源码（含 app/seed/seed.json 种子）
 COPY backend/app ./app
+COPY backend/alembic ./alembic
+COPY backend/alembic.ini ./alembic.ini
 
 # 前端构建产物 → 后端同源托管目录
 COPY --from=frontend /web/dist ./static

@@ -1,7 +1,7 @@
 """Personal AI task conversations authenticated by the portal."""
 # ruff: noqa: B008
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_same_origin
@@ -11,9 +11,21 @@ from app.db.session import get_db
 from app.schemas.assistant import TaskCreate, TaskQuestion, TaskRevision, TaskSave
 from app.services import assistant as service
 from app.services import assistant_diagnostics as diagnostics
-from app.services import password_policy, web_search
+from app.services import assistant_requests, password_policy, web_search
 
 router = APIRouter(prefix="/assistant/tasks", tags=["ai-assistant"])
+
+
+def job_response(response, action):
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        return action()
+    except HTTPException as exc:
+        raise HTTPException(
+            exc.status_code,
+            exc.detail,
+            headers={**(exc.headers or {}), "Cache-Control": "no-store"},
+        ) from None
 
 
 def identity(request: Request, db: Session = Depends(get_db)):
@@ -75,7 +87,46 @@ def question(
 ):
     with diagnostics.request_scope(payload.request_id) as trace:
         response.headers[diagnostics.ID_HEADER] = trace.id
-        return service.question(db, claims, service.get_task(db, task_id, claims), payload)
+        return assistant_requests.run_inline(
+            db, claims, service.get_task(db, task_id, claims), payload
+        )
+
+
+@router.post("/{task_id}/requests", status_code=202)
+def submit_request(
+    task_id: str,
+    payload: TaskQuestion,
+    response: Response,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    return job_response(
+        response,
+        lambda: assistant_requests.submit(
+            db, claims, service.get_task(db, task_id, claims), payload
+        )[2],
+    )
+
+
+@router.get("/{task_id}/requests/active")
+def active_request(
+    task_id: str,
+    response: Response,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    return job_response(response, lambda: assistant_requests.get_active(db, claims, task_id))
+
+
+@router.get("/{task_id}/requests/{request_id}")
+def request_status(
+    task_id: str,
+    request_id: str,
+    response: Response,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    return job_response(response, lambda: assistant_requests.get(db, claims, task_id, request_id))
 
 
 @router.post("/{task_id}/trash")

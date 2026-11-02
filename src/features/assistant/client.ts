@@ -13,8 +13,27 @@ export interface AssistantArtifact { id: string; title: string; content: string;
 export interface AssistantTask extends TaskSummary { messages: AssistantMessage[]; artifacts: AssistantArtifact[] }
 export interface TaskQuery { search?: string; trashed?: boolean; offset?: number }
 export interface TaskQuestion { requestId: string; question: string; context: string; modelProfileId?: string; data_sources?: string[]; answerMode?: AnswerMode }
+export interface AssistantRequest {
+  requestId: string
+  taskId: string
+  status: 'queued' | 'running' | 'completed' | 'failed'
+  stage: string
+  question: string
+  context: string
+  requestedMode?: AnswerMode
+  dataSources?: ApplicationDataSource[]
+  modelProfileId?: string | null
+  partialContent: string
+  error: string
+  diagnosticId: string
+  createdAt: string
+  updatedAt: string
+}
 export interface AssistantClient {
   capabilities?(modelProfileId?: string): Promise<AnswerCapabilities>
+  submitRequest?(task: TaskSummary, input: TaskQuestion): Promise<AssistantRequest>
+  getRequest?(taskId: string, requestId: string): Promise<AssistantRequest>
+  activeRequest?(taskId: string): Promise<{ request: AssistantRequest | null }>
   list(query?: TaskQuery): Promise<{ items: TaskSummary[]; total: number }>
   get(id: string): Promise<AssistantTask>
   create(input: TaskInput & { id: string }): Promise<AssistantTask>
@@ -58,6 +77,9 @@ export const assistantApi: AssistantClient = {
   create: async input => (await http.post('', input)).data,
   save: async (task, input) => (await http.put(`/${encodeURIComponent(task.id)}`, { ...input, revision: task.revision })).data,
   send: async (task, input) => (await http.post(`/${encodeURIComponent(task.id)}/messages`, { ...input, revision: task.revision })).data,
+  submitRequest: async (task, input) => (await http.post(`/${encodeURIComponent(task.id)}/requests`, { ...input, revision: task.revision }, { timeout: 20000 })).data,
+  getRequest: async (taskId, requestId) => (await http.get(`/${encodeURIComponent(taskId)}/requests/${encodeURIComponent(requestId)}`, { timeout: 15000 })).data,
+  activeRequest: async taskId => (await http.get(`/${encodeURIComponent(taskId)}/requests/active`, { timeout: 15000 })).data,
   trash: async task => (await http.post(`/${encodeURIComponent(task.id)}/trash`, { revision: task.revision })).data,
   restore: async task => (await http.post(`/${encodeURIComponent(task.id)}/restore`, { revision: task.revision })).data,
 }

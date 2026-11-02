@@ -206,6 +206,8 @@ def create(db, claims, payload):
 
 
 def change(db, claims, task, revision, values):
+    if task.active_request_id:
+        raise HTTPException(409, "任务正在生成回答，请完成后再修改")
     if task.revision != revision:
         raise HTTPException(409, CONFLICT)
     check_history_access(
@@ -215,7 +217,12 @@ def change(db, claims, task, revision, values):
     )
     changed = db.execute(
         update(AssistantTask)
-        .where(AssistantTask.id == task.id, owned(claims), AssistantTask.revision == revision)
+        .where(
+            AssistantTask.id == task.id,
+            owned(claims),
+            AssistantTask.revision == revision,
+            AssistantTask.active_request_id.is_(None),
+        )
         .values(**values, revision=revision + 1, updated_at=datetime.now(UTC))
     )
     if changed.rowcount != 1:
@@ -235,6 +242,8 @@ def set_trashed(db, claims, task, revision, *, trashed):
     """Manage an owned task without reading or returning its protected history."""
     if task.revision != revision:
         raise HTTPException(409, CONFLICT)
+    if task.active_request_id:
+        raise HTTPException(409, "任务正在生成回答，请完成后再操作")
     if trashed:
         active(task)
     elif task.deleted_at is None:
@@ -245,7 +254,11 @@ def set_trashed(db, claims, task, revision, *, trashed):
     changed = db.execute(
         update(AssistantTask)
         .where(
-            AssistantTask.id == task_id, owned(claims), AssistantTask.revision == revision, state
+            AssistantTask.id == task_id,
+            owned(claims),
+            AssistantTask.revision == revision,
+            state,
+            AssistantTask.active_request_id.is_(None),
         )
         .values(deleted_at=now if trashed else None, revision=revision + 1, updated_at=now)
     )
@@ -295,10 +308,14 @@ def application_data(db, claims, payload):
 
 
 def question(db, claims, task, payload):
+    from app.services import assistant_generation, assistant_requests
+
     active(task)
     replay = completed_request(db, task, payload, claims)
     if replay is not None:
         return replay
+    if task.active_request_id != assistant_requests.active_id():
+        raise HTTPException(409, assistant_requests.BUSY)
     if task.revision != payload.revision:
         raise HTTPException(409, CONFLICT)
     prior_project_access = check_history_access(
@@ -449,6 +466,7 @@ def question(db, claims, task, payload):
     task_id = task.id
     # Release the read transaction before waiting on any external model service.
     db.rollback()
+    assistant_requests.progress(application_scope=application_scope, stage="waiting_model")
     diagnostics.stage("model")
     web_references = []
     try:
@@ -466,9 +484,26 @@ def question(db, claims, task, payload):
             )
         else:
             content, _ = (
-                solution_ai.chat(cfg, messages, timeout=60)
-                if selected["kind"] == "private"
-                else ai.chat(provider, cfg, messages, timeout=60)
+                assistant_generation.call(
+                    "custom" if selected["kind"] == "private" else provider,
+                    cfg,
+                    messages,
+                    request_fn=solution_ai.pinned_request
+                    if selected["kind"] == "private"
+                    else None,
+                    kind="analysis"
+                    if any(
+                        word in payload.question
+                        for word in ("深入分析", "深度分析", "详细推导", "严谨推导")
+                    )
+                    else "general",
+                )
+                if assistant_generation.active()
+                else (
+                    solution_ai.chat(cfg, messages, timeout=60)
+                    if selected["kind"] == "private"
+                    else ai.chat(provider, cfg, messages, timeout=60)
+                )
             )
         if not isinstance(content, str) or not content.strip():
             raise ai.AIError("invalid response", code="model_empty_response")
@@ -478,6 +513,7 @@ def question(db, claims, task, payload):
         raise diagnostics.model_http_error(exc) from None
     diagnostics.stage("saving")
     db.rollback()
+    assistant_requests.progress(stage="saving")
     if project_access:
         current_access = assistant_projects.recheck(db, claims, project_access)
         if "scope_hash" in application_scope and application_scope[
@@ -491,6 +527,8 @@ def question(db, claims, task, payload):
     replay = completed_request(db, task, payload, claims)
     if replay is not None:
         return replay
+    # Lock the request before the task, matching expiry/failure cleanup lock order.
+    assistant_requests.complete(db)
     changed = db.execute(
         update(AssistantTask)
         .where(
@@ -498,8 +536,11 @@ def question(db, claims, task, payload):
             owned(claims),
             AssistantTask.revision == payload.revision,
             AssistantTask.deleted_at.is_(None),
+            AssistantTask.active_request_id == assistant_requests.active_id()
+            if assistant_requests.active_id()
+            else AssistantTask.active_request_id.is_(None),
         )
-        .values(revision=payload.revision + 1, updated_at=datetime.now(UTC))
+        .values(revision=payload.revision + 1, updated_at=datetime.now(UTC), active_request_id=None)
     )
     if changed.rowcount != 1:
         db.rollback()

@@ -83,6 +83,7 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("assistant_messages", "mode_reason", "VARCHAR(200) NOT NULL DEFAULT ''"),
     ("assistant_messages", "web_references", "JSON NOT NULL DEFAULT '[]'"),
     ("assistant_messages", "application_scope", "JSON NOT NULL DEFAULT '{}'"),
+    ("assistant_tasks", "active_request_id", "VARCHAR(64)"),
     ("solution_answers", "answer_mode", "VARCHAR(20) NOT NULL DEFAULT ''"),
     ("solution_answers", "requested_mode", "VARCHAR(20) NOT NULL DEFAULT ''"),
     ("solution_answers", "mode_reason", "VARCHAR(200) NOT NULL DEFAULT ''"),
@@ -192,6 +193,11 @@ async def lifespan(_: FastAPI):
 
         worker = start_worker()
     notes_worker = None
+    assistant_worker = None
+    if settings.ASSISTANT_REQUEST_WORKER_ENABLED:
+        from app.services.assistant_requests import start_worker as start_assistant_worker
+
+        assistant_worker = start_assistant_worker()
     knowledge_source_worker = None
     if settings.KNOWLEDGE_SOURCE_APP_ENABLED and settings.KNOWLEDGE_SOURCE_WORKER_ENABLED:
         from app.services.knowledge_source_worker import (
@@ -206,6 +212,9 @@ async def lifespan(_: FastAPI):
     try:
         yield
     finally:
+        if assistant_worker:
+            assistant_worker[0].set()
+            assistant_worker[1].join(timeout=5)
         if knowledge_source_worker:
             knowledge_source_worker[0].set()
             knowledge_source_worker[1].join(timeout=5)

@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     ASSISTANT_WEB_PROVIDER: Literal["deepseek", "tavily"] = "deepseek"
     ASSISTANT_WEB_API_KEY: str = ""
     ASSISTANT_WEB_MAX_RESULTS: int = Field(default=5, ge=1, le=8)
+    ASSISTANT_REQUEST_WORKER_ENABLED: bool = True
+    ASSISTANT_REQUEST_TOTAL_SECONDS: int = Field(default=300, ge=30, le=900)
+    ASSISTANT_REQUEST_LEASE_SECONDS: int = Field(default=45, ge=15, le=120)
 
     # —— 信息获取（真实采集与受保护的原文归档）—— #
     KNOWLEDGE_NOTES_ORIGIN: str = "https://kb.openlims.ai"
