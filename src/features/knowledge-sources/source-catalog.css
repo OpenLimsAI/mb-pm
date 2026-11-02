@@ -31,6 +31,7 @@
 #knowledge-source-app .kso-catalog-scopes > span { margin-left: auto; color: #8a9da9; font-size: 10px; }
 #knowledge-source-app .kso-catalog-selectbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-height: 46px; padding: 7px 20px; border-bottom: 1px solid #e7edf2; background: #f8fafb; }
 #knowledge-source-app .kso-catalog-selectbar > span { margin-left: auto; color: #8297a5; font-size: 11px; }
+#knowledge-source-app .kso-catalog-select-category { color: #087b9c; border-color: #bedae6!important; background: #eef6fa!important; }
 #knowledge-source-app .kso-catalog-row { display: flex; align-items: center; gap: 18px; min-width: 0; padding: 16px 20px 16px 17px; border-bottom: 1px solid #e7edf2; border-left: 3px solid transparent; }
 #knowledge-source-app .kso-catalog-row.is-new { border-left-color: #76b89c; }
 #knowledge-source-app .kso-catalog-row.is-selected { background: #edf6fa; border-left-color: #087b9c; }

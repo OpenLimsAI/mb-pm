@@ -22,6 +22,7 @@ beforeEach(() => {
   mocks.mutate.mockReset().mockResolvedValue({})
 })
 const mount = () => render(<MemoryRouter><KnowledgeSourceApp /></MemoryRouter>)
+const savedVersion = { id: 'saved', sha256: 'a'.repeat(64), size: 100, createdAt: '2026-11-01T10:00:00Z', parseStatus: 'ready', indexStatus: 'ready' }
 
 describe('knowledge source real-data application', () => {
   it('lists existing KB papers and archived files without treating discovery as saved or unknown indexing as ready', async () => {
@@ -93,7 +94,8 @@ describe('knowledge source real-data application', () => {
     snapshot.jobs = [{ id: 'active-job', sourceId: 'ich', folderId: 'ich', kind: 'import', status, total: 1, processed: 0, saved: 0, failed: 0, pending: 1, parse: true, createdAt: '2026-11-01T10:00:00Z', updatedAt: '2026-11-01T10:00:00Z', items: [] }]
     mount(); await screen.findByRole('button', { name: /已有研究论文/ })
     fireEvent.click(screen.getByRole('button', { name: /论文搜索源/ }))
-    fireEvent.click(screen.getByRole('checkbox', { name: '选择 官方新指南' }))
+    fireEvent.click(within(screen.getByRole('group', { name: 'ICH分类筛选' })).getByRole('button', { name: 'Q 质量' }))
+    fireEvent.click(screen.getByRole('button', { name: '全选本类' }))
     expect(screen.getByRole('button', { name: '下载所选（1）' })).toBeDisabled()
     expect(screen.getByRole('button', { name: '等待当前任务结束' })).toBeDisabled()
     expect(screen.getByRole('button', { name: '查看当前任务' })).toBeEnabled()
@@ -134,6 +136,75 @@ describe('knowledge source real-data application', () => {
     fireEvent.click(screen.getByRole('button', { name: '下载所选（25）' }))
     await waitFor(() => expect(mocks.mutate).toHaveBeenCalledWith('post', '/jobs', expect.objectContaining({ documentIds: Array.from({ length: 25 }, (_, index) => `d${index}`) })))
   })
+  it('selects the whole category across pages while page deselection remains limited to that page', async () => {
+    const document = snapshot.documents[0]
+    snapshot.documents = [
+      ...Array.from({ length: 32 }, (_, index) => ({ ...document, id: `q${index}`, title: `Q 指南 ${String(index).padStart(2, '0')}`, versions: index === 31 ? [savedVersion] : [] })),
+      { ...document, id: 's-only', title: 'S 指南', scopes: ['S'] },
+      { ...document, id: 'other-source', title: '其他来源的 Q 指南', sourceId: 'another-source' },
+    ]
+    mount(); await screen.findByRole('button', { name: /已有研究论文/ })
+    fireEvent.click(screen.getByRole('button', { name: /论文搜索源/ }))
+    expect(screen.getByRole('button', { name: '全选本类' })).toBeDisabled()
+    fireEvent.click(within(screen.getByRole('group', { name: 'ICH分类筛选' })).getByRole('button', { name: 'Q 质量' }))
+    fireEvent.click(screen.getByRole('button', { name: '全选本类' }))
+    expect(screen.getByRole('button', { name: '下载所选（31）' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '全选本类' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: /下一页/ }))
+    expect(screen.getByRole('checkbox', { name: '全选ICH本页论文' })).toBeChecked()
+    fireEvent.click(screen.getByRole('checkbox', { name: '全选ICH本页论文' }))
+    expect(screen.getByRole('button', { name: '下载所选（25）' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '全选本类' }))
+    fireEvent.click(screen.getByRole('button', { name: '下载所选（31）' }))
+    await waitFor(() => expect(mocks.mutate).toHaveBeenCalledWith('post', '/jobs', expect.objectContaining({ sourceId: 'ich', folderId: 'ich', parse: true, documentIds: expect.any(Array) })))
+    const body = mocks.mutate.mock.calls.find(call => call[1] === '/jobs')![2] as { documentIds: string[] }
+    expect(body.documentIds).toHaveLength(31)
+    expect(new Set(body.documentIds)).toEqual(new Set(Array.from({ length: 31 }, (_, index) => `q${index}`)))
+  })
+  it('adds another category without losing earlier choices or duplicating shared documents', async () => {
+    const document = snapshot.documents[0]
+    snapshot.documents = [
+      ...Array.from({ length: 30 }, (_, index) => ({ ...document, id: `q${index}`, title: `Q 指南 ${index}` })),
+      { ...document, id: 'shared', title: '共享指南', scopes: ['Q', 'S'] },
+      { ...document, id: 's0', title: 'S 指南 0', scopes: ['S'] },
+      { ...document, id: 's1', title: 'S 指南 1', scopes: ['S'] },
+      { ...document, id: 'e-only', title: 'E 指南', scopes: ['E'] },
+    ]
+    mount(); await screen.findByRole('button', { name: /已有研究论文/ })
+    fireEvent.click(screen.getByRole('button', { name: /论文搜索源/ }))
+    const scopes = screen.getByRole('group', { name: 'ICH分类筛选' })
+    fireEvent.click(within(scopes).getByRole('button', { name: 'Q 质量' }))
+    fireEvent.click(screen.getByRole('button', { name: '全选本类' }))
+    fireEvent.click(within(scopes).getByRole('button', { name: 'S 安全性' }))
+    fireEvent.click(screen.getByRole('button', { name: '全选本类' }))
+    fireEvent.click(screen.getByRole('button', { name: '下载所选（33）' }))
+    await waitFor(() => expect(mocks.mutate).toHaveBeenCalledWith('post', '/jobs', expect.objectContaining({ documentIds: expect.any(Array) })))
+    const body = mocks.mutate.mock.calls.find(call => call[1] === '/jobs')![2] as { documentIds: string[] }
+    expect(body.documentIds).toHaveLength(33)
+    expect(new Set(body.documentIds)).toEqual(new Set([...Array.from({ length: 30 }, (_, index) => `q${index}`), 'shared', 's0', 's1']))
+  })
+  it('applies keyword and download-status filters when selecting a category', async () => {
+    const document = snapshot.documents[0]
+    snapshot.documents = [
+      { ...document, id: 'target', title: '目标指南' },
+      { ...document, id: 'saved-target', title: '目标指南已保存', versions: [savedVersion] },
+      { ...document, id: 'non-match', title: '其他指南' },
+      { ...document, id: 'e-target', title: '目标 E 指南', scopes: ['E'] },
+    ]
+    mount(); await screen.findByRole('button', { name: /已有研究论文/ })
+    fireEvent.click(screen.getByRole('button', { name: /论文搜索源/ }))
+    fireEvent.click(within(screen.getByRole('group', { name: 'ICH分类筛选' })).getByRole('button', { name: 'Q 质量' }))
+    fireEvent.change(screen.getByRole('textbox', { name: '筛选ICH已发现论文' }), { target: { value: '目标' } })
+    fireEvent.click(screen.getByRole('button', { name: '全选本类' }))
+    expect(screen.getByRole('button', { name: '下载所选（1）' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '清空选择' }))
+    fireEvent.change(screen.getByRole('combobox', { name: 'ICH下载状态' }), { target: { value: 'all' } })
+    fireEvent.click(screen.getByRole('button', { name: '全选本类' }))
+    fireEvent.click(screen.getByRole('button', { name: '下载所选（2）' }))
+    await waitFor(() => expect(mocks.mutate).toHaveBeenCalledWith('post', '/jobs', expect.objectContaining({ documentIds: expect.any(Array) })))
+    const body = mocks.mutate.mock.calls.find(call => call[1] === '/jobs')![2] as { documentIds: string[] }
+    expect(new Set(body.documentIds)).toEqual(new Set(['target', 'saved-target']))
+  })
   it('keeps a failed write dialog open and does not report success', async () => {
     mocks.mutate.mockRejectedValue(new Error('offline'))
     mount(); await screen.findByRole('button', { name: /已有研究论文/ })
@@ -151,6 +222,7 @@ describe('knowledge source real-data application', () => {
     expect(screen.queryByRole('button', { name: '放入文件夹' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /论文搜索源/ }))
     expect(screen.queryByRole('button', { name: '再次搜索' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '全选本类' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /下载所选/ })).not.toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: '选择 官方新指南' })).toBeDisabled()
   })

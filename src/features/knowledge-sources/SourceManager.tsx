@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Download, ExternalLink, Folder, Plus, Radar, RefreshCw, Search, Settings2 } from 'lucide-react'
+import { useId, useState } from 'react'
+import { ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Download, ExternalLink, Folder, ListChecks, Plus, Radar, RefreshCw, Search, Settings2 } from 'lucide-react'
 import { SCOPE_NAMES, type InformationSource } from '../information/api'
 import type { KnowledgeSourceSnapshot, SourceDocument } from './api'
 import './source-catalog.css'
@@ -49,6 +49,7 @@ function SourceSection({ source, data, busy, mutate, onDownloads }: Omit<Props, 
 }
 
 function SourceCatalog({ source, docs, data, busy, checking, locked, mutate, onDownloads, destination }: Omit<Props, 'onAdd'> & { source: InformationSource; docs: SourceDocument[]; checking: boolean; locked: boolean; destination: string }) {
+  const selectionHintId = useId()
   const [query, setQuery] = useState(''), [scope, setScope] = useState('all'), [status, setStatus] = useState('pending'), [page, setPage] = useState(1)
   const [chosen, setChosen] = useState<string[]>([]), [parse, setParse] = useState(true)
   const needle = query.trim().toLocaleLowerCase()
@@ -58,6 +59,9 @@ function SourceCatalog({ source, docs, data, busy, checking, locked, mutate, onD
   const rows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
   const selected = chosen.filter(id => docs.some(doc => doc.id === id)), newCount = docs.filter(doc => doc.isNew).length
   const allPageSelected = rows.length > 0 && rows.every(doc => selected.includes(doc.id))
+  const categoryRows = scope === 'all' ? [] : filtered
+  const allCategorySelected = categoryRows.length > 0 && categoryRows.every(doc => selected.includes(doc.id))
+  const categoryHint = scope === 'all' ? '选择分类后可跨页全选' : `${scope} ${SCOPE_NAMES[scope] || scope} · 当前筛选 ${categoryRows.length} 份（含全部分页）`
   const toggle = (id: string, checked: boolean) => setChosen(checked ? [...new Set([...chosen, id])] : chosen.filter(value => value !== id))
   async function download() {
     if (!selected.length || busy || locked || !data.canManage) return
@@ -67,7 +71,7 @@ function SourceCatalog({ source, docs, data, busy, checking, locked, mutate, onD
     <header className="kso-catalog-heading"><div><h2>可下载论文 <span>{docs.length} 份</span></h2><p>未下载 {docs.filter(doc => !saved(doc)).length} 份 · 已保存 {docs.filter(saved).length} 份</p></div><button type="button" className={`kso-new-filter${status === 'new' ? ' is-active' : ''}`} aria-pressed={status === 'new'} disabled={!newCount} onClick={() => { setStatus(status === 'new' ? 'pending' : 'new'); setQuery(''); setScope('all'); setPage(1) }}><span className="kso-new-badge">NEW</span>新增 {newCount} 份</button></header>
     <div className="kso-catalog-tools"><label className="kso-search"><Search /><input aria-label={`筛选${source.name}已发现论文`} placeholder="筛选当前清单：标题、编号或关键词" value={query} onChange={event => { setQuery(event.target.value); setPage(1) }} /></label><select className="kso-select" aria-label={`${source.name}下载状态`} value={status} onChange={event => { setStatus(event.target.value); setPage(1) }}><option value="pending">未下载</option><option value="all">全部资料</option><option value="saved">已保存</option><option value="new">新增 NEW</option></select></div>
     <div className="kso-catalog-scopes" role="group" aria-label={`${source.name}分类筛选`}>{[['all', '全部分类'], ...source.scopes.map(code => [code, `${code} ${SCOPE_NAMES[code] || code}`])].map(([code, label]) => <button key={code} type="button" aria-pressed={scope === code} onClick={() => { setScope(code); setPage(1) }}>{label}</button>)}<span>{checking ? '正在更新官网清单，现有结果仍可查看' : '新增项优先显示'}</span></div>
-    {data.canManage && (rows.length > 0 || selected.length > 0) && <div className="kso-catalog-selectbar"><label className="kso-check"><input type="checkbox" aria-label={`全选${source.name}本页论文`} checked={allPageSelected} disabled={busy || !rows.length} onChange={event => setChosen(event.target.checked ? [...new Set([...chosen, ...rows.map(doc => doc.id)])] : chosen.filter(id => !rows.some(doc => doc.id === id)))} />全选本页</label><span>本页 {rows.length} 份 · 已选 {selected.length} 份</span>{selected.length > 0 && <button type="button" className="kso-btn quiet" onClick={() => setChosen([])}>清空选择</button>}</div>}
+    {data.canManage && (rows.length > 0 || selected.length > 0) && <div className="kso-catalog-selectbar"><label className="kso-check"><input type="checkbox" aria-label={`全选${source.name}本页论文`} checked={allPageSelected} disabled={busy || !rows.length} onChange={event => setChosen(event.target.checked ? [...new Set([...chosen, ...rows.map(doc => doc.id)])] : chosen.filter(id => !rows.some(doc => doc.id === id)))} />全选本页</label><button type="button" className="kso-btn kso-catalog-select-category" aria-describedby={selectionHintId} disabled={busy || !categoryRows.length || allCategorySelected} onClick={() => setChosen([...new Set([...chosen, ...categoryRows.map(doc => doc.id)])])}>{allCategorySelected ? <Check /> : <ListChecks />}全选本类</button><span id={selectionHintId}>{categoryHint} · 本页 {rows.length} 份 · 已选 {selected.length} 份</span>{selected.length > 0 && <button type="button" className="kso-btn quiet" onClick={() => setChosen([])}>清空选择</button>}</div>}
     <div className="kso-catalog-results">{rows.map(doc => <article className={`kso-catalog-row${doc.isNew ? ' is-new' : ''}${selected.includes(doc.id) ? ' is-selected' : ''}`} key={doc.id}>
       <label className="kso-catalog-document"><input type="checkbox" aria-label={`选择 ${doc.title}`} checked={selected.includes(doc.id)} disabled={!data.canManage || busy} onChange={event => toggle(doc.id, event.target.checked)} /><span><strong>{doc.title}{doc.isNew && <span className="kso-new-badge" aria-label="新发现">NEW</span>}</strong><small>{doc.scopes.join(' / ')} · {doc.documentType || '官方资料'} · {doc.officialStatus || '官方状态未标注'}</small></span></label>
       <div className="kso-catalog-row-meta"><span className={`kso-chip${saved(doc) ? ' green' : ''}`}>{saved(doc) ? <><Check />原件已保存</> : '未下载'}</span>{officialUrl(doc.url) && <a href={officialUrl(doc.url)} target="_blank" rel="noreferrer">官网原文<ExternalLink /></a>}</div>
