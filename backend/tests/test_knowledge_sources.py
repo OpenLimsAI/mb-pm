@@ -125,6 +125,37 @@ def test_snapshot_lists_all_authorized_kb_papers_without_seed_or_collection(ks):
     assert response.headers["cache-control"] == "no-store"
 
 
+def test_source_new_marker_is_durable_and_projected_to_the_selected_scopes(ks):
+    client, db, session, _, _, _ = ks
+    s = records(db)
+    source = s.ensure_source()
+    first = parse_catalogue(catalogue(), "Q")[0]
+    s.apply_catalogue(source["id"], "Q", [first])
+    s.finish_check(source["id"], {"Q": {"status": "ok", "count": 1}})
+    added = {**first, "key": "new-guideline", "title": "New guideline"}
+    s.apply_catalogue(source["id"], "Q", [first, added])
+    source = s.source(source["id"])
+    source["scopes"] = ["S"]
+    s.put("source", source)
+    # Old persisted records are valid without the new optional metadata.
+    legacy = next(doc for doc in s.documents() if doc["key"] == first["key"])
+    legacy.pop("newInScopes")
+    s.put("document", legacy)
+    db.commit()
+    response = client.get("/api/v1/knowledge-sources/snapshot", headers=session())
+    assert response.status_code == 200
+    assert all(doc["isNew"] is False for doc in response.json()["documents"])
+    source["scopes"] = ["Q"]
+    s.put("source", source)
+    db.commit()
+    response = client.get("/api/v1/knowledge-sources/snapshot", headers=session())
+    docs = {doc["title"]: doc for doc in response.json()["documents"]}
+    assert docs["New guideline"]["isNew"] is True
+    assert docs[first["title"]]["isNew"] is False
+    assert response.json()["jobs"] == []
+    assert len(response.json()["papers"]) == 1  # Discovery does not create a saved paper.
+
+
 def test_live_role_same_origin_and_forced_password_guard(ks):
     client, db, session, role, state, _ = ks
     assert client.get("/api/v1/knowledge-sources/snapshot").status_code == 401

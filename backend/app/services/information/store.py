@@ -192,8 +192,13 @@ class Store:
     def apply_catalogue(self, source_id, scope, documents):
         source = self.source(source_id)
         baseline = scope in source.get("baselineScopes", [])
+        previous_documents = {
+            doc["id"]: doc for doc in self.documents() if doc["sourceId"] == source_id
+        }
+        seen = set()
         for entry in documents:
             ident = self.key("document", source_id + entry["key"])
+            seen.add(ident)
             existing = self.get("document", ident, required=False)
             fresh = {
                 "id": ident,
@@ -236,7 +241,18 @@ class Store:
                     )
             elif baseline:
                 self.event("新资料", fresh["title"], source_id, ident)
+            # NEW describes additions since this scope's preceding successful scan.
+            # First scans establish a baseline, while failed/unscanned scopes keep
+            # their prior markers. A known paper appearing in another scope is not new.
+            new_scopes = set(fresh.get("newInScopes", [])) - {scope}
+            if baseline and ident not in previous_documents:
+                new_scopes.add(scope)
+            fresh["newInScopes"] = sorted(new_scopes)
             self.put("document", fresh)
+        for ident, doc in previous_documents.items():
+            if ident not in seen and scope in doc.get("newInScopes", []):
+                doc["newInScopes"] = sorted(set(doc["newInScopes"]) - {scope})
+                self.put("document", doc)
 
     def finish_check(self, source_id, statuses):
         source = self.source(source_id)

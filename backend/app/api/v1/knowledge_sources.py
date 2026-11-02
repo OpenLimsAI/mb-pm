@@ -246,8 +246,12 @@ def snapshot(db: Session = Depends(get_db), actor: dict = Depends(principal)):
         )
     docs = store.documents()
     versions = store.records("version")
+    source_scopes = {source["id"]: set(source.get("scopes", [])) for source in sources}
     for doc in docs:
         doc.pop("description", None)
+        doc["isNew"] = bool(
+            set(doc.get("newInScopes", [])) & source_scopes.get(doc["sourceId"], set())
+        )
         doc["versions"] = [
             store.public_version(v) for v in versions if v["documentId"] == doc["id"]
         ]

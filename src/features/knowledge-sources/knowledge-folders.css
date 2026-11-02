@@ -1,0 +1,86 @@
+#knowledge-source-app .kso-folder-manager-panel { min-width: 0; padding: 20px; border: 1px solid #dce6ed; border-radius: 8px; background: #fff; box-shadow: 0 2px 5px #203b5008; }
+#knowledge-source-app .kso-folder-manager-panel :focus-visible { outline: 2px solid #087b9c; outline-offset: 3px; }
+#knowledge-source-app .kso-folder-manager-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+#knowledge-source-app .kso-folder-manager-heading h2 { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; color: #23486f; font-size: 16px; font-weight: 600; }
+#knowledge-source-app .kso-folder-manager-heading p { margin: 5px 0 0; color: #657e8e; font-size: 12px; line-height: 1.7; }
+#knowledge-source-app .kso-folder-manager-total { padding: 1px 7px; border-radius: 5px; background: #eaf1f7; color: #638199; font-size: 11px; font-weight: 500; }
+#knowledge-source-app .kso-folder-manager-create,
+#knowledge-source-app .kso-folder-manager-reset { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; gap: 6px; min-height: 34px; padding: 6px 11px; border: 1px solid #d1e0eb; border-radius: 6px; background: #fff; color: #45647b; font: inherit; font-size: 12px; line-height: 20px; cursor: pointer; }
+#knowledge-source-app .kso-folder-manager-create:hover:not(:disabled),
+#knowledge-source-app .kso-folder-manager-reset:hover { border-color: #bad1e0; background: #eaf3f9; color: #23486f; }
+#knowledge-source-app .kso-folder-manager-create:disabled,
+#knowledge-source-app .kso-folder-manager-rename:disabled,
+#knowledge-source-app .kso-folder-manager-assign:disabled { opacity: .5; cursor: not-allowed; }
+#knowledge-source-app .kso-folder-manager-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+#knowledge-source-app .kso-folder-manager-search { display: flex; align-items: center; gap: 8px; flex: 1 1 220px; max-width: 420px; min-width: 0; min-height: 36px; padding: 0 10px; border: 1px solid #d1e0eb; border-radius: 6px; background: #fff; color: #8299a8; }
+#knowledge-source-app .kso-folder-manager-search:focus-within { border-color: #77a9be; box-shadow: 0 0 0 2px #087b9c12; }
+#knowledge-source-app .kso-folder-manager-search input { flex: 1; width: 100%; min-width: 0; height: 34px; padding: 0; border: 0; outline: none; background: transparent; color: #263e4a; font: inherit; font-size: 12px; }
+#knowledge-source-app .kso-folder-manager-search input::-webkit-search-cancel-button { display: none; }
+#knowledge-source-app .kso-folder-manager-search input::placeholder { color: #8d9eaa; }
+#knowledge-source-app .kso-folder-manager-search button { display: grid; place-items: center; width: 24px; min-height: 26px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: #657e8e; cursor: pointer; }
+#knowledge-source-app .kso-folder-manager-search button:hover { background: #eaf3f9; color: #23486f; }
+#knowledge-source-app .kso-folder-manager-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+#knowledge-source-app .kso-folder-manager-filters button { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 5px 9px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #657e8e; font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer; }
+#knowledge-source-app .kso-folder-manager-filters button:hover { background: #f4f7fa; color: #23486f; }
+#knowledge-source-app .kso-folder-manager-filters button[aria-pressed='true'] { border-color: #d8e7f2; background: #eaf3f9; color: #23486f; font-weight: 600; }
+#knowledge-source-app .kso-folder-manager-filters span { color: #8297a5; font-size: 10px; font-weight: 500; }
+#knowledge-source-app .kso-folder-manager-selection { display: flex; align-items: flex-start; gap: 7px; margin: 0 0 13px; padding: 9px 11px; border: 1px solid #cfe3ec; border-radius: 6px; background: #eef7fa; color: #426a84; font-size: 12px; line-height: 1.7; }
+#knowledge-source-app .kso-folder-manager-selection > svg { flex: 0 0 16px; margin-top: 2px; }
+#knowledge-source-app .kso-folder-manager-selection strong { color: #087b9c; }
+#knowledge-source-app .kso-folder-manager-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; gap: 12px; max-height: 360px; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 3px 5px 5px 3px; }
+#knowledge-source-app .kso-folder-manager-card { position: relative; display: flex; flex-direction: column; min-width: 0; border: 1px solid #dce6ed; border-radius: 8px; background: #fff; transition: border-color 130ms, box-shadow 130ms; }
+#knowledge-source-app .kso-folder-manager-card:hover { border-color: #afc8d8; box-shadow: 0 3px 9px #203b500c; }
+#knowledge-source-app .kso-folder-manager-open { display: flex; flex: 1; flex-direction: column; align-items: stretch; width: 100%; min-height: 139px; padding: 14px; border: 0; border-radius: 8px; background: transparent; color: #263e4a; font: inherit; text-align: left; cursor: pointer; }
+#knowledge-source-app .kso-folder-manager-open:hover { background: #fbfdfe; }
+#knowledge-source-app .kso-folder-manager-identity { display: flex; align-items: center; gap: 10px; min-width: 0; padding-right: 20px; }
+#knowledge-source-app .kso-folder-manager-icon { display: grid; place-items: center; flex: 0 0 39px; width: 39px; height: 39px; border: 1px solid #dce7f0; border-radius: 8px; background: #edf4f9; color: #527d9c; }
+#knowledge-source-app .kso-folder-manager-icon svg { width: 24px; height: 24px; }
+#knowledge-source-app .kso-folder-manager-card-source .kso-folder-manager-icon { border-color: #d3e8e6; background: #eaf5f2; color: #28736f; }
+#knowledge-source-app .kso-folder-manager-copy { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
+#knowledge-source-app .kso-folder-manager-name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; color: #263e4a; font-size: 14px; font-weight: 600; line-height: 1.6; }
+#knowledge-source-app .kso-folder-manager-kind { color: #8297a5; font-size: 10px; line-height: 1.5; }
+#knowledge-source-app .kso-folder-manager-count { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 13px; color: #768e9e; font-size: 11px; }
+#knowledge-source-app .kso-folder-manager-count b { color: #23486f; font-size: 23px; font-weight: 650; line-height: 1.2; }
+#knowledge-source-app .kso-folder-manager-enter { display: inline-flex; align-items: center; gap: 2px; color: #52738c; font-size: 11px; }
+#knowledge-source-app .kso-folder-manager-enter svg { width: 15px; height: 15px; }
+#knowledge-source-app .kso-folder-manager-hint { display: block; margin-top: 8px; color: #8297a5; font-size: 10px; line-height: 1.7; }
+#knowledge-source-app .kso-folder-manager-hint-empty { color: #657e8e; }
+#knowledge-source-app .kso-folder-manager-rename { position: absolute; top: 7px; right: 6px; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: #8297a5; cursor: pointer; }
+#knowledge-source-app .kso-folder-manager-rename:hover:not(:disabled) { background: #eaf3f9; color: #23486f; }
+#knowledge-source-app .kso-folder-manager-rename svg { width: 15px; height: 15px; }
+#knowledge-source-app .kso-folder-manager-assign-area { margin-top: auto; padding: 0 12px 12px; }
+#knowledge-source-app .kso-folder-manager-assign { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 33px; padding: 6px 9px; border: 1px solid #087b9c; border-radius: 6px; background: #087b9c; color: #fff; font: inherit; font-size: 12px; line-height: 20px; cursor: pointer; }
+#knowledge-source-app .kso-folder-manager-assign:hover:not(:disabled) { border-color: #11617e; background: #11617e; color: #fff; }
+#knowledge-source-app .kso-folder-manager-assign.kso-folder-manager-assigned { border-color: #dce7ed; background: #f3f7f9; color: #7c929f; opacity: 1; }
+#knowledge-source-app .kso-folder-manager-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; min-height: 150px; padding: 24px 16px; border: 1px dashed #d4e2eb; border-radius: 7px; background: #f8fafc; color: #8297a5; text-align: center; }
+#knowledge-source-app .kso-folder-manager-empty > svg { width: 27px; height: 27px; color: #658aa5; }
+#knowledge-source-app .kso-folder-manager-empty h3 { margin: 0; color: #45647b; font-size: 14px; font-weight: 600; }
+#knowledge-source-app .kso-folder-manager-empty p { margin: 0; font-size: 12px; line-height: 1.8; }
+#knowledge-source-app .kso-folder-manager-reset { margin-top: 3px; }
+#knowledge-source-app .kso-folder-manager-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 5px 12px; margin-top: 13px; color: #8297a5; font-size: 10px; line-height: 1.7; }
+@media (max-width: 1180px) {
+  #knowledge-source-app .kso-folder-manager-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #knowledge-source-app .kso-folder-manager-tools { gap: 9px; }
+}
+@media (max-width: 620px) {
+  #knowledge-source-app .kso-folder-manager-panel { padding: 16px; }
+  #knowledge-source-app .kso-folder-manager-heading { align-items: flex-start; gap: 10px; }
+  #knowledge-source-app .kso-folder-manager-heading h2 { font-size: 15px; }
+  #knowledge-source-app .kso-folder-manager-heading p { font-size: 11px; }
+  #knowledge-source-app .kso-folder-manager-search { flex-basis: 100%; max-width: none; }
+  #knowledge-source-app .kso-folder-manager-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; max-height: 320px; }
+  #knowledge-source-app .kso-folder-manager-open { min-height: 135px; }
+  #knowledge-source-app .kso-folder-manager-footer { flex-direction: column; align-items: flex-start; }
+}
+@media (pointer: coarse) {
+  #knowledge-source-app .kso-folder-manager-create,
+  #knowledge-source-app .kso-folder-manager-reset,
+  #knowledge-source-app .kso-folder-manager-filters button,
+  #knowledge-source-app .kso-folder-manager-assign { min-height: 42px; }
+  #knowledge-source-app .kso-folder-manager-search input { min-height: 40px; font-size: 16px; }
+  #knowledge-source-app .kso-folder-manager-rename { width: 38px; height: 38px; top: 4px; right: 4px; }
+  #knowledge-source-app .kso-folder-manager-identity { padding-right: 28px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #knowledge-source-app .kso-folder-manager-card { transition: none; }
+}

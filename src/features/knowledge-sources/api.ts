@@ -8,10 +8,11 @@ export interface SourcePaper {
   indexStatus: string; size?: number; createdAt?: string; type?: string; language?: string
   error?: string | null; documentId?: string; versionId?: string
 }
+export interface SourceDocument extends InformationDocument { isNew?: boolean }
 export interface SourceFolder { id: string; name: string; writable?: boolean }
 export interface KnowledgeSourceSnapshot {
   papers: SourcePaper[]; folders: SourceFolder[]; sources: InformationSource[]
-  jobs: (InformationJob & { kind?: string; app?: string })[]; documents: InformationDocument[]
+  jobs: (InformationJob & { kind?: string; app?: string })[]; documents: SourceDocument[]
   catalogRevision: number; canManage: boolean; canOrganize: boolean; starred: string[]
   integration: { status: string; message: string; kbUrl?: string }
 }
