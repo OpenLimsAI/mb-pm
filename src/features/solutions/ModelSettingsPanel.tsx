@@ -3,6 +3,7 @@ import { Check, CircleAlert, KeyRound, LoaderCircle, Plus, Server, ShieldCheck, 
 import { MAX_MODEL_PROFILES, modelEndpointIdentity, modelProfileDraft, modelProviderEndpoints, modelProviderLabels, validateModelProfile } from './modelSettings'
 import type { ModelProfileDraft, ModelProvider, ModelSettings, ModelSettingsClient } from './modelSettings'
 import { ModelPricePicker } from '../../components/settings/ModelPricePicker'
+import { notifySearchConfigurationChanged } from '../answerModes/useSearchCapabilities'
 import './modelSettings.css'
 
 interface Props { client: ModelSettingsClient; preview: boolean; onChange: (settings: ModelSettings) => void; onClose: () => void }
@@ -74,7 +75,7 @@ export default function ModelSettingsPanel({ client, preview, onChange, onClose 
       const value = await client.save({ profiles: drafts.map(modelProfileDraft), defaultProfileId: defaultId, revision: saved.revision })
       if (!active.current || token !== generation.current) return
       setSaved(value); setDrafts(toDrafts(value)); setDefaultId(value.defaultProfileId); setDirty(false); setTestMessage(null)
-      setNotice(preview ? '示例配置已保存到本机，未保存密钥，也未调用模型。' : '全部模型配置已保存。'); onChange(value)
+      setNotice(preview ? '示例配置已保存到本机，未保存密钥，也未调用模型。' : '全部模型配置已保存。'); onChange(value); notifySearchConfigurationChanged()
     } catch (error) { if (active.current && token === generation.current) setSaveError(errorText(error)) }
     finally { if (active.current && token === generation.current) setSaving(false) }
   }

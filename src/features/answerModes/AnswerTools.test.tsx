@@ -4,6 +4,18 @@ import { AnswerEvidence, SearchCapability } from './AnswerTools'
 import { safeWebSourceUrl } from './sourceUrl'
 
 describe('answer provenance', () => {
+  it('shows official DeepSeek readiness only when confirmed by the server', () => {
+    const capability = { webSearch: { configured: true, provider: 'deepseek' as const, message: '复用当前模型密钥' }, modes: [] }
+    const { rerender } = render(<SearchCapability value={capability} />)
+    expect(screen.getByText('DeepSeek 官方搜索已就绪')).toBeInTheDocument()
+    expect(screen.getByText('复用当前模型密钥')).toBeInTheDocument()
+    rerender(<SearchCapability value={capability} preview />)
+    expect(screen.getByText('联网搜索界面演示')).toBeInTheDocument()
+    expect(screen.queryByText('DeepSeek 官方搜索已就绪')).not.toBeInTheDocument()
+    expect(screen.queryByText('复用当前模型密钥')).not.toBeInTheDocument()
+    expect(screen.getByText(/演示不会实际联网/)).toBeInTheDocument()
+  })
+
   it('shows real project usage from response metadata and distinguishes the project interface demo', () => {
     const { rerender } = render(<AnswerEvidence answer={{ answerMode: 'application', usedSources: ['projects'], modeReason: '只读查询授权项目。' }} />)
     expect(screen.getByText('应用数据回答')).toBeInTheDocument()

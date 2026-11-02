@@ -14,7 +14,7 @@ export interface AssistantTask extends TaskSummary { messages: AssistantMessage[
 export interface TaskQuery { search?: string; trashed?: boolean; offset?: number }
 export interface TaskQuestion { requestId: string; question: string; context: string; modelProfileId?: string; data_sources?: string[]; answerMode?: AnswerMode }
 export interface AssistantClient {
-  capabilities?(): Promise<AnswerCapabilities>
+  capabilities?(modelProfileId?: string): Promise<AnswerCapabilities>
   list(query?: TaskQuery): Promise<{ items: TaskSummary[]; total: number }>
   get(id: string): Promise<AssistantTask>
   create(input: TaskInput & { id: string }): Promise<AssistantTask>
@@ -48,11 +48,11 @@ export function assistantFailure(error: unknown) {
   if (status && status >= 500 && !/^[0-9a-f]{32}$/.test(diagnostic)) {
     return problem(`服务未返回可识别的错误信息，问题已保留。${requestId ? `请提供请求编号排查。（请求编号：${requestId}）` : '请稍后重试。'}`, status)
   }
-  return problem(status === 409 ? '任务已在其他页面更新。当前问题已保留，请刷新任务后核对并重试。' : status === 401 ? '登录已失效，请重新登录。' : ([403, 422, 502, 503, 504].includes(status || 0) || status === 500 && /^[0-9a-f]{32}$/.test(diagnostic)) && detail ? detail : status === 422 ? '请检查任务内容和模型配置，再重新发送。' : status === 404 ? '任务或所选模型不存在，或当前账号无权访问。' : status === 403 ? '当前账号无法使用此功能，请先确认登录状态。' : '请求未完成，问题仍保留。请检查模型配置或连接后重试。', status)
+  return problem(status === 409 ? '任务已在其他页面更新。当前问题已保留，请刷新任务后核对并重试。' : status === 401 ? '登录已失效，请重新登录。' : ([402, 403, 422, 502, 503, 504].includes(status || 0) || status === 500 && /^[0-9a-f]{32}$/.test(diagnostic)) && detail ? detail : status === 422 ? '请检查任务内容和模型配置，再重新发送。' : status === 404 ? '任务或所选模型不存在，或当前账号无权访问。' : status === 403 ? '当前账号无法使用此功能，请先确认登录状态。' : '请求未完成，问题仍保留。请检查模型配置或连接后重试。', status)
 }
 http.interceptors.response.use(response => { response.data = camelize(response.data); return response }, (error: unknown) => Promise.reject(assistantFailure(error)))
 export const assistantApi: AssistantClient = {
-  capabilities: async () => (await http.get('/capabilities')).data,
+  capabilities: async modelProfileId => (await http.get('/capabilities', { params: modelProfileId ? { modelProfileId } : undefined })).data,
   list: async query => (await http.get('', { params: query })).data,
   get: async id => (await http.get(`/${encodeURIComponent(id)}`)).data,
   create: async input => (await http.post('', input)).data,

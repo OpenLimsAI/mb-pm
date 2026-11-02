@@ -1,5 +1,7 @@
 """应用设置。所有配置从环境变量加载，对应 .env 文件。"""
 
+from typing import Literal
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -35,6 +37,7 @@ class Settings(BaseSettings):
 
     # Public search is opt-in and server-owned; never expose this key to browsers.
     ASSISTANT_WEB_ENABLED: bool = False
+    ASSISTANT_WEB_PROVIDER: Literal["deepseek", "tavily"] = "deepseek"
     ASSISTANT_WEB_API_KEY: str = ""
     ASSISTANT_WEB_MAX_RESULTS: int = Field(default=5, ge=1, le=8)
 

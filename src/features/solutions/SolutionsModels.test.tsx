@@ -4,6 +4,8 @@ import SolutionsApp from './SolutionsApp'
 import { createDemoClient } from './demo'
 import type { ModelProfileDraft, ModelSettings, ModelSettingsClient, ModelSettingsInput } from './modelSettings'
 import type { Answer } from './types'
+import type { SolutionClient } from './types'
+import type { AnswerCapabilities } from '../answerModes/types'
 
 const configuration = (): ModelSettings => ({ revision: 3, defaultProfileId: 'profile-one', profiles: [
   { id: 'profile-one', name: '研究模型', provider: 'deepseek', model: 'research-model', baseUrl: 'https://api.deepseek.com', keySet: true },
@@ -16,8 +18,9 @@ function models(): ModelSettingsClient {
     test: vi.fn(async (profile: ModelProfileDraft) => ({ ok: true, model: profile.model, ms: 20 })),
   }
 }
-async function mount(modelClient = models()) {
+async function mount(modelClient = models(), capabilities?: SolutionClient['capabilities']) {
   const client = createDemoClient('model-integration', 'author', '研究员')
+  if (capabilities) client.capabilities = capabilities
   const ask = vi.spyOn(client, 'ask')
   render(<SolutionsApp client={client} userId="author" userName="研究员" preview={false} modelClient={modelClient} />)
   await screen.findByRole('textbox', { name: '章节正文' })
@@ -32,6 +35,30 @@ function insertCard() {
 beforeEach(() => { localStorage.clear(); sessionStorage.clear(); localStorage.setItem('ks-writing-mode', 'split') })
 
 describe('knowledge report model integration', () => {
+  it('refreshes current-model search readiness after saving the same profile and when choosing retrieval', async () => {
+    let configured = false
+    const capabilities = vi.fn(async (profileId?: string): Promise<AnswerCapabilities> => ({ webSearch: { configured: configured && profileId === 'profile-one', provider: configured && profileId === 'profile-one' ? 'deepseek' as const : null, message: profileId === 'retrieval' ? '仅检索资料模式不使用联网搜索。' : configured ? '复用当前模型密钥' : '当前模型尚未配置搜索密钥。' }, modes: ['auto', 'general', 'knowledge', 'web'] }))
+    await mount(models(), capabilities)
+    const select = screen.getByRole('combobox', { name: '当前 AI 模型' })
+    await waitFor(() => expect(select).toHaveValue('profile-one'))
+    fireEvent.click(await screen.findByRole('button', { name: /搜索服务/ }))
+    await screen.findByText('当前模型尚未配置搜索密钥。')
+    expect(capabilities).toHaveBeenLastCalledWith('profile-one')
+    fireEvent.click(screen.getByRole('button', { name: 'AI模型设置' }))
+    const dialog = screen.getByRole('dialog', { name: 'AI 模型设置' })
+    fireEvent.change(await within(dialog).findByRole('textbox', { name: '配置名称' }), { target: { value: '官方研究模型' } })
+    configured = true
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存全部配置' }))
+    await within(dialog).findByText('全部模型配置已保存。')
+    fireEvent.click(within(dialog).getByRole('button', { name: '关闭' }))
+    await screen.findByText('DeepSeek 官方搜索已就绪')
+    expect(capabilities).toHaveBeenLastCalledWith('profile-one')
+    fireEvent.change(select, { target: { value: 'retrieval' } })
+    await screen.findByText('仅检索资料模式不使用联网搜索。')
+    expect(capabilities).toHaveBeenLastCalledWith('retrieval')
+    expect(screen.queryByText('DeepSeek 官方搜索已就绪')).not.toBeInTheDocument()
+  })
+
   it('keeps layout in the top bar and the single highlighted AI settings entry inside the assistant', async () => {
     await mount()
     const header = document.querySelector('.ks-topbar') as HTMLElement

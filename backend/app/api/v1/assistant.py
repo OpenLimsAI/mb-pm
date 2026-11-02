@@ -43,8 +43,12 @@ def create(payload: TaskCreate, db: Session = Depends(get_db), claims: dict = De
 
 
 @router.get("/capabilities")
-def capabilities(claims: dict = Depends(identity)):
-    return web_search.capabilities()
+def capabilities(
+    model_profile_id: str | None = Query(default=None, min_length=1, max_length=100),
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    return web_search.capabilities_for_model(db, claims, model_profile_id)
 
 
 @router.get("/{task_id}")

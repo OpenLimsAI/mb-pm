@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AssistantApp from './AssistantApp'
 import { createPreviewAssistantClient } from './client'
 import type { AssistantClient, AssistantTask } from './client'
-import type { ModelSettingsClient } from '../solutions/modelSettings'
+import type { ModelSettings, ModelSettingsClient } from '../solutions/modelSettings'
+import type { AnswerCapabilities } from '../answerModes/types'
 
 const input = (title: string) => ({ id: crypto.randomUUID(), title, instructions: '区分资料原文与待确认信息。' })
 function models(defaultProfileId: string | null = null): ModelSettingsClient {
@@ -26,6 +27,33 @@ async function create(client: AssistantClient, title: string) { return client.cr
 beforeEach(() => localStorage.clear())
 
 describe('AI assistant task workspace', () => {
+  it('checks search readiness for the chosen model and refreshes on focus without changing the selection', async () => {
+    const client = createPreviewAssistantClient('search-readiness')
+    const capabilities = vi.fn(async (profileId?: string): Promise<AnswerCapabilities> => ({ webSearch: { configured: profileId === 'official', provider: profileId === 'official' ? 'deepseek' as const : null, message: profileId === 'official' ? '复用当前模型密钥' : '当前模型不是 DeepSeek 官方服务，请切换模型。' }, modes: ['auto', 'general', 'knowledge', 'web'] }))
+    client.capabilities = capabilities
+    const modelClient: ModelSettingsClient = { get: vi.fn(async (): Promise<ModelSettings> => ({ revision: 1, defaultProfileId: 'official', profiles: [
+      { id: 'official', name: '官方模型', provider: 'deepseek', model: 'deepseek-v4-pro', baseUrl: 'https://api.deepseek.com', keySet: true },
+      { id: 'proxy', name: '代理模型', provider: 'deepseek', model: 'deepseek-v4-pro', baseUrl: 'https://proxy.example/v1', keySet: true },
+    ] })), save: vi.fn(), test: vi.fn() }
+    render(<AssistantApp client={client} modelClient={modelClient} userName="研究员" preview={false} />)
+    const select = await screen.findByRole('combobox', { name: '助手回答模型' })
+    await waitFor(() => expect(select).toHaveValue('official'))
+    fireEvent.click(screen.getByRole('button', { name: /数据设置/ }))
+    await screen.findByText('DeepSeek 官方搜索已就绪')
+    expect(capabilities).toHaveBeenLastCalledWith('official')
+    fireEvent.click(within(screen.getByRole('dialog', { name: '数据设置' })).getByRole('button', { name: '取消' }))
+    fireEvent.change(select, { target: { value: 'proxy' } })
+    fireEvent.click(screen.getByRole('button', { name: /数据设置/ }))
+    await screen.findByText('当前模型不是 DeepSeek 官方服务，请切换模型。')
+    expect(screen.queryByText('DeepSeek 官方搜索已就绪')).not.toBeInTheDocument()
+    expect(capabilities).toHaveBeenLastCalledWith('proxy')
+    const calls = capabilities.mock.calls.length
+    fireEvent.focus(window)
+    await waitFor(() => expect(capabilities.mock.calls.length).toBeGreaterThan(calls))
+    expect(capabilities).toHaveBeenLastCalledWith('proxy')
+    expect(select).toHaveValue('proxy')
+  })
+
   it('defaults to automatic routing and shows a clearly labelled web preview with source cards', async () => {
     const client = createPreviewAssistantClient('auto-web'), task = await create(client, '自动问答预览'), send = vi.spyOn(client, 'send')
     await mount(client); await open(task.title)
