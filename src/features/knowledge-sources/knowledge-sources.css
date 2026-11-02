@@ -47,7 +47,11 @@
 #knowledge-source-app .kso-preview-list { max-height:48vh; overflow:auto; }
 #knowledge-source-app .kso-dialog-layer .kso-dialog { max-height:calc(100dvh - 80px); overflow:auto; }
 #knowledge-source-app .kso-dialog-foot { position:sticky; bottom:0; background:var(--kso-surface); }
-@media(min-width:951px) { #knowledge-source-app .kso-list { max-height:calc(100dvh - 340px); min-height:400px; overflow:auto; } #knowledge-source-app .kso-table thead { position:sticky; top:0; z-index:1; } }
+@media (min-width: 951px) {
+  /* Let the scrollport fill the inspector's grid row without the table sizing it. */
+  #knowledge-source-app .kso-list { contain: size; min-height: max(400px, calc(100dvh - 340px)); overflow: auto; }
+  #knowledge-source-app .kso-table thead { position: sticky; top: 0; z-index: 1; }
+}
 #knowledge-source-app .kso-top .kso-btn { background:#ffffff14!important; color:var(--kso-top-ink)!important; border-color:#ffffff30!important; }
 
 /* Match research reports and personal notes; keep every rule inside this app. */
