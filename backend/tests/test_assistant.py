@@ -162,13 +162,16 @@ def test_trash_restore_retains_messages_and_outputs(assistant_client):
     path = f"{PREFIX}/{saved['id']}"
     assert f.client.post(path + "/trash", json={"revision": 1}).status_code == 409
     deleted = f.client.post(path + "/trash", json={"revision": 2}).json()
-    assert deleted["deleted_at"] and len(deleted["messages"]) == 2
+    assert deleted["deleted_at"] and deleted["message_count"] == 2
+    assert "messages" not in deleted and "artifacts" not in deleted and "context" not in deleted
     assert f.client.get(PREFIX).json()["total"] == 0
     assert f.client.get(PREFIX, params={"trashed": True}).json()["total"] == 1
     assert question(f, deleted).status_code == 409
     restored = f.client.post(path + "/restore", json={"revision": 3}).json()
     assert restored["revision"] == 4 and restored["deleted_at"] is None
-    assert restored["messages"] == saved["messages"] and restored["artifacts"] == saved["artifacts"]
+    assert "messages" not in restored and "artifacts" not in restored and "context" not in restored
+    detail = f.client.get(path).json()
+    assert detail["messages"] == saved["messages"] and detail["artifacts"] == saved["artifacts"]
 
 
 def test_request_retry_does_not_regenerate(assistant_client):

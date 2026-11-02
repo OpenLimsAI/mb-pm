@@ -20,8 +20,8 @@ export interface AssistantClient {
   create(input: TaskInput & { id: string }): Promise<AssistantTask>
   save(task: TaskSummary, input: TaskInput): Promise<AssistantTask>
   send(task: TaskSummary, input: TaskQuestion): Promise<AssistantTask>
-  trash(task: TaskSummary): Promise<AssistantTask>
-  restore(task: TaskSummary): Promise<AssistantTask>
+  trash(task: TaskSummary): Promise<TaskSummary>
+  restore(task: TaskSummary): Promise<TaskSummary>
 }
 const problem = (text: string, status = 0) => Object.assign(new Error(text), { status })
 export function validateTask(input: TaskInput) {
@@ -61,7 +61,7 @@ export const assistantApi: AssistantClient = {
   trash: async task => (await http.post(`/${encodeURIComponent(task.id)}/trash`, { revision: task.revision })).data,
   restore: async task => (await http.post(`/${encodeURIComponent(task.id)}/restore`, { revision: task.revision })).data,
 }
-export const taskSummary = (task: AssistantTask): TaskSummary => ({ id: task.id, title: task.title, instructions: task.instructions, revision: task.revision, createdAt: task.createdAt, updatedAt: task.updatedAt, deletedAt: task.deletedAt, messageCount: task.messageCount })
+export const taskSummary = (task: TaskSummary): TaskSummary => ({ id: task.id, title: task.title, instructions: task.instructions, revision: task.revision, createdAt: task.createdAt, updatedAt: task.updatedAt, deletedAt: task.deletedAt, messageCount: task.messageCount })
 const intro = `# 欢迎使用 AI 助手\n\n这里是你的个人 AI 工作空间。把问题、资料和目标放在同一项任务中，持续讨论并整理成果。\n\n## 1. 创建任务\n\n在左侧新建任务，填写目标。每项任务保留独立的对话记录和任务指引。\n\n## 2. 围绕资料讨论\n\n输入问题，或导入 Word、PDF、Markdown 资料，明确选择本轮要使用的材料。发送前可预览附带的正文。\n\n## 3. 留下可复用的成果\n\n右侧在「概览」和「产物」之间切换。每次回答都可以单独查看、复制，或导出为 Markdown。\n\n## 4. 选择自己的模型\n\n通过侧栏「AI 模型设置」管理个人模型，沿用工作台现有设置。\n\n> 当前是本地交互演示，不调用外部模型。示例内容用于体验工作流程。`
 function seed(): AssistantTask[] {
   const time = '2026-10-25T08:00:00.000Z', id = 'c0c19d0d-c4e8-4e47-bf17-5474f2baf877', reply = '874e5145-3532-4be5-a8f3-5b25fb156c02'
@@ -115,8 +115,8 @@ export function createPreviewAssistantClient(namespace: string, storage: Storage
       write([task, ...rows]); return publicTask(task)
     },
     save: async (task, input) => { validateTask(input); return change(task, input) },
-    trash: async task => change(task, { deletedAt: new Date().toISOString() }),
-    restore: async task => change(task, { deletedAt: null }, true),
+    trash: async task => taskSummary(change(task, { deletedAt: new Date().toISOString() })),
+    restore: async task => taskSummary(change(task, { deletedAt: null }, true)),
     send: async (task, input) => {
       if (!input.question.trim() || input.question.length > 12000 || input.context.length > 20000 || !input.requestId || input.modelProfileId === 'retrieval') throw problem('问题最多 12,000 字，附带资料最多 20,000 字，请检查后重试。', 422)
       const dataSources = normalizeDataSources(input.data_sources || [])
