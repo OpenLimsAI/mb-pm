@@ -1,8 +1,6 @@
 """Real collection contracts: public ICH input, durable jobs, isolation and honest states."""
 
-import copy
 import hashlib
-import time
 
 import pytest
 from fastapi import HTTPException
@@ -129,6 +127,103 @@ def test_failed_scope_keeps_last_successful_catalogue(store):
     assert len(s.documents()) == 1
     assert s.source(source["id"])["status"] == "error"
     assert s.source(source["id"])["scopeStatus"]["Q"]["error"] == "HTTP 503"
+
+
+def test_new_catalogue_marks_persist_and_repeated_success_does_not_reannounce_old_files(store):
+    s, db = store
+    source = s.ensure_source()
+    old = parse_catalogue(catalogue(), "Q")[0]
+    s.apply_catalogue(source["id"], "Q", [old])
+    s.finish_check(source["id"], {"Q": {"status": "ok", "count": 1}})
+    db.commit()
+    assert s.documents()[0]["newInScopes"] == []
+
+    added = {**old, "key": "new-paper", "title": "New paper"}
+    s.apply_catalogue(source["id"], "Q", [old, added])
+    s.finish_check(source["id"], {"Q": {"status": "ok", "count": 2}})
+    db.commit()
+    paper = next(d for d in Store(db, s.tenant).documents() if d["title"] == "New paper")
+    assert paper["newInScopes"] == ["Q"]
+    discovered = paper["discoveredAt"]
+    version = s.archive(paper["id"], b"%PDF-retained", "retained text", parse_status="ready")
+    paper.update(folderIds=["topic"], status="archived")
+    s.put("document", paper)
+    db.commit()
+
+    # URL/status updates retain logical identity and existing archive/classification.
+    changed = {**added, "url": "https://database.ich.org/sites/default/files/new.pdf"}
+    s.apply_catalogue(source["id"], "Q", [old, changed])
+    s.finish_check(source["id"], {"Q": {"status": "ok", "count": 2}})
+    db.commit()
+    updated = s.document(paper["id"])
+    assert len(s.documents()) == 2
+    assert all(not d["newInScopes"] for d in s.documents())
+    assert updated["discoveredAt"] == discovered and updated["folderIds"] == ["topic"]
+    assert updated["status"] == "archived"
+    assert [v["id"] for v in updated["versions"]] == [version["id"]]
+    assert s.archive_path(version).read_bytes() == b"%PDF-retained"
+
+
+def test_partial_check_keeps_failed_scope_new_markers(store, monkeypatch):
+    from app.services.information import worker
+
+    s, db = store
+    source = s.ensure_source()
+    source["scopes"] = ["Q", "S"]
+    s.put("source", source)
+    q = parse_catalogue(catalogue(), "Q")[0]
+    safe = {**q, "key": "safety-existing", "title": "Safety existing", "scopes": ["S"]}
+    s.apply_catalogue(source["id"], "Q", [q])
+    s.apply_catalogue(source["id"], "S", [safe])
+    s.finish_check(source["id"], {code: {"status": "ok", "count": 1} for code in ["Q", "S"]})
+    new_q = {**q, "key": "quality-added", "title": "Quality added"}
+    new_s = {**safe, "key": "safety-added", "title": "Safety added"}
+    s.apply_catalogue(source["id"], "Q", [q, new_q])
+    s.apply_catalogue(source["id"], "S", [safe, new_s])
+    s.finish_check(source["id"], {code: {"status": "ok", "count": 2} for code in ["Q", "S"]})
+    job = s.create_job(source["id"], "authorized-manager", kind="check")
+    db.commit()
+    monkeypatch.setattr(worker, "authority", lambda *_: None)
+
+    class Official:
+        def catalogue(self, code):
+            if code == "S":
+                raise ValueError("Safety catalogue unavailable")
+            return [q, new_q]
+
+    assert worker.run_step(s, Official(), job_id=job["id"])
+    assert worker.run_step(s, Official(), job_id=job["id"])
+    assert s.get("job", job["id"])["status"] == "partial"
+    marks = {doc["title"]: doc["newInScopes"] for doc in s.documents()}
+    assert marks["Quality added"] == [] and marks["Safety added"] == ["S"]
+    assert s.source(source["id"])["scopeStatus"]["S"]["status"] == "error"
+    # A failure in every selected scope must not erase the last successful markers.
+    s.finish_check(source["id"], {code: {"status": "error"} for code in ["Q", "S"]})
+    db.commit()
+    assert {doc["title"]: doc["newInScopes"] for doc in s.documents()} == marks
+
+
+def test_known_paper_in_another_scope_is_not_a_new_paper_and_missing_items_keep_their_data(store):
+    s, db = store
+    source = s.ensure_source()
+    q = parse_catalogue(catalogue(), "Q")[0]
+    safe = {**q, "key": "safety-existing", "title": "Safety existing", "scopes": ["S"]}
+    s.apply_catalogue(source["id"], "Q", [q])
+    s.apply_catalogue(source["id"], "S", [safe])
+    s.finish_check(source["id"], {code: {"status": "ok", "count": 1} for code in ["Q", "S"]})
+    added = {**q, "key": "cross-scope", "title": "Cross scope"}
+    s.apply_catalogue(source["id"], "Q", [q, added])
+    db.commit()
+    ident = next(doc["id"] for doc in s.documents() if doc["title"] == "Cross scope")
+    assert s.get("document", ident)["newInScopes"] == ["Q"]
+    s.apply_catalogue(source["id"], "S", [safe, {**added, "scopes": ["S"]}])
+    db.commit()
+    paper = s.get("document", ident)
+    assert paper["newInScopes"] == ["Q"] and paper["scopes"] == ["Q", "S"]
+    s.apply_catalogue(source["id"], "Q", [q])
+    db.commit()
+    assert s.get("document", ident)["newInScopes"] == []
+    assert len(s.documents()) == 3  # A catalogue update does not delete an existing document.
 
 
 def test_org_and_subject_preferences_are_separate(store):
@@ -299,7 +394,8 @@ def test_revoked_manager_is_paused_before_network_access(store, monkeypatch):
 
 def test_native_extractor_reads_actual_pdf_bytes(tmp_path):
     from pypdf import PdfWriter
-    from pypdf.generic import DecodedStreamObject, NameObject, DictionaryObject
+    from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
+
     from app.services.information.extract import extract_pdf
 
     writer = PdfWriter()
