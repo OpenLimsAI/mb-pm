@@ -1,0 +1,16 @@
+# syntax=docker/dockerfile:1
+# Only for frontend-only updates after backend compatibility has been checked.
+ARG BASE_IMAGE
+FROM node:20-alpine AS verified_frontend
+WORKDIR /artifact
+ARG SOURCE_REVISION
+ENV SOURCE_REVISION=$SOURCE_REVISION
+COPY scripts/production-build.mjs scripts/verify-production-build.mjs ./scripts/
+COPY dist ./dist
+RUN node scripts/verify-production-build.mjs dist
+
+FROM ${BASE_IMAGE} AS app
+ARG SOURCE_REVISION
+RUN rm -rf /code/static
+COPY --from=verified_frontend /artifact/dist /code/static
+LABEL org.opencontainers.image.revision=$SOURCE_REVISION

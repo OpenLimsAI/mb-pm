@@ -34,8 +34,17 @@ jobs:
         run: npm run test:coverage
       - name: 门户路由回归
         run: node scripts/test-portal-routing.mjs
-      - name: 构建（tsc -b 类型检查 + vite build）
-        run: npm run build
+      - name: 生产产物防误发回归
+        run: npm run test:production-build
+      - name: 生产构建（固定源码及真实 API）
+        env:
+          SOURCE_REVISION: ${{ github.sha }}
+          VITE_USE_API: 'false' # 生产入口必须覆盖继承的演示开关
+        run: npm run build:production
+      - name: 最终生产包匿名登录表单检查
+        env:
+          SOURCE_REVISION: ${{ github.sha }}
+        run: npm run test:production-login
 
   # ───────── 硬护栏 2：后端格式检查 ─────────
   backend:
@@ -96,6 +105,8 @@ jobs:
         with:
           context: .
           push: false
+          build-args: |
+            SOURCE_REVISION=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

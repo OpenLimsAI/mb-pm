@@ -3,7 +3,8 @@
 #   app       单镜像：FastAPI 同源托管前端 SPA + /api/v1
 #   postgres  独立的 PostgreSQL 数据实例（持久化卷 cmc_pgdata）
 #
-# 用法：  docker compose up --build      → 浏览器打开 http://localhost:8080
+# 用法：SOURCE_REVISION=$(git rev-parse HEAD) docker compose up --build
+#       → 浏览器打开 http://localhost:8080；源码归档需显式填写固定提交。
 # 端口对外避让本机已有服务：app 8080→8000，postgres 5433→5432。
 #
 # 登录走 mb-casd（Casdoor）IAM：先在本目录 .env（或 shell 环境）中设置
@@ -32,6 +33,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        SOURCE_REVISION: ${SOURCE_REVISION:?请设置固定源码提交 SOURCE_REVISION（40 位 SHA）}
     image: cmc-pms:latest
     container_name: cmc-pms-app
     environment:

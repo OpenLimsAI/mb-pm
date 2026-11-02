@@ -1,0 +1,6 @@
+**
+!dist
+!dist/**
+!scripts
+!scripts/production-build.mjs
+!scripts/verify-production-build.mjs
