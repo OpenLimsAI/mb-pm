@@ -63,9 +63,9 @@ export default function useAssistantRequests(client: AssistantClient, namespace:
         restored = true
         const remembered = readRemembered(taskId)
         if (!remembered || remembered === requestId || !initial && !knownId && running(record)) remember(taskId, requestId)
-        callbacksRef.current.restore(record)
+        if (!record.payloadExpired) callbacksRef.current.restore(record)
       }
-      if (record.status === 'failed') {
+      if (record.status === 'failed' || record.status === 'cancelled') {
         terminalFailure(failureMessage(record), record)
       } else if (record.status === 'completed') {
         publish({ phase: 'processing', job: record, message: '回答已生成，正在读取保存结果…' })
@@ -156,6 +156,19 @@ export default function useAssistantRequests(client: AssistantClient, namespace:
     window.addEventListener('focus', focus)
     return () => { alive.current = false; sessionGeneration.current = activeGeneration + 1; for (const timer of pendingTimers.values()) clearTimeout(timer); pendingTimers.clear(); pendingWatchers.clear(); pendingEpochs.clear(); window.removeEventListener('focus', focus) }
   }, [client, namespace])
+  const cancel = useCallback(async (taskId: string, requestId: string) => {
+    if (!client.cancelRequest) return
+    const generation = sessionGeneration.current, epoch = epochs.current.get(taskId)
+    try {
+      const record = await client.cancelRequest(taskId, requestId)
+      if (alive.current && sessionGeneration.current === generation && epochs.current.get(taskId) === epoch) watch(taskId, record)
+    } catch (reason) {
+      if (alive.current && sessionGeneration.current === generation && epochs.current.get(taskId) === epoch) {
+        callbacksRef.current.fail(taskId, `停止请求未确认：${errorMessage(reason)} 正在重新核对进度。`)
+        watch(taskId, undefined, requestId)
+      }
+    }
+  }, [client, watch])
   const pending = Object.fromEntries(Object.entries(progress).map(([id, value]) => [id, value.phase !== 'failed' && (!value.job || running(value.job) || value.job.status === 'completed')]))
-  return { enabled, progress, pending, resume, submit }
+  return { enabled, progress, pending, resume, submit, cancel }
 }

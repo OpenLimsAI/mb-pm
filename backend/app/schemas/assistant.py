@@ -10,6 +10,9 @@ class TaskInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     title: str = Field(default="新任务", min_length=1, max_length=200)
     instructions: str = Field(default="", max_length=4000)
+    memory: str = Field(default="", max_length=6000)
+    pinned: bool = False
+    final_artifact_id: str | None = Field(default=None, min_length=1, max_length=64)
 
     @field_validator("title")
     @classmethod
@@ -39,6 +42,7 @@ class TaskQuestion(TaskRevision):
     question: str = Field(min_length=1, max_length=12000)
     context: str = Field(default="", max_length=20000)
     model_profile_id: str | None = Field(default=None, min_length=1, max_length=100)
+    continue_from_request: UUID | None = None
     answer_mode: Literal["auto", "general", "knowledge", "web"] | None = None
 
     @field_validator("data_sources", mode="before")

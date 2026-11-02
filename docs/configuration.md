@@ -188,3 +188,9 @@ Kimi 支持、模型价格显示与静态价格目录的维护规则见[模型�
 ## 生产前端构建参数
 
 生产发布使用 `SOURCE_REVISION=<固定完整提交> npm run build:production`，该入口固定 `VITE_USE_API=true` 和 `VITE_API_URL=/api/v1`，Vite 根据实际构建环境写入不含密钥的产物清单。普通开发/预览构建仍允许关闭 API。前端环境变量在编译时内联，不能用运行容器环境变量补救错误静态包；校验、预构建镜像和匿名登录检查见[生产构建检查](production-build.md)。
+
+## 助手可靠性与运行管理
+
+017增量迁移新增任务摘要/置顶/最终成果、结构化来源、请求首段时间及 `assistant_operations_config`。后台队列默认每人待处理3、每人同时生成1、全局排队100，可在门户AI设置的管理员运行面板修改并存入数据库；环境初值为 `ASSISTANT_PER_USER_PENDING`、`ASSISTANT_PER_USER_RUNNING`、`ASSISTANT_GLOBAL_QUEUED`。仅实时IAM系统管理员可读写运行面板，无新增密钥。
+
+保留期默认0（不清理）；7–365天仅定义显式清理的范围，管理员须再次确认。每批最多1000条终态请求的重复输入与未完成稿；正式任务、消息和诊断状态保留。详情见[AI助手](ai-assistant.md)。部署状态以本次发布回执为准。

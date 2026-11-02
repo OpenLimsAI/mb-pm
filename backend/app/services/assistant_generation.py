@@ -205,6 +205,7 @@ def _monitor(work, *, content=False):
                     stage = "generating"
                     if not first:
                         first = True
+                        progress(first_content=True)
                         trace = diagnostics.CURRENT.get()
                         if trace is not None:
                             trace.emit(
@@ -218,6 +219,17 @@ def _monitor(work, *, content=False):
             elif kind == "result":
                 guard()
                 return value
+    except Exception:
+        # Incremental writes are throttled. Persist the last safe visible chunk
+        # on a timeout/length error without extending the model wait budget.
+        # The request callback still fences cancelled/expired worker tokens.
+        visible = _visible(text)
+        if visible and len(visible) <= MAX_CONTENT:
+            try:
+                progress(final_partial=True, partial_content=visible)
+            except Exception:
+                pass  # Never replace the original failure or bypass a fence.
+        raise
     finally:
         wire.abort()
         thread.join(timeout=1)

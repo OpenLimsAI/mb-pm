@@ -18,6 +18,60 @@ beforeEach(() => { vi.useFakeTimers(); localStorage.clear() })
 afterEach(() => { cleanup(); vi.clearAllTimers(); vi.useRealTimers() })
 
 describe('durable assistant requests', () => {
+  it('ignores an old delayed cancel response after a newer request has started', async () => {
+    const { client, callbacks } = setup()
+    let finish!: (record: AssistantRequest) => void
+    client.cancelRequest = vi.fn(() => new Promise<AssistantRequest>(resolve => { finish = resolve }))
+    const { result } = renderHook(() => useAssistantRequests(client, 'cancel-race:live', callbacks))
+    await act(async () => { await result.current.submit(task, input) })
+    let cancellation!: Promise<void>
+    act(() => { cancellation = result.current.cancel(task.id, id) })
+    vi.mocked(client.getRequest!).mockResolvedValue(job({ status: 'cancelled' }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(1200) })
+    const nextId = 'b6f17d24-a1d1-4f29-bdcb-43f16d8c8499'
+    vi.mocked(client.submitRequest!).mockResolvedValue(job({ requestId: nextId }))
+    await act(async () => { await result.current.submit(task, { ...input, requestId: nextId }) })
+    await act(async () => { finish(job({ status: 'cancelled' })); await cancellation })
+    expect(result.current.progress[task.id].job?.requestId).toBe(nextId)
+    expect(result.current.pending[task.id]).toBe(true)
+  })
+  it('does not restore retired input into the composer', async () => {
+    const { client, callbacks } = setup()
+    localStorage.setItem(`assistant-request:retired:live:${task.id}`, id)
+    vi.mocked(client.getRequest!).mockResolvedValue(job({ status: 'failed', payloadExpired: true, question: '', context: '' }))
+    const { result } = renderHook(() => useAssistantRequests(client, 'retired:live', callbacks))
+    act(() => result.current.resume(task.id)); await flush()
+    expect(callbacks.restore).not.toHaveBeenCalled()
+    expect(result.current.pending[task.id]).toBe(false)
+  })
+
+  it('settles a cancelled job without fetching final history or starting another generation', async () => {
+    const { client, callbacks } = setup()
+    client.cancelRequest = vi.fn(async () => job({ status: 'cancelled', canContinue: true, partialContent: '已保存的未完成草稿' }))
+    const { result } = renderHook(() => useAssistantRequests(client, 'cancel-owner:live', callbacks))
+    await act(async () => { await result.current.submit(task, input) })
+    await act(async () => { await result.current.cancel(task.id, id) })
+    expect(result.current.pending[task.id]).toBe(false)
+    expect(result.current.progress[task.id].job?.status).toBe('cancelled')
+    expect(result.current.progress[task.id].job?.partialContent).toBe('已保存的未完成草稿')
+    expect(client.get).not.toHaveBeenCalled()
+    expect(client.submitRequest).toHaveBeenCalledTimes(1)
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    expect(client.getRequest).not.toHaveBeenCalled()
+  })
+  it('discards protected partial text when cancellation recheck reports revoked access', async () => {
+    const { client, callbacks } = setup()
+    vi.mocked(client.submitRequest!).mockResolvedValue(job({ status: 'running', partialContent: '受保护的草稿' }))
+    client.cancelRequest = vi.fn(async () => { throw Object.assign(new Error('权限已变更'), { status: 403 }) })
+    vi.mocked(client.getRequest!).mockRejectedValue(Object.assign(new Error('权限已变更'), { status: 403 }))
+    const { result } = renderHook(() => useAssistantRequests(client, 'cancel-owner:live', callbacks))
+    await act(async () => { await result.current.submit(task, input) })
+    await act(async () => { await result.current.cancel(task.id, id) })
+    expect(result.current.progress[task.id].job).toBeUndefined()
+    expect(result.current.pending[task.id]).toBe(false)
+    expect(client.submitRequest).toHaveBeenCalledTimes(1)
+  })
+
   it('polls one accepted request through partial generation and fetches saved history on completion', async () => {
     const { client, callbacks } = setup()
     vi.mocked(client.getRequest!).mockResolvedValueOnce(job({ status: 'running', stage: 'generating', partialContent: '已经生成的部分' })).mockResolvedValueOnce(job({ status: 'completed', stage: 'saving' }))

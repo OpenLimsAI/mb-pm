@@ -7,7 +7,7 @@ import time
 from fastapi import HTTPException
 
 from app.core.config import settings
-from app.services import ai, solution_knowledge
+from app.services import ai, assistant_sources, solution_knowledge
 from app.services import assistant_diagnostics as diagnostics
 from app.services import assistant_knowledge as knowledge
 
@@ -189,6 +189,7 @@ def chat(provider, cfg, messages, claims, *, request_fn=None):
             encoded = knowledge.encoded_result(
                 value, budget=min(24000, max(200, MAX_EVIDENCE - evidence_size))
             )
+            assistant_sources.observe(function["name"], json.loads(encoded))
             evidence_size += len(encoded)
             tool_result = {"role": "tool", "content": encoded}
             if ollama:

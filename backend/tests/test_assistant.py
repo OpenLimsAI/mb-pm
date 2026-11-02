@@ -349,6 +349,7 @@ def test_migration_is_repeatable_and_retains_legacy_tables():
                 expected = set(model.__table__.columns.keys())
                 if model is AssistantTask:
                     expected.remove("active_request_id")  # introduced by migration 016
+                    expected -= {"memory", "pinned", "final_artifact_id"}  # 017
                 if model is AssistantMessage:
                     expected.remove("data_sources")  # introduced by migration 012
                     expected -= {
@@ -358,6 +359,7 @@ def test_migration_is_repeatable_and_retains_legacy_tables():
                         "web_references",
                     }  # 014
                     expected.remove("application_scope")  # introduced by migration 015
+                    expected -= {"knowledge_references", "source_summary"}  # 017
                 assert set(actual) == expected
                 for column in model.__table__.columns:
                     if column.name in expected:
@@ -443,13 +445,17 @@ def test_scope_isolation_and_replay(assistant_client, monkeypatch):
     monkeypatch.setattr(
         service,
         "application_data",
-        lambda db, claims, payload: {key: "机密应用数据" for key in payload.data_sources},
+        lambda db, claims, payload: {
+            key: {"active_material_count": 7, "note": "机密应用数据"}
+            for key in payload.data_sources
+        },
     )
     monkeypatch.setattr(
         service.assistant_tool_chat,
         "chat",
         lambda provider, cfg, messages, claims, **kwargs: ai.chat(provider, cfg, messages)[0],
     )
+    monkeypatch.setattr(service.solution_knowledge, "check_access", lambda claims: None)
     task = create(f)
     request_id = str(uuid4())
     response = question(f, task, request_id=request_id, data_sources=["knowledge"])
@@ -469,17 +475,18 @@ def test_knowledge_question_supplies_full_catalogue_count(assistant_client, monk
 
     f = assistant_client
     monkeypatch.setattr(solution_knowledge, "paper_count", lambda claims: 63)
+    monkeypatch.setattr(solution_knowledge, "check_access", lambda claims: None)
     from app.services import assistant_tool_chat
 
     def tool_chat(provider, cfg, messages, claims, **kwargs):
         f.calls.append({"messages": messages})
-        return "知识库当前有63篇有效论文"
+        return "知识库当前有63项有效材料，不能等同论文篇数"
 
     monkeypatch.setattr(assistant_tool_chat, "chat", tool_chat)
     response = question(f, create(f), data_sources=["knowledge"])
     assert response.status_code == 200, response.text
     data = json.loads(f.calls[-1]["messages"][-1]["content"])["application_data"]["knowledge"]
-    assert data["active_paper_count"] == 63
+    assert data["active_material_count"] == 63
     assert "只读查询工具" in data["note"]
 
 
@@ -583,6 +590,7 @@ def test_kb_tools_route_uses_pinned_private_transport(assistant_client, monkeypa
     f = assistant_client
     assert test_solution_ai.save(f).status_code == 200
     monkeypatch.setattr(solution_knowledge, "paper_count", lambda claims: 63)
+    monkeypatch.setattr(solution_knowledge, "check_access", lambda claims: None)
     seen = []
 
     def tools(provider, cfg, messages, claims, **kwargs):
@@ -617,6 +625,7 @@ def test_kb_tool_failure_retains_task_and_request_for_retry(assistant_client, mo
 
     f = assistant_client
     monkeypatch.setattr(solution_knowledge, "paper_count", lambda claims: 63)
+    monkeypatch.setattr(solution_knowledge, "check_access", lambda claims: None)
 
     def unavailable(*args, **kwargs):
         raise HTTPException(504, "知识库响应超时，请重试")
@@ -634,6 +643,7 @@ def test_kb_native_tool_roundtrip_is_saved_only_after_final_reply(assistant_clie
     f = assistant_client
     monkeypatch.setattr(solution_knowledge, "check_access", lambda claims: None)
     monkeypatch.setattr(solution_knowledge, "paper_count", lambda claims: 63)
+    monkeypatch.setattr(solution_knowledge, "check_access", lambda claims: None)
     seen = []
 
     def request(provider, cfg, path, body, **kwargs):
