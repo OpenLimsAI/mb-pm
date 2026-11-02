@@ -194,7 +194,7 @@ def test_foreign_status_lookup_cannot_expire_or_unlock_another_owners_request(as
     f.login()
     failed = status(f, task, body["request_id"])
     assert failed.status_code == 200 and failed.json()["status"] == "failed"
-    assert failed.json()["partial_content"] == ""
+    assert failed.json()["partial_content"] == "PRIVATE-EXPIRED-WORK"
     assert assistant_requests.claim(f.db, job_id) is None
     assert f.calls == []
 
@@ -427,7 +427,7 @@ def isolated_request_sessions(tmp_path):
     from sqlalchemy.orm import sessionmaker
 
     from app.db.base import Base
-    from app.models.assistant import AssistantMessage, AssistantRequest
+    from app.models.assistant import AssistantMessage, AssistantOperationsConfig, AssistantRequest
 
     database_url = os.environ.get("TEST_DATABASE_URL")
     admin = schema = None
@@ -449,6 +449,7 @@ def isolated_request_sessions(tmp_path):
                 AssistantTask.__table__,
                 AssistantMessage.__table__,
                 AssistantRequest.__table__,
+                AssistantOperationsConfig.__table__,
             ],
         )
         yield engine, sessionmaker(bind=engine, autoflush=False)
@@ -509,13 +510,17 @@ def test_two_instances_claim_a_queued_request_only_once(isolated_request_session
     barrier = Barrier(2, timeout=5)
 
     def synchronized_select(_conn, _cursor, statement, _parameters, _context, _many):
-        if statement.lstrip().upper().startswith("SELECT ASSISTANT_REQUESTS.ID"):
+        if engine.dialect.name != "postgresql" and statement.lstrip().upper().startswith(
+            "SELECT ASSISTANT_REQUESTS.ID"
+        ):
             barrier.wait()
 
     event.listen(engine, "after_cursor_execute", synchronized_select)
     try:
 
         def contender():
+            if engine.dialect.name == "postgresql":
+                barrier.wait()
             with factory() as db:
                 return assistant_requests.claim(db, job_id)
 
@@ -563,13 +568,17 @@ def test_concurrent_submissions_cannot_reserve_two_slots_on_one_task(isolated_re
     barrier = Barrier(2, timeout=5)
 
     def synchronized_reservation(_conn, _cursor, statement, _parameters, _context, _many):
-        if statement.lstrip().upper().startswith("UPDATE ASSISTANT_TASKS SET ACTIVE_REQUEST_ID"):
+        if engine.dialect.name != "postgresql" and statement.lstrip().upper().startswith(
+            "UPDATE ASSISTANT_TASKS SET ACTIVE_REQUEST_ID"
+        ):
             barrier.wait()
 
     event.listen(engine, "before_cursor_execute", synchronized_reservation)
     try:
 
         def contender():
+            if engine.dialect.name == "postgresql":
+                barrier.wait()
             with factory() as db:
                 try:
                     assistant_requests.submit(

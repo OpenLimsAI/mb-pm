@@ -2,7 +2,18 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    false,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -18,6 +29,11 @@ class AssistantTask(Base):
     # Legacy grouping retained for stored tasks; no longer exposed or used by the assistant.
     project: Mapped[str] = mapped_column(String(200), nullable=False, default="")
     instructions: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    memory: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    pinned: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    final_artifact_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
@@ -59,6 +75,12 @@ class AssistantMessage(Base):
     mode_reason: Mapped[str] = mapped_column(
         String(200), nullable=False, default="", server_default=""
     )
+    knowledge_references: Mapped[list] = mapped_column(
+        JSON, nullable=False, default=list, server_default="[]"
+    )
+    source_summary: Mapped[dict] = mapped_column(
+        JSON, nullable=False, default=dict, server_default="{}"
+    )
     web_references: Mapped[list] = mapped_column(
         JSON, nullable=False, default=list, server_default="[]"
     )
@@ -98,4 +120,16 @@ class AssistantRequest(Base):
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    first_content_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AssistantOperationsConfig(Base):
+    __tablename__ = "assistant_operations_config"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    limits: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )

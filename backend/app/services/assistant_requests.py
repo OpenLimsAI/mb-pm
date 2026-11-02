@@ -28,7 +28,16 @@ LOGGER = logging.getLogger("cmc-pms.assistant-worker")
 CURRENT = ContextVar("assistant_request_execution", default=None)
 BUSY = "任务已有问题正在处理，请等待当前回答完成。"
 INTERRUPTED = "本次生成已中断，问题已保存，请重新发送。"
-TERMINAL = {"completed", "failed"}
+TERMINAL = {"completed", "failed", "cancelled"}
+DRAFT_CODES = {
+    "model_timeout",
+    "output_limit",
+    "response_too_large",
+    "model_network",
+    "model_invalid_response",
+    "request_interrupted",
+    "request_cancelled",
+}
 
 
 @dataclass
@@ -53,6 +62,8 @@ def active_id():
 
 def fingerprint(payload):
     value = payload.model_dump(mode="json", exclude={"revision"})
+    if value.get("continue_from_request") is None:
+        value.pop("continue_from_request", None)
     return hashlib.sha256(
         json.dumps(value, sort_keys=True, ensure_ascii=False).encode()
     ).hexdigest()
@@ -83,10 +94,15 @@ def view(db, claims, task, job):
             "task_id": job.task_id,
             "status": job.status,
             "stage": job.stage,
-            "partial_content": job.partial_content if job.status == "running" else "",
+            "partial_content": job.partial_content if job.status != "completed" else "",
+            "error_code": job.error_code,
+            "can_continue": bool(job.partial_content and job.status in {"failed", "cancelled"}),
+            "started_at": job.started_at,
+            "finished_at": job.finished_at,
+            "payload_expired": not bool(payload),
             "error": job.error,
             "diagnostic_id": job.diagnostic_id,
-            "question": payload["question"],
+            "question": payload.get("question", ""),
             "context": payload.get("context", ""),
             "requested_mode": payload.get("answer_mode"),
             "data_sources": payload.get("data_sources", []),
@@ -122,7 +138,6 @@ def recover_expired(db, task_id=None):
                 stage="failed",
                 error=INTERRUPTED,
                 error_code="request_interrupted",
-                partial_content="",
                 lease_until=None,
                 finished_at=point,
                 updated_at=point,
@@ -178,6 +193,79 @@ def get_active(db, claims, task_id):
     return result
 
 
+def cancel(db, claims, task_id, request_id):
+    from app.services import assistant
+
+    task = assistant.get_task(db, task_id, claims)
+    job = db.scalar(
+        select(AssistantRequest).where(
+            AssistantRequest.task_id == task.id, AssistantRequest.request_id == request_id
+        )
+    )
+    if job is None:
+        raise HTTPException(404, "本次请求不存在")
+    # Cancellation doesn't return protected history until view checks it. The
+    # owner may always stop their work, even after a source permission changes.
+    changed = db.execute(
+        update(AssistantRequest)
+        .execution_options(synchronize_session=False)
+        .where(AssistantRequest.id == job.id, AssistantRequest.status.in_(["queued", "running"]))
+        .values(
+            status="cancelled",
+            stage="cancelled",
+            error="已停止生成，问题与已生成的草稿已保留。",
+            error_code="request_cancelled",
+            error_status=409,
+            worker_token="",
+            lease_until=None,
+            updated_at=now(),
+            finished_at=now(),
+        )
+    )
+    if changed.rowcount:
+        db.execute(
+            update(AssistantTask)
+            .where(AssistantTask.id == task.id, AssistantTask.active_request_id == job.id)
+            .values(active_request_id=None)
+        )
+    db.commit()
+    db.refresh(job)
+    result = view(db, claims, task, job)
+    db.rollback()
+    return result
+
+
+def continuation_context(db, claims, task, payload, *, actual_sources=None):
+    if not payload.continue_from_request:
+        return ""
+    job = db.scalar(
+        select(AssistantRequest).where(
+            AssistantRequest.task_id == task.id,
+            AssistantRequest.request_id == str(payload.continue_from_request),
+        )
+    )
+    if job is None:
+        raise HTTPException(404, "未找到可继续的草稿")
+    _scope_access(db, claims, task, job)
+    used = set((job.application_scope or {}).get("used_sources", []))
+    if not used.issubset(payload.data_sources) or (
+        used and payload.answer_mode in {"general", "web"}
+    ):
+        raise HTTPException(422, "继续此草稿需要保留原来的应用数据范围，或重新提问")
+    if actual_sources is not None and not used.issubset(actual_sources):
+        raise HTTPException(422, "继续此草稿需要查询原来的应用数据，请选择相同的数据范围和回答方式")
+    if job.status not in {"failed", "cancelled"} or not job.partial_content or not job.payload:
+        raise HTTPException(422, "该请求没有可继续的未完成草稿，请重新提问")
+    return json.dumps(
+        {
+            "original_question": job.payload.get("question", ""),
+            "unfinished_content": job.partial_content[:16000],
+            "instruction": "这是未完成、未经核对的草稿，仅用于理解上下文；请重新核对事实并给出完整回答。应用事实须重新查询，不能将草稿当作新证据。",
+        },
+        ensure_ascii=False,
+    )
+
+
 def submit(db, claims, task, payload, *, inline=False):
     from app.services import assistant
 
@@ -208,6 +296,11 @@ def submit(db, claims, task, payload, *, inline=False):
         raise HTTPException(409, assistant.CONFLICT)
     if not replay and task.active_request_id is not None:
         raise HTTPException(409, BUSY)
+    from app.services import assistant_operations
+
+    continuation_context(db, claims, task, payload)
+    assistant_operations.queue_lock(db)
+    limits = assistant_operations.limits(db)
     count = db.scalar(
         select(func.count())
         .select_from(AssistantRequest)
@@ -218,14 +311,27 @@ def submit(db, claims, task, payload, *, inline=False):
             AssistantRequest.status.in_(["queued", "running"]),
         )
     )
-    if not replay and count >= 3:
+    if not replay and count >= limits["per_user_pending"]:
         raise HTTPException(429, "已有多项问题正在处理，请稍后再提交")
+    if inline and not replay:
+        running = db.scalar(
+            select(func.count())
+            .select_from(AssistantRequest)
+            .join(AssistantTask)
+            .where(
+                AssistantTask.issuer == claims["iss"],
+                AssistantTask.owner_id == claims["sub"],
+                AssistantRequest.status == "running",
+            )
+        )
+        if running >= limits["per_user_running"]:
+            raise HTTPException(429, "当前账号已有回答正在生成，请等待完成后再发送")
     queued = db.scalar(
         select(func.count())
         .select_from(AssistantRequest)
         .where(AssistantRequest.status == "queued")
     )
-    if not replay and queued >= 100:
+    if not replay and queued >= limits["global_queued"]:
         raise HTTPException(429, "当前等待的问题较多，请稍后再提交")
     point, job_id = now(), uuid4().hex
     token = uuid4().hex if inline and not replay else ""
@@ -271,11 +377,34 @@ def submit(db, claims, task, payload, *, inline=False):
 
 
 def claim(db, job_id=None):
+    from app.services import assistant_operations
+
+    assistant_operations.queue_lock(db)
     point = now()
-    query = select(AssistantRequest.id).where(AssistantRequest.status == "queued")
+    limit = assistant_operations.limits(db)["per_user_running"]
+    # At most one candidate per owner is examined. Owners with fewer running
+    # jobs win, then FIFO, so a busy account cannot monopolize both instances.
+    running = dict(
+        ((issuer, owner), count)
+        for issuer, owner, count in db.execute(
+            select(AssistantTask.issuer, AssistantTask.owner_id, func.count())
+            .join(AssistantRequest, AssistantRequest.task_id == AssistantTask.id)
+            .where(AssistantRequest.status == "running")
+            .group_by(AssistantTask.issuer, AssistantTask.owner_id)
+        )
+    )
+    query = (
+        select(AssistantRequest.id, AssistantTask.issuer, AssistantTask.owner_id)
+        .join(AssistantTask, AssistantTask.id == AssistantRequest.task_id)
+        .where(AssistantRequest.status == "queued")
+    )
     if job_id:
         query = query.where(AssistantRequest.id == job_id)
-    selected = db.scalar(query.order_by(AssistantRequest.created_at).limit(1))
+    candidates = db.execute(query.order_by(AssistantRequest.created_at).limit(1000)).all()
+    eligible = [row for row in candidates if running.get((row[1], row[2]), 0) < limit]
+    selected = (
+        min(eligible, key=lambda row: running.get((row[1], row[2]), 0))[0] if eligible else None
+    )
     if selected is None:
         db.rollback()
         return None
@@ -306,8 +435,11 @@ def progress(**fields):
         return
     if execution.stop and execution.stop.is_set():
         raise HTTPException(409, INTERRUPTED)
-    force = bool(fields.get("application_scope")) or bool(
-        fields.get("stage") and fields["stage"] != execution.last_stage
+    force = (
+        bool(fields.get("final_partial"))
+        or bool(fields.get("first_content"))
+        or bool(fields.get("application_scope"))
+        or bool(fields.get("stage") and fields["stage"] != execution.last_stage)
     )
     if not force and monotonic() - execution.last_write < 1:
         return
@@ -317,6 +449,8 @@ def progress(**fields):
     }
     if fields.get("stage") in {"waiting_model", "generating", "saving"}:
         values["stage"] = fields["stage"]
+    if fields.get("first_content"):
+        values["first_content_at"] = now()
     if "partial_content" in fields:
         text = fields["partial_content"]
         if not isinstance(text, str) or len(text) > 80000:
@@ -386,7 +520,7 @@ def fail(db, job_id, token, error, status=503, code="request_failed", diagnostic
         .values(
             status="failed",
             stage="failed",
-            partial_content="",
+            partial_content=job.partial_content if code in DRAFT_CODES else "",
             error=error[:1000],
             error_status=status,
             error_code=code,
@@ -492,7 +626,7 @@ def run_inline(db, claims, task, payload):
     job = db.get(AssistantRequest, job_id)
     if job.status == "completed":
         return assistant.detail(db, assistant.get_task(db, task.id, claims), claims)
-    if job.status == "failed":
+    if job.status in {"failed", "cancelled"}:
         raise HTTPException(
             job.error_status,
             re.sub(r"（诊断编号：[a-f0-9]{32}）", "", job.error),

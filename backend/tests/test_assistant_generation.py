@@ -435,3 +435,32 @@ def test_invalid_total_budget_never_starts_a_transport(budget):
         generation.run_context(lambda _row: None, budget_seconds=budget),
     ):
         pytest.fail("invalid context started")
+
+
+def test_output_limit_flushes_last_visible_fragment_and_never_reasoning(monkeypatch):
+    stream(
+        monkeypatch,
+        [
+            event("<think>SECRET-REASONING</think>前段"),
+            event("最后一段", finish="length"),
+            b"data: [DONE]\n\n",
+        ],
+    )
+    writes = []
+    with pytest.raises(ai.AIError) as error, generation.run_context(writes.append):
+        generation.call("deepseek", CFG, MESSAGES)
+    assert error.value.code == "output_limit"
+    assert writes[-1] == {"final_partial": True, "partial_content": "前段最后一段"}
+    assert "SECRET" not in str(writes)
+
+
+def test_partial_flush_failure_never_hides_original_model_error(monkeypatch):
+    stream(monkeypatch, [event("可见内容", finish="length"), b"data: [DONE]\n\n"])
+
+    def update(fields):
+        if fields.get("final_partial"):
+            raise RuntimeError("cancelled token")
+
+    with pytest.raises(ai.AIError) as error, generation.run_context(update):
+        generation.call("deepseek", CFG, MESSAGES)
+    assert error.value.code == "output_limit"

@@ -213,7 +213,7 @@ def _retrieve(query: str) -> list[dict]:
 
 
 def paper_count(claims: dict) -> int:
-    """Count the active paper catalogue independently of search result limits."""
+    """Legacy function name: count source materials, not verified academic papers."""
     check_access(claims)
     records = _json(_request("GET", "/v1/base/pages", params={"active": "true", "layer": "source"}))
     if not isinstance(records, list):

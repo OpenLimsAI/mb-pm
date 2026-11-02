@@ -5,6 +5,7 @@ import PortalLayout from '../components/portal/PortalLayout'
 import { usePortalContext } from '../components/portal/context'
 import ModelSettingsPanel from '../features/solutions/ModelSettingsPanel'
 import { createPreviewModelClient, modelSettingsApi } from '../features/solutions/modelSettings'
+import AssistantOperationsPanel from '../components/settings/AssistantOperationsPanel'
 
 export default function PortalAISettings() {
   const { user, identityNamespace, preview, logout, refresh } = usePortalContext()
@@ -22,5 +23,6 @@ export default function PortalAISettings() {
       <Link className="app-workbench-link" to={'/' + suffix}><LayoutGrid size={16} />应用工作台</Link>
       <ModelSettingsPanel client={client} preview={preview} onChange={() => {}} onClose={() => navigate('/' + suffix)} />
     </section>
+    {!preview && <AssistantOperationsPanel key={namespace} />}
   </PortalLayout>
 }

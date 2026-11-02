@@ -11,7 +11,7 @@ from app.db.session import get_db
 from app.schemas.assistant import TaskCreate, TaskQuestion, TaskRevision, TaskSave
 from app.services import assistant as service
 from app.services import assistant_diagnostics as diagnostics
-from app.services import assistant_requests, password_policy, web_search
+from app.services import assistant_operations, assistant_requests, password_policy, web_search
 
 router = APIRouter(prefix="/assistant/tasks", tags=["ai-assistant"])
 
@@ -61,6 +61,61 @@ def capabilities(
     return web_search.capabilities_for_model(db, claims, model_profile_id)
 
 
+@router.get("/operations")
+def operations(
+    response: Response,
+    diagnostic_id: str = Query(default="", max_length=32, pattern=r"^(?:[a-f0-9]{32})?$"),
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    return job_response(response, lambda: assistant_operations.overview(db, claims, diagnostic_id))
+
+
+@router.put("/operations/settings")
+def operation_settings(
+    payload: assistant_operations.Limits,
+    response: Response,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    return job_response(response, lambda: assistant_operations.save_limits(db, claims, payload))
+
+
+@router.post("/operations/prune")
+def prune_requests(
+    response: Response, db: Session = Depends(get_db), claims: dict = Depends(identity)
+):
+    return job_response(response, lambda: assistant_operations.prune(db, claims))
+
+
+@router.post("/preflight")
+def preflight(
+    payload: assistant_operations.Preflight,
+    response: Response,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    return job_response(response, lambda: assistant_operations.preflight(db, claims, payload))
+
+
+@router.get("/{task_id}/sources")
+def read_source(
+    task_id: str,
+    response: Response,
+    path: str = Query(max_length=1024),
+    offset: int = Query(default=0, ge=0, le=500000),
+    length: int = Query(default=8000, ge=1, le=12000),
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    return job_response(
+        response,
+        lambda: service.read_source(
+            db, claims, service.get_task(db, task_id, claims), path, offset, length
+        ),
+    )
+
+
 @router.get("/{task_id}")
 def detail(task_id: str, db: Session = Depends(get_db), claims: dict = Depends(identity)):
     return service.detail(db, service.get_task(db, task_id, claims), claims)
@@ -73,7 +128,11 @@ def save(
     task = service.get_task(db, task_id, claims)
     service.active(task)
     return service.change(
-        db, claims, task, payload.revision, payload.model_dump(exclude={"revision"})
+        db,
+        claims,
+        task,
+        payload.revision,
+        payload.model_dump(exclude={"revision"}, exclude_unset=True),
     )
 
 
@@ -127,6 +186,19 @@ def request_status(
     claims: dict = Depends(identity),
 ):
     return job_response(response, lambda: assistant_requests.get(db, claims, task_id, request_id))
+
+
+@router.post("/{task_id}/requests/{request_id}/cancel")
+def cancel_request(
+    task_id: str,
+    request_id: str,
+    response: Response,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    return job_response(
+        response, lambda: assistant_requests.cancel(db, claims, task_id, request_id)
+    )
 
 
 @router.post("/{task_id}/trash")

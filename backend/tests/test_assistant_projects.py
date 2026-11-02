@@ -207,7 +207,7 @@ def test_joint_question_is_the_only_pm_path_that_enables_kb_tools(pm, monkeypatc
     def tool_chat(provider, cfg, messages, claims, **kwargs):
         assert not f.db.in_transaction()
         data = json.loads(messages[-1]["content"])["application_data"]
-        assert data["knowledge"]["active_paper_count"] == 7
+        assert data["knowledge"]["active_material_count"] == 7
         assert data["projects"]["returned"] == 1
         tools.append(data)
         return "依据本轮项目目录和知识库资料整理。"
@@ -232,6 +232,7 @@ def test_explicit_knowledge_mode_does_not_read_permitted_pm_data(assistant_clien
     task = test_assistant.create(f)
     monkeypatch.setattr(assistant_projects, "access", unavailable)
     monkeypatch.setattr(solution_knowledge, "paper_count", lambda claims: 7)
+    monkeypatch.setattr(solution_knowledge, "check_access", lambda claims: None)
 
     def tool_chat(provider, cfg, messages, claims, **kwargs):
         assert set(json.loads(messages[-1]["content"])["application_data"]) == {"knowledge"}

@@ -14,11 +14,32 @@ class Plan:
     sources: tuple[str, ...] = ()
 
 
+def deep_analysis(question):
+    """Use higher reasoning only for an affirmative request in its own clause."""
+    for clause in re.split(r"[，,。；;！!？?\n]", question):
+        for match in re.finditer(
+            r"深入分析|深度分析|详细推导|严谨推导|deep analysis|detailed derivation", clause, re.I
+        ):
+            prefix = clause[: match.start()]
+            if not re.search(
+                r"(?:不(?:要|用|必|需要|想)?|无需|无须|别|避免|禁止)(?:再|做|进行|使用|给我|太多|任何|特别|过多|额外|的|地|\s){0,6}$|(?:without|don't|do not|no need to)\s*(?:do|perform)?\s*$",
+                prefix,
+                re.I,
+            ):
+                return True
+    return False
+
+
 def followup(question):
-    return len(question.strip()) <= 80 and bool(
+    text = question.strip()
+    if len(text) > 600 or re.search(
+        r"换个(?:问题|话题)|另一个(?:问题|话题)|新(?:问题|话题)|unrelated|new topic", text, re.I
+    ):
+        return False
+    return bool(
         re.match(
-            r"^(继续|再说|再详细|展开|还有呢|然后呢|为什么|那[么这它]|这些|上述|上面|它们|what about|and |why\b)",
-            question.strip(),
+            r"^(?:(?:请|能否|请你|帮我)(?:再|继续)?\s*)?(继续|再说|再详细|展开|还有呢|然后呢|为什么|那[么这它]|这些|上述|上面|刚才|前面|它们|进一步|基于(?:上|前)|what about|and |why\b)",
+            text,
             re.I,
         )
     )
