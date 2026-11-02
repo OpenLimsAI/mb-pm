@@ -57,7 +57,7 @@ function insertInlineCard() {
   return screen.getByRole('region', { name: '正文 AI 问答' })
 }
 
-beforeEach(() => { localStorage.clear(); sessionStorage.clear(); localStorage.setItem('ks-writing-mode', 'focus') })
+beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-editor-mode', 'markdown'); sessionStorage.clear(); localStorage.setItem('ks-writing-mode', 'focus') })
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
 describe('focus writing workspace', () => {

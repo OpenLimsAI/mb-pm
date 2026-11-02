@@ -4,6 +4,7 @@ export const REPORT_IMPORT_ACCEPT = '.docx,.pdf,.md,.markdown'
 export const REPORT_IMPORT_MAX_BYTES = 20 * 1024 * 1024
 const MAX_TEXT = 200_000
 const MAX_SECTION = 50_000
+const IMAGE_PATTERN = /!\[[^\]]*\]\(data:image\/(?:png|jpeg);base64,[A-Za-z0-9+/=]+\)/g
 export type ReportFileKind = 'word' | 'pdf' | 'markdown'
 export interface ImportedReport { fileName: string; kind: ReportFileKind; characters: number; input: SolutionInput }
 
@@ -18,20 +19,43 @@ export function reportFileKind(name: string): ReportFileKind {
 export function reportFromText(fileName: string, text: string, kind: ReportFileKind): ImportedReport {
   const content = text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').trim()
   if (!content) throw new Error(kind === 'pdf' ? '未读取到 PDF 正文。扫描版 PDF 请先进行文字识别（OCR）后再导入。' : '文件中没有可导入的正文。')
-  if (content.length > MAX_TEXT) throw new Error('正文超过 20 万字，请拆分文件后导入。')
+  if (content.length > 12_000_000) throw new Error('文档含图片后的总容量超过 12 MB，请压缩图片后导入。')
+  if (content.replace(IMAGE_PATTERN, '[图片]').length > MAX_TEXT) throw new Error('正文超过 20 万字，请拆分文件后导入。')
   if ([...content].some(char => char.charCodeAt(0) < 32 && char !== '\n' && char !== '\t')) throw new Error('文件包含无法读取的内容，请检查文件格式或另存为 UTF-8 Markdown。')
-  // Keep all source text, including Markdown, instead of inferring a document outline.
   const sections: SolutionInput['sections'] = []
-  let remaining = content
-  while (remaining) {
-    let end = Math.min(MAX_SECTION, remaining.length)
-    if (end < remaining.length) {
-      const paragraph = remaining.lastIndexOf('\n\n', end - 2)
-      if (paragraph > MAX_SECTION / 2) end = paragraph + 2
-      else if (/[\uD800-\uDBFF]/.test(remaining[end - 1])) end -= 1
-    }
-    sections.push({ id: crypto.randomUUID(), title: sections.length ? `导入正文（续 ${sections.length}）` : '导入正文', content: remaining.slice(0, end) })
-    remaining = remaining.slice(end)
+  let fenced = false
+  const blocks: { title: string; level: number; lines: string[] }[] = []
+  let block = { title: '导入正文', level: 0, lines: [] as string[] }
+  for (const line of content.split('\n')) {
+    if (/^\s*(```|~~~)/.test(line)) fenced = !fenced
+    const heading = !fenced && /^(#{1,3})\s+(.+?)\s*#*\s*$/.exec(line)
+    if (heading && blocks.length < 58) {
+      if (block.lines.join('\n').trim() || block.title !== '导入正文') blocks.push(block)
+      block = { title: heading[2].slice(0, 200), level: heading[1].length, lines: [] }
+    } else block.lines.push(line)
+  }
+  if (block.lines.join('\n').trim() || !blocks.length || block.title !== '导入正文') blocks.push(block)
+  const parents: { level: number; id: string }[] = []
+  for (const item of blocks) {
+    while (parents.length && parents.at(-1)!.level >= item.level) parents.pop()
+    const parentId = parents.at(-1)?.id || null
+    let firstId = ''
+    let remaining = item.lines.join('\n').trim(), continuation = 0
+    do {
+      let end = Math.min(MAX_SECTION, remaining.length)
+      const image = [...remaining.matchAll(IMAGE_PATTERN)].find(match => match.index! < end && match.index! + match[0].length > end)
+      if (image) end = image.index! === 0 ? image[0].length : image.index!
+      else if (end < remaining.length) {
+        const paragraph = remaining.lastIndexOf('\n\n', end - 2)
+        if (paragraph > MAX_SECTION / 2) end = paragraph + 2
+        else if (/[\uD800-\uDBFF]/.test(remaining[end - 1])) end -= 1
+      }
+      const id = crypto.randomUUID(); if (!firstId) firstId = id
+      sections.push({ id, ...(parentId ? { parentId } : {}), title: continuation ? `${item.title}（续 ${continuation}）` : item.title, content: remaining.slice(0, end) })
+      remaining = remaining.slice(end); continuation++
+      if (sections.length > 60) throw new Error('识别出超过 60 个章节，请拆分文档后导入。')
+    } while (remaining)
+    if (item.level) parents.push({ level: item.level, id: firstId })
   }
   const title = fileName.replace(/\.(docx|pdf|md|markdown)$/i, '').trim().slice(0, 200) || '导入的研究报告'
   return { fileName, kind, characters: content.length, input: { title, projectName: '', productName: '', sections, formula: [], references: [] } }

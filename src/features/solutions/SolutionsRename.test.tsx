@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import SolutionsApp from './SolutionsApp'
 import { createDemoClient } from './demo'
 
-beforeEach(() => { localStorage.clear(); sessionStorage.clear() })
+beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-editor-mode', 'markdown'); sessionStorage.clear() })
 
 describe('rename a report from its list card', () => {
   it('saves the new name and preserves content through reopening', async () => {

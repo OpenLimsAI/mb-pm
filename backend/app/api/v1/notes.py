@@ -168,6 +168,14 @@ def listing(
     return {"items": [output(row, db) for row in rows], "total": total}
 
 
+@router.get("/{note_id}")
+def detail(note_id: str, db: Session = Depends(get_db), claims: dict = Depends(identity)):
+    row = get_note(db, note_id, claims)
+    if row.deleted_at:
+        raise HTTPException(404, "笔记不存在或已移至回收站")
+    return output(row, db)
+
+
 @router.post("", status_code=201)
 def create(payload: NoteCreate, db: Session = Depends(get_db), claims: dict = Depends(identity)):
     data = payload.model_dump(exclude={"id"})

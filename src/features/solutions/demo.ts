@@ -1,5 +1,5 @@
 import { previewCapabilities, previewProvenance, previewWebAnswer } from '../answerModes/preview'
-import type { Answer, KnowledgeSource, Solution, SolutionClient, SolutionInput, Version } from './types'
+import type { Answer, KnowledgeSource, Solution, SolutionClient, SolutionInput, Version, ReportTemplate, TopicMetadata } from './types'
 import { emptySolution } from './template'
 import { exportPreview } from './export'
 import { libraryEmbedUrl, validLibraryPath } from './libraryEmbed'
@@ -7,7 +7,7 @@ import { libraryEmbedUrl, validLibraryPath } from './libraryEmbed'
 const now = () => new Date().toISOString()
 const uid = () => crypto.randomUUID()
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T
-interface DemoState { trash?: { solution: Solution; deletedAt: string }[]; solutions: Solution[]; sources: KnowledgeSource[]; versions: Record<string, Version[]>; answers: Record<string, Answer[]> }
+interface DemoState { templates?: ReportTemplate[]; topics?: Record<string, TopicMetadata[]>; trash?: { solution: Solution; deletedAt: string }[]; solutions: Solution[]; sources: KnowledgeSource[]; versions: Record<string, Version[]>; answers: Record<string, Answer[]> }
 
 function initialState(userId: string, userName: string): DemoState {
   const input = emptySolution('缓冲体系选择与验证报告')
@@ -54,6 +54,14 @@ export function createDemoClient(namespace: string, userId: string, userName: st
   function verify(s: Solution, revision: number) { if (s.revision !== revision) throw Object.assign(new Error('报告已在其他页面更新，请先重新载入并比较当前草稿。'), { status: 409 }) }
   function newSolution(input: SolutionInput): Solution { return { ...clone(input), id: uid(), ownerId: userId, ownerName: userName, status: 'draft', revision: 1, version: 1, updatedAt: now(), reviewerId: null, reviewerName: '', reviewNotes: '', canEdit: true } }
   const client: SolutionClient = {
+    snapshot: async (id, revision, name) => { const state = read(), s = get(state, id); verify(s, revision); changed(s); snapshot(state, s, name); write(state); return clone(state.versions[id][0]) },
+    restoreSection: async (id, versionId, revision, sectionId) => { const state = read(), s = get(state, id); verify(s, revision); const version = state.versions[id]?.find(v => v.id === versionId), section = version?.snapshot.sections.find(v => v.id === sectionId); if (!section) throw new Error('历史章节不存在'); snapshot(state, s, '恢复章节前'); const restored = { ...clone(section), parentId: s.sections.some(v => v.id === section.parentId) ? section.parentId : null }; s.sections = s.sections.some(v => v.id === sectionId) ? s.sections.map(v => v.id === sectionId ? restored : v) : [...s.sections, restored]; s.references = [...s.references.filter(r => r.sectionId !== sectionId), ...clone(version!.snapshot.references.filter(r => r.sectionId === sectionId))]; changed(s); write(state); return clone(s) },
+    templates: async () => clone(read().templates || []),
+    createTemplate: async (name, sections) => { const state = read(), value = { id: uid(), name, sections: clone(sections), createdAt: now() }; (state.templates ||= []).push(value); write(state); return clone(value) },
+    deleteTemplate: async id => { const state = read(); state.templates = (state.templates || []).filter(t => t.id !== id); write(state) },
+    topics: async id => clone(read().topics?.[id] || []),
+    saveTopic: async (id, topic) => { const state = read(); get(state,id); const list = (state.topics ||= {})[id] ||= []; const current = list.find(t => t.id === topic.id); if ((current?.revision || 0) !== topic.revision) throw new Error('主题已更新，请重新打开报告'); const saved = { ...topic, revision: topic.revision + 1 }; state.topics[id] = [...list.filter(t => t.id !== topic.id), saved]; write(state); return clone(saved) },
+    deleteTopic: async (id, topicId, revision) => { const state = read(); get(state,id); const current = state.topics?.[id]?.find(t => t.id === topicId); if ((current?.revision || 0) !== revision) throw new Error('主题已更新'); state.answers[id] = (state.answers[id] || []).filter(a => (a.conversationId || a.id) !== topicId); if(state.topics) state.topics[id] = (state.topics[id] || []).filter(t => t.id !== topicId); write(state) },
     capabilities: async () => clone(previewCapabilities),
     list: async () => clone(read().solutions).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
     trash: async () => clone((read().trash || []).map(({ solution, deletedAt }) => ({ id: solution.id, title: solution.title, revision: solution.revision, deletedAt }))),
@@ -61,7 +69,7 @@ export function createDemoClient(namespace: string, userId: string, userName: st
     restore: async (id, revision) => { const state = read(), item = (state.trash || []).find(entry => entry.solution.id === id); if (!item || item.solution.ownerId !== userId) throw new Error('报告不存在或无权访问'); verify(item.solution, revision); item.solution.revision++; item.solution.updatedAt = now(); state.solutions.unshift(item.solution); state.trash = (state.trash || []).filter(entry => entry.solution.id !== id); write(state); return clone(item.solution) },
     create: async input => { const state = read(), s = newSolution(input); state.solutions.unshift(s); write(state); return clone(s) },
     get: async id => clone(get(read(), id)),
-    save: async (id, input) => { const state = read(), s = get(state, id); verify(s, input.revision); if (s.status !== 'draft') throw new Error('仅草稿可以编辑'); Object.assign(s, clone(input)); changed(s); write(state); return clone(s) },
+    save: async (id, input) => { const state = read(), s = get(state, id); verify(s, input.revision); if (s.status !== 'draft') throw new Error('仅草稿可以编辑'); if (!state.versions[id]?.length || Date.now() - Date.parse(state.versions[id][0].createdAt) > 300000) snapshot(state,s,'自动保存快照'); Object.assign(s, clone(input)); changed(s); write(state); return clone(s) },
     review: async (id, action) => {
       const state = read(), s = get(state, id); verify(s, action.revision)
       const allowed: Record<string, string[]> = { submit: ['draft'], withdraw: ['in_review'], approve: ['in_review'], return: ['in_review'], revise: ['final'], archive: ['draft', 'final'], restore: ['draft', 'final', 'archived'] }

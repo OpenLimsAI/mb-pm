@@ -16,7 +16,8 @@ export interface EditorSelection {
   left: number
   top: number
   host: HTMLElement
-  input: HTMLTextAreaElement
+  input: HTMLElement
+  rich?: { from: number; to: number }
 }
 type Action = 'ask' | 'polish'
 interface Props {

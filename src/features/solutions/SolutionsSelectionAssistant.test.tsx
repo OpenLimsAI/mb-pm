@@ -24,7 +24,7 @@ function select(body: HTMLTextAreaElement) {
   fireEvent.select(body, { target: { selectionStart: 5, selectionEnd: 24 } })
   return body.value.slice(5, 24)
 }
-beforeEach(() => { localStorage.clear(); sessionStorage.clear(); localStorage.setItem('ks-writing-mode', 'split') })
+beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-editor-mode', 'markdown'); sessionStorage.clear(); localStorage.setItem('ks-writing-mode', 'split') })
 
 describe('selected text model integration', () => {
   it('sends selected text and the current model without altering the report, then uses the existing adoption confirmation', async () => {

@@ -1,6 +1,6 @@
 import type { AnswerCapabilities, AnswerMode, AnswerProvenance } from '../answerModes/types'
 export type SolutionStatus = 'draft' | 'in_review' | 'final' | 'archived'
-export interface Section { id: string; title: string; content: string }
+export interface Section { id: string; title: string; content: string; parentId?: string | null }
 export interface FormulaRow {
   id: string; material: string; purpose: string; specification: string; amount: string
   unit: string; basis: string; range: string; rationale: string; evidenceIds: string[]
@@ -11,13 +11,13 @@ export interface Reference {
   sourceVersion: string; sectionId: string
 }
 export interface Solution {
-  id: string; title: string; projectName: string; productName: string
+  id: string; title: string; projectName: string; productName: string; pinned?: boolean; tags?: string[]
   ownerId: string; ownerName: string; status: SolutionStatus; revision: number; version: number
   updatedAt: string; sections: Section[]; formula: FormulaRow[]; references: Reference[]
   reviewerId: string | null; reviewerName: string; reviewNotes: string; canEdit: boolean
 }
 export interface SolutionInput {
-  title: string; projectName: string; productName: string; sections: Section[]
+  title: string; projectName: string; productName: string; sections: Section[]; pinned?: boolean; tags?: string[]
   formula: FormulaRow[]; references: Reference[]
 }
 export type SourceKind = 'paper' | 'practice' | 'note' | 'solution' | 'web'
@@ -45,7 +45,17 @@ export interface ReviewAction {
 }
 export interface Reviewer { id: string; name: string }
 export interface TrashedSolution { id: string; title: string; revision: number; deletedAt: string }
+export interface ReportTemplate { id: string; name: string; sections: Omit<Section, 'content'>[]; createdAt: string }
+export interface TopicMetadata { id: string; title: string; archived: boolean; revision: number }
 export interface SolutionClient {
+  snapshot?(id: string, revision: number, name: string): Promise<Version>
+  restoreSection?(id: string, versionId: string, revision: number, sectionId: string): Promise<Solution>
+  templates?(): Promise<ReportTemplate[]>
+  createTemplate?(name: string, sections: Omit<Section, 'content'>[]): Promise<ReportTemplate>
+  deleteTemplate?(id: string): Promise<void>
+  topics?(id: string): Promise<TopicMetadata[]>
+  saveTopic?(id: string, topic: TopicMetadata): Promise<TopicMetadata>
+  deleteTopic?(id: string, topicId: string, revision: number): Promise<void>
   capabilities?(modelProfileId?: string): Promise<AnswerCapabilities>
   trash(): Promise<TrashedSolution[]>
   remove(id: string, revision: number): Promise<void>
@@ -61,7 +71,7 @@ export interface SolutionClient {
   getSource(id: string, solutionId?: string): Promise<KnowledgeSource>
   knowledgeStatus(): Promise<{ configured: boolean; available: boolean; message: string }>
   addSource(input: SourceInput): Promise<KnowledgeSource>
-  ask(id: string, input: AskInput): Promise<Answer>
+  ask(id: string, input: AskInput, signal?: AbortSignal): Promise<Answer>
   polish?(id: string, input: PolishInput): Promise<PolishResult>
   history(id: string): Promise<Answer[]>
   exportWord(id: string): Promise<void>

@@ -5,7 +5,19 @@ import NoteEditor from './NoteEditor'
 import { createPreviewNotesClient } from './client'
 import { newNote } from './draft'
 
-beforeEach(() => localStorage.clear())
+beforeEach(() => { localStorage.clear(); window.history.replaceState({}, '', '/') })
+it('opens a report source link read-only through the current account client', async () => {
+  const client = createPreviewNotesClient('source-link')
+  const draft = newNote({ title: '原始笔记', content: '来源正文' })
+  await client.create(draft.id, draft)
+  window.history.replaceState({}, '', `/notes?note=${draft.id}`)
+  render(<NotesWorkspace client={client} mode="app" />)
+  const source = await screen.findByRole('region', { name: '引用的笔记' })
+  expect(within(source).getByText('来源正文')).toBeInTheDocument()
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  fireEvent.click(within(source).getByRole('button', { name: '编辑这条笔记' }))
+  expect(screen.getByRole('dialog', { name: '编辑笔记' })).toBeInTheDocument()
+})
 it('creates, edits, searches and restores personal notes', async () => {
   const client = createPreviewNotesClient('person')
   render(<NotesWorkspace client={client} />)

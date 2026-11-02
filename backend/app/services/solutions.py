@@ -5,14 +5,12 @@ not grant browsing the author's private library, previous drafts or conversation
 """
 
 import hashlib
-import io
+import html
 import json
 import re
-import zipfile
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import uuid4
-from xml.sax.saxutils import escape
 
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
@@ -120,6 +118,8 @@ def solution_out(row, claims=None):
         "title",
         "project_name",
         "product_name",
+        "pinned",
+        "tags",
         "owner_id",
         "owner_name",
         "status",
@@ -221,6 +221,23 @@ def own_sources(db, claims):
     )
 
 
+def visible_source_text(text):
+    """Conservative Markdown display normalization for user-selected rendered quotes."""
+    text = re.sub(r"!\[[^\]]*\]\([^)]*\)", " ", text)
+    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
+    text = re.sub(r"<(script|style)\b[^>]*>.*?</\1>", " ", text, flags=re.S | re.I)
+    text = re.sub(r"</?[A-Za-z][A-Za-z0-9:-]*(?:\s[^<>]*?)?\s*/?>", " ", text)
+    text = re.sub(r"(?m)^\s{0,3}(?:#{1,6}\s+|>\s*|[-*+]\s+)", "", text)
+    text = re.sub(r"(?m)^\s*\|?\s*:?-{3,}:?[^\n]*$", "", text)
+    text = re.sub(r"`([^`]+)`", r"\1", text)
+    for marker in (r"\*\*", r"\*", r"~~"):
+        text = re.sub(marker + r"(?=\S)(.+?)(?<=\S)" + marker, r"\1", text)
+    text = re.sub(r"(?<!\w)__(?=\S)(.+?)(?<=\S)__(?!\w)", r"\1", text)
+    text = re.sub(r"(?<!\w)_(?=\S)(.+?)(?<=\S)_(?!\w)", r"\1", text)
+    text = text.replace("|", " ")
+    return " ".join(html.unescape(text).split())
+
+
 def check_references(db, references, claims, *, existing=None):
     """References are immutable quotes, never client-supplied assertions about an ID."""
     sources = {
@@ -244,11 +261,18 @@ def check_references(db, references, claims, *, existing=None):
             continue  # Original immutable quote remains tied to its adopted version.
         if ref["source_version"] != source.version:
             raise HTTPException(409, "来源版本不一致，请重新选择引用")
-        if ref["title"] != source.title or ref["excerpt"] not in source.content:
+        rendered_quote = (
+            ref["locator"] == (source.locator + " · " if source.locator else "") + "原文选段"
+            and bool(visible_source_text(ref["excerpt"]))
+            and visible_source_text(ref["excerpt"]) in visible_source_text(source.content)
+        )
+        if ref["title"] != source.title or (
+            ref["excerpt"] not in source.content and not rendered_quote
+        ):
             raise HTTPException(422, "引用标题或片段与来源不一致，请重新选择原文")
         # A source may provide a page/section. Retrieval additionally uses character
         # offsets, computed from the immutable text rather than invented page numbers.
-        valid_locator = ref["locator"] == source.locator
+        valid_locator = ref["locator"] == source.locator or rendered_quote
         match = re.fullmatch(
             re.escape(source.locator + " · " if source.locator else "") + r"字符 (\d+)–(\d+)",
             ref["locator"],
@@ -348,6 +372,9 @@ def save_solution(db, row, payload, claims):
         ref["source_id"].startswith("kb:") for ref in values["references"]
     )
     check_references(db, values["references"], claims, existing=row.references)
+    from app.services.solution_workbench import automatic_snapshot
+
+    automatic_snapshot(db, row, claims, values)
     compare_and_swap(db, row, payload.revision, values)
     event(db, row, claims, "save", {"reference_ids": [r["id"] for r in row.references]})
     db.commit()
@@ -390,7 +417,7 @@ def review_solution(db, row, payload: ReviewAction, claims):
             if not previous or previous.solution_id != row.id:
                 raise HTTPException(404, "历史版本不存在")
             restored = SolutionInput.model_validate(
-                {k: previous.snapshot[k] for k in SolutionInput.model_fields}
+                {k: v for k, v in previous.snapshot.items() if k in SolutionInput.model_fields}
             ).model_dump()
             check_references(
                 db, restored["references"], claims, existing=previous.snapshot["references"]
@@ -536,7 +563,7 @@ def web_source_references(db, claims, web_references, section_id):
     return references
 
 
-def ask_open(db, row, payload, claims, selected, plan):
+def ask_open(db, row, payload, claims, selected, plan, is_cancelled=None):
     """General/public answering never sends report text or private evidence to search."""
     if selected["kind"] == "retrieval":
         raise HTTPException(422, "通用和联网回答需要生成模型，请选择个人模型或企业默认模型")
@@ -641,6 +668,12 @@ def ask_open(db, row, payload, claims, selected, plan):
         mode_reason=plan.reason,
         web_references=web_references,
     )
+    from app.services.solution_workbench import check_topic
+
+    if is_cancelled and is_cancelled():
+        db.rollback()
+        raise HTTPException(499, "提问已取消，未保存回答")
+    check_topic(db, row.id, answer.conversation_id)
     db.add(answer)
     event(
         db,
@@ -658,7 +691,10 @@ def ask_open(db, row, payload, claims, selected, plan):
     return answer_out(answer)
 
 
-def ask(db, row, payload: AskInput, claims):
+def ask(db, row, payload: AskInput, claims, is_cancelled=None):
+    from app.services.solution_workbench import check_topic
+
+    check_topic(db, row.id, payload.conversation_id)
     if payload.section_id not in {section["id"] for section in row.sections}:
         raise HTTPException(422, "提问章节不存在，请先保存当前章节")
     check_solution_evidence(db, row, claims)
@@ -694,7 +730,7 @@ def ask(db, row, payload: AskInput, claims):
             else "",
         )
         if plan.mode != "knowledge":
-            return ask_open(db, row, payload, claims, selected_model, plan)
+            return ask_open(db, row, payload, claims, selected_model, plan, is_cancelled)
     context = payload.context.strip()
     previous_questions = []
     if payload.conversation_id:
@@ -850,6 +886,12 @@ def ask(db, row, payload: AskInput, claims):
     if row.requires_kb:
         solution_knowledge.check_access(claims)
     check_external_references(references, claims)
+    from app.services.solution_workbench import check_topic
+
+    if is_cancelled and is_cancelled():
+        db.rollback()
+        raise HTTPException(499, "提问已取消，未保存回答")
+    check_topic(db, row.id, answer.conversation_id)
     db.add(answer)
     event(
         db,
@@ -988,88 +1030,6 @@ def solution_plaintext(row):
 
 
 def word_export(row):
-    """Minimal valid OOXML, no external template/dependency; text is never executable XML."""
-    ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    from app.services.solution_word import Word
 
-    def paragraph(text, bold=False):
-        clean = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", str(text))
-        props = "<w:rPr><w:b/></w:rPr>" if bold else ""
-        return (
-            "<w:p><w:r>"
-            + props
-            + '<w:t xml:space="preserve">'
-            + escape(clean)
-            + "</w:t></w:r></w:p>"
-        )
-
-    body = paragraph(row.title, True) + paragraph(
-        f"v{row.version} · " + ("已定稿" if row.status == "final" else "草稿 / 非定稿")
-    )
-    body += paragraph(f"项目：{row.project_name}　产品：{row.product_name}　作者：{row.owner_name}")
-    for section in row.sections:
-        body += paragraph(section["title"], True)
-        body += "".join(paragraph(line) for line in section["content"].splitlines())
-    columns = [
-        ("物料", "material"),
-        ("用途", "purpose"),
-        ("规格", "specification"),
-        ("目标用量", "amount"),
-        ("单位", "unit"),
-        ("计量基准", "basis"),
-        ("范围", "range"),
-        ("选择理由", "rationale"),
-        ("验证状态", "verification"),
-    ]
-    if row.formula:
-        body += paragraph("配方表", True)
-        # One two-column table per formula row keeps long scientific explanations readable.
-        for item in row.formula:
-            body += '<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/></w:tblPr>'
-            for label, key in columns:
-                value = item.get(key, "")
-                if key == "verification":
-                    value = "已确认" if value == "confirmed" else "待验证"
-                body += (
-                    "<w:tr><w:tc>"
-                    + paragraph(label, True)
-                    + "</w:tc><w:tc>"
-                    + paragraph(value)
-                    + "</w:tc></w:tr>"
-                )
-            evidence = ", ".join(
-                str(n)
-                for n, ref in enumerate(row.references, 1)
-                if ref["id"] in item.get("evidence_ids", [])
-            )
-            body += (
-                "<w:tr><w:tc>"
-                + paragraph("关联引用", True)
-                + "</w:tc><w:tc>"
-                + paragraph(evidence)
-                + "</w:tc></w:tr></w:tbl>"
-            )
-    body += paragraph("参考资料", True)
-    for n, ref in enumerate(row.references, 1):
-        body += paragraph(
-            f"[{n}] {ref['title']} · 版本 {ref['source_version']} · {ref['locator']}", True
-        )
-        body += paragraph(ref["excerpt"]) + paragraph(
-            f"来源ID：{ref['source_id']}；章节：{ref['section_id']}"
-        )
-    body += paragraph(f"评审者：{row.reviewer_name}") + paragraph(f"评审结论：{row.review_notes}")
-    body += '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134"/></w:sectPr>'
-    output = io.BytesIO()
-    with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr(
-            "[Content_Types].xml",
-            '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
-        )
-        archive.writestr(
-            "_rels/.rels",
-            '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
-        )
-        archive.writestr(
-            "word/document.xml",
-            f'<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="{ns}"><w:body>{body}</w:body></w:document>',
-        )
-    return output.getvalue()
+    return Word().build(row)

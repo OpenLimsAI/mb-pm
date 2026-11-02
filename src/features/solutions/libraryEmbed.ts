@@ -15,7 +15,9 @@ export function libraryEmbedUrl(preview: boolean): string | null {
   return url.href
 }
 
-export type LibraryMessage = { type: 'ready'; preview: boolean } | { type: 'selection'; path: string | null; title: string }
+export interface LibraryQuote { excerpt: string; locator: string }
+export interface LibraryNavigation { id: number; path: string; title: string; excerpt: string }
+export type LibraryMessage = { type: 'ready'; preview: boolean } | { type: 'selection'; path: string | null; title: string; quote?: LibraryQuote }
 export function readLibraryMessage(event: MessageEvent, frame: Window | null, origin: string): LibraryMessage | null {
   if (!frame || event.source !== frame || event.origin !== origin) return null
   const data = event.data
@@ -24,5 +26,8 @@ export function readLibraryMessage(event: MessageEvent, frame: Window | null, or
   if (data.type !== 'mberp:knowledge-library:selection') return null
   if (data.path === null) return { type: 'selection', path: null, title: '' }
   if (!validLibraryPath(data.path) || typeof data.title !== 'string' || data.title.length > 1000) return null
-  return { type: 'selection', path: data.path, title: data.title }
+  const quote = typeof data.excerpt === 'string' && data.excerpt.trim() && data.excerpt.length <= 4000
+    && typeof data.locator === 'string' && data.locator.length <= 500
+    ? { excerpt: data.excerpt, locator: data.locator } : undefined
+  return { type: 'selection', path: data.path, title: data.title, ...(quote ? { quote } : {}) }
 }

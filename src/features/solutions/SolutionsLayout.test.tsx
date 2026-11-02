@@ -56,7 +56,7 @@ function expectPlacement(arrangement: string, order: Module[]) {
   })
   expect([...grid.querySelectorAll('[data-module]')].map(element => element.getAttribute('data-module'))).toEqual(['editor', 'knowledge', 'ai'])
 }
-beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-writing-mode', 'split'); sessionStorage.clear() })
+beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-editor-mode', 'markdown'); localStorage.setItem('ks-writing-mode', 'split'); sessionStorage.clear() })
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
 describe('independent workspace module layout', () => {

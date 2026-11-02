@@ -511,6 +511,8 @@ def test_migration_schema_matches_models_and_is_idempotent():
                 later = (
                     {"answer_mode", "requested_mode", "mode_reason", "web_references"}
                     if name == "solution_answers"
+                    else {"pinned", "tags"}
+                    if name == "knowledge_solutions"
                     else set()
                 )
                 assert set(actual) == set(expected.columns.keys()) - later

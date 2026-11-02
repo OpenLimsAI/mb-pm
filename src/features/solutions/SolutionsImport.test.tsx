@@ -33,7 +33,7 @@ async function openImport() {
   await screen.findByRole('textbox', { name: '导入正文预览' })
   return screen.getByRole('dialog', { name: '导入报告' })
 }
-beforeEach(() => { localStorage.clear(); sessionStorage.clear() })
+beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-editor-mode', 'markdown'); sessionStorage.clear() })
 
 describe('report import integration', () => {
   it('places import immediately before export and layout immediately before the workbench', async () => {
@@ -52,11 +52,12 @@ describe('report import integration', () => {
     expect(within(dialog).getByRole('textbox', { name: '导入正文预览' })).toHaveValue('# 导入标题\n\n导入的正文。')
     fireEvent.change(within(dialog).getByRole('textbox', { name: '报告名称' }), { target: { value: '自定报告名' } })
     fireEvent.click(within(dialog).getByRole('button', { name: '导入为新报告' }))
-    await waitFor(() => expect(screen.getByRole('textbox', { name: '章节正文' })).toHaveValue('# 导入标题\n\n导入的正文。'))
+    await waitFor(() => expect(screen.getByRole('textbox', { name: '章节正文' })).toHaveValue('导入的正文。'))
     expect(client.create).toHaveBeenCalledTimes(1)
     expect(docs.get('original')!.sections[0].content).toBe('正在写的修改')
     expect(docs.get('original')!.title).toBe('原报告')
     expect(docs.get('imported')!.title).toBe('自定报告名')
+    expect(docs.get('imported')!.sections[0].title).toBe('导入标题')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
   it('keeps the preview and original text if saving the current report fails', async () => {
@@ -108,7 +109,7 @@ describe('report import integration', () => {
     // Closing a successful import does not depend on a second user action.
     await act(async () => complete())
     expect(screen.queryByRole('dialog', { name: '导入报告' })).not.toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: '章节正文' })).toHaveValue('# 导入标题\n\n导入的正文。')
+    expect(screen.getByRole('textbox', { name: '章节正文' })).toHaveValue('导入的正文。')
   })
   it('ignores a late file read after cancelling the import window', async () => {
     const { client } = await mount()

@@ -4,7 +4,7 @@ import SolutionsApp from './SolutionsApp'
 import { createDemoClient } from './demo'
 import { createPreviewNotesClient } from '../notes/client'
 
-beforeEach(() => { localStorage.clear(); sessionStorage.clear(); localStorage.setItem('ks-writing-mode', 'split') })
+beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-editor-mode', 'markdown'); sessionStorage.clear(); localStorage.setItem('ks-writing-mode', 'split') })
 it('opens the report home first without reading a document or question history', async () => {
   const client = createDemoClient('home-test', 'author', '研究员'), get = vi.spyOn(client, 'get'), history = vi.spyOn(client, 'history')
   render(<SolutionsApp client={client} userId="author" userName="研究员" preview initialHome />)

@@ -21,7 +21,7 @@ function mockClient(initial = seed()) {
   return client
 }
 async function mount(client: SolutionClient, userId = 'author') { render(<SolutionsApp client={client} userId={userId} userName="张研究员" preview />); await screen.findByRole('textbox', { name: '章节正文' }) }
-beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-writing-mode', 'split'); sessionStorage.clear() })
+beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-editor-mode', 'markdown'); localStorage.setItem('ks-writing-mode', 'split'); sessionStorage.clear() })
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
 describe('knowledge solution workspace', () => {
@@ -40,7 +40,7 @@ describe('knowledge solution workspace', () => {
     fireEvent.change(screen.getByRole('textbox', { name: '向AI提问' }), { target: { value: '这些材料的最新进展是什么' } })
     fireEvent.click(screen.getByRole('button', { name: '发送问题' }))
     await screen.findByText('仅依据指定资料整理。')
-    expect(client.ask).toHaveBeenCalledWith('one', expect.objectContaining({ answerMode: 'auto', sourceIds: ['paper-1'] }))
+    expect(client.ask).toHaveBeenCalledWith('one', expect.objectContaining({ answerMode: 'auto', sourceIds: ['paper-1'] }), expect.any(AbortSignal))
     expect(screen.getByText('知识库回答')).toBeInTheDocument()
     expect(screen.queryByText('已联网检索')).not.toBeInTheDocument()
   })
@@ -153,7 +153,7 @@ describe('knowledge solution workspace', () => {
     await waitFor(() => expect(client.ask).toHaveBeenCalled())
     const savedInput = vi.mocked(client.save).mock.calls[0][1]
     expect(savedInput.sections).toHaveLength(3)
-    expect(client.ask).toHaveBeenCalledWith('one', expect.objectContaining({ sectionId: savedInput.sections[2].id }))
+    expect(client.ask).toHaveBeenCalledWith('one', expect.objectContaining({ sectionId: savedInput.sections[2].id }), expect.any(AbortSignal))
     expect(vi.mocked(client.save).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(client.ask).mock.invocationCallOrder[0])
     fireEvent.click(await screen.findByRole('button', { name: '插入报告' }))
     expect(screen.getByRole('dialog', { name: '确认采纳 · 知识摘录' })).toBeInTheDocument()

@@ -1,5 +1,8 @@
 """Bounded payloads; content and evidence are validated again against authorized sources."""
 
+import base64
+import binascii
+import re
 from typing import Literal
 from urllib.parse import urlsplit
 
@@ -13,7 +16,33 @@ class Input(BaseModel):
 class Section(Input):
     id: str = Field(min_length=1, max_length=80)
     title: str = Field(min_length=1, max_length=200)
-    content: str = Field(default="", max_length=50000)
+    content: str = Field(default="", max_length=4000000)
+    parent_id: str | None = Field(default=None, min_length=1, max_length=80)
+
+    @field_validator("content")
+    @classmethod
+    def bounded_content(cls, value):
+        for mime, encoded in re.findall(
+            r"data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)", value
+        ):
+            try:
+                image = base64.b64decode(encoded, validate=True)
+            except (ValueError, binascii.Error) as exc:
+                raise ValueError("图片编码不正确") from exc
+            valid = (
+                (mime == "png" and image.startswith(b"\x89PNG\r\n\x1a\n"))
+                or (mime == "jpeg" and image.startswith(b"\xff\xd8\xff"))
+                or (mime == "webp" and image.startswith(b"RIFF") and image[8:12] == b"WEBP")
+            )
+            if len(image) > 1024 * 1024 or not valid:
+                raise ValueError("图片格式不正确或超过1MB")
+        if len(text_without_images(value)) > 50000:
+            raise ValueError("章节文字超过5万字")
+        return value
+
+
+def text_without_images(value):
+    return re.sub(r"data:image/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+", "", value)
 
 
 class FormulaRow(Input):
@@ -44,6 +73,8 @@ class SolutionInput(Input):
     title: str = Field(min_length=1, max_length=300)
     project_name: str = Field(default="", max_length=200)
     product_name: str = Field(default="", max_length=200)
+    pinned: bool = False
+    tags: list[str] = Field(default_factory=list, max_length=30)
     sections: list[Section] = Field(default_factory=list, max_length=60)
     formula: list[FormulaRow] = Field(default_factory=list, max_length=200)
     references: list[Reference] = Field(default_factory=list, max_length=300)
@@ -60,8 +91,15 @@ class SolutionInput(Input):
         for rows in (self.sections, self.formula, self.references):
             if len({row.id for row in rows}) != len(rows):
                 raise ValueError("章节、配方和引用标识不可重复")
-        if sum(len(row.content) for row in self.sections) > 200000:
+        if (
+            sum(len(row.content) for row in self.sections) > 12000000
+            or sum(len(text_without_images(row.content)) for row in self.sections) > 200000
+        ):
             raise ValueError("报告正文过长，请拆分报告")
+        validate_outline(self.sections)
+        if any(not tag.strip() or len(tag) > 80 for tag in self.tags):
+            raise ValueError("标签不能为空或超过80字")
+        self.tags = list(dict.fromkeys(tag.strip() for tag in self.tags))
         section_ids = {row.id for row in self.sections}
         refs = {row.id for row in self.references}
         if any(ref.section_id not in section_ids for ref in self.references):
@@ -162,3 +200,62 @@ class ReviewAction(Input):
     note: str = Field(default="", max_length=8000)
     reviewer_id: str | None = Field(default=None, max_length=255)
     version_id: str | None = Field(default=None, max_length=64)
+
+
+def validate_outline(sections):
+    parents = {s.id: s.parent_id for s in sections}
+    if len(parents) != len(sections):
+        raise ValueError("章节标识不可重复")
+    for ident in parents:
+        seen = {ident}
+        parent = parents[ident]
+        while parent is not None:
+            if parent not in parents or parent in seen:
+                raise ValueError("章节父级不存在或形成循环")
+            seen.add(parent)
+            if len(seen) > 6:
+                raise ValueError("章节最多支持6层")
+            parent = parents[parent]
+
+
+class SnapshotInput(SolutionRevision):
+    name: str = Field(min_length=1, max_length=200)
+
+    @field_validator("name")
+    @classmethod
+    def nonempty(cls, value):
+        if not value.strip():
+            raise ValueError("版本名称不能为空")
+        return value.strip()
+
+
+class RestoreSectionInput(SolutionRevision):
+    section_id: str = Field(min_length=1, max_length=80)
+
+
+class TemplateSection(Input):
+    id: str = Field(min_length=1, max_length=80)
+    title: str = Field(min_length=1, max_length=200)
+    parent_id: str | None = Field(default=None, min_length=1, max_length=80)
+
+
+class TemplateInput(Input):
+    name: str = Field(min_length=1, max_length=120)
+    sections: list[TemplateSection] = Field(min_length=1, max_length=60)
+
+    @model_validator(mode="after")
+    def integrity(self):
+        self.name = self.name.strip()
+        if not self.name or any(not s.title.strip() for s in self.sections):
+            raise ValueError("模板和章节名称不能为空")
+        validate_outline(self.sections)
+        return self
+
+
+class TopicRevision(Input):
+    revision: int = Field(ge=0)
+
+
+class TopicInput(TopicRevision):
+    title: str = Field(default="", max_length=200)
+    archived: bool = False

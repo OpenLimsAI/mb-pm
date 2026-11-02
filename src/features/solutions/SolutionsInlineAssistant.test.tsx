@@ -61,7 +61,7 @@ async function saveNow(client: SolutionClient) {
   await screen.findByRole('button', { name: '已保存到本机' })
 }
 
-beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-writing-mode', 'split'); sessionStorage.clear() })
+beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-editor-mode', 'markdown'); localStorage.setItem('ks-writing-mode', 'split'); sessionStorage.clear() })
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers() })
 
 describe('inline questions in the report editor', () => {

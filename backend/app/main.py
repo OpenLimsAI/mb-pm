@@ -79,6 +79,8 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("tasks", "sort_order", "INTEGER"),
     ("solution_answers", "conversation_id", "VARCHAR(80)"),
     ("knowledge_solutions", "deleted_at", "TIMESTAMP WITH TIME ZONE"),
+    ("knowledge_solutions", "pinned", "BOOLEAN NOT NULL DEFAULT false"),
+    ("knowledge_solutions", "tags", "JSON NOT NULL DEFAULT '[]'"),
     ("assistant_messages", "answer_mode", "VARCHAR(20) NOT NULL DEFAULT ''"),
     ("assistant_messages", "requested_mode", "VARCHAR(20) NOT NULL DEFAULT ''"),
     ("assistant_messages", "mode_reason", "VARCHAR(200) NOT NULL DEFAULT ''"),

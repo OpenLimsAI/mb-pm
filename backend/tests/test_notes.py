@@ -81,6 +81,17 @@ def test_independent_crud_and_trash_restore(note_client, monkeypatch):
     assert not PersonalNote.__table__.foreign_keys
 
 
+def test_source_link_reads_only_own_active_note(note_client):
+    f = note_client
+    row = create(f)
+    assert f.client.get(f"{PREFIX}/{row['id']}").json()["content"] == row["content"]
+    f.login("another-person")
+    assert f.client.get(f"{PREFIX}/{row['id']}").status_code == 404
+    f.login("author")
+    assert f.client.post(f"{PREFIX}/{row['id']}/trash", json={"revision": 1}).status_code == 200
+    assert f.client.get(f"{PREFIX}/{row['id']}").status_code == 404
+
+
 def test_knowledge_source_is_private_and_filterable(note_client):
     f = note_client
     row = create(f, source_app="knowledge", source_title="论文摘录", content="相关内容")
