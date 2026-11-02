@@ -1,12 +1,7 @@
 import { http, HttpResponse } from 'msw'
-import { setupServer } from 'msw/node'
-import { afterAll, afterEach, beforeAll, expect, it } from 'vitest'
+import { server } from '../../test/setup'
+import { expect, it } from 'vitest'
 import { assistantOperationsApi } from './assistantOperations'
-
-const server = setupServer()
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
-afterEach(() => server.resetHandlers())
-afterAll(() => server.close())
 
 it('preserves failure code dictionary keys and unwraps saved settings', async () => {
   server.use(http.get('*/api/v1/assistant/tasks/operations', () => HttpResponse.json({ limits: { per_user_pending: 3, per_user_running: 1, global_queued: 100, retention_days: 0 }, totals: {}, window_hours: 24, failure_counts: { model_timeout: 2, output_limit: 1 }, recent: [], can_manage: true })))
