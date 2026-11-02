@@ -145,6 +145,14 @@ PM 回调为 `https://pm.openlims.ai/api/v1/auth/callback`，登出回跳为 `ht
 默认 ICH 来源关闭监控。先检查官方清单，再批量收录到原文归档或真实知识库文件夹；手动开启监控后默认每日检查。详见[信息获取使用与部署](information.md)。
 
 
+## MDM 公开入口与同域路径
+
+`MDM_PUBLIC_URL` 是服务端受控的 MDM 应用基址，不是数据库连接串。门户 `/launch/mdm` 和 PM 项目深链均从它构造目标；生产地址使用 HTTPS，不接收浏览器传入的任意目标主机或身份令牌。MDM 自身的页面、资源、API 与登录回调共用 `/mdm/` 前缀，路径代理需保留此前缀。
+
+2026-11-02 已将运行配置切换为 `https://www.openlims.ai/mdm/`；验收边界见[路径迁移记录](../deploy/parallel-test/releases/20261102-mdm-www-path.md)。PM 两个实例与 MDM 后端的 `MDM_PUBLIC_URL` 基址一致；MDM 的 `CORS_ORIGINS=https://www.openlims.ai`。Cloudflare 先匹配 `www.openlims.ai` 的 `^/mdm(/.*)?$` 并转发至 `http://mdm-web:80`，再由同主机空路径规则转发其余门户请求至 `http://app:8000`。规则从上往下采用首个匹配项，空路径规则在前会遮蔽 MDM 规则；同一主机的路径分流不新增 DNS 记录。
+
+外部主机变化须同步 IAM 登录与独立 PM 委托客户端的 `homepageUrl`、精确 `redirectUris`，分别为 `/mdm/api/v1/auth/oidc/callback` 和 `/mdm/api/v1/auth/oidc/pm-callback`。已核验可达的内网 `backchannelLogoutUri` 按实际部署保留，不随公开域名机械替换。MDM host-only Cookie 路径为 `/mdm/`，名称与门户 / PM 不同；旧子域名会话不会自动迁入新主机。同域入口仍需各应用独立鉴权，不自动获得 MDM 角色，也不替代账号首次改密流程。
+
 ## MDM 委托创建与统一退出（默认关闭）
 
 `MDM_DELEGATION_CLIENT_ID` 仅用于专门的用户委托创建/查询接口，须与 PM、门户及 MDM 登录客户端分离；空值时拒绝该功能。`MDM_SOURCE_NAMESPACE` 固定登记来源，不能由浏览器选择。PM 权限仍取已绑定用户的 PM 角色，MDM 角色不授予 PM 创建权。
