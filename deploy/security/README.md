@@ -33,7 +33,7 @@ python3 backup.py --directory "$HOME/backups/encrypted" \
   --key "$HOME/backups/private/backup.key" --verify /path/to/backup.tar.gz.gpg
 ```
 
-恢复先在权限0700的隔离目录通过 `gpg --decrypt` 解密，完整验证成功后才解包；用 `pg_restore --exit-on-error` 导入新建隔离数据库，恢复文件到独立卷，最后以候选应用验证。生产数据与密钥不得复制到开发电脑。
+通过 `restore_check.py --backup /path/to/backup.tar.gz.gpg --key /private/backup.key --directory /new/private/recovery` 先完成认证、清单哈希和安全解包，再恢复至专用内部网络的新数据库，并验证 SQLite（含WAL）。具体命令、边界和真实恢复记录见 [RESTORE.md](RESTORE.md)。生产数据与密钥不得复制到开发电脑。
 
 **异机目标尚未提供**：用户已确认暂无目标，本次只建立本机加密备份与恢复能力。不要声称已有异机容灾；获得认可的目标后，再配置加密上传、异地保留和恢复密钥的独立保管。每天备份调度和容量告警的实际状态以部署记录为准。
 
@@ -53,8 +53,14 @@ PM 运行容器使用非 root、只读根文件系统、无额外 capabilities�
 只清理未使用的构建缓存，保留当前与上一版镜像及所有数据库/文件卷；绝不执行 `docker system prune --volumes`。宿主机 SSH、防火墙及整机日志策略若缺管理员权限，必须记录待办，不能借容器权限绕过拒绝。
 
 
-受限入口的维护示例：先 `ssh -N -L 18443:127.0.0.1:8443 ...` 建立仅本机监听的转发，再使用 `curl --connect-to 36.154.190.9:8443:127.0.0.1:18443 --cacert /path/to/verified-direct-root.crt https://36.154.190.9:8443/health`。CA 是公有证书而非私钥，须通过已验证 SSH 通道取得；此通道用于管理员诊断，普通浏览器登录仍走正常域名。
+受限入口的维护示例：先 `ssh -N -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -L 127.0.0.1:18443:127.0.0.1:8443 ...` 建立仅本机监听的转发，再使用 `curl --connect-to 36.154.190.9:8443:127.0.0.1:18443 --cacert /path/to/verified-direct-root.crt https://36.154.190.9:8443/health`。CA 是公有证书而非私钥，须通过已验证 SSH 通道取得；此通道用于管理员诊断，普通浏览器登录仍走正常域名。
 
 ## 容量与服务检查
 
 `monitor.py --output /private/report.json --backup-directory /private/backups` 检查固定生产清单中的服务（包括缺失、停止和暂停状态）、内存/CPU/PID/swap上限、日志轮转、磁盘余量与最新非空备份。报告只含状态与计数，不含环境变量或原始Docker错误；文件0600。额外候选容器不纳入检查或修改。默认只读，`--apply-limits` 才更新容器资源限制；长期配置仍须保存在各服务Compose并验证。没有外部通知目标时，服务器内报告不等于有人收到告警。
+
+## 每日备份调度（计划，待部署）
+
+计划在每日中国标准时间 **03:30（UTC+08:00）** 的短时维护窗口执行 `daily_backup.py --directory /home/prometheus/backups/daily --key /home/prometheus/backups/private/backup.key`，每 5 分钟执行一次 `monitor.py`。服务器 cron 时区必须明确设为 `Asia/Shanghai`（或换算成服务器时区），不可把 CST 当作美国中部时间。本次只交付工具，实际 cron 由运维执行者安装并记录；目前没有外部通知目标，监控 JSON/本机日志不代表告警已送达。
+
+调度器只调用同目录 `backup.py`，强制 `--quiesce`，因此会短时停止应用写入并恢复健康。使用专用 0700 目录，和手工发布备份分开；密钥仍使用服务器私有 0600 文件。独立非阻塞锁防止调度重叠，与备份自身锁分开，避免死锁。新归档成功并再次通过 GPG 认证及归档完整性验证后，才清理专用目录中严格匹配 `maibo-YYYYMMDDTHHMMSSZ.tar.gz.gpg` 的非空普通文件：同时保留最新 **14 份**与至少 **14 天**，文件修改时间不足 14 天也保留。失败不清理；不递归、不跟随符号链接、不删除其他名称、子目录或手工备份目录。日志仅记录状态、归档 basename 和删除数量，不输出密钥或子进程错误原文。监控的 `--backup-directory` 应指向这个实际调度目录；容量不足会停止新备份并保留旧备份，须人工处理，不能先删旧副本换空间。

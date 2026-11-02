@@ -2,7 +2,6 @@
 """Guarded PM rollout: preserve live overlays and settings; rollback failed starts."""
 
 import argparse
-import copy
 import fcntl
 import json
 import os
@@ -324,9 +323,11 @@ def main():
                 "Fixed deployment overlay differs from reviewed configuration"
             )
         rollback = args.overlay.with_suffix(".rollback.compose.json").resolve()
-        previous = copy.deepcopy(before)
-        for service in SERVICES:
-            previous["services"][service]["image"] = args.expected_current
+        # Original Compose files remain intact; an image-only final override
+        # restores the old settings without duplicating their secret values.
+        previous = {
+            "services": {service: {"image": args.expected_current} for service in SERVICES}
+        }
         private_json(rollback, previous)
         rollback_command = original + ["-f", str(rollback)]
         private_json(
