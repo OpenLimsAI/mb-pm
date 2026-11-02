@@ -22,6 +22,8 @@ WRITERS = [
     "dikw-web",
     "mb-pm-v2-casdoor-1",
     "mb-pm-v2-direct-proxy-1",
+    "iam-proxy",
+    "dikw-caddy",
 ]
 DATABASES = {
     "mb-pm-v2-pms-db-1": "mb_pm",

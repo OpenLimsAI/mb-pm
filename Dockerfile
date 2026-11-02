@@ -45,7 +45,8 @@ WORKDIR /code
 
 # psycopg[binary] 自带 libpq，无需系统级编译依赖，镜像保持精简
 COPY backend/requirements.lock ./
-RUN pip install --require-hashes -r requirements.lock
+RUN pip install --require-hashes -r requirements.lock \
+    && pip uninstall --yes setuptools wheel
 RUN groupadd --gid 10001 app && useradd --uid 10001 --gid app --no-create-home app \
     && mkdir -p /code/.local && chown app:app /code/.local
 

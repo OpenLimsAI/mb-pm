@@ -54,3 +54,7 @@ PM 运行容器使用非 root、只读根文件系统、无额外 capabilities�
 
 
 受限入口的维护示例：先 `ssh -N -L 18443:127.0.0.1:8443 ...` 建立仅本机监听的转发，再使用 `curl --connect-to 36.154.190.9:8443:127.0.0.1:18443 --cacert /path/to/verified-direct-root.crt https://36.154.190.9:8443/health`。CA 是公有证书而非私钥，须通过已验证 SSH 通道取得；此通道用于管理员诊断，普通浏览器登录仍走正常域名。
+
+## 容量与服务检查
+
+`monitor.py --output /private/report.json --backup-directory /private/backups` 检查固定生产清单中的服务（包括缺失、停止和暂停状态）、内存/CPU/PID/swap上限、日志轮转、磁盘余量与最新非空备份。报告只含状态与计数，不含环境变量或原始Docker错误；文件0600。额外候选容器不纳入检查或修改。默认只读，`--apply-limits` 才更新容器资源限制；长期配置仍须保存在各服务Compose并验证。没有外部通知目标时，服务器内报告不等于有人收到告警。
