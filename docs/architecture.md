@@ -41,6 +41,10 @@ flowchart TD
     Tunnel --> App[员工门户 / 项目管理<br/>React + FastAPI 同一镜像]
     Tunnel --> IAM[Casdoor IAM]
     Tunnel --> KB[DIKW 知识库]
+    Tunnel -->|www /mdm 路径优先| MDMWeb[MDM nginx]
+    MDMWeb --> MDMBackend[MDM FastAPI / 独立鉴权]
+    MDMBackend --> MDMDB[MDM PostgreSQL]
+    MDMBackend -->|OIDC| IAM
     App --> PMDB[项目管理 PostgreSQL]
     IAM --> IAMDB[IAM PostgreSQL]
     App -->|后端换码 / JWKS| IAM
@@ -52,6 +56,8 @@ flowchart TD
 上图描述生产系统的职责关系。PM 配置 `CASDOOR_INTERNAL_URL` 使用内网 IAM；
 知识库的服务端 OIDC 经同名 TLS 代理访问 IAM，具体配置与信任关系维护在 IAM 仓库。
 实际域名路由、运行镜像、备份和验收结果见部署交接，不由本图证明服务已上线。
+
+2026-11-02 的 MDM 路径分流为 `www.openlims.ai/mdm/* → Tunnel → mdm-web:80`，保留 `/mdm` 前缀；页面和静态资源由 MDM nginx 承载，`/mdm/api/` 转发到其后端的 `/api/`。精确路径规则必须排在 `www` 无路径的门户规则之前；其余门户请求与 PM、KB、IAM 域名保留原目标。MDM 仍是独立部署、数据库、IAM 客户端和 `/mdm/` Cookie 会话，旧子域名以 307 跳转新主机，不因同域自动获得业务权限。镜像、备份及真实账号验收限制见[路径迁移记录](../deploy/parallel-test/releases/20261102-mdm-www-path.md)。
 
 ## 客户服务器运行快照
 

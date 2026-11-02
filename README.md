@@ -91,6 +91,7 @@ node scripts/test-portal-routing.mjs
 员工门户：<https://www.openlims.ai>；项目管理：<https://pm.openlims.ai>。
 旧行业信息入口：<https://www.openlims.ai/information>，显示下线说明；实际环境状态见发布记录。
 知识库：<https://kb.openlims.ai>；IAM：<https://iam.openlims.ai/login>。
+主数据管理：<https://www.openlims.ai/mdm/>；路径路由、独立鉴权及迁移验收见[发布记录](deploy/parallel-test/releases/20261102-mdm-www-path.md)。
 
 环境状态、备份、发版、验收与回滚以 [部署交接简明](docs/部署交接简明.md) 为准，
 历史发布材料见 [部署记录](deploy/parallel-test/README.md)。数据库结构变更需单独规划迁移。
