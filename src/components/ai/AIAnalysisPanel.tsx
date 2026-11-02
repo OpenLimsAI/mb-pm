@@ -4,8 +4,7 @@
 
 import { useEffect, useState } from 'react'
 import { ArrowRight, Clock3, Download, FileText, Loader2, MessageSquareText, RefreshCw, RotateCcw, Sparkles } from 'lucide-react'
-import Markdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import SafeMarkdown from '../SafeMarkdown'
 import { aiError, getAIStatus, MAX_PROMPT_LENGTH, providerLabel, type AIAnalysis, type AIAnalysisKind, type AIStatus } from '../../api/ai'
 import { Button } from '../ui'
 import { useDataStore } from '../../store/data'
@@ -119,7 +118,7 @@ export function AIAnalysisPanel({ kind, title, description, subject, focusPlaceh
           {active.stale && <p className="mb-5 text-sm rounded-md p-3 bg-amber-50 text-amber-800">{staleNotice}</p>}
           {active.focus && <p className="text-sm mb-5 p-3 bg-brand-50/50 rounded-md text-ink-700">本次关注：{active.focus}</p>}
           {active.prompt && <details className="mb-5 text-sm rounded-md bg-ink-100/60 p-3"><summary className="cursor-pointer text-ink-700">本次使用的分析提示词{active.prompt === defaultPrompt ? '（当前默认）' : '（自定义）'}</summary><pre className="mt-2 whitespace-pre-wrap font-sans text-xs leading-6 text-ink-700">{active.prompt}</pre></details>}
-          <div className="ai-report"><Markdown remarkPlugins={[remarkGfm]} skipHtml components={{ img: ({ alt }) => <span>{alt || '图片已省略'}</span>, a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer">{children}</a> }}>{active.content}</Markdown></div>
+          <div className="ai-report"><SafeMarkdown>{active.content}</SafeMarkdown></div>
         </article>
       </div>}
     </div>

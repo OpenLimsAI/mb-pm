@@ -93,6 +93,7 @@ def add_session(
             refresh_token=refresh,
             started_at=now - started_ago,
             last_seen_at=now - seen_ago,
+            authenticated_iat=now - started_ago,
         )
     model = PortalSession if portal else IAMSession
     row = model(

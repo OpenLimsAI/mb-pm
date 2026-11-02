@@ -3,6 +3,8 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.schemas.model_network import enterprise_url
+
 Provider = Literal["deepseek", "minimax", "kimi", "ollama"]
 # 分析提示词（告诉模型分析什么、按什么结构输出）的长度上限
 MAX_PROMPT_LENGTH = 4000
@@ -52,6 +54,9 @@ class AISettingsInput(BaseModel):
 
     @model_validator(mode="after")
     def selected_model(self):
+        for provider, config in self.providers.items():
+            if config.model or config.api_key or provider == self.provider:
+                enterprise_url(provider, config.base_url)
         if self.provider not in self.providers or not self.providers[self.provider].model:
             raise ValueError("请填写当前服务商的模型名称")
         if (
@@ -67,6 +72,11 @@ class AISettingsInput(BaseModel):
 class ConnectionInput(BaseModel):
     provider: Provider
     config: ProviderConfig
+
+    @model_validator(mode="after")
+    def approved_endpoint(self):
+        enterprise_url(self.provider, self.config.base_url)
+        return self
 
 
 class AnalysisInput(BaseModel):

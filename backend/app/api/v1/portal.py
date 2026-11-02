@@ -203,7 +203,7 @@ def login_error(code: str):
         settings.portal_origin + "/login?" + urlencode({"error": code}), 303
     )
     response.delete_cookie(PORTAL_LOGIN_COOKIE, path="/")
-    response.delete_cookie(PORTAL_SESSION_COOKIE, path="/")
+    # An invalid/unrelated OAuth callback must not log out an existing session.
     return no_cache(response)
 
 
@@ -384,7 +384,9 @@ def me(request: Request, db: Session = Depends(get_db)):
     # 账号管理保存后的入口缓存只影响目录显示，不能用于任何业务操作授权。
     catalogue_roles = session_data(request, db).get("catalogue_roles")
     directory_claims = (
-        {**claims, "roles": catalogue_roles} if isinstance(catalogue_roles, list) else claims
+        {**claims, "roles": catalogue_roles}
+        if isinstance(catalogue_roles, list) and "_iam_password_state" not in claims
+        else claims
     )
     return PortalMeOut(
         user=current_user(claims, db, request),
@@ -403,20 +405,20 @@ def me(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/password", status_code=204)
 def change_password(payload: PasswordChange, request: Request, db: Session = Depends(get_db)):
-    """本人在门户里改密码（须当前密码）：清除临时密码标记，其他设备上的登录退出。"""
+    """本人改密后撤销所有应用与 SSO 会话，当前浏览器也须重新登录。"""
     require_same_origin(request, origin=settings.portal_origin)
     claims = session_claims(request, db)
-    keep = {
-        digest(c)
-        for c in (request.cookies.get(PORTAL_SESSION_COOKIE), request.cookies.get(SESSION_COOKIE))
-        if c
-    }
     try:
         password_policy.change_own_password(
-            db, claims["sub"], payload.current_password, payload.new_password, keep
+            db, claims["sub"], payload.current_password, payload.new_password
         )
     except IAMError as exc:
         raise HTTPException(400, str(exc)) from exc
+
+    response = Response(status_code=204)
+    response.delete_cookie(PORTAL_SESSION_COOKIE, path="/")
+    response.delete_cookie(SESSION_COOKIE, path="/")
+    return no_cache(response)
 
 
 @router.post("/logout")

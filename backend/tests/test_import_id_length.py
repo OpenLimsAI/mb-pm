@@ -64,7 +64,7 @@ def _import_payload():
             "current_stage": "临床前",
             "target_stage": "IND",
             "owner_id": "t-admin",
-            "status": "进行中",
+            "status": "活跃",
             "health": "green",
             "progress": 0,
             "planned_start": date(2026, 1, 1).isoformat(),

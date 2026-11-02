@@ -64,7 +64,7 @@ def project(f, number=1, *, member=True, name=None):
         target_stage="验证",
         owner_id="pm-other",
         status="活跃",
-        health="绿",
+        health="green",
         progress=23,
         planned_start=date(2026, 1, 1),
         planned_end=date(2026, 12, 31),

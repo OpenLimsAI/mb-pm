@@ -12,15 +12,17 @@
     POST   /api/v1/templates/import                Excel 导入 — multipart 上传
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from io import BytesIO
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, selectinload
+from starlette.datastructures import UploadFile
 
 from app.api.deps import get_current_user, require_role
+from app.api.multipart import upload_form
 from app.db.session import get_db
 from app.models import Template, TemplateVersion, User
 from app.schemas.template import (
@@ -81,7 +83,7 @@ def create_template(
     if db.query(Template).filter_by(id=payload.id).first():
         raise HTTPException(status.HTTP_409_CONFLICT, f"template {payload.id!r} exists")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     template = Template(
         id=payload.id,
         name=payload.name,
@@ -126,11 +128,7 @@ def download_excel_format(_user: User = Depends(get_current_user)):
 
 @router.post("/import", response_model=ImportResult)
 async def import_excel(
-    file: UploadFile = File(...),
-    mode: str = Form("create"),  # 'create' | 'overwrite'
-    template_id: str | None = Form(None),
-    new_name: str | None = Form(None),
-    product_type: str | None = Form(None),
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_role("admin", "cmc_lead")),
 ):
@@ -139,17 +137,36 @@ async def import_excel(
     mode=create     : new_name + product_type 必填
     mode=overwrite  : template_id 必填，导入会作为该模板的新版本
     """
-    if mode not in ("create", "overwrite"):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "mode 必须是 'create' 或 'overwrite'")
-
-    raw = await file.read()
+    async with upload_form(request, max_files=1, max_fields=4, max_part_size=4096) as form:
+        file = form.get("file")
+        if not isinstance(file, UploadFile):
+            raise HTTPException(422, "请选择 Excel 文件")
+        mode = form.get("mode", "create")
+        template_id, new_name, product_type = (
+            form.get(key) for key in ("template_id", "new_name", "product_type")
+        )
+        if not all(
+            value is None or isinstance(value, str)
+            for value in (mode, template_id, new_name, product_type)
+        ):
+            raise HTTPException(422, "导入参数格式不正确")
+        if mode not in ("create", "overwrite"):
+            raise HTTPException(400, "mode 必须是 'create' 或 'overwrite'")
+        if any(
+            value and len(value) > limit
+            for value, limit in ((template_id, 64), (new_name, 120), (product_type, 20))
+        ):
+            raise HTTPException(422, "导入参数过长")
+        raw = await file.read(10 * 1024 * 1024 + 1)
+        if len(raw) > 10 * 1024 * 1024:
+            raise HTTPException(413, "Excel 文件不能超过 10 MB")
     structure, errors = parse_excel(raw)
 
     if errors or structure is None:
         return ImportResult(success=False, errors=errors)
 
     summary = count_nodes(structure)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     if mode == "create":
         if not new_name or not product_type:
@@ -295,7 +312,7 @@ def add_version(
         change_summary=payload.change_summary,
         change_source=payload.change_source,
         modified_by=user.id,
-        modified_at=datetime.now(timezone.utc),
+        modified_at=datetime.now(UTC),
         is_current=True,
     )
     db.add(ver)

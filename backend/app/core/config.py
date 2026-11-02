@@ -24,6 +24,8 @@ class Settings(BaseSettings):
 
     # 启动时若库为空则自动建表 + 灌种子数据
     AUTO_SEED: bool = True
+    # Production images migrate once with a separate database owner before rollout.
+    AUTO_MIGRATE_SCHEMA: bool = True
 
     # —— 前端静态资源 —— #
     # 设为已构建的 SPA 目录（含 index.html）即由后端同源托管前端；

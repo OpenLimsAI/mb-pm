@@ -36,7 +36,8 @@ export default function PortalSettings() {
         </section>
         <UsernameChangeForm current={user.username} submit={changePortalUsername} disabled={preview} className="portal-panel space-y-4" onDone={refresh} />
         <PasswordChangeForm submit={changePortalPassword} disabled={preview} className="portal-panel space-y-4"
-          description="登录密码在门户、项目管理和知识库中同时生效；修改后其他设备上的登录会退出。" />
+          onDone={() => window.location.assign('/login?signed_out=1&password_changed=1')}
+          description="登录密码在门户、项目管理和知识库中同时生效；修改后所有设备均需重新登录。" />
       </div>
       <aside className="workspace-help"><div><strong>退出说明</strong><p>退出工作台会结束当前门户会话并请求 IAM 退出。已经打开的项目管理或知识库，请分别使用应用内的退出功能结束会话。</p></div></aside>
     </div>

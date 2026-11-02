@@ -1,9 +1,43 @@
 """Template / TemplateVersion schemas。"""
 
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.schemas.business_values import MAX_EFFORT
+
+
+def validate_template_structure(root: dict[str, Any]) -> dict[str, Any]:
+    """Bound the template tree and numeric inputs for both JSON and Excel writes."""
+    count = 0
+
+    def walk(node, depth):
+        nonlocal count
+        count += 1
+        if not isinstance(node, dict) or depth > 2 or count > 10000:
+            raise ValueError("模板只支持项目、子项目、任务三级且总节点不超过 10000")
+        for key, maximum in (("defaultDuration", 36500), ("defaultEffort", MAX_EFFORT)):
+            value = node.get(key)
+            if value is None:
+                continue
+            try:
+                number = Decimal(str(value))
+                if not number.is_finite() or not 0 <= number <= maximum:
+                    raise ValueError()
+                if key == "defaultDuration" and number != number.to_integral_value():
+                    raise ValueError()
+            except (InvalidOperation, ValueError):
+                raise ValueError(f"{key} 必须为 0 到 {maximum} 之间的有效数值") from None
+        children = node.get("children") or []
+        if not isinstance(children, list):
+            raise ValueError("模板子节点必须是列表")
+        for child in children:
+            walk(child, depth + 1)
+
+    walk(root, 0)
+    return root
 
 
 # ============= TemplateVersion =============
@@ -18,6 +52,11 @@ class TemplateVersionBase(BaseModel):
 
 class TemplateVersionCreate(TemplateVersionBase):
     """追加新版本时用 — 后端写入 modified_by / modified_at / is_current。"""
+
+    @field_validator("structure_json")
+    @classmethod
+    def valid_structure(cls, value):
+        return validate_template_structure(value)
 
 
 class TemplateVersionOut(TemplateVersionBase):
@@ -44,6 +83,11 @@ class TemplateCreate(TemplateBase):
 
     initial_structure: dict[str, Any] = Field(..., description="V1.0 的 TemplateNode 树根")
     id: str | None = None
+
+    @field_validator("initial_structure")
+    @classmethod
+    def valid_structure(cls, value):
+        return validate_template_structure(value)
 
 
 class TemplateUpdate(BaseModel):

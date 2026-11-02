@@ -14,6 +14,9 @@ on:
     branches: [main]
 
 # 同一 PR/分支推新提交时，取消仍在跑的旧运行，节省 CI 额度
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -21,13 +24,15 @@ concurrency:
 jobs:
   # ───────── 硬护栏 1：前端类型检查 + 构建 ─────────
   frontend:
+    env:
+      NODE_OPTIONS: --no-experimental-webstorage
     name: 前端 · 类型检查 + 构建（硬护栏）
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
       - run: npm ci
       - name: 账号权限模块测试与逐文件 90% 覆盖率
@@ -51,8 +56,8 @@ jobs:
     name: 后端 · ruff 格式检查（硬护栏）
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.11'
       - run: pip install ruff==0.7.0
@@ -67,7 +72,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16-alpine
+        image: postgres:16-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
         env:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
@@ -82,13 +87,15 @@ jobs:
     env:
       TEST_DATABASE_URL: postgresql+psycopg://test:test@localhost:5432/cmc_test
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.11'
       - name: 安装依赖（运行 + 测试）
         working-directory: backend
-        run: pip install -r requirements-dev.txt
+        run: |
+          pip install --require-hashes -r requirements.lock
+          pip install -r requirements-dev.txt
       - name: pytest
         working-directory: backend
         run: python -m pytest tests/ -v --cov=app.services.accounts --cov=app.schemas.accounts --cov=app.api.v1.accounts --cov=app.api.v1.portal --cov-branch --cov-fail-under=90 --cov-report=term-missing --cov-report=json:coverage.json
@@ -98,10 +105,10 @@ jobs:
     name: Docker · 镜像构建验证（硬护栏）
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
       - name: 构建单镜像（SPA + API），仅验证可构建不推送
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
         with:
           context: .
           push: false
@@ -115,16 +122,16 @@ jobs:
     name: Lint 报告（软护栏 · 不阻断）
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
       - run: npm ci
       - name: eslint（存量问题仅报告）
         run: npm run lint
         continue-on-error: true
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.11'
       - run: pip install ruff==0.7.0

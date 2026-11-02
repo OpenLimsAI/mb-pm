@@ -11,12 +11,22 @@ MAX_AMOUNT = 99_999_999
 
 class ProjectFinanceBase(BaseModel):
     project_id: str
-    total_budget: float = 0
-    spent: float = 0
-    committed: float = 0
+    total_budget: float = Field(default=0, ge=0, le=MAX_AMOUNT, allow_inf_nan=False)
+    spent: float = Field(default=0, ge=0, allow_inf_nan=False)
+    committed: float = Field(default=0, ge=0, le=MAX_AMOUNT, allow_inf_nan=False)
     breakdown: dict[str, float] = Field(default_factory=dict)
     fiscal_year: str | None = None
     notes: str | None = None
+
+    @field_validator("breakdown")
+    @classmethod
+    def valid_breakdown(cls, value):
+        if any(
+            key not in FINANCE_CATEGORIES or not 0 <= amount <= MAX_AMOUNT
+            for key, amount in value.items()
+        ):
+            raise ValueError("成本结构类别或金额无效")
+        return value
 
 
 class ProjectFinanceOut(ProjectFinanceBase):

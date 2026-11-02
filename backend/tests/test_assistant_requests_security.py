@@ -376,7 +376,7 @@ def test_project_partial_is_not_returned_after_membership_revocation(monkeypatch
             current_stage="研究",
             target_stage="验证",
             status="活跃",
-            health="绿",
+            health="green",
             progress=0,
             planned_start=date(2026, 1, 1),
             planned_end=date(2026, 12, 31),

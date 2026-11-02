@@ -7,6 +7,8 @@ from urllib.parse import urlsplit, urlunsplit
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 
+from app.schemas.model_network import validate_origin
+
 Provider = Literal["deepseek", "minimax", "kimi", "glm", "openai", "custom"]
 RESERVED_IDS = {"system", "retrieval"}
 METADATA_HOSTS = {"metadata", "metadata.google.internal", "instance-data.ec2.internal"}
@@ -73,7 +75,9 @@ def model_url(value: str) -> str:
             if port < 1:
                 raise ValueError("模型端口不正确")
             authority += f":{port}"
-        return urlunsplit((parts.scheme, authority, parts.path, "", ""))
+        normalized = urlunsplit((parts.scheme, authority, parts.path, "", ""))
+        validate_origin(normalized)
+        return normalized
     except (UnicodeError, ValueError):
         raise ValueError("模型地址无效或属于禁止访问的网络地址") from None
 

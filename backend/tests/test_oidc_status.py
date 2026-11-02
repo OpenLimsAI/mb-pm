@@ -1,9 +1,11 @@
 """Standard provider status contract with explicit transport doubles, not E2E."""
 
 import time
-import pytest
+
 import httpx
+import pytest
 from fastapi import HTTPException
+
 from app.core.config import settings
 
 
@@ -68,6 +70,9 @@ def test_current_provider_status_is_required(case, monkeypatch):
                         "owner": settings.CASDOOR_ORG,
                         "isForbidden": False,
                         "isDeleted": False,
+                        "roles": [],
+                        "needUpdatePassword": False,
+                        "lastChangePasswordTime": "",
                     },
                 },
             )
@@ -197,6 +202,9 @@ def test_current_casdoor_user_status_is_checked_without_admin(case, monkeypatch)
                 "owner": settings.CASDOOR_ORG,
                 "isForbidden": False,
                 "isDeleted": False,
+                "roles": [],
+                "needUpdatePassword": False,
+                "lastChangePasswordTime": "",
             }
             if case == "disabled":
                 user["isForbidden"] = True
@@ -299,6 +307,9 @@ def test_self_status_lifecycle_on_independent_cookie(
                         "owner": settings.CASDOOR_ORG,
                         "isForbidden": state["disabled"],
                         "isDeleted": False,
+                        "roles": [],
+                        "needUpdatePassword": False,
+                        "lastChangePasswordTime": "",
                     },
                 },
             )

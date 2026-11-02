@@ -286,7 +286,7 @@ def snapshot(db: Session, actor: Actor) -> AccountsOut:
             issue(
                 "iam_password_flag",
                 *here,
-                "IAM 中打开了「需要更新密码」：登录会被带到 IAM 页面、回不到应用；点修复改为在工作台内改密",
+                "此账号需要先修改临时密码；统一身份与所有应用共同执行，修复账号不会解除该要求",
             )
         if not kb_enabled:
             issue("kb_missing", *here, "知识库待分配；请选择可编辑权限后保存")
@@ -404,7 +404,13 @@ def create(db: Session, actor: Actor, payload: AccountCreate) -> None:
         for role in sorted(roles):
             iam_admin.set_role_members(role, add={name})
         _verify_saved(
-            account, roles, {"displayName": payload.display_name, "email": payload.email or ""}
+            account,
+            roles,
+            {
+                "displayName": payload.display_name,
+                "email": payload.email or "",
+                "needUpdatePassword": True,
+            },
         )
         role = next((r for r in ROLE_PRIORITY if r in roles), DEFAULT_ROLE)
         member = _ensure_member(db, account, role)
@@ -709,12 +715,23 @@ def reset_password(db: Session, actor: Actor, subject: str, password: str) -> No
     if account.get("isAdmin"):
         raise HTTPException(status.HTTP_409_CONFLICT, ORG_ADMIN_HINT.format("重置密码"))
     try:
+        iam_admin.check_revocation_available(account)
         iam_admin.reset_password(account["name"], password)
     except IAMError as exc:
         raise _bad_request(exc) from exc
-    # 对方须先用临时密码登录并改密；已登录的会话（项目管理与门户）立即失效
+    # Persist local revocation even if the subsequent provider operation fails.
     password_policy.require_change(db, subject, "reset")
-    ended = password_policy.end_sessions(db, subject)
+    ended = password_policy.revoke_local_authorizations(db, subject)
+    db.commit()
+    try:
+        iam_admin.update_user(subject, account["name"], {"needUpdatePassword": True})
+        if iam_admin.get_user_by_sub(subject).get("needUpdatePassword") is not True:
+            raise IAMError("IAM 未保存临时密码标记")
+        iam_admin.revoke_user_authorizations(subject)
+    except (IAMError, HTTPException):
+        raise HTTPException(
+            503, "密码已重置，但统一身份改密要求或会话撤销未完成，请联系管理员处理"
+        ) from None
     _audit(db, actor, "重置密码", subject, {"username": account["name"], "ended_sessions": ended})
     _commit(db)
 
@@ -763,11 +780,7 @@ def repair(db: Session, actor: Actor, subject: str) -> None:
     if migrated:
         password_policy.require_change(db, subject, "migrated")
         db.flush()
-        try:
-            iam_admin.update_user(subject, name, {"needUpdatePassword": False})
-        except IAMError as exc:
-            db.rollback()
-            raise _bad_request(exc) from exc
+        # Keep the IAM flag: every application must enforce the same requirement.
     detail = {
         "username": name,
         "member_id": member.id,

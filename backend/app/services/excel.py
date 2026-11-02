@@ -15,14 +15,17 @@ Sheet 约定（与前端 mock 校验逻辑一致）：
     business  — 三级 WBS 强约束（子项目下只能有任务）
 """
 
+from decimal import Decimal
 from io import BytesIO
 from typing import Any
+from zipfile import BadZipFile, ZipFile
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from app.schemas.template import ImportError as ImportErrorRow
+from app.schemas.template import validate_template_structure
 
 # 字典（与 mock/dictionaries.ts 同步）
 STAGES = ["临床前", "IND", "Ph1/2", "Ph3", "BLA", "商业化", "上市后"]
@@ -92,7 +95,11 @@ def _write_sheet(wb: Workbook, name: str, columns: list[str], rows: list[dict]) 
         ws.column_dimensions[get_column_letter(col_idx)].width = 16
     for row_idx, row in enumerate(rows, start=2):
         for col_idx, col_name in enumerate(columns, start=1):
-            ws.cell(row=row_idx, column=col_idx, value=row.get(col_name))
+            value = row.get(col_name)
+            cell = ws.cell(row=row_idx, column=col_idx, value=value)
+            if isinstance(value, str):
+                # Template text stays text, even when it begins with =, +, - or @.
+                cell.data_type = "s"
     ws.freeze_panes = "A2"
 
 
@@ -259,16 +266,48 @@ def parse_excel(file_bytes: bytes) -> tuple[dict[str, Any] | None, list[ImportEr
       - 校验失败时 structure=None，errors 列出所有问题
       - 校验成功时 structure 是可直接持久化的 TemplateNode 树根
     """
-    errors: list[ImportErrorRow] = []
+    wb = None
     try:
-        wb = load_workbook(BytesIO(file_bytes), data_only=True)
-    except Exception as e:
+        _check_xlsx_archive(file_bytes)
+        wb = load_workbook(BytesIO(file_bytes), data_only=True, read_only=True, keep_links=False)
+        for sheet in wb:
+            if (sheet.max_row or 0) > 10001 or (sheet.max_column or 0) > 40:
+                raise ValueError("每张工作表最多 10000 行数据、40 列")
+        return _parse_workbook(wb)
+    except (ValueError, BadZipFile) as exc:
+        return None, [ImportErrorRow(sheet="-", row="-", col="-", level="format", message=str(exc))]
+    except Exception:
         return None, [
             ImportErrorRow(
-                sheet="-", row="-", col="-", level="format", message=f"无法解析 xlsx 文件: {e}"
+                sheet="-",
+                row="-",
+                col="-",
+                level="format",
+                message="无法解析 xlsx 文件，请检查文件格式",
             )
         ]
+    finally:
+        if wb is not None:
+            wb.close()
 
+
+def _check_xlsx_archive(file_bytes: bytes) -> None:
+    if len(file_bytes) > 10 * 1024 * 1024:
+        raise ValueError("Excel 文件不能超过 10 MiB")
+    with ZipFile(BytesIO(file_bytes)) as archive:
+        entries = archive.infolist()
+        if len(entries) > 1000:
+            raise ValueError("Excel 文件包含过多内部条目")
+        if sum(entry.file_size for entry in entries) > 50 * 1024 * 1024:
+            raise ValueError("Excel 文件解压后不能超过 50 MiB")
+        if any(entry.file_size > 10 * 1024 * 1024 for entry in entries):
+            raise ValueError("Excel 单个内部条目不能超过 10 MiB")
+        if any(entry.flag_bits & 1 for entry in entries):
+            raise ValueError("不支持加密 Excel 文件")
+
+
+def _parse_workbook(wb) -> tuple[dict[str, Any] | None, list[ImportErrorRow]]:
+    errors: list[ImportErrorRow] = []
     sheet_names = set(wb.sheetnames)
     required = {"子项目清单", "任务清单"}
     missing = required - sheet_names
@@ -438,7 +477,7 @@ def parse_excel(file_bytes: bytes) -> tuple[dict[str, Any] | None, list[ImportEr
             continue
 
         # 类型校验
-        def _opt_int(col: str) -> int | None:
+        def _opt_int(col: str, row=row, row_num=row_num) -> int | None:
             idx = t_idx.get(col, -1)
             if idx < 0:
                 return None
@@ -446,8 +485,11 @@ def parse_excel(file_bytes: bytes) -> tuple[dict[str, Any] | None, list[ImportEr
             if v is None or str(v).strip() == "":
                 return None
             try:
-                return int(v)
-            except (ValueError, TypeError):
+                integer = int(v)
+                if Decimal(str(v)) != integer:
+                    raise ValueError()
+                return integer
+            except (ValueError, TypeError, OverflowError):
                 errors.append(
                     ImportErrorRow(
                         sheet="任务清单",
@@ -544,7 +586,7 @@ def parse_excel(file_bytes: bytes) -> tuple[dict[str, Any] | None, list[ImportEr
                     if d_idx.get("滞后天数", -1) >= 0
                     else 0
                 )
-            except (ValueError, TypeError):
+            except (ValueError, TypeError, OverflowError):
                 lag = 0
                 errors.append(
                     ImportErrorRow(
@@ -600,28 +642,28 @@ def parse_excel(file_bytes: bytes) -> tuple[dict[str, Any] | None, list[ImportEr
     # —— 循环依赖检测（DFS）—— #
     def _has_cycle() -> str | None:
         """如有环，返回环路径字符串。"""
-        WHITE, GRAY, BLACK = 0, 1, 2
-        color: dict[str, int] = {c: WHITE for c in task_codes}
+        white, gray, black = 0, 1, 2
+        color: dict[str, int] = {c: white for c in task_codes}
         stack: list[str] = []
 
         def dfs(u: str) -> str | None:
-            color[u] = GRAY
+            color[u] = gray
             stack.append(u)
             for pre in task_codes[u].get("predecessors") or []:
                 v = pre["taskCode"]
-                if color.get(v) == GRAY:
+                if color.get(v) == gray:
                     # 找到环
                     return " → ".join(stack[stack.index(v) :] + [v])
-                if color.get(v) == WHITE:
+                if color.get(v) == white:
                     res = dfs(v)
                     if res:
                         return res
             stack.pop()
-            color[u] = BLACK
+            color[u] = black
             return None
 
         for c in task_codes:
-            if color[c] == WHITE:
+            if color[c] == white:
                 cycle = dfs(c)
                 if cycle:
                     return cycle
@@ -648,6 +690,12 @@ def parse_excel(file_bytes: bytes) -> tuple[dict[str, Any] | None, list[ImportEr
         "name": "导入根节点",
         "children": list(sub_rows_dict.values()),
     }
+    try:
+        validate_template_structure(structure)
+    except ValueError as exc:
+        return None, [
+            ImportErrorRow(sheet="任务清单", row="-", col="-", level="business", message=str(exc))
+        ]
     return structure, []
 
 

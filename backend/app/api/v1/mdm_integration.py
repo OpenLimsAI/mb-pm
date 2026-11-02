@@ -33,6 +33,8 @@ def delegated_user(request: Request, db: Annotated[Session, Depends(get_db)]) ->
     from app.services.oidc_status import ensure_active_token
 
     ensure_active_token(authorization[7:].strip(), claims, expected_audience=audience)
+    if password_policy.observe_identity(db, claims):
+        db.commit()
     user = resolve_identity(claims, db, bind=False)
     password_policy.enforce(db, claims["sub"], request.url.path)
     return user

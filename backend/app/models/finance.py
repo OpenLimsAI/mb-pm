@@ -9,10 +9,12 @@ from sqlalchemy import JSON, ForeignKey, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
+from app.db.business_constraints import table_constraints
 
 
 class ProjectFinance(Base):
     __tablename__ = "project_finances"
+    __table_args__ = table_constraints("project_finances")
 
     project_id: Mapped[str] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"), primary_key=True

@@ -30,7 +30,7 @@ export default function ProjectReadyGate() {
   if (status === 'error') return <IdentityProblem message={error} onLogout={logout} />
   if (status === 'ready' && mustChangePassword) {
     // 改完后整页重新进入：会话已更新，重新确认身份并加载业务数据
-    return <ForcedPasswordChange name={currentUser?.displayName} submit={changePassword} onDone={() => window.location.reload()} onLogout={logout} />
+    return <ForcedPasswordChange name={currentUser?.displayName} submit={changePassword} onDone={() => window.location.assign('/login?signed_out=1&password_changed=1&local=1&app=pm')} onLogout={logout} />
   }
   if (!ready) return <BootSplash />
   return <>{refreshError && <IdentityRetryNotice message={refreshError} onRetry={() => { void refresh() }} />}<Outlet /></>
