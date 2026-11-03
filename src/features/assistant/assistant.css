@@ -19,7 +19,7 @@
 .aa-preview-tag { border: 1px solid #ffffff26; border-radius: 4px; padding: 2px 7px; background: #ffffff0b; color: #d1e1ed; font-size: 12px; white-space: nowrap; }
 .aa-model-link { display: inline-flex; align-items: center; gap: 6px; color: #dce9f3; text-decoration: none; font-size: 12px; white-space: nowrap; }
 .aa-model-link:hover { color: #fff; }
-.aa-shell { display: grid; grid-template-columns: 228px minmax(360px, 1fr) minmax(340px, .93fr); flex: 1; min-height: 0; }
+.aa-shell { display: grid; grid-template-columns: 228px minmax(360px, var(--aa-chat-weight, 1fr)) minmax(340px, var(--aa-result-weight, .93fr)); flex: 1; min-height: 0; }
 .aa-result-hidden .aa-shell { grid-template-columns: 228px minmax(0, 1fr); }
 .aa-result-hidden .aa-result-pane { display: none; }
 .aa-sidebar { min-height: 0; display: flex; flex-direction: column; padding: 20px 13px 15px; border-right: 1px solid #dce5ec; background: var(--workbench-bg); }
@@ -139,7 +139,15 @@
 .aa-attached button:last-child { flex-shrink: 0; }
 .aa-disclaimer { display: flex; justify-content: space-between; gap: 8px; padding: 7px 2px 0; color: #a1b0ba; font-size: 12px; }
 .aa-model-error { margin-top: 5px!important; color: #a47843; font-size: 12px; }
-.aa-result-pane { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: #fff; }
+.aa-result-pane { position: relative; display: flex; flex-direction: column; min-height: 0; min-width: 0; background: #fff; }
+.aa-pane-resizer { position: absolute; top: 0; bottom: 0; left: 0; width: 9px; z-index: 4; cursor: col-resize; touch-action: none; user-select: none; outline: none; }
+.aa-pane-resizer::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 2px; background: transparent; }
+.aa-pane-resizer > span { position: absolute; left: 1px; top: calc(50% - 24px); width: 4px; height: 48px; border-radius: 4px; background: #b8cedc; opacity: .65; }
+.aa-pane-resizer:hover::before, .aa-pane-resizer:focus-visible::before, .aa-pane-resizer-active::before { background: #087f9c; }
+.aa-pane-resizer:hover > span, .aa-pane-resizer:focus-visible > span, .aa-pane-resizer-active > span { background: #087f9c; opacity: 1; }
+.aa-pane-resizer:focus-visible { outline: 2px solid #087f9c; outline-offset: -2px; }
+.aa-pane-resizing, .aa-pane-resizing * { cursor: col-resize !important; user-select: none !important; }
+.aa-pane-resize-shield { position: fixed; inset: 0; z-index: 90; cursor: col-resize; touch-action: none; user-select: none; }
 .aa-result-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; height: 49px; min-height: 49px; padding: 0 15px; border-bottom: 1px solid #e3ebf1; background: #fbfcfd; }
 .aa-result-header > div { display: flex; align-items: center; gap: 7px; }
 .aa-result-header [role=tab] { height: 49px; padding: 0 10px; border: 0; border-bottom: 2px solid transparent; color: #8298a7; background: none; font-size: 12px; }
@@ -215,7 +223,7 @@
 .aa-spin { animation: aa-spin 1s linear infinite; }
 @keyframes aa-spin { to { transform: rotate(360deg); } }
 @media (max-width: 1150px) {
-  .aa-shell { grid-template-columns: 205px minmax(330px, 1fr) minmax(310px, .9fr); }
+  .aa-shell { grid-template-columns: 205px minmax(330px, var(--aa-chat-weight, 1fr)) minmax(310px, var(--aa-result-weight, .9fr)); }
   .aa-result-hidden .aa-shell { grid-template-columns: 205px minmax(0, 1fr); }
   .aa-sidebar { padding-inline: 10px; }
   .aa-messages { padding: 20px 20px 6px; }
@@ -225,7 +233,7 @@
 }
 @media (max-width: 980px) {
   .aa-shell, .aa-result-hidden .aa-shell { grid-template-columns: 205px minmax(0, 1fr); }
-  .aa-result-pane, .aa-desktop-result { display: none; }
+  .aa-result-pane, .aa-desktop-result, .aa-pane-resizer { display: none; }
   .aa-mobile-result { display: inline-flex; }
   .aa-result-peek .aa-result-pane { display: flex; position: fixed; top: 56px; right: 0; bottom: 0; width: min(580px, 90vw); border-left: 1px solid #d2e2ed; box-shadow: -10px 0 40px #183a5226; z-index: 75; }
   .aa-result-peek .aa-result-scrim { display: block; position: fixed; inset: 56px 0 0; border: 0; background: #193b5133; z-index: 70; }
