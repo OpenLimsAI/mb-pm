@@ -59,6 +59,8 @@ PM 运行容器使用非 root、只读根文件系统、无额外 capabilities�
 
 ## 容量与服务检查
 
+IAM 文件会话须独立持久化；监控额外输出 `casdoor_sessions_persistent`，缺少可写持久 `/tmp` 挂载即告警。会话迁移与备份恢复边界见 [IAM 会话维护](../parallel-test/IAM-SESSIONS.md)。日常备份自动涵盖新增持久会话卷；灾难恢复优先要求重新认证，不默认恢复可能早已注销的旧登录会话。
+
 `monitor.py --output /private/report.json --backup-directory /private/backups` 检查固定生产清单中的服务（包括缺失、停止和暂停状态）、内存/CPU/PID/swap上限、日志轮转、磁盘余量与最新非空备份。报告只含状态与计数，不含环境变量或原始Docker错误；文件0600。额外候选容器不纳入检查或修改。默认只读，`--apply-limits` 才更新容器资源限制；长期配置仍须保存在各服务Compose并验证。没有外部通知目标时，服务器内报告不等于有人收到告警。
 
 ## 每日备份调度（计划，待部署）

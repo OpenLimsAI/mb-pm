@@ -1,16 +1,16 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import KnowledgeLibrary from './KnowledgeLibrary'
-import { readLibraryMessage, validLibraryPath } from './libraryEmbed'
+import { isLibraryLoginComplete, readLibraryMessage, validLibraryPath } from './libraryEmbed'
 
-afterEach(() => vi.useRealTimers())
-function mount() {
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
+function mount(preview = true) {
   const onUse = vi.fn()
-  render(<KnowledgeLibrary preview editable busy={false} canAsk onUse={onUse} scope={<p>问答范围</p>} />)
+  render(<KnowledgeLibrary preview={preview} editable busy={false} canAsk onUse={onUse} scope={<p>问答范围</p>} />)
   const frame = screen.getByTitle('原知识库资料') as HTMLIFrameElement
   const origin = new URL(frame.src).origin
   function message(type: string, extra = {}, overrides = {}) {
-    act(() => window.dispatchEvent(new MessageEvent('message', { source: frame.contentWindow, origin, data: { type: `mberp:knowledge-library:${type}`, version: 1, preview: true, ...extra }, ...overrides })))
+    act(() => window.dispatchEvent(new MessageEvent('message', { source: frame.contentWindow, origin, data: { type: `mberp:knowledge-library:${type}`, version: 1, preview, ...extra }, ...overrides })))
   }
   return { frame, origin, message, onUse }
 }
@@ -54,6 +54,103 @@ describe('original library embedding', () => {
     expect(screen.queryByText('资料视图暂未加载')).not.toBeInTheDocument()
   })
 
+  it('accepts a slow ready response and does not replace a successful load with a timeout', () => {
+    vi.useFakeTimers()
+    const { frame, message } = mount()
+    act(() => vi.advanceTimersByTime(8000))
+    message('ready')
+    act(() => vi.advanceTimersByTime(16000))
+    expect(frame).toHaveClass('is-ready')
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('clears stale material on auth loss and ignores selections until readiness is restored', () => {
+    vi.useFakeTimers()
+    const { frame, message } = mount(false)
+    message('ready')
+    message('selection', { path: 'sources/private.md', title: '已选资料' })
+    message('auth-required', { loginUrl: 'https://untrusted.example/' })
+    expect(frame).not.toHaveClass('is-ready')
+    expect(screen.queryByText('已选资料')).not.toBeInTheDocument()
+    expect(screen.getByText('知识库登录状态需要恢复')).toBeInTheDocument()
+    message('selection', { path: 'sources/private.md', title: '迟到的旧资料' })
+    expect(screen.queryByText('迟到的旧资料')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '引用到章节' })).toBeDisabled()
+    act(() => vi.advanceTimersByTime(8000))
+    expect(screen.getByText('知识库登录状态需要恢复')).toBeInTheDocument()
+    message('ready')
+    expect(frame).toHaveClass('is-ready')
+    expect(screen.getByRole('button', { name: '引用到章节' })).toBeDisabled()
+  })
+
+  it('distinguishes permissions from service outages and rejects unknown error reasons', () => {
+    const { message } = mount(false)
+    message('error', { reason: '<script>untrusted</script>' })
+    expect(screen.getByText('正在打开原知识库…')).toBeInTheDocument()
+    message('error', { reason: 'unavailable' })
+    expect(screen.getByText('暂时无法连接知识库')).toBeInTheDocument()
+    message('error', { reason: 'forbidden' })
+    expect(screen.getByText('当前账号没有知识库访问权限')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '恢复知识库登录' })).not.toBeInTheDocument()
+  })
+
+  it('allows top-level OAuth recovery when browser policy prevents the embedded IAM probe', () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(window)
+    const { origin, message } = mount(false)
+    message('error', { reason: 'unavailable' })
+    fireEvent.click(screen.getByRole('button', { name: '恢复知识库登录' }))
+    expect(new URL(open.mock.calls[0][0] as string).origin).toBe(origin)
+    expect(new URL(open.mock.calls[0][0] as string).pathname).toBe('/web/auth/login')
+  })
+
+  it('opens only the fixed OAuth continuation and requires the exact popup and origin to reload', () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(window)
+    const { frame, origin, message } = mount(false)
+    message('auth-required', { loginUrl: 'https://untrusted.example/' })
+    fireEvent.click(screen.getByRole('button', { name: '恢复知识库登录' }))
+    const login = new URL(open.mock.calls[0][0] as string)
+    expect(login.origin).toBe(origin)
+    expect(login.pathname).toBe('/web/auth/login')
+    expect(login.searchParams.get('returnTo')).toBe('/web/auth/report-return')
+    expect(window.location.pathname).toBe('/')
+    message('authenticated') // The library iframe cannot impersonate the login popup.
+    message('authenticated', {}, { source: window, origin: 'https://untrusted.example' })
+    message('authenticated', { version: 2 }, { source: window })
+    expect(screen.getByTitle('原知识库资料')).toBe(frame)
+    message('authenticated', {}, { source: window })
+    const freshFrame = screen.getByTitle('原知识库资料')
+    expect(freshFrame).not.toBe(frame)
+    fireEvent.focus(window)
+    expect(screen.getByTitle('原知识库资料')).toBe(freshFrame)
+  })
+
+  it('recovers on returning focus when opener messages are unavailable, without reloading ordinary focus', () => {
+    vi.spyOn(window, 'open').mockReturnValue(window)
+    const { frame, message } = mount(false)
+    fireEvent.focus(window)
+    expect(screen.getByTitle('原知识库资料')).toBe(frame)
+    message('auth-required')
+    fireEvent.click(screen.getByRole('button', { name: '恢复知识库登录' }))
+    fireEvent.focus(window)
+    const freshFrame = screen.getByTitle('原知识库资料') as HTMLIFrameElement
+    expect(freshFrame).not.toBe(frame)
+    act(() => window.dispatchEvent(new MessageEvent('message', { source: freshFrame.contentWindow, origin: new URL(freshFrame.src).origin, data: { type: 'mberp:knowledge-library:ready', version: 1, preview: false } })))
+    fireEvent.focus(window)
+    expect(screen.getByTitle('原知识库资料')).toBe(freshFrame)
+  })
+
+  it('keeps the report open and offers retry when popups are blocked', () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    const { frame, message } = mount(false)
+    message('auth-required')
+    fireEvent.click(screen.getByRole('button', { name: '恢复知识库登录' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('请允许此站点弹出新窗口')
+    expect(screen.getByTitle('原知识库资料')).toBe(frame)
+    open.mockReturnValue(window)
+    fireEvent.click(screen.getByRole('button', { name: '恢复知识库登录' }))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
   it('passes the selected excerpt separately from a document identifier', () => {
     const { message, onUse } = mount()
     message('ready'); message('selection', { path: 'sources/paper.md', title: '文献', excerpt: '精确引用内容', locator: '结果段' })
@@ -80,4 +177,5 @@ it('rejects unknown protocol versions and a missing frame', () => {
   const event = new MessageEvent('message', { source: window, origin: 'https://kb.example', data: { type: 'mberp:knowledge-library:ready', version: 2 } })
   expect(readLibraryMessage(event, window, event.origin)).toBeNull()
   expect(readLibraryMessage(event, null, event.origin)).toBeNull()
+  expect(isLibraryLoginComplete(event, null, event.origin)).toBe(false)
 })

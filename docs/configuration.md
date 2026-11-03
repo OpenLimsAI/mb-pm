@@ -13,6 +13,16 @@
 `backend/.env.example` 示例使用 PostgreSQL；本地使用 SQLite 时改为 `DATABASE_URL=sqlite:///./cmc_pms_lite.db`。
 `APP_SECRET` 必须使用至少 32 字符的随机值，不能保留 `change-me` 示例。登录前还须填写真实 IAM 客户端密钥。
 
+### 容器业务数据持久化
+
+根目录、后端开发及并行部署 Compose 模板显式把全局 AI 设置放在 `AI_SETTINGS_PATH=/data/ai/ai-settings.json`，把知识源和历史行业信息原件放在 `INFORMATION_DATA_DIR=/data/information`；分别挂载 `ai_settings`、`information_originals` 命名卷。生产域名入口和 `app-direct` 必须使用同一数据库、同一 `APP_SECRET` 和这两个共享卷。卷默认按 Compose project 隔离；生产 project `mb-pm-v2` 对应现有的 `mb-pm-v2_ai_settings`、`mb-pm-v2_information_originals`，本地使用不同 project 名。
+
+镜像预建两个数据目录并赋予 UID/GID `10001:10001`，供新建命名卷继承；不会自动修改既有卷的所有权。裸机 Python 的 `.local` 默认目录不变，本地预览也不连接生产卷。临时上传缓冲位于 `/tmp`，完成上传后反馈图片及业务结果进入数据库；`/tmp` 可使用 tmpfs，不能用来保存原件或配置。
+
+已有容器不能直接挂新空卷覆盖原数据。先核对实际路径和完整 Compose 链，备份并停止相关写入，迁移文件及权限、校验数量/内容后再切换；已有生产卷则沿用精确名称。数据库与 `APP_SECRET` 必须成套备份：会话令牌及个人模型密钥均依赖该密钥解密。`docker compose down -v` 会删除命名卷，日常发布只替换应用镜像并保留当前全部挂载。发布工具的挂载保持检查不等于备份恢复演练。
+
+助手任务、已发送问题、生成进度和部分草稿保存在数据库；重建时已在生成的请求可能中断，租约过期后明确标为中断并允许继续，排队请求由新进程领取。未发送的输入及报告未保存修改仍是浏览器恢复数据，不属于服务器持久卷。
+
 ## 知识报告个人模型
 
 在知识报告研究助手内高亮的「AI模型设置」配置本人模型，支持 DeepSeek、MiniMax、Kimi、GLM、OpenAI 和 `custom` 兼容服务；每人最多 20 组，同一服务商可有多组。名称、基础地址和模型 ID 由用户填写，官方基础地址及参考链接见[个人模型配置](knowledge-solutions.md#个人模型配置)。PM 全局模型及提示词仍在项目管理「AI设置」由原授权角色管理；知识报告个人设置不修改该文件，也不改变原权限。未设个人默认时兼容企业默认配置，问答时还可明确选择企业默认或仅检索资料。

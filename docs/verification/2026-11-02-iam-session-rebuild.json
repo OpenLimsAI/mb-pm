@@ -1,0 +1,16 @@
+{
+  "recorded_at": "2026-11-03T00:15:41Z",
+  "local_date": "2026-11-02 America/New_York",
+  "production_mutated": false,
+  "image": "sha256:bc7f85bb62e1d5f4597c69bcf7629ee6be5c34f44ef79f56666435d8315f8acc",
+  "initial_authenticated": true,
+  "without_volume_rebuild_loses_identity": true,
+  "migration_preserves_authenticated_identity": true,
+  "with_volume_rebuild_preserves_identity": true,
+  "exit_code": 0,
+  "isolated_resources_cleaned": true,
+  "method": "New internal network, empty PostgreSQL database, synthetic organization/application/user; same cookie tested via real /api/get-account before and after replacement. No production session/account reused.",
+  "script": "deploy/parallel-test/verify_iam_session_rebuild.py",
+  "script_sha256": "70190876cb265827f9d6be08c7da5abaaed65174a319cce66bb63913c523c5fe",
+  "limits": "Proves Casdoor browser session persistence under container replacement; does not constitute production user OAuth/knowledge permissions acceptance."
+}

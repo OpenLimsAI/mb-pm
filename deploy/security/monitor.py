@@ -47,6 +47,23 @@ def log_rotation(config):
                 and re.fullmatch(r"[1-9][0-9]*", str(files)))
 
 
+def casdoor_sessions_persistent(item):
+    """The deployed file provider uses ./tmp from WORKDIR=/, outside its SQL DB."""
+    if item.get("Config", {}).get("WorkingDir", "/") not in ("", "/"):
+        return False
+    return any(mount.get("Destination") == "/tmp"
+               and mount.get("Type") in ("volume", "bind")
+               and mount.get("RW") is True
+               for mount in item.get("Mounts", []))
+
+
+def casdoor_logs_persistent(item):
+    return any(mount.get("Destination") == "/logs"
+               and mount.get("Type") in ("volume", "bind")
+               and mount.get("RW") is True
+               for mount in item.get("Mounts", []))
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--output", type=Path, required=True)
@@ -101,7 +118,17 @@ def main():
             report["alerts"].append(name + ":resource_limits_missing_or_excessive")
         if not rotated:
             report["alerts"].append(name + ":log_rotation_pending")
-        report["containers"].append({"name": name, "health": health, "resource_limits": limits, "log_rotation": rotated})
+        entry = {"name": name, "health": health, "resource_limits": limits, "log_rotation": rotated}
+        if name == "mb-pm-v2-casdoor-1":
+            persistent = casdoor_sessions_persistent(item)
+            entry["casdoor_sessions_persistent"] = persistent
+            if not persistent:
+                report["alerts"].append(name + ":casdoor_sessions_not_persistent")
+            log_storage = casdoor_logs_persistent(item)
+            entry["casdoor_logs_persistent"] = log_storage
+            if not log_storage:
+                report["alerts"].append(name + ":casdoor_logs_not_persistent")
+        report["containers"].append(entry)
     with tempfile.NamedTemporaryFile(mode="w", dir=args.output.parent, prefix=args.output.name + ".", delete=False) as temp:
         json.dump(report, temp, ensure_ascii=False, indent=2)
         temp.write("\n")

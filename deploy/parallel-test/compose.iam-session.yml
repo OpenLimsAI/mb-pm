@@ -1,0 +1,15 @@
+# Append to ALL live Compose files. First migrate the running /tmp using
+# migrate_iam_sessions.py; attaching an empty volume would sign everyone out.
+services:
+  casdoor:
+    volumes:
+      - casdoor-sessions:/tmp
+      - casdoor-logs:/logs
+
+volumes:
+  casdoor-sessions:
+    external: true
+    name: mb-pm-v2-casdoor-sessions
+  casdoor-logs:
+    external: true
+    name: mb-pm-v2-casdoor-logs
