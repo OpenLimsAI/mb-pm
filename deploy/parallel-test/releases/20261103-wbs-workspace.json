@@ -1,0 +1,315 @@
+{
+  "prepared": {
+    "source": "21252b6f2887c6d5075c600d228ac20ecd05abe6",
+    "image": "sha256:e1359512220692e994afef7363818786d885bec3d58c541b371d024b13d42d2c",
+    "previous_image": "sha256:f682e53deedb4bca2b48b6769f2bc1523047f9e87becbee879e66c640a20ecd2",
+    "backend_files_identical_to_main": 155,
+    "wbs_bundle": {
+      "wbs_bundle_markers": 10,
+      "wbs_css_contracts": 10
+    },
+    "static_sha256": "078ee82eed5b89d8b2c85dd736fcd33553f440c3ab5fb6ab8f5e7693606df46f",
+    "release_directory": "/home/prometheus/mb-pm-v2/releases/wbs-workspace-21252b6-20261103",
+    "source_sha256": "b0f389542d86fc8c6fc1db7797b71aaa38706ebda50e9d43dfae0873b333abbf",
+    "built_sha256": "e61467e088bfa219a36c00dcb70835c97f1ac18f1f504a7dfde3d7c969c9330c"
+  },
+  "security_scan": {
+    "source": "21252b6f2887c6d5075c600d228ac20ecd05abe6",
+    "image": "sha256:e1359512220692e994afef7363818786d885bec3d58c541b371d024b13d42d2c",
+    "image_config_sha256": "sha256:d72b39c519100c83e2c09e87562198fbf3f7d65b75b9cbbfb4780d581eaff4fc",
+    "high_critical_fixable_vulnerabilities": 0,
+    "scanner": "aquasec/trivy@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c",
+    "database": {
+      "Version": 2,
+      "NextUpdate": "2026-11-03T19:15:11.074748061Z",
+      "UpdatedAt": "2026-11-02T19:15:11.074748541Z",
+      "DownloadedAt": "2026-11-03T00:56:04.428558899Z"
+    }
+  },
+  "production": {
+    "source": "21252b6f2887c6d5075c600d228ac20ecd05abe6",
+    "image": "sha256:e1359512220692e994afef7363818786d885bec3d58c541b371d024b13d42d2c",
+    "previous_image": "sha256:f682e53deedb4bca2b48b6769f2bc1523047f9e87becbee879e66c640a20ecd2",
+    "instances": 2,
+    "preserved_files": [
+      "/home/prometheus/mb-pm-v2/compose.yml",
+      "/home/prometheus/mb-pm-v2/compose.production.yml",
+      "/home/prometheus/mb-pm-v2/compose.direct.yml",
+      "/home/prometheus/mb-pm-v2/releases/header-9516977/compose.no-note-sync.yml",
+      "/home/prometheus/mb-pm-v2/releases/assistant-dikw-e294fdc/compose.knowledge.private.yml",
+      "/home/prometheus/mb-pm-v2/releases/knowledge-sources-687bddc-20261101/compose.knowledge-sources.yml",
+      "/home/prometheus/mb-pm-v2/releases/deepseek-search-99ca39d-20261101/compose.deepseek-search.yml",
+      "/home/prometheus/security-hardening-20261102/limits-1.json",
+      "/home/prometheus/security-hardening-20261102/pm-release-cd02021/compose.security.active.yml",
+      "/home/prometheus/mb-pm-v2/releases/report-workbench-e33b48d-20261102/compose.report-workbench.yml",
+      "/home/prometheus/mb-pm-v2/releases/efficient-workspace-c6e4b9f-20261103/rollout/pm.fixed-images.json",
+      "/home/prometheus/mb-pm-v2/releases/knowledge-sso-20261102/application-switch/group-0.active.json",
+      "/home/prometheus/mb-pm-v2/releases/report-editor-layout-48401af-20261103/rollout/pm.fixed-images.json",
+      "/home/prometheus/mb-pm-v2/releases/assistant-scope-8147c1d-20261102-r2/compose.assistant-scope.yml",
+      "/home/prometheus/mb-pm-v2/releases/reference-papers-b79f0da-20261103/rollout/pm.fixed-images.json",
+      "/home/prometheus/mb-pm-v2/releases/assistant-layout-642e187-20261103-r2/compose.assistant-layout.yml",
+      "/home/prometheus/mb-pm-v2/releases/project-actions-c304a1e-20261103-r2/rollout/pm.fixed-images.json",
+      "/home/prometheus/mb-pm-v2/releases/gantt-263e10c-20261103/rollout/pm.fixed-images.json"
+    ],
+    "verification": [
+      {
+        "nonroot_uid": 10001,
+        "runtime_role": "maibo_pm_runtime",
+        "elevated_db_flags": false,
+        "business_constraints": {
+          "projects": 4,
+          "sub_projects": 2,
+          "tasks": 7,
+          "project_finances": 1
+        },
+        "core_connection": "verified_readonly",
+        "source_count": 331,
+        "production_api_build": true,
+        "source": "21252b6f2887c6d5075c600d228ac20ecd05abe6",
+        "csp": true,
+        "anonymous_api": 401,
+        "persistent_data_readable": true
+      },
+      {
+        "nonroot_uid": 10001,
+        "runtime_role": "maibo_pm_runtime",
+        "elevated_db_flags": false,
+        "business_constraints": {
+          "projects": 4,
+          "sub_projects": 2,
+          "tasks": 7,
+          "project_finances": 1
+        },
+        "core_connection": "verified_readonly",
+        "source_count": 331,
+        "production_api_build": true,
+        "source": "21252b6f2887c6d5075c600d228ac20ecd05abe6",
+        "csp": true,
+        "anonymous_api": 401,
+        "persistent_data_readable": true
+      }
+    ],
+    "migrations": false,
+    "tables_checked": 43,
+    "prior_record_ids_preserved": true,
+    "prior_assistant_messages_preserved": true,
+    "model_settings_preserved": true,
+    "backend_files_changed": [],
+    "restore_proof": {
+      "isolated_restore": true,
+      "tables_restored": 43,
+      "network": "none",
+      "ports_published": false,
+      "temporary_database_removed": true
+    }
+  },
+  "live": [
+    {
+      "name": "/mb-pm-v2-app-1",
+      "image": "sha256:e1359512220692e994afef7363818786d885bec3d58c541b371d024b13d42d2c",
+      "health": "healthy",
+      "started": "2026-11-03T18:28:18.768682798Z",
+      "compose_files": 19
+    },
+    {
+      "name": "/mb-pm-v2-app-direct-1",
+      "image": "sha256:e1359512220692e994afef7363818786d885bec3d58c541b371d024b13d42d2c",
+      "health": "healthy",
+      "started": "2026-11-03T18:28:18.765844626Z",
+      "compose_files": 19
+    }
+  ],
+  "backup": {
+    "directory": "/home/prometheus/mb-pm-v2/releases/wbs-workspace-21252b6-20261103/rollout/private-backup",
+    "mode": "0o700",
+    "encrypted_database_bytes": 3450177,
+    "rollback_command_file": "/home/prometheus/mb-pm-v2/releases/wbs-workspace-21252b6-20261103/rollout/rollback-command.json"
+  },
+  "checked_at_utc": "2026-11-03T18:29:09.120177+00:00",
+  "feature_pr": "https://github.com/OpenLimsAI/mb-pm/pull/151",
+  "feature_head": "a9c644cb635ae1267417abf8df0692d2e3fe1496",
+  "source": "21252b6f2887c6d5075c600d228ac20ecd05abe6",
+  "source_tree": "4fe480d462007c22842df26945460fd68e257ce8",
+  "ci": [
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-03T18:24:03Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41692153441/job/126113201341",
+      "name": "前端 · 类型检查 + 构建（硬护栏）",
+      "startedAt": "2026-11-03T18:16:10Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-03T18:17:02Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41692153432/job/126113202490",
+      "name": "dependencies",
+      "startedAt": "2026-11-03T18:16:10Z",
+      "status": "COMPLETED",
+      "workflowName": "Security"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-03T18:16:28Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41692153441/job/126113201949",
+      "name": "后端 · ruff 格式检查（硬护栏）",
+      "startedAt": "2026-11-03T18:16:10Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-03T18:18:04Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41692153432/job/126113203115",
+      "name": "container",
+      "startedAt": "2026-11-03T18:16:10Z",
+      "status": "COMPLETED",
+      "workflowName": "Security"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-03T18:19:47Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41692153441/job/126113201894",
+      "name": "后端 · pytest（PostgreSQL · 硬护栏）",
+      "startedAt": "2026-11-03T18:16:10Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-03T18:17:47Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41692153441/job/126113201865",
+      "name": "Docker · 镜像构建验证（硬护栏）",
+      "startedAt": "2026-11-03T18:16:10Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-03T18:17:42Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41692153441/job/126113201625",
+      "name": "Lint 报告（软护栏 · 不阻断）",
+      "startedAt": "2026-11-03T18:16:10Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    }
+  ],
+  "public": {
+    "checked_at_utc": "2026-11-03T18:29:12.526738+00:00",
+    "source": "21252b6f2887c6d5075c600d228ac20ecd05abe6",
+    "checks": [
+      {
+        "url": "https://pm.openlims.ai/health",
+        "expected_status": 200,
+        "status": 200,
+        "passed": true
+      },
+      {
+        "url": "https://pm.openlims.ai/build-info.json",
+        "expected_status": 200,
+        "status": 200,
+        "source": "21252b6f2887c6d5075c600d228ac20ecd05abe6",
+        "passed": true
+      },
+      {
+        "url": "https://pm.openlims.ai/gantt",
+        "expected_status": 200,
+        "status": 200,
+        "index_sha256": "80c993f4118b0da8fbeb114feb06cfc3f0db8e932840e5a423c10def3477b7a3",
+        "cloudflare_analytics_scripts_removed": 1,
+        "normalized_index_sha256": "9a3085553ff01f594181b369ea53a4ee226a98abfccd4b80eaf1e3fe70947f01",
+        "index_matches_image_after_known_edge_injection": true,
+        "passed": true
+      },
+      {
+        "url": "https://pm.openlims.ai/api/v1/projects",
+        "expected_status": 401,
+        "status": 401,
+        "passed": true
+      },
+      {
+        "url": "https://www.openlims.ai/health",
+        "expected_status": 200,
+        "status": 200,
+        "passed": true
+      },
+      {
+        "url": "https://www.openlims.ai/build-info.json",
+        "expected_status": 200,
+        "status": 200,
+        "source": "21252b6f2887c6d5075c600d228ac20ecd05abe6",
+        "passed": true
+      },
+      {
+        "url": "https://www.openlims.ai/login",
+        "expected_status": 200,
+        "status": 200,
+        "index_sha256": "80c993f4118b0da8fbeb114feb06cfc3f0db8e932840e5a423c10def3477b7a3",
+        "cloudflare_analytics_scripts_removed": 1,
+        "normalized_index_sha256": "9a3085553ff01f594181b369ea53a4ee226a98abfccd4b80eaf1e3fe70947f01",
+        "index_matches_image_after_known_edge_injection": true,
+        "passed": true
+      },
+      {
+        "url": "https://www.openlims.ai/api/v1/projects",
+        "expected_status": 401,
+        "status": 401,
+        "passed": true
+      }
+    ],
+    "all_passed": true
+  },
+  "frontend_tests": {
+    "files": 93,
+    "passed": 904
+  },
+  "release_tool_tests": 15,
+  "local_browser": {
+    "fixed_table_headers_and_tree_heading": true,
+    "three_views_fullscreen": true,
+    "draft_state_preserved": true,
+    "task_drawer_and_escape": true,
+    "vertical_scroll_chaining": true,
+    "fullscreen_background_isolation": true
+  },
+  "production_browser": {
+    "checked_at_utc": "2026-11-03T18:37:26.935818+00:00",
+    "browser": "Google Chrome",
+    "authenticated_session": true,
+    "role": "system administrator",
+    "origin": "https://pm.openlims.ai",
+    "real_project_task_count": 33,
+    "interaction_mode": "read_only",
+    "fixed_table_headers_after_scroll": true,
+    "fixed_tree_heading_after_scroll": true,
+    "three_views_in_fullscreen": true,
+    "gantt_header_and_footer_visible_after_scroll": true,
+    "escape_exits_fullscreen": true,
+    "normal_gantt_bottom_scroll_chaining": true,
+    "console_messages": 0,
+    "devtools_issues": {
+      "page_errors": 0,
+      "breaking_changes": 0,
+      "possible_improvements": 1,
+      "improvement": "A form field element should have an id or name attribute"
+    },
+    "not_exercised_in_production": [
+      "business data editing and saving",
+      "task drawer Escape priority",
+      "other accounts and browsers"
+    ],
+    "iab_attempt": {
+      "authenticated_session": false,
+      "observed_url": "https://pm.openlims.ai/login",
+      "content_read": "timed_out"
+    }
+  }
+}
