@@ -2,11 +2,14 @@
 """Guarded PM rollout: preserve live overlays and settings; rollback failed starts."""
 
 import argparse
+from contextlib import ExitStack, contextmanager
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess as sp
 
 TARGETS = ["mb-pm-v2-app-1", "mb-pm-v2-app-direct-1"]
@@ -227,12 +230,45 @@ def rollout(command, rollback_command):
         raise RuntimeError("Deployment failed; previous services restored") from None
 
 
+@contextmanager
+def release_locks(root, backup_directory):
+    """Use the scheduler's lock order and hold it through rollout and rollback."""
+    if backup_directory.is_symlink() or not backup_directory.is_dir():
+        raise SystemExit(
+            "Existing backup directory required; do not create a new lock domain"
+        )
+    with ExitStack() as stack:
+        directory_fd = os.open(
+            backup_directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        )
+        stack.callback(os.close, directory_fd)
+        for name, parent_fd in (
+            (".daily-backup.lock", directory_fd),
+            (".backup.lock", directory_fd),
+            (str(root / ".security-release.lock"), None),
+        ):
+            fd = os.open(
+                name, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600, dir_fd=parent_fd
+            )
+            handle = stack.enter_context(os.fdopen(fd, "a"))
+            if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+                raise SystemExit("Release locks must be regular files")
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        yield
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--expected-current", required=True)
     p.add_argument("--image", required=True)
     p.add_argument("--runtime-env", type=Path, required=True)
     p.add_argument("--overlay", type=Path, required=True)
+    p.add_argument(
+        "--backup-directory",
+        type=Path,
+        default=Path.home() / "backups" / "daily",
+        help="Existing directory used by daily_backup.py and backup.py",
+    )
     p.add_argument("--apply", action="store_true")
     args = p.parse_args()
     os.umask(0o077)
@@ -243,7 +279,8 @@ def main():
         raise SystemExit("Use immutable sha256 image IDs")
     if args.runtime_env.stat().st_mode & 0o077:
         raise SystemExit("Runtime credentials must have mode 0600")
-    env_text = args.runtime_env.read_text().strip()
+    runtime_bytes = args.runtime_env.read_bytes()
+    env_text = runtime_bytes.decode().strip()
     if not env_text.startswith("PMS_RUNTIME_DATABASE_URL=") or "\n" in env_text:
         raise SystemExit("Expected a single private runtime database setting")
     runtime_url = env_text.split("=", 1)[1]
@@ -269,6 +306,11 @@ def main():
             )
     if not all(Path(path).is_file() for path in files):
         raise SystemExit("A live Compose overlay is missing")
+    input_hashes = {
+        path: hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in {*(Path(path) for path in files), root / ".env", args.overlay}
+    }
+    input_hashes[args.runtime_env] = hashlib.sha256(runtime_bytes).hexdigest()
     prefix = [
         "docker",
         "compose",
@@ -330,13 +372,18 @@ def main():
             "Plan verified: live settings, exact overlays, volumes, networks and non-root access preserved"
         )
         return
-    with (root / ".security-release.lock").open("a") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        if any(
-            item["Image"] != args.expected_current
-            for item in capture(["docker", "inspect", *TARGETS])
+    with release_locks(root, args.backup_directory):
+        current = capture(["docker", "inspect", *TARGETS])
+        if len(current) != len(containers) or any(
+            live["Id"] != baseline["Id"] or live["Image"] != args.expected_current
+            for live, baseline in zip(current, containers)
         ):
-            raise SystemExit("Live image changed during preflight")
+            raise SystemExit("Live container or image changed during preflight")
+        if any(
+            hashlib.sha256(path.read_bytes()).hexdigest() != expected
+            for path, expected in input_hashes.items()
+        ):
+            raise SystemExit("Compose or environment input changed during preflight")
         # Persist a concrete private LAST overlay. No future Compose invocation
         # depends on this process's environment or on a forgotten --env-file.
         active = args.overlay.with_suffix(".active.yml").resolve()
@@ -350,7 +397,9 @@ def main():
         # Original Compose files remain intact; an image-only final override
         # restores the old settings without duplicating their secret values.
         previous = {
-            "services": {service: {"image": args.expected_current} for service in SERVICES}
+            "services": {
+                service: {"image": args.expected_current} for service in SERVICES
+            }
         }
         private_json(rollback, previous)
         rollback_command = original + ["-f", str(rollback)]
