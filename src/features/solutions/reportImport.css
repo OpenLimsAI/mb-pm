@@ -1,7 +1,7 @@
 .ks-report-import { display: flex; flex-direction: column; gap: 16px; }
 .ks-report-import .ks-import-intro { color: var(--ks-muted); }
-.ks-report-import .ks-import-picker { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 24px 16px; border: 1px dashed #a8c7dc; border-radius: 8px; background: #f4f9fd; color: #23486f; }
-.ks-report-import .ks-import-picker:hover:not(:disabled) { background: #e8f4ff; border-color: #087b9c; }
+.ks-report-import .ks-import-picker { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 24px 16px; border: 1px dashed #a8c7dc; border-radius: 8px; background: #f4f9fd; color: var(--workbench-brand-strong); }
+.ks-report-import .ks-import-picker:hover:not(:disabled) { background: #e8f4ff; border-color: var(--workbench-brand); }
 .ks-report-import .ks-import-picker.has-preview { display: grid; grid-template-columns: 30px 1fr; text-align: left; column-gap: 12px; row-gap: 2px; padding: 12px 16px; }
 .ks-import-picker.has-preview > svg { grid-row: 1 / span 3; }
 .ks-import-picker.has-preview > :not(svg) { grid-column: 2; }
@@ -9,7 +9,7 @@
 .ks-import-preview { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .ks-import-file { display: flex; align-items: center; gap: 7px; min-width: 0; }
 .ks-import-file strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ks-import-file span { margin-left: auto; flex-shrink: 0; font-size: 11px; color: #617b8b; }
+.ks-import-file span { margin-left: auto; flex-shrink: 0; font-size: 12px; color: #617b8b; }
 .ks-import-preview label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; }
 .ks-import-preview input { min-height: 36px; width: 100%; padding: 7px 10px; border: 1px solid #cbd8e2; border-radius: 6px; font-weight: 400; }
 .ks-import-preview textarea { width: 100%; min-height: 140px; max-height: 22vh; resize: vertical; border: 1px solid #d9e2ea; border-radius: 6px; padding: 12px; font-weight: 400; line-height: 1.8; background: #f8fafc; color: #334e63; }

@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    --app-header-background: rgb(35, 72, 111);
+    --app-header-background: #fff;
   }
   html, body, #root {
     height: 100%;
@@ -13,11 +13,11 @@
     @apply bg-ink-100 text-ink-900 font-sans antialiased;
   }
   :where(a, button, summary):focus-visible {
-    outline: 2px solid #087b9c;
+    outline: 2px solid var(--workbench-brand);
     outline-offset: 3px;
   }
   ::selection {
-    background: #d8f0f6;
+    background: var(--workbench-soft);
     color: #103c58;
   }
 }
@@ -81,7 +81,7 @@
     bottom: 9px;
     width: 3px;
     border-radius: 2px;
-    background: #78bf43;
+    background: var(--workbench-brand);
   }
   .app-nav-active > svg {
     @apply text-brand-600;
@@ -105,7 +105,7 @@
     @apply px-3 py-3 text-xs flex items-center justify-between gap-2 bg-white text-ink-700 border-t border-ink-300/40;
   }
   .auth-shell {
-    background: linear-gradient(to bottom, var(--app-header-background) 0, var(--app-header-background) 32%, #edf1f3 32%, #edf1f3 100%);
+    background: linear-gradient(to bottom, var(--app-header-background) 0, var(--app-header-background) 32%, var(--workbench-bg) 32%, var(--workbench-bg) 100%);
   }
   /* 项目 AI 分析报告（Markdown 渲染） */
   .ai-report { @apply text-sm leading-7 text-ink-700 break-words; }

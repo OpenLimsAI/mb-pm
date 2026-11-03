@@ -68,20 +68,20 @@ export function Sidebar() {
         <img
           src="/brand/maibo-pharma-logo.png"
           alt="迈博药业"
-          width={48}
-          height={48}
+          width={32}
+          height={32}
           className="app-brand-logo"
         />
         <div className="app-brand-copy flex-1 min-w-0">
-          <div className="text-base font-semibold text-white leading-tight">
-            CMC-PMS
+          <div className="text-sm font-semibold text-ink-900 leading-tight">
+            MBERP
           </div>
-          <div className="text-[10px] text-blue-100 mt-1 leading-tight">研发项目组合 · 决策视图</div>
+          <div className="text-xs text-ink-500 mt-1 leading-tight">迈博药业 · 项目管理</div>
         </div>
       </div>
 
       {/* Nav */}
-      <nav aria-label="主导航" className="app-nav flex-1 px-3 py-5 space-y-1 overflow-y-auto">
+      <nav aria-label="主导航" className="app-nav flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         <p className="app-nav-caption">工作空间</p>
         {navItems.filter(allowed).map((it) => {
           const children = it.children?.filter(allowed) ?? []
@@ -116,9 +116,9 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="app-sidebar-footer px-5 py-4 border-t border-ink-300/40 text-[11px] text-ink-500">
-        <div>URS-CMC-PMS-001</div>
-        <div className="opacity-70">© CMC 部 · 内部使用</div>
+      <div className="app-sidebar-footer px-5 py-4 border-t border-ink-300/40 text-xs text-ink-500">
+        <div>数字化工作空间</div>
+        <div className="mt-1">CMC 部 · 内部使用</div>
       </div>
     </aside>
   )
