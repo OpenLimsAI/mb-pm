@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
-  LayoutGrid, Diamond, FolderTree, Users, GanttChartSquare, Rows3, Table2, Flag, Zap, Sparkles,
+  LayoutGrid, Diamond, FolderTree, Users, Flag, Zap, Sparkles,
   CheckCircle2, X,
 } from 'lucide-react'
 import { findProject, findTask } from '../mock'
@@ -12,6 +12,7 @@ import { ProjectHeader } from '../components/project/ProjectHeader'
 import { WBSTree } from '../components/project/WBSTree'
 import { WBSTable } from '../components/project/WBSTable'
 import { Gantt } from '../components/project/Gantt'
+import { WbsWorkspace, type WbsView } from '../components/project/WbsWorkspace'
 import { MilestonePanel } from '../components/project/MilestonePanel'
 import { MilestoneTimeline } from '../components/project/MilestoneTimeline'
 import { ProjectBudgetCard } from '../components/project/ProjectBudgetCard'
@@ -29,7 +30,6 @@ import { getProjectMDMLaunchUrl } from '../api/projects'
 // Tab 顺序：概览 → 里程碑 → WBS → 延迟推演 → 基线 → 团队 → AI 分析（仅管理者）
 type Tab = 'overview' | 'milestones' | 'wbs' | 'delay' | 'baseline' | 'team' | 'ai'
 // WBS 子视图：表格（行内编辑，主工作面）/ 树形 / 甘特图
-type WbsView = 'table' | 'tree' | 'gantt'
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>()
@@ -149,18 +149,17 @@ export default function ProjectDetail() {
 
       {/* WBS：表格（行内编辑）/ 树形 / 甘特图 */}
       {tab === 'wbs' && (
-        <div className="space-y-3">
-          <WbsViewSwitcher view={wbsView} onChange={setWbsView} />
-          {wbsView === 'table' && (
-            <WBSTable project={project} onOpenTask={handleSelectTask} selectedTaskId={selectedTaskId} />
+        <WbsWorkspace key={project.id} view={wbsView} onChange={setWbsView} projectName={project.name}
+          overlayOpen={!!drawerTaskId}
+          overlay={<TaskDrawer task={drawerTaskId ? findTask(drawerTaskId) || null : null} onClose={() => setDrawerTaskId(null)} />}>
+          {(fullscreen) => (
+            <>
+              {wbsView === 'table' && <WBSTable project={project} onOpenTask={handleSelectTask} selectedTaskId={selectedTaskId} fillHeight={fullscreen} />}
+              {wbsView === 'tree' && <WBSTree project={project} onSelectTask={handleSelectTask} selectedTaskId={selectedTaskId} highlightCriticalPath fillHeight={fullscreen} />}
+              {wbsView === 'gantt' && <Gantt project={project} selectedTaskId={selectedTaskId} onSelectTask={handleSelectTask} fillHeight={fullscreen} />}
+            </>
           )}
-          {wbsView === 'tree' && (
-            <WBSTree project={project} onSelectTask={handleSelectTask} selectedTaskId={selectedTaskId} highlightCriticalPath />
-          )}
-          {wbsView === 'gantt' && (
-            <Gantt project={project} selectedTaskId={selectedTaskId} onSelectTask={handleSelectTask} />
-          )}
-        </div>
+        </WbsWorkspace>
       )}
 
       {tab === 'delay' && <DelayImpact project={project} />}
@@ -173,10 +172,10 @@ export default function ProjectDetail() {
         <ProjectAIAnalysis key={project.id} projectId={project.id} projectName={project.name} />
       )}
 
-      <TaskDrawer
+      {tab !== 'wbs' && <TaskDrawer
         task={drawerTaskId ? findTask(drawerTaskId) || null : null}
         onClose={() => setDrawerTaskId(null)}
-      />
+      />}
     </div>
   )
 }
@@ -198,37 +197,5 @@ function TabBtn({
       {icon}
       {label}
     </button>
-  )
-}
-
-function WbsViewSwitcher({ view, onChange }: { view: WbsView; onChange: (v: WbsView) => void }) {
-  const opts: { v: WbsView; label: string; icon: typeof Table2 }[] = [
-    { v: 'table', label: '表格录入', icon: Table2 },
-    { v: 'tree', label: '树形', icon: Rows3 },
-    { v: 'gantt', label: '甘特图', icon: GanttChartSquare },
-  ]
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <div className="inline-flex rounded-md border border-ink-300 bg-white p-0.5">
-        {opts.map((o) => (
-          <button
-            key={o.v}
-            onClick={() => onChange(o.v)}
-            className={cn(
-              'inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors',
-              view === o.v ? 'bg-brand-50 text-brand-700 font-medium' : 'text-ink-700 hover:bg-ink-100',
-            )}
-          >
-            <o.icon className="w-3.5 h-3.5" />
-            {o.label}
-          </button>
-        ))}
-      </div>
-      <div className="flex items-center gap-3">
-        <span className="text-xs text-ink-400">
-          系统严格三级：项目 → 子项目 → 任务（Lv3 下不可再建子节点）
-        </span>
-      </div>
-    </div>
   )
 }

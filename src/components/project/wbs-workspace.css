@@ -1,0 +1,11 @@
+.wbs-workspace { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.wbs-workspace-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; flex-shrink: 0; }
+.wbs-workspace-content { min-width: 0; }
+.wbs-workspace--fullscreen { position: fixed; inset: 0; z-index: 60; height: 100dvh; box-sizing: border-box; padding: 16px; background: var(--workbench-bg, #f4f7f8); overflow: hidden; overscroll-behavior-y: contain; }
+.wbs-workspace--fullscreen .wbs-workspace-content { display: flex; flex: 1; min-height: 0; }
+.wbs-workspace--fullscreen .wbs-workspace-content > * { width: 100%; }
+.wbs-workspace--fullscreen :is(.gantt-scroll, .wbs-view-scroll) { overscroll-behavior-y: contain; }
+@media (max-width: 640px) {
+  .wbs-workspace--fullscreen { padding: 10px; gap: 8px; }
+  .wbs-workspace--fullscreen .wbs-workspace-hint { display: none; }
+}

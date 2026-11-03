@@ -24,6 +24,7 @@ import { can } from '../../lib/permissions'
 import { getTaskSchedule, isTaskDone, scheduleToneText } from '../../lib/schedule'
 import { cn } from '../../lib/cn'
 import { ADD_TO_TEAM_HINT, teamIds } from '../../lib/projectTeam'
+import './wbs-views.css'
 
 const TASK_STATUSES: TaskStatus[] = ['未开始', '进行中', '阻塞', '延迟', '已完成', '已验证']
 const MILESTONE_STATUSES: TaskStatus[] = ['未开始', '已验证']
@@ -43,9 +44,10 @@ interface Props {
   project: Project
   onOpenTask?: (taskId: string) => void
   selectedTaskId?: string
+  fillHeight?: boolean
 }
 
-export function WBSTable({ project, onOpenTask, selectedTaskId }: Props) {
+export function WBSTable({ project, onOpenTask, selectedTaskId, fillHeight = false }: Props) {
   // 订阅数据版本：任一行保存后重新汇总并刷新本表
   useDataStore((s) => s.version)
 
@@ -110,9 +112,9 @@ export function WBSTable({ project, onOpenTask, selectedTaskId }: Props) {
   }
 
   return (
-    <Card>
+    <Card className={cn('wbs-view-card', fillHeight && 'wbs-view-card--fill')}>
       {/* 工具条 */}
-      <div className="px-4 py-3 border-b border-ink-300/40 space-y-2.5">
+      <div className="wbs-view-header px-4 py-3 border-b border-ink-300/40 space-y-2.5">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="flex items-center gap-1.5 text-sm font-medium text-ink-900">
             <FolderTree className="w-4 h-4 text-brand-600" /> WBS 任务清单
@@ -167,22 +169,22 @@ export function WBSTable({ project, onOpenTask, selectedTaskId }: Props) {
         </div>
       </div>
 
-      <CardBody className="p-0 overflow-x-auto">
+      <CardBody className="p-0 wbs-view-scroll wbs-table-scroll" role="region" aria-label="WBS 表格任务区域" tabIndex={0}>
         {totalShown === 0 ? (
           <div className="py-12 text-center text-sm text-ink-500">没有匹配的任务，试试调整筛选条件。</div>
         ) : (
-          <table className="w-full text-sm border-collapse min-w-[1090px]">
+          <table className="wbs-task-table w-full text-sm min-w-[1090px]">
             <thead>
-              <tr className="text-[11px] text-ink-500 bg-ink-100/60 border-b border-ink-300/50">
-                <th className="text-left font-medium px-3 py-2 w-[30%]">任务</th>
-                <th className="text-left font-medium px-2 py-2 w-[100px]">负责人</th>
-                <th className="text-left font-medium px-2 py-2 w-[110px]">状态</th>
-                <th className="text-left font-medium px-2 py-2 w-[120px]">进度</th>
-                <th className="text-right font-medium px-2 py-2 w-[80px]">预算(万)</th>
-                <th className="text-right font-medium px-2 py-2 w-[80px]">花费(万)</th>
-                <th className="text-left font-medium px-2 py-2 w-[124px]">计划开始</th>
-                <th className="text-left font-medium px-2 py-2 w-[170px]">计划结束</th>
-                <th className="text-left font-medium px-2 py-2 w-[124px]">实际结束</th>
+              <tr className="text-[11px] text-ink-500">
+                <th scope="col" className="text-left font-medium px-3 py-2 w-[30%]">任务</th>
+                <th scope="col" className="text-left font-medium px-2 py-2 w-[100px]">负责人</th>
+                <th scope="col" className="text-left font-medium px-2 py-2 w-[110px]">状态</th>
+                <th scope="col" className="text-left font-medium px-2 py-2 w-[120px]">进度</th>
+                <th scope="col" className="text-right font-medium px-2 py-2 w-[80px]">预算(万)</th>
+                <th scope="col" className="text-right font-medium px-2 py-2 w-[80px]">花费(万)</th>
+                <th scope="col" className="text-left font-medium px-2 py-2 w-[124px]">计划开始</th>
+                <th scope="col" className="text-left font-medium px-2 py-2 w-[170px]">计划结束</th>
+                <th scope="col" className="text-left font-medium px-2 py-2 w-[124px]">实际结束</th>
               </tr>
             </thead>
             <tbody>
