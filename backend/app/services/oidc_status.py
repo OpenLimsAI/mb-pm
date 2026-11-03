@@ -49,7 +49,8 @@ def ensure_active_token(
     if not current["active"]:
         raise HTTPException(401, "统一身份令牌已失效，请重新登录")
     if any(
-        not isinstance(current.get(key), str) or not current[key] for key in ("client_id", "sub")
+        not isinstance(current.get(key), str) or not current[key].strip()
+        for key in ("client_id", "sub")
     ):
         raise HTTPException(503, "统一身份令牌状态不完整，请稍后重试")
     if current.get("client_id") != expected_audience or current.get("sub") != claims.get("sub"):
@@ -80,7 +81,9 @@ def ensure_enabled_user(token: str, claims: dict, *, authenticated_iat: int | No
     if (
         current.get("status") != "ok"
         or not isinstance(user, dict)
-        or any(not isinstance(user.get(key), str) or not user[key] for key in ("id", "owner"))
+        or any(
+            not isinstance(user.get(key), str) or not user[key].strip() for key in ("id", "owner")
+        )
         or not isinstance(user.get("isForbidden"), bool)
         or not isinstance(user.get("isDeleted"), bool)
     ):
