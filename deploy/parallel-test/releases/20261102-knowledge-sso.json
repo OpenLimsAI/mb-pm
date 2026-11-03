@@ -1,0 +1,410 @@
+{
+  "scope": "Knowledge-library SSO repair, IAM persistence migration, 17-service read-only persistence audit and post-release acceptance; no runtime secrets, user cookies or business records included.",
+  "source_revisions": {
+    "pm": "e0b6f85f25c67851e500fa896b4520c59c11d082",
+    "kb": "edec8fe92af56b5566eb342b7c8835fd5f01261d"
+  },
+  "pull_requests": {
+    "pm": "https://github.com/OpenLimsAI/mb-pm/pull/133",
+    "kb": "https://github.com/OpenDIKW/dikw-mbweb/pull/44"
+  },
+  "ci": {
+    "pm": {
+      "all_passed": true,
+      "checks": 7
+    },
+    "kb": {
+      "all_passed": true,
+      "checks": 5
+    }
+  },
+  "source_receipts": {
+    "pm": {
+      "source_revision": "e0b6f85f25c67851e500fa896b4520c59c11d082",
+      "runtime_paths": [
+        "/code/app",
+        "/code/static"
+      ],
+      "dependency_hashes": {
+        "backend/requirements.txt": "9ea2a865ec60487b09aa9f7b9b961495c40775c2296d0b3b662ba8b7ac1220ab",
+        "backend/requirements.lock": "2bb3ef0b488cb482e09af266fd1416753b57b713d687b4e0b84384cbb98e46ca",
+        "package-lock.json": "8a46dc2b5dd42db483eb918b8601f2904bdcce36b91fc192a1ad4d42591726b5"
+      }
+    },
+    "kb": {
+      "repository": "https://github.com/OpenDIKW/dikw-mbweb",
+      "source_commit": "edec8fe92af56b5566eb342b7c8835fd5f01261d",
+      "source_tree": "88cd78345927adc0166270311f0806368783a822",
+      "parent_commit": "b62ae81da21a18fce1b894eeb16397d2fd138270",
+      "pull_request": "https://github.com/OpenDIKW/dikw-mbweb/pull/44",
+      "source_method": "GitHub tarball connection timed out; git archive of locally reconstructed merge tree; exact tree SHA verified against GitHub signed merged commit Git Data API",
+      "tree_proof": {
+        "local_branch": "551d37ecbc8f920fcf93be7e481b0cebcca136d5",
+        "merge_with": "b62ae81da21a18fce1b894eeb16397d2fd138270",
+        "merge_tree": "88cd78345927adc0166270311f0806368783a822",
+        "github_merged_tree": "88cd78345927adc0166270311f0806368783a822",
+        "github_signature_verified": true
+      },
+      "built_at_utc": "2026-11-03T00:50:34.418221+00:00",
+      "build_command": "npm ci --offline --cache /private/tmp/maibo-kb-npm-cache --no-audit --no-fund && npm run build",
+      "node_version": "v26.4.0",
+      "npm_version": "12.1.0",
+      "server_bundle_target": "node24",
+      "package_sha256": "9539eca325ff54c86f3ea9e807a734c1e1fee4cc37d14a9b4559605590501a24",
+      "package_lock_sha256": "ce3e128e2dc758198c09c2b833e0e81a20b8442e055171f90bb6a16ca6f9835a",
+      "dependency_baseline_commit": "5938424e5764876a7b343e5ad837c9d48377f2bf",
+      "dependency_files_byte_identical_to_baseline": true,
+      "production_base_image": "sha256:809520eeb9bf98c60012e1afddc193da68b0ac6e3de707b5b4d4d152f7f725fd",
+      "checks": {
+        "build": "passed",
+        "merged_source_unit_integration": "557 passed, 86 test files",
+        "merged_source_chromium_e2e": "39 passed, KB_E2E_PORT=4398",
+        "bundle_budget": "passed"
+      },
+      "payload": "dist and dist-server only; receipts and artifact manifest contain no runtime credentials or business data"
+    }
+  },
+  "isolated_candidates": {
+    "pm": {
+      "image": "sha256:51b3dc7af62920df4030f828ffe657940f326dfe91f4f94824c4353ec2a94a4e",
+      "database_image": "sha256:42e7f6b4e1eceb02ff14e3e6bc6108bbe259abbe83879dc1845d0da1ddeb555d",
+      "expected_source_revision": "e0b6f85f25c67851e500fa896b4520c59c11d082",
+      "checked_at": "2026-11-03T01:11:45.739420+00:00",
+      "synthetic_credentials_only": true,
+      "production_data_mounted": false,
+      "isolated_internal_network": true,
+      "empty_database_schema_upgrade_passed": true,
+      "read_only_root_and_tmpfs_only": true,
+      "checks": {
+        "health_status": 200,
+        "health_production": true,
+        "pm_anonymous_status": 401,
+        "portal_anonymous_status": 401,
+        "index_status": 200,
+        "report_spa_status": 200,
+        "build_info_status": 200,
+        "source_revision_matches": true,
+        "production_api_mode": true,
+        "static_manifest_files_verified": true,
+        "report_sso_protocol_present": true,
+        "auth_login_status": 303,
+        "auth_oauth_target_valid": true,
+        "auth_pkce_valid": true,
+        "auth_callback_valid": true,
+        "auth_secure_cookie_no_store": true,
+        "portal_login_status": 303,
+        "portal_oauth_target_valid": true,
+        "portal_pkce_valid": true,
+        "portal_callback_valid": true,
+        "portal_secure_cookie_no_store": true,
+        "schema_tables_ready": true,
+        "login_transactions_persisted": true,
+        "runtime_db_role_unprivileged": true,
+        "runtime_db_no_schema_create": true,
+        "business_directories_writable": true,
+        "uid_10001": true
+      },
+      "passed": true,
+      "candidate_resources_removed": true
+    },
+    "kb": {
+      "image": "sha256:9b1ca30426aeee2f549ed73e4fe9eeb12bc89c4e35af448863003813deadf093",
+      "source_revision_prefix": "edec8fe",
+      "checked_at": "2026-11-03T01:01:23.491947+00:00",
+      "synthetic_credentials_only": true,
+      "network_none": true,
+      "isolated_tmpfs_only": true,
+      "uid_1000": true,
+      "production_data_mounted": false,
+      "checks": {
+        "health_status": 200,
+        "anonymous_me_status": 401,
+        "embed_status": 200,
+        "embed_auto_sso_probe": true,
+        "embed_auth_required_protocol": true,
+        "embed_unavailable_protocol": true,
+        "embed_fixed_parent": true,
+        "embed_no_store": true,
+        "anonymous_report_return_status": 401,
+        "anonymous_report_return_no_completion_message": true,
+        "wrong_parent_status": 200,
+        "wrong_parent_no_post_message": true
+      },
+      "passed": true,
+      "candidate_removed": true
+    }
+  },
+  "production_switch": {
+    "targets": [
+      {
+        "name": "mb-pm-v2-app-1",
+        "image": "sha256:51b3dc7af62920df4030f828ffe657940f326dfe91f4f94824c4353ec2a94a4e",
+        "previous_image": "sha256:79e46c9cd698583f91a1a12447f941eb5337640c644067a8daf6e16ff6cd7b7e",
+        "configuration_preserved": true
+      },
+      {
+        "name": "mb-pm-v2-app-direct-1",
+        "image": "sha256:51b3dc7af62920df4030f828ffe657940f326dfe91f4f94824c4353ec2a94a4e",
+        "previous_image": "sha256:79e46c9cd698583f91a1a12447f941eb5337640c644067a8daf6e16ff6cd7b7e",
+        "configuration_preserved": true
+      },
+      {
+        "name": "dikw-mbweb",
+        "image": "sha256:9b1ca30426aeee2f549ed73e4fe9eeb12bc89c4e35af448863003813deadf093",
+        "previous_image": "sha256:008588ace5057fb8dd2dff2ca315ed570cf03ca98ee0bbb2d0b000ef791e6a63",
+        "configuration_preserved": true
+      }
+    ],
+    "release_directory": "/home/prometheus/mb-pm-v2/releases/knowledge-sso-20261102",
+    "rollback_commands_path": "application-switch/rollback-commands.json",
+    "rollback_source_revisions": {
+      "pm": "c6e4b9fc7ec8187dce2e952eda0c9c32fd5aad55",
+      "kb": "b62ae81da21a18fce1b894eeb16397d2fd138270"
+    },
+    "rollback_boundary": "Revalidate current image/configuration and acquire release locks before executing complete saved argv per service; retain database and all durable volumes, including newly migrated IAM sessions and logs. Do not blindly reuse after subsequent deployments."
+  },
+  "iam_persistence_receipt": {
+    "verified_at_utc": "2026-11-03T01:32:22.188149+00:00",
+    "container_id": "fb024b50ce1f6e7dc28dc7380d52111024ab9e84eda4e204cb928e739fe5e8d5",
+    "container_started_at_utc": "2026-11-03T01:08:19.485842645Z",
+    "image": "sha256:bc7f85bb62e1d5f4597c69bcf7629ee6be5c34f44ef79f56666435d8315f8acc",
+    "checks": {
+      "same_image": true,
+      "same_environment": true,
+      "same_user": true,
+      "same_command": true,
+      "same_entrypoint": true,
+      "same_network_names": true,
+      "original_mounts_preserved": true,
+      "log_config_source_matches_prepared": true,
+      "runtime_log_config_matches_source": true
+    },
+    "mounts": [
+      {
+        "target": "/tmp",
+        "name": "mb-pm-v2-casdoor-sessions",
+        "rw": true
+      },
+      {
+        "target": "/logs",
+        "name": "mb-pm-v2-casdoor-logs",
+        "rw": true
+      }
+    ],
+    "log_config": {
+      "only_log_config_changed": true,
+      "changed_fields": [
+        "maxdays",
+        "maxsize",
+        "daily",
+        "rotate"
+      ],
+      "before_sha256": "2e5551cb0e05fde281ef6dd8cdbde89965f65116282d762d0064eea1522a9ea3",
+      "after_sha256": "783156372a8b8c7e3173af118b4c2bff46b915c02ec21ab0f16574fb68fade7c",
+      "owner_mode_preserved": true,
+      "iam_not_restarted": true
+    },
+    "migration": {
+      "image": "sha256:bc7f85bb62e1d5f4597c69bcf7629ee6be5c34f44ef79f56666435d8315f8acc",
+      "stores": {
+        "sessions": {
+          "volume": "mb-pm-v2-casdoor-sessions",
+          "copied_files": 1500,
+          "archive_sha256": "bc829129180d1b1c59f4832473cae5427731c06882af1a1dc5e3d3440de7f8a6"
+        },
+        "logs": {
+          "volume": "mb-pm-v2-casdoor-logs",
+          "copied_files": 2,
+          "archive_sha256": "2f3016fa7346c52e6695144b9f2d9062846fd730db68922b6f20ccba786a7ef6"
+        }
+      },
+      "oidc_discovery_unchanged": true
+    },
+    "base_compose": {
+      "before_sha256": "6704e3f14853647f6525904985c4a47322624d439a6088697f210a27b5f66283",
+      "after_sha256": "b9038c906d4c2049dc03f565400f9323e4eb4251ec240e32ff42b468bce7b85f",
+      "full_compose_unchanged": true,
+      "base_retains_both_volumes": true,
+      "container_id_unchanged": true
+    },
+    "monitor_install": {
+      "target": "/home/prometheus/security-hardening-20261102/monitor.py",
+      "previous_sha256": "c29f4c47c5fe490892e4ae02aabe5c2cd7c7ac6c51bad01bb6ce450afabbba8f",
+      "current_sha256": "978ad2b938abf0f59068380c52adea2223c79176979e37ab572fc97ecf87ebd3",
+      "cron_schedule_unchanged": true,
+      "owner_mode_preserved": true
+    },
+    "monitor": {
+      "exit_code": 0,
+      "managed_services": 17,
+      "alerts": [],
+      "iam": {
+        "name": "mb-pm-v2-casdoor-1",
+        "health": "running",
+        "resource_limits": true,
+        "log_rotation": true,
+        "casdoor_sessions_persistent": true,
+        "casdoor_logs_persistent": true
+      }
+    },
+    "public_acceptance": {
+      "status": "pending_real_browser",
+      "cli_discovery_status": 403,
+      "note": "Public urllib request was rejected by the edge; internal OIDC discovery contract is verified. No edge controls changed."
+    },
+    "private_backups_remain_on_server": true,
+    "backup_root": "/home/prometheus/mb-pm-v2/releases/knowledge-sso-20261102"
+  },
+  "final_browser_acceptance": {
+    "observed_at_utc": "2026-11-03T01:34:46.062444+00:00",
+    "method": "Native Chrome accessibility snapshot via cua_repl; new acceptance tab, no report content edited",
+    "portal_url": "https://www.openlims.ai/solutions",
+    "library_embed_origin": "https://kb.openlims.ai",
+    "report_loaded": true,
+    "existing_authenticated_account_visible": true,
+    "embedded_library_loaded": true,
+    "paper_count_observed": 280,
+    "separate_login_prompt": false,
+    "generic_load_failure": false,
+    "iframe_refresh_preserves_authenticated_library": true,
+    "limitations": [
+      "No logout or forced removal of a real user cookie performed; expired-session recovery and permissions are covered by automated isolation tests.",
+      "A transient browser network error and anonymous CLI edge 403 preceded successful authenticated browser loading. No edge or browser security setting was changed."
+    ]
+  },
+  "acceptance_sequence_note": "The IAM receipt recorded pending_real_browser at 01:32:22 UTC; final_browser_acceptance at 01:34:46 UTC supersedes that earlier public-acceptance status. No forced production expiry/logout was performed.",
+  "persistence_audit_before_fix": {
+    "path": "../../../docs/verification/2026-11-02-persistence-audit.json",
+    "observed_at_utc": "2026-11-03T00:44:36.814796+00:00",
+    "sha256": "726265c4d52c99dd5bdf4c45f4e387ffb2e4f90d012f5b732882ee972ea4cc1e",
+    "services": 17,
+    "snapshot_preserved_without_rewriting_historical_gaps": true
+  },
+  "limitations": [
+    "Real-user acceptance reused an existing authenticated browser session and did not submit credentials, log out, force cookie expiry, edit report content or call a paid model.",
+    "Expired-session recovery and authorization boundaries were verified with automated isolated fixtures, not destructive production tests.",
+    "Persistent mounts were verified; this audit is not a full disaster-recovery or database-restore exercise."
+  ],
+  "production_origin_verification": {
+    "checked_at": "2026-11-03T02:06:11.558820+00:00",
+    "scope": "origin-only read-only; anonymous gates and service connectivity; no authenticated browser SSO claim",
+    "business_writes": false,
+    "secrets_or_user_data_returned": false,
+    "containers": [
+      {
+        "name": "mb-pm-v2-app-1",
+        "image": "sha256:51b3dc7af62920df4030f828ffe657940f326dfe91f4f94824c4353ec2a94a4e",
+        "image_matches": true,
+        "started_at": "2026-11-03T01:17:30.181544549Z",
+        "running": true,
+        "health": "healthy",
+        "read_only_root": true,
+        "compose_image_matches": true,
+        "compose_hash_matches": true,
+        "environment_matches_persistent_source": true,
+        "source_receipt_matches": true,
+        "checks": {
+          "artifact_file_count": 303,
+          "all_artifact_hashes_match": true,
+          "health_status": 200,
+          "pm_anonymous_status": 401,
+          "portal_anonymous_status": 401,
+          "index_status": 200,
+          "build_info_status": 200,
+          "source_revision_matches": true,
+          "real_api_enabled": true,
+          "knowledge_connection_configured": true,
+          "knowledge_public_origin_expected": true,
+          "knowledge_health_status": 200,
+          "knowledge_authenticated_headers_status": 200,
+          "knowledge_reply_json": true
+        },
+        "root_filesystem_mode_preserved": true
+      },
+      {
+        "name": "mb-pm-v2-app-direct-1",
+        "image": "sha256:51b3dc7af62920df4030f828ffe657940f326dfe91f4f94824c4353ec2a94a4e",
+        "image_matches": true,
+        "started_at": "2026-11-03T01:17:43.310183921Z",
+        "running": true,
+        "health": "healthy",
+        "read_only_root": true,
+        "compose_image_matches": true,
+        "compose_hash_matches": true,
+        "environment_matches_persistent_source": true,
+        "source_receipt_matches": true,
+        "checks": {
+          "artifact_file_count": 303,
+          "all_artifact_hashes_match": true,
+          "health_status": 200,
+          "pm_anonymous_status": 401,
+          "portal_anonymous_status": 401,
+          "index_status": 200,
+          "build_info_status": 200,
+          "source_revision_matches": true,
+          "real_api_enabled": true,
+          "knowledge_connection_configured": true,
+          "knowledge_public_origin_expected": true,
+          "knowledge_health_status": 200,
+          "knowledge_authenticated_headers_status": 200,
+          "knowledge_reply_json": true
+        },
+        "root_filesystem_mode_preserved": true
+      },
+      {
+        "name": "dikw-mbweb",
+        "image": "sha256:9b1ca30426aeee2f549ed73e4fe9eeb12bc89c4e35af448863003813deadf093",
+        "image_matches": true,
+        "started_at": "2026-11-03T01:17:56.003143851Z",
+        "running": true,
+        "health": "healthy",
+        "read_only_root": false,
+        "compose_image_matches": true,
+        "compose_hash_matches": true,
+        "environment_matches_persistent_source": true,
+        "manifest_metadata_files_excluded": 1,
+        "source_receipt_matches": true,
+        "checks": {
+          "artifact_file_count": 166,
+          "all_artifact_hashes_match": true,
+          "health_status": 200,
+          "anonymous_me_status": 401,
+          "embed_status": 200,
+          "auto_sso_probe": true,
+          "auth_protocol": true,
+          "fixed_parent_and_no_store": true,
+          "anonymous_report_return_status": 401,
+          "anonymous_return_no_postmessage": true,
+          "wrong_parent_no_postmessage": true
+        },
+        "root_filesystem_mode_preserved": true
+      }
+    ],
+    "monitor": {
+      "checked_at": "2026-11-03T01:32:22.087264+00:00",
+      "managed_services": 17,
+      "alerts": [],
+      "all_healthy": true
+    },
+    "activity_at_switch": {
+      "queued_or_running_knowledge_jobs": 0,
+      "queued_or_running_assistant_requests": 0
+    },
+    "switch_configuration_preserved": true,
+    "passed": true
+  },
+  "deployment_templates": {
+    "included_in_pm_source": true,
+    "compose_entrypoints": [
+      "docker-compose.yml",
+      "backend/docker-compose.yml",
+      "deploy/parallel-test/compose.yml"
+    ],
+    "persistent_paths": [
+      "/data/ai",
+      "/data/information"
+    ],
+    "production_dockerfile_initializes_uid_10001_writable_directories": true,
+    "existing_production_mounts_were_already_durable": true
+  }
+}
