@@ -1,0 +1,292 @@
+{
+  "pm": {
+    "source": "b79f0daa879f670858ac6aaeeae0355a9d3325b0",
+    "image": "sha256:01d4b470d6501e5c7f5646eec533263d6e19d0c88a0351bb9a14b924fd8657a9",
+    "previous_image": "sha256:1a23cdb77b03d527416125a898ffa4f04d1b42abb0fdd1973852d0fb2a12c0f7",
+    "instances": 2,
+    "preserved_files": [
+      "/home/prometheus/mb-pm-v2/compose.yml",
+      "/home/prometheus/mb-pm-v2/compose.production.yml",
+      "/home/prometheus/mb-pm-v2/compose.direct.yml",
+      "/home/prometheus/mb-pm-v2/releases/header-9516977/compose.no-note-sync.yml",
+      "/home/prometheus/mb-pm-v2/releases/assistant-dikw-e294fdc/compose.knowledge.private.yml",
+      "/home/prometheus/mb-pm-v2/releases/knowledge-sources-687bddc-20261101/compose.knowledge-sources.yml",
+      "/home/prometheus/mb-pm-v2/releases/deepseek-search-99ca39d-20261101/compose.deepseek-search.yml",
+      "/home/prometheus/security-hardening-20261102/limits-1.json",
+      "/home/prometheus/security-hardening-20261102/pm-release-cd02021/compose.security.active.yml",
+      "/home/prometheus/mb-pm-v2/releases/report-workbench-e33b48d-20261102/compose.report-workbench.yml",
+      "/home/prometheus/mb-pm-v2/releases/efficient-workspace-c6e4b9f-20261103/rollout/pm.fixed-images.json",
+      "/home/prometheus/mb-pm-v2/releases/knowledge-sso-20261102/application-switch/group-0.active.json",
+      "/home/prometheus/mb-pm-v2/releases/report-editor-layout-48401af-20261103/rollout/pm.fixed-images.json",
+      "/home/prometheus/mb-pm-v2/releases/assistant-scope-8147c1d-20261102-r2/compose.assistant-scope.yml"
+    ],
+    "verification": [
+      {
+        "nonroot_uid": 10001,
+        "runtime_role": "maibo_pm_runtime",
+        "elevated_db_flags": false,
+        "business_constraints": {
+          "projects": 4,
+          "sub_projects": 2,
+          "tasks": 7,
+          "project_finances": 1
+        },
+        "core_connection": "verified_readonly",
+        "source_count": 280,
+        "production_api_build": true,
+        "source": "b79f0daa879f670858ac6aaeeae0355a9d3325b0",
+        "csp": true,
+        "anonymous_api": 401,
+        "persistent_data_readable": true
+      },
+      {
+        "nonroot_uid": 10001,
+        "runtime_role": "maibo_pm_runtime",
+        "elevated_db_flags": false,
+        "business_constraints": {
+          "projects": 4,
+          "sub_projects": 2,
+          "tasks": 7,
+          "project_finances": 1
+        },
+        "core_connection": "verified_readonly",
+        "source_count": 280,
+        "production_api_build": true,
+        "source": "b79f0daa879f670858ac6aaeeae0355a9d3325b0",
+        "csp": true,
+        "anonymous_api": 401,
+        "persistent_data_readable": true
+      }
+    ],
+    "migrations": false,
+    "tables_checked": 43,
+    "prior_record_ids_preserved": true,
+    "prior_assistant_messages_preserved": true,
+    "model_settings_preserved": true,
+    "backend_files_changed": [
+      "app/api/v1/knowledge_sources.py",
+      "app/services/information/worker.py",
+      "app/services/knowledge_source_references.py",
+      "app/services/knowledge_source_worker.py",
+      "app/services/reference_download.py"
+    ],
+    "candidate": {
+      "status": "passed",
+      "checks": [
+        "solutions_owner_import",
+        "solutions_deduplicate",
+        "solutions_owner_isolation",
+        "solutions_download_permission",
+        "solutions_queued_job_reuse",
+        "solutions_archive_parse_index",
+        "solutions_signed_protocol_shape",
+        "solutions_no_private_dialogue_in_catalogue",
+        "assistant_owner_import",
+        "assistant_deduplicate",
+        "assistant_owner_isolation",
+        "assistant_download_permission",
+        "assistant_queued_job_reuse",
+        "assistant_archive_parse_index",
+        "assistant_signed_protocol_shape",
+        "assistant_no_private_dialogue_in_catalogue"
+      ],
+      "isolated_database": "reference_papers_check_b79f0da_20261103",
+      "external_model_calls": 0,
+      "external_downloads": 0,
+      "production_records_written": 0
+    },
+    "actual_image_login_verified": true
+  },
+  "knowledge_library": {
+    "source": "ac2d73cd890200e1fa67ae735d893a1f7cec13dd",
+    "image": "sha256:286bf143882a6737063ea6f90ba784d65179015edb700104d71f74407162fbba",
+    "previous_image": "sha256:5b61b0ad7b7d7d7ee3a02f192e954dd62ecb3c779aa9198ef210dd0c3adb252e",
+    "preserved_files": [
+      "/home/prometheus/dikw/docker-compose.yml",
+      "/home/prometheus/security-hardening-20261102/limits-6.json",
+      "/home/prometheus/security-hardening-20261102/kb-release-5938424/kb.fixed-image.json",
+      "/home/prometheus/dikw/releases/efficient-workspace-b62ae81-20261103/switch/kb.fixed-image.json",
+      "/home/prometheus/mb-pm-v2/releases/knowledge-sso-20261102/application-switch/group-1.active.json",
+      "/home/prometheus/security-hardening-20261102/kb-followup-005f93e/kb.fixed-image.json",
+      "/home/prometheus/dikw/releases/reference-papers-ac2d73c-20261103/rollout/kb.rollback-image.json"
+    ],
+    "verification": {
+      "health": 200,
+      "anonymous": 401,
+      "oidc_callback": "unchanged",
+      "shared_cohort": "0.1.8",
+      "live_identity_guard": true,
+      "core_readonly": true,
+      "source_count": 280
+    },
+    "health": "healthy",
+    "snapshot_backed_up": true,
+    "settings_preserved": true,
+    "security_preserved": true,
+    "database_migration": false,
+    "database_restored": false
+  },
+  "public": {
+    "checked_at_utc": "2026-11-03T10:24:33.545327+00:00",
+    "url": "https://www.openlims.ai/solutions",
+    "source": "b79f0daa879f670858ac6aaeeae0355a9d3325b0",
+    "statuses": {
+      "health": 200,
+      "manifest": 200,
+      "report": 200,
+      "anonymous_reports": 401
+    },
+    "public_index_matches_image": true,
+    "index_sha256": "d3b39e17e009b8f815715e2a3fcfefa06c1221a7366667d3afdad5201e64802e",
+    "api_base": "/api/v1",
+    "app_mode": "domain",
+    "authenticated_customer_session_tested": false,
+    "anonymous_reference_import": 401
+  },
+  "feature_commit": "03227ab09cf941cac1db7ba12c5b7fb841d9c54f",
+  "ci": {
+    "portal": {
+      "headRefOid": "7eed098430c20ad900819e68b001b6bfff85e5d5",
+      "mergeStateStatus": "CLEAN",
+      "state": "OPEN",
+      "statusCheckRollup": [
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-03T09:29:32Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41606216616/job/125831647086",
+          "name": "前端 · 类型检查 + 构建（硬护栏）",
+          "startedAt": "2026-11-03T09:24:16Z",
+          "status": "COMPLETED",
+          "workflowName": "CI"
+        },
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-03T09:25:36Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41606216817/job/125831670015",
+          "name": "dependencies",
+          "startedAt": "2026-11-03T09:24:20Z",
+          "status": "COMPLETED",
+          "workflowName": "Security"
+        },
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-03T09:24:36Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41606216616/job/125831646910",
+          "name": "后端 · ruff 格式检查（硬护栏）",
+          "startedAt": "2026-11-03T09:24:26Z",
+          "status": "COMPLETED",
+          "workflowName": "CI"
+        },
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-03T09:25:54Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41606216817/job/125831670356",
+          "name": "container",
+          "startedAt": "2026-11-03T09:24:19Z",
+          "status": "COMPLETED",
+          "workflowName": "Security"
+        },
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-03T09:27:12Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41606216616/job/125831646478",
+          "name": "后端 · pytest（PostgreSQL · 硬护栏）",
+          "startedAt": "2026-11-03T09:24:16Z",
+          "status": "COMPLETED",
+          "workflowName": "CI"
+        },
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-03T09:25:55Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41606216616/job/125831646976",
+          "name": "Docker · 镜像构建验证（硬护栏）",
+          "startedAt": "2026-11-03T09:24:16Z",
+          "status": "COMPLETED",
+          "workflowName": "CI"
+        },
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-03T09:25:11Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41606216616/job/125831646834",
+          "name": "Lint 报告（软护栏 · 不阻断）",
+          "startedAt": "2026-11-03T09:24:16Z",
+          "status": "COMPLETED",
+          "workflowName": "CI"
+        }
+      ]
+    },
+    "knowledge_library": {
+      "headRefOid": "ad27b13a547f09d5454a9e4f12a976869889d097",
+      "mergeStateStatus": "CLEAN",
+      "state": "OPEN",
+      "statusCheckRollup": [
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-03T08:43:51Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenDIKW/dikw-mbweb/actions/runs/41604931539/job/125812294390",
+          "name": "Verify (typecheck + coverage + build + e2e)",
+          "startedAt": "2026-11-03T08:39:51Z",
+          "status": "COMPLETED",
+          "workflowName": "CI"
+        },
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-03T08:40:09Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenDIKW/dikw-mbweb/actions/runs/41604931539/job/125812294238",
+          "name": "Dependency audit (prod, high+)",
+          "startedAt": "2026-11-03T08:39:44Z",
+          "status": "COMPLETED",
+          "workflowName": "CI"
+        },
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-03T08:39:56Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenDIKW/dikw-mbweb/actions/runs/41604931539/job/125812294532",
+          "name": "Secret scan (gitleaks)",
+          "startedAt": "2026-11-03T08:39:49Z",
+          "status": "COMPLETED",
+          "workflowName": "CI"
+        },
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-03T08:43:17Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenDIKW/dikw-mbweb/actions/runs/41604931539/job/125812294264",
+          "name": "Container scan (trivy)",
+          "startedAt": "2026-11-03T08:39:44Z",
+          "status": "COMPLETED",
+          "workflowName": "CI"
+        },
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-03T08:39:51Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenDIKW/dikw-mbweb/actions/runs/41604931539/job/125812294512",
+          "name": "Gate integrity (no reward-hacking)",
+          "startedAt": "2026-11-03T08:39:44Z",
+          "status": "COMPLETED",
+          "workflowName": "CI"
+        }
+      ]
+    }
+  },
+  "frontend_tests": {
+    "files": 89,
+    "passed": 864
+  },
+  "knowledge_library_tests": {
+    "files": 86,
+    "passed": 595
+  },
+  "actual_image_static_archive_sha256": "26691bad7136eb0005b5dadff2bc9a58cee8035dd828177f340d3c2c82606604"
+}
