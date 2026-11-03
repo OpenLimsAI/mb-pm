@@ -17,9 +17,9 @@ export function CardHeader({
   className?: string
 }) {
   return (
-    <div className={cn('flex items-start justify-between p-4 border-b border-ink-300/40', className)}>
+    <div className={cn('flex items-start justify-between gap-3 flex-wrap px-4 py-3 border-b border-ink-300/60', className)}>
       <div>
-        <h3 className="text-base font-semibold text-accent-green">{title}</h3>
+        <h3 className="text-sm font-semibold text-ink-900">{title}</h3>
         {subtitle && <p className="text-xs text-ink-500 mt-0.5">{subtitle}</p>}
       </div>
       {action && <div className="flex items-center gap-2">{action}</div>}

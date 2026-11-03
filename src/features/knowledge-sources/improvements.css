@@ -1,14 +1,14 @@
 #knowledge-source-app .kso-task-summary{display:flex;align-items:center;gap:16px;flex-wrap:wrap;cursor:pointer;padding:8px 0}
 #knowledge-source-app .kso-task-summary>span{font-size:12px;color:#637c8c}
-#knowledge-source-app .kso-version{display:flex;flex-direction:column;gap:4px;padding:9px 0;border-bottom:1px solid #dfe7ed;font-size:12px;overflow-wrap:anywhere}
+#knowledge-source-app .kso-version{display:flex;flex-direction:column;gap:4px;padding:9px 0;border-bottom:1px solid var(--workbench-line);font-size:12px;overflow-wrap:anywhere}
 #knowledge-source-app .kso-version small{color:#637c8c}
-#knowledge-source-app .kso-change{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:1px solid #dfe7ed}
-#knowledge-source-app .kso-change small{display:block;color:#637c8c;font-size:11px;margin:4px 0}
+#knowledge-source-app .kso-change{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:1px solid var(--workbench-line)}
+#knowledge-source-app .kso-change small{display:block;color:#637c8c;font-size:12px;margin:4px 0}
 #knowledge-source-app .kso-change pre{white-space:pre-wrap;overflow-wrap:anywhere;max-width:65vw;font-size:12px}
-#knowledge-source-app .kso-folder-maintenance{padding:12px 16px;background:#fff;border:1px solid #dfe7ed;border-radius:7px}
+#knowledge-source-app .kso-folder-maintenance{padding:12px 16px;background:#fff;border:1px solid var(--workbench-line);border-radius:7px}
 #knowledge-source-app .kso-folder-maintenance summary{cursor:pointer;font-size:12px;color:#45647b}
 #knowledge-source-app .kso-folder-pin{position:absolute;right:36px;top:10px;background:transparent;border:0;color:#8297a5;cursor:pointer}
-#knowledge-source-app .kso-folder-pin[aria-pressed=true]{color:#087b9c}
+#knowledge-source-app .kso-folder-pin[aria-pressed=true]{color:var(--workbench-brand)}
 #knowledge-source-app.kso-density-standard .kso-table td{padding-block:14px}
 #knowledge-source-app .kso-inspector-section .kso-actions{flex-direction:column;align-items:stretch}
 #knowledge-source-app .kso-inline-status small{margin-left:12px}

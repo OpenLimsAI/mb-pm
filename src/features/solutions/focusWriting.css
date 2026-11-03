@@ -23,9 +23,9 @@
 
 .ks-focus-writing .ks-topbar-title { min-width: 0; gap: 10px; }
 .ks-focus-writing .ks-app-name { font-size: 14px; letter-spacing: .3px; white-space: nowrap; }
-.ks-focus-writing .ks-topbar-title > .ks-muted { font-size: 10px; }
+.ks-focus-writing .ks-topbar-title > .ks-muted { font-size: 12px; }
 .ks-focus-writing .ks-top-actions { flex-shrink: 0; gap: 4px; }
-.ks-focus-writing .ks-top-actions .ks-button { min-height: 28px; padding: 4px 7px; font-size: 11px; }
+.ks-focus-writing .ks-top-actions .ks-button { min-height: 28px; padding: 4px 7px; font-size: 12px; }
 .ks-focus-writing .ks-top-actions .ks-primary { padding: 4px 10px; }
 .ks-focus-writing .ks-demo-badge { line-height: 19px; }
 
@@ -50,14 +50,14 @@
 .ks-focus-report > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
 .ks-focus-report .ks-status,
 .ks-focus-report .ks-save-status { flex-shrink: 0; }
-.ks-focus-report .ks-save-status { font-size: 10px; }
+.ks-focus-report .ks-save-status { font-size: 12px; }
 .ks-focus-chapter > strong,
-.ks-focus-chapter > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: #66776b; }
-.ks-focus-chapter > .ks-button { flex-shrink: 0; min-height: 29px; font-size: 10px; padding: 4px 6px; }
-.ks-focus-chapter > select { flex: 0 1 180px; width: 180px; min-width: 62px; max-width: 180px; height: 29px; padding: 3px 22px 3px 7px; overflow: hidden; text-overflow: ellipsis; border: 1px solid #e2e8dc; border-radius: 5px; background: #fafbf8; color: #526b4f; font-size: 11px; }
+.ks-focus-chapter > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: #66776b; }
+.ks-focus-chapter > .ks-button { flex-shrink: 0; min-height: 29px; font-size: 12px; padding: 4px 6px; }
+.ks-focus-chapter > select { flex: 0 1 180px; width: 180px; min-width: 62px; max-width: 180px; height: 29px; padding: 3px 22px 3px 7px; overflow: hidden; text-overflow: ellipsis; border: 1px solid #e2e8dc; border-radius: 5px; background: #fafbf8; color: #526b4f; font-size: 12px; }
 .ks-focus-toolbar .ks-editor-tabs { flex-shrink: 0; background: #f6f8f4; }
 .ks-focus-toolbar .ks-editor-tabs button { min-height: 24px; padding: 2px 10px; }
-.ks-focus-writing .ks-notice { padding: 5px 16px; font-size: 10px; }
+.ks-focus-writing .ks-notice { padding: 5px 16px; font-size: 12px; }
 
 .ks-focus-writing .ks-focus-workspace {
   display: block;
@@ -180,7 +180,7 @@
   border-left: 1px solid #e4e9df;
   background: #fafbf8;
 }
-.ks-focus-tools > button { display: flex; flex: 0 0 auto; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 100%; min-height: 48px; padding: 7px 1px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: #778673; font-size: 10px; line-height: 1.25; }
+.ks-focus-tools > button { display: flex; flex: 0 0 auto; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 100%; min-height: 48px; padding: 7px 1px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: #778673; font-size: 12px; line-height: 1.25; }
 .ks-focus-tools > button svg { width: 18px; height: 18px; }
 .ks-focus-tools > button:hover:not(:disabled) { background: #edf3e9; color: #335e43; }
 .ks-focus-tools > button[aria-pressed="true"],
@@ -221,9 +221,9 @@
 .ks-focus-report-info dl { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 12px 16px; margin: 0 0 22px; font-size: 12px; }
 .ks-focus-report-info dt { color: #8d9d80; }
 .ks-focus-report-info dd { min-width: 0; margin: 0; color: #5c7550; overflow-wrap: anywhere; }
-.ks-focus-report-info > .ks-button { margin-right: 5px; border-color: #e0e8d7; font-size: 11px; }
+.ks-focus-report-info > .ks-button { margin-right: 5px; border-color: #e0e8d7; font-size: 12px; }
 .ks-focus-review-note { margin-bottom: 20px; padding: 13px; border: 1px solid #e0e8d8; border-radius: 6px; background: #f7faf3; color: #667f57; }
-.ks-focus-review-note > strong { font-size: 11px; }
+.ks-focus-review-note > strong { font-size: 12px; }
 .ks-focus-review-note > p { margin-top: 8px; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 @media (max-width: 900px) {
@@ -249,25 +249,25 @@
   .ks-focus-writing .ks-app-name { font-size: 13px; }
   .ks-focus-writing .ks-demo-badge { font-size: 8px; padding: 0 4px; }
   .ks-focus-writing .ks-top-actions { gap: 1px; }
-  .ks-focus-writing .ks-top-actions .ks-button { padding: 4px; font-size: 10px; }
+  .ks-focus-writing .ks-top-actions .ks-button { padding: 4px; font-size: 12px; }
   .ks-focus-toolbar { gap: 5px; padding: 0 10px; }
   .ks-focus-report { flex: 1 1 35%; flex-wrap: wrap; gap: 1px 5px; }
   .ks-focus-report h1,
-  .ks-focus-report > strong { flex-basis: 100%; font-size: 11px; }
+  .ks-focus-report > strong { flex-basis: 100%; font-size: 12px; }
   .ks-focus-report .ks-status { font-size: 8px; line-height: 14px; padding: 0 4px; }
   .ks-focus-report .ks-save-status { font-size: 8px; padding: 0; gap: 3px; }
   .ks-focus-report .ks-save-status svg { width: 11px; height: 11px; }
   .ks-focus-chapter { flex: 0 1 58%; gap: 3px; }
   .ks-focus-chapter > strong,
-  .ks-focus-chapter > span { max-width: 70px; font-size: 10px; }
-  .ks-focus-chapter > .ks-button { padding: 3px; font-size: 9px; }
-  .ks-focus-chapter > select { flex-basis: 90px; width: 90px; min-width: 38px; max-width: 90px; padding-right: 13px; padding-left: 4px; font-size: 10px; }
-  .ks-focus-toolbar .ks-editor-tabs button { padding: 2px 6px; font-size: 9px; }
+  .ks-focus-chapter > span { max-width: 70px; font-size: 12px; }
+  .ks-focus-chapter > .ks-button { padding: 3px; font-size: 12px; }
+  .ks-focus-chapter > select { flex-basis: 90px; width: 90px; min-width: 38px; max-width: 90px; padding-right: 13px; padding-left: 4px; font-size: 12px; }
+  .ks-focus-toolbar .ks-editor-tabs button { padding: 2px 6px; font-size: 12px; }
   .ks-focus-writing .ks-paper { padding: 14px 14px 8px !important; }
   .ks-focus-writing .ks-body-editor,
   .ks-focus-writing .ks-reading-content .ks-markdown { font-size: 13px !important; }
   .ks-focus-tools { padding: 8px 3px; gap: 3px; }
-  .ks-focus-tools > button { font-size: 9px; min-height: 45px; }
+  .ks-focus-tools > button { font-size: 12px; min-height: 45px; }
   .ks-focus-tools > button svg { width: 17px; height: 17px; }
   .ks-focus-writing .ks-supplement-content { padding: 14px; }
 }

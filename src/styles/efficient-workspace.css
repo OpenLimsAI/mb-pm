@@ -1,0 +1,216 @@
+/* MBERP 高效工作台：应用共享的极光青、尺寸与信息层级。
+   选择器包含 :root，以确保按需加载的业务样式不会恢复旧的深蓝外壳。 */
+:root {
+  --workbench-brand: #087a86;
+  --workbench-brand-strong: #08616c;
+  --workbench-ink: #18373e;
+  --workbench-text: #35565c;
+  --workbench-muted: #5b747a;
+  --workbench-line: #d7e4e6;
+  --workbench-soft: #e7f3f3;
+  --workbench-bg: #f4f7f7;
+  --workbench-panel: #fff;
+  --workbench-header-height: 56px;
+  --app-header-background: #fff;
+}
+
+/* PM 与门户同一套轻量外壳。 */
+:root .app-sidebar { width: 200px; background: var(--workbench-bg); }
+:root .app-brand { height: 56px; border-color: var(--workbench-line); background: var(--workbench-panel); }
+:root .app-brand-logo { width: 34px; height: 34px; }
+:root .app-brand-copy { color: var(--workbench-ink); }
+:root .app-brand-copy :is(.text-white, .text-white\/60, .text-white\/70) { color: var(--workbench-muted); }
+:root .app-topbar { height: 56px; padding-inline: 20px; gap: 16px; color: var(--workbench-ink); background: var(--workbench-panel); box-shadow: none; border-bottom: 1px solid var(--workbench-line); }
+:root .app-workspace-name { color: var(--workbench-ink); font-size: 13px; }
+:root .app-nav { padding: 18px 12px; }
+:root .app-nav-caption { font-size: 12px; letter-spacing: .5px; }
+:root .app-nav-active::before { display: none; }
+:root .app-nav-active { background: var(--workbench-soft); color: var(--workbench-brand-strong); }
+:root .app-sidebar-footer { font-size: 12px; }
+:root .app-main > .p-6 { padding: 22px 24px; }
+:root .metric-body { padding: 16px 16px 10px; text-align: left; }
+:root .metric-value { font-size: 28px; }
+:root .metric-note { font-size: 12px; }
+:root .metric-caption { padding: 10px 16px; }
+
+/* 门户从宣传型大卡片改为持续可见导航和紧凑应用入口。 */
+:root .efficient-portal { display: grid; grid-template-columns: 200px minmax(0, 1fr); grid-template-rows: 56px 1fr auto; min-height: 100dvh; background: var(--workbench-bg); --workspace-blue: var(--workbench-brand-strong); --workspace-text: var(--workbench-ink); --workspace-muted: var(--workbench-muted); }
+:root .efficient-portal .workspace-header { grid-column: 1 / -1; position: sticky; top: 0; z-index: 40; background: var(--workbench-panel); border-bottom: 1px solid var(--workbench-line); }
+:root .efficient-portal .workspace-header-inner { max-width: none; height: 56px; min-height: 56px; padding: 8px 20px; gap: 24px; flex-wrap: nowrap; }
+:root .efficient-portal .workspace-brand { min-width: 155px; gap: 9px; }
+:root .efficient-portal .workspace-brand img { width: 32px; height: 36px; }
+:root .efficient-portal .workspace-brand-copy { gap: 1px; }
+:root .efficient-portal .workspace-brand-copy strong { font-size: 15px; letter-spacing: .3px; color: var(--workbench-ink); }
+:root .efficient-portal .workspace-brand-copy > span { font-size: 11px; letter-spacing: 0; }
+:root .workspace-context { font-size: 12px; color: var(--workbench-muted); margin-right: auto; }
+:root .workspace-sidebar { grid-column: 1; grid-row: 2 / 4; position: sticky; top: 56px; height: calc(100dvh - 56px); align-self: start; display: flex; flex-direction: column; padding: 24px 12px 18px; border-right: 1px solid var(--workbench-line); }
+:root .workspace-sidebar-caption { font-size: 12px; color: var(--workbench-muted); margin: 0 12px 12px; }
+:root .efficient-portal .portal-navigation { display: flex; flex-direction: column; align-items: stretch; gap: 4px; margin: 0; white-space: normal; }
+:root .efficient-portal .portal-navigation a { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 9px 12px; border: 0; border-radius: 6px; color: var(--workbench-muted); font-size: 13px; }
+:root .efficient-portal .portal-navigation a:hover { background: var(--workbench-soft); color: var(--workbench-brand-strong); }
+:root .efficient-portal .portal-navigation a.active { color: var(--workbench-brand-strong); background: var(--workbench-soft); font-weight: 600; }
+:root .workspace-sidebar-footer { display: grid; gap: 5px; margin-top: auto; padding: 18px 12px 0; border-top: 1px solid var(--workbench-line); font-size: 12px; color: var(--workbench-muted); }
+:root .workspace-sidebar-footer strong { color: var(--workbench-ink); letter-spacing: 1px; }
+:root .efficient-portal .workspace-main { grid-column: 2; width: 100%; min-width: 0; max-width: 1600px; padding: 24px 28px; margin-inline: auto; }
+:root .efficient-portal .workspace-footer { grid-column: 2; width: 100%; max-width: 1600px; padding: 0 28px 16px; font-size: 12px; }
+:root .efficient-portal .workspace-footer > span:last-child { font-size: 11px; letter-spacing: .5px; }
+:root .efficient-portal .workspace-welcome { min-height: 0; padding: 0 0 21px; border-radius: 0; border-bottom: 1px solid var(--workbench-line); background: transparent; color: var(--workbench-ink); }
+:root .efficient-portal .workspace-welcome-label { color: var(--workbench-muted); font-size: 11px; letter-spacing: 1px; }
+:root .efficient-portal .workspace-label-line { background: var(--workbench-brand); }
+:root .efficient-portal .workspace-welcome h1 { margin: 8px 0 5px; font-size: 26px; font-weight: 600; }
+:root .efficient-portal .workspace-welcome-content > p { color: var(--workbench-muted); font-size: 13px; }
+:root .efficient-portal .workspace-welcome-meta { margin-top: 10px; font-size: 12px; color: var(--workbench-muted); }
+:root .efficient-portal .workspace-category { margin-top: 23px; padding: 0; border: 0; background: transparent; border-radius: 0; scroll-margin-top: 76px; }
+:root .efficient-portal .workspace-section-label { display: none; }
+:root .efficient-portal .workspace-section-heading { margin-bottom: 11px; gap: 12px; }
+:root .efficient-portal .workspace-section-heading h2 { font-size: 16px; color: var(--workbench-ink); letter-spacing: 0; }
+:root .efficient-portal .workspace-section-heading p { font-size: 12px; margin-top: 4px; }
+:root .efficient-portal .workspace-section-heading > svg { display: none; }
+:root .efficient-portal .workspace-app-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+:root .efficient-portal .workspace-ai-grid { grid-template-columns: minmax(0, 1fr); }
+:root .efficient-portal .workspace-app-card { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-content: start; align-items: center; column-gap: 12px; padding: 16px; border: 1px solid var(--workbench-line); border-radius: 8px; box-shadow: none; background: var(--workbench-panel); }
+:root .efficient-portal a.workspace-app-card:hover { transform: none; box-shadow: none; border-color: var(--workbench-brand); background: #fbfefe; }
+:root .efficient-portal .workspace-app-topline { display: contents; }
+:root .efficient-portal .workspace-app-icon { grid-column: 1; grid-row: 1; width: 34px; height: 34px; border: 0; border-radius: 7px; background: var(--workbench-soft); color: var(--workbench-brand-strong); }
+:root .efficient-portal .workspace-app-icon svg { width: 19px; height: 19px; }
+:root .efficient-portal .workspace-app-domain { grid-column: 2; grid-row: 2; font-size: 11px; margin-top: 8px; color: var(--workbench-muted); overflow-wrap: anywhere; }
+:root .efficient-portal .workspace-app-copy { grid-column: 2; grid-row: 1; margin: 0; min-width: 0; }
+:root .efficient-portal .workspace-eyebrow { display: none; }
+:root .efficient-portal .workspace-app-copy h3 { margin: 0; font-size: 15px; line-height: 1.4; font-weight: 600; color: var(--workbench-ink); }
+:root .efficient-portal .workspace-app-copy > p { max-width: none; margin-top: 5px; font-size: 12px; line-height: 1.65; color: var(--workbench-muted); }
+:root .efficient-portal .workspace-app-features { grid-column: 2; grid-row: 3; margin: 7px 0 0; gap: 5px 12px; }
+:root .efficient-portal .workspace-app-features li { font-size: 11px; color: var(--workbench-muted); }
+:root .efficient-portal .workspace-app-features svg { display: none; }
+:root .efficient-portal .workspace-app-entry { grid-column: 3; grid-row: 1 / 4; align-self: center; margin: 0; padding: 7px; border: 0; background: transparent; color: var(--workbench-brand); font-size: 12px; }
+:root .efficient-portal .workspace-app-entry > span { display: none; }
+:root .efficient-portal a.workspace-app-card:hover .workspace-app-entry { background: transparent; }
+:root .efficient-portal .workspace-app-unavailable { grid-column: 2 / 4; grid-row: 4; margin: 9px 0 0; padding: 0; background: transparent; border: 0; font-size: 12px; }
+:root .efficient-portal .workspace-notice { min-height: 0; margin: 0; }
+:root .efficient-portal .workspace-notice:not(:empty) { margin: 5px 0 12px; }
+:root .efficient-portal .workspace-refresh { padding: 6px 10px; min-height: 32px; font-size: 12px; }
+:root .efficient-portal .workspace-help { margin-top: 23px; padding: 14px 16px; background: transparent; border-radius: 7px; }
+:root .efficient-portal .workspace-help-icon { width: 30px; height: 30px; border: 0; }
+:root .efficient-portal .workspace-preview-label { padding: 8px 11px; margin-bottom: 18px; font-size: 12px; }
+:root .efficient-portal .portal-page-heading { margin: 0 0 22px; }
+:root .efficient-portal .portal-page-heading h1 { font-size: 25px; }
+:root .efficient-portal .portal-panel { padding: 22px; border-radius: 8px; }
+
+/* 独立业务应用保持各自的阅读、写作、对话结构，共用顶栏和基础尺寸。 */
+:root :is(.aa-topbar, .pn-app-header),
+:root .ks-app .ks-topbar,
+:root .information-app .if-header,
+:root #knowledge-source-app .kso-source-header,
+:root #knowledge-source-app .kso-top {
+  min-height: 56px; height: 56px; padding-inline: 20px; background: var(--workbench-panel); color: var(--workbench-ink); border-bottom: 1px solid var(--workbench-line); box-shadow: none;
+}
+:root :is(.aa-brand h1, .pn-app-header h1, .ks-app .ks-app-name, .information-app .if-app-name) { color: var(--workbench-ink); font-size: 15px; letter-spacing: 0; }
+:root :is(.aa-top-subtitle, .pn-app-subtitle, .if-app-subtitle, .ks-app .ks-topbar-title > .ks-muted) { color: var(--workbench-muted); border-color: var(--workbench-line); }
+:root :is(.aa-brand-mark, .pn-app-mark, .if-app-mark),
+:root #knowledge-source-app .kso-mark { color: var(--workbench-brand-strong); background: var(--workbench-soft); border: 0; }
+:root :is(.aa-preview-tag, .pn-preview-badge, .ks-app .ks-demo-badge, .information-app .if-header-note),
+:root #knowledge-source-app .kso-preview { color: var(--workbench-muted); background: var(--workbench-bg); border-color: var(--workbench-line); font-size: 12px; }
+:root :is(.application-account, .application-theme-toggle, .aa-model-link, .aa-topbar .aa-icon-button, .ks-app .ks-topbar .ks-button, .ks-app .ks-topbar-title > a) { color: var(--workbench-text); }
+:root .application-account-copy small { color: var(--workbench-muted); font-size: 12px; }
+:root .application-avatar { color: var(--workbench-brand-strong); background: var(--workbench-soft); border-color: var(--workbench-line); width: 30px; height: 30px; }
+:root :is(.application-account:hover, .application-theme-toggle:hover, .ks-app .ks-topbar .ks-button:hover:not(:disabled)) { color: var(--workbench-brand-strong); background: var(--workbench-soft); }
+:root .ks-app .ks-topbar .ks-button.ks-primary { color: #fff; background: var(--workbench-brand); border-color: var(--workbench-brand); }
+:root :is(.aa-sidebar, .pn-sidebar, .information-app .if-sidebar, .ks-app .ks-outline, .ks-app .ks-rail) { background: var(--workbench-bg); border-color: var(--workbench-line); }
+:root .aa-sidebar { padding-top: 18px; }
+:root .aa-chat-header { min-height: 56px; padding: 10px 20px; }
+:root .aa-task-row { padding: 9px; }
+:root .aa-message { margin-bottom: 22px; }
+:root .aa-markdown { font-size: 14px; line-height: 1.85; }
+:root .aa-turn { border-color: var(--workbench-line); border-radius: 8px; box-shadow: none; }
+:root .aa-turn-header { background: var(--workbench-bg); border-color: var(--workbench-line); }
+:root .aa-turn-number { color: var(--workbench-brand-strong); background: var(--workbench-soft); border-color: var(--workbench-line); border-radius: 4px; }
+:root .aa-user-message { background: var(--workbench-soft); border-bottom-color: var(--workbench-line); border-left-color: var(--workbench-brand); }
+:root .aa-user-message .aa-message-overline strong, :root .aa-question-text { color: var(--workbench-ink); }
+:root .aa-user-message .aa-mini-avatar { color: var(--workbench-brand-strong); background: var(--workbench-panel); }
+:root .aa-button, :root .pn-button { box-shadow: none; }
+:root .pn-workspace-app > .pn-content { padding: 22px 24px; }
+:root .pn-grid { gap: 12px; }
+:root .pn-page-heading { margin-bottom: 18px; }
+:root .information-app .if-main { padding: 22px 24px; }
+:root .information-app .if-panel { padding: 18px; box-shadow: none; }
+:root .ks-app .ks-paper { border-radius: 6px; box-shadow: none; }
+:root .ks-app .ks-document-bar { min-height: 76px; }
+:root .ks-app .ks-report-summary .ks-document-bar { min-height: 0; }
+:root #knowledge-source-app { --kso-side: var(--workbench-bg); --kso-top-ink: var(--workbench-ink); }
+:root #knowledge-source-app .kso-brand > span { color: var(--workbench-muted); border-color: var(--workbench-line); }
+:root #knowledge-source-app :is(.application-account, .application-theme-toggle, .kso-header-refresh) { color: var(--workbench-text); }
+:root #knowledge-source-app :is(.application-account, .application-theme-toggle, .kso-header-refresh):hover { color: var(--workbench-brand-strong); background: var(--workbench-soft); }
+:root #knowledge-source-app .kso-main { padding: 22px 24px; }
+:root .application-account:focus-visible, :root .application-theme-toggle:focus-visible { outline-color: var(--workbench-brand); }
+
+/* 报告目录采用紧凑卡片，与编辑工作区共享色彩。 */
+:root .ks-app .ks-library-page { padding: 24px; }
+:root .ks-app .ks-page-intro { margin-bottom: 24px; }
+:root .ks-app .ks-page-intro h1 { font-size: 24px; color: var(--workbench-ink); margin: 6px 0; }
+:root .ks-app .ks-page-intro :is(p, .ks-eyebrow) { color: var(--workbench-muted); }
+:root .ks-app .ks-library-page > .ks-section-heading { margin-bottom: 16px; }
+:root .ks-app .ks-solution-grid { gap: 12px; }
+:root .ks-app .ks-solution-card { padding: 16px; border-color: var(--workbench-line); border-radius: 8px; box-shadow: none; }
+:root .ks-app .ks-solution-card > .ks-section-heading { color: var(--workbench-muted); margin-bottom: 10px; }
+:root .ks-app .ks-card-link { color: var(--workbench-ink); }
+:root .ks-app .ks-card-link:hover { color: var(--workbench-brand); }
+:root .ks-app .ks-card-link h3 { font-size: 14px; }
+:root .ks-app .ks-solution-card > p { color: var(--workbench-muted); margin-top: 6px; }
+:root .ks-app .ks-card-footer { color: var(--workbench-muted); margin-top: 12px; padding-top: 8px; border-color: var(--workbench-line); }
+:root .ks-app .ks-new-card { min-height: 160px; gap: 8px; color: var(--workbench-brand-strong); background: var(--workbench-soft); border-color: var(--workbench-line); }
+:root .ks-app .ks-new-card > span { color: var(--workbench-muted); }
+
+/* 保留现有应用明暗切换；浅色顶栏与内容一起切换，不再反转回旧深蓝。 */
+html[data-application-theme="dark"]:root :is(.aa-topbar, .pn-app-header, .ks-topbar, .if-header, .kso-source-header) { filter: none; }
+
+/* 登录也使用同一套精简尺度。 */
+:root .mb-login { background: var(--workbench-bg); color: var(--workbench-ink); }
+:root .mb-login-header { min-height: 64px; padding-block: 10px; }
+:root .mb-login-brand img { width: 38px; height: 38px; }
+:root .mb-login-brand-name { font-size: 17px; }
+:root .mb-login-main { max-width: 1050px; border-radius: 10px; margin-block: 32px; box-shadow: none; }
+:root .mb-login-intro { background: #18373e; min-height: 500px; padding: 38px; }
+:root .mb-login-intro h1 { font-size: 32px; }
+:root .mb-login-orbit { display: none; }
+:root .mb-login-panel { padding: 32px 38px; }
+:root .mb-login-input { min-height: 42px; border-radius: 6px; }
+:root .mb-login-card-mark { width: 38px; height: 38px; border-radius: 8px; margin-bottom: 20px; }
+
+@media (min-width: 1450px) {
+  :root .efficient-portal .workspace-app-grid:not(.workspace-ai-grid) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 1000px) {
+  :root .efficient-portal .workspace-main { padding: 22px; }
+  :root .workspace-context { display: none; }
+  :root .efficient-portal .workspace-account { margin-left: auto; }
+}
+@media (max-width: 760px) {
+  :root .app-sidebar { width: 64px; }
+  :root .app-nav { padding: 14px 8px; }
+  :root .app-topbar { padding-inline: 12px; gap: 8px; }
+  :root .app-main > .p-6 { padding: 18px 14px; }
+  :root .efficient-portal { display: flex; flex-direction: column; }
+  :root .efficient-portal .workspace-header-inner { padding-inline: 14px; gap: 12px; }
+  :root .efficient-portal .workspace-brand { min-width: 0; }
+  :root .efficient-portal .workspace-brand-copy > span { display: none; }
+  :root .efficient-portal .workspace-account { flex-shrink: 0; gap: 8px; }
+  :root .efficient-portal .workspace-user-name,
+  :root .efficient-portal button.workspace-logout > span { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+  :root .efficient-portal button.workspace-logout { width: 36px; height: 36px; min-height: 36px; padding: 0; }
+  :root .workspace-sidebar { position: static; height: auto; padding: 9px 12px; border-right: 0; border-bottom: 1px solid var(--workbench-line); }
+  :root .workspace-sidebar-caption, :root .workspace-sidebar-footer { display: none; }
+  :root .efficient-portal .portal-navigation { flex-direction: row; flex-wrap: wrap; gap: 3px; }
+  :root .efficient-portal .portal-navigation a { min-height: 36px; font-size: 12px; padding: 7px 9px; gap: 6px; }
+  :root .efficient-portal .workspace-main { padding: 20px 16px; }
+  :root .efficient-portal .workspace-app-grid { grid-template-columns: 1fr; }
+  :root .efficient-portal .workspace-footer { padding-inline: 16px; }
+  :root .efficient-portal .workspace-footer > span:last-child { display: none; }
+  :root .efficient-portal .workspace-help { flex-wrap: wrap; }
+  :root .efficient-portal .workspace-welcome h1 { font-size: 23px; }
+  :root .pn-workspace-app > .pn-content, :root .information-app .if-main,
+  :root #knowledge-source-app .kso-main { padding: 18px 14px; }
+  :root :is(.aa-topbar, .pn-app-header), :root .ks-app .ks-topbar, :root .information-app .if-header,
+  :root #knowledge-source-app .kso-source-header, :root #knowledge-source-app .kso-top { padding-inline: 12px; }
+  :root .mb-login-main { width: calc(100% - 28px); margin-block: 20px; }
+  :root .mb-login-intro { min-height: 0; padding: 26px; }
+  :root .mb-login-panel { padding: 26px; }
+}

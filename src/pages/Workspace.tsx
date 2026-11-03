@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { ArrowRight, BookOpen, BriefcaseBusiness, Check, ChevronRight, FilePenLine, MessageSquareText, NotebookPen, Settings2, SlidersHorizontal, LayoutGrid, LockKeyhole, Radar, Sparkles, RefreshCw, ShieldCheck, UsersRound } from 'lucide-react'
+import { ArrowRight, BookOpen, BriefcaseBusiness, Check, ChevronRight, FilePenLine, MessageSquareText, NotebookPen, Settings2, SlidersHorizontal, LockKeyhole, Radar, Sparkles, RefreshCw, ShieldCheck, UsersRound } from 'lucide-react'
 import PortalLayout from '../components/portal/PortalLayout'
 import { workspaceSections } from '../components/portal/workspaceSections'
 import { usePortalContext } from '../components/portal/context'
@@ -137,14 +137,6 @@ export default function Workspace({ user, applications, onRefresh, onLogout, pre
             <h1 id="workspace-welcome-title">{displayName ? `${displayName}，欢迎回来` : '欢迎来到迈博工作空间'}</h1>
             <p>从这里开始，连接项目与知识，继续今天的工作。</p>
             <div className="workspace-welcome-meta"><ShieldCheck size={16} aria-hidden="true" /><span>{preview ? '迈博数字化应用门户' : '迈博 IAM 统一身份登录'}</span></div>
-          </div>
-          <div className="workspace-welcome-art" aria-hidden="true">
-            <div className="workspace-art-orbit workspace-art-orbit--outer" />
-            <div className="workspace-art-orbit workspace-art-orbit--inner" />
-            <span className="workspace-art-node workspace-art-node--project"><BriefcaseBusiness size={29} strokeWidth={1.5} /></span>
-            <span className="workspace-art-node workspace-art-node--knowledge"><BookOpen size={25} strokeWidth={1.5} /></span>
-            <span className="workspace-art-hub"><LayoutGrid size={29} strokeWidth={1.4} /></span>
-            <span className="workspace-art-dot" />
           </div>
         </section>
 

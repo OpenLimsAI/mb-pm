@@ -132,7 +132,7 @@ export default function Home() {
   }
 
   return (
-    <div className="p-6 max-w-[1600px] mx-auto space-y-6">
+    <div className="p-6 max-w-[1600px] mx-auto space-y-4">
       {/* 顶部欢迎条 */}
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
@@ -145,18 +145,20 @@ export default function Home() {
       </div>
 
       {/* §1 KPI */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-        <Kpi icon={<FolderKanban className="w-5 h-5" />} label="在研项目" value={data.active.length}
+      <div className="grid grid-cols-2 lg:grid-cols-4 rounded-lg border border-ink-300/60 bg-white overflow-hidden">
+        <Kpi icon={<FolderKanban className="w-4 h-4" />} label="在研项目" value={data.active.length}
              sub={`${data.greens} 绿 / ${data.yellows} 黄 / ${data.reds} 红`} />
-        <Kpi icon={<TrendingUp className="w-5 h-5" />} label="组合总进度" value={`${data.avgProgress}%`}
+        <Kpi icon={<TrendingUp className="w-4 h-4" />} label="组合总进度" value={`${data.avgProgress}%`}
              sub="活跃项目平均" />
-        <Kpi icon={<Diamond className="w-5 h-5" />} label="待达成里程碑" value={data.milestoneCount} />
-        <Kpi icon={<ShieldAlert className="w-5 h-5" />}
+        <Kpi icon={<ShieldAlert className="w-4 h-4" />}
              label="风险项" value={data.riskCount} sub={data.riskCount > 0 ? '需关注' : '组合健康'} />
-        <Kpi icon={<Flame className="w-5 h-5" />} label="关键路径任务" value={data.criticalCount} />
-        <Kpi icon={<Wallet className="w-5 h-5" />}
+        <Kpi icon={<Wallet className="w-4 h-4" />}
              label="预算执行率" value={`${data.finance.executionRate}%`}
              sub={data.overBudget.length > 0 ? `${data.overBudget.length} 超支` : '健康'} />
+      </div>
+      <div className="flex items-center gap-x-5 gap-y-2 flex-wrap text-xs text-ink-500">
+        <span className="inline-flex items-center gap-1.5"><Diamond className="w-3.5 h-3.5" />待达成里程碑 <strong className="text-ink-900 tabular-nums">{data.milestoneCount}</strong></span>
+        <span className="inline-flex items-center gap-1.5"><Flame className="w-3.5 h-3.5" />关键路径任务 <strong className="text-ink-900 tabular-nums">{data.criticalCount}</strong></span>
       </div>
 
       {/* §2 风险预警 —— 进度族 + 质量族 */}
@@ -217,7 +219,7 @@ export default function Home() {
       </Card>
 
       {/* §4 财务总览 + 组织总览 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <FinanceOverview finance={data.finance} overBudgetCount={data.overBudget.length} />
         <OrgOverview org={data.org} />
       </div>
@@ -300,15 +302,10 @@ function Kpi({ label, value, sub, icon }: {
   label: string; value: React.ReactNode; sub?: string; icon: React.ReactNode
 }) {
   return (
-    <div className="card metric-card">
-      <div className="metric-body">
-        <div className="metric-value">{value}</div>
-        <div className="metric-note">{sub || '在研项目组合'}</div>
-      </div>
-      <div className="metric-caption">
-        <span className="font-medium">{label}</span>
-        <span className="shrink-0 text-ink-500" aria-hidden="true">{icon}</span>
-      </div>
+    <div className="px-4 py-3 border-r border-ink-300/50 last:border-r-0">
+      <div className="flex items-center justify-between gap-2 text-xs text-ink-500"><span>{label}</span><span aria-hidden="true">{icon}</span></div>
+      <div className="text-2xl font-semibold tabular-nums text-ink-900 mt-1.5">{value}</div>
+      <div className="text-xs text-ink-500 mt-1">{sub || '在研项目组合'}</div>
     </div>
   )
 }
@@ -355,7 +352,7 @@ function ProjectCardWithMilestones({ project, bar }: { project: Project; bar: st
 
   return (
     <Link to={`/projects/${project.id}`}
-          className={cn('block rounded-lg border bg-white p-3 hover:shadow-card-hover transition-shadow', healthBucketTone[project.health].border)}>
+          className="block rounded-md border border-ink-300/60 bg-white p-3 hover:bg-ink-100/50 transition-colors">
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-mono text-ink-500">{project.code}</span>
         <HealthTag health={project.health} />
@@ -510,6 +507,8 @@ function ViewSwitch({ view, onChange }: { view: HomeView; onChange: (v: HomeView
       {opts.map(({ v, label, icon: Icon }) => (
         <button
           key={v}
+          type="button"
+          aria-pressed={view === v}
           onClick={() => onChange(v)}
           className={cn(
             'inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors',
