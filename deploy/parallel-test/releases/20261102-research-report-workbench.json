@@ -1,0 +1,380 @@
+{
+  "verification.json": {
+    "actual_image_login_smoke_artifact_sha256": "405a1a4a8eaad5c039bd2dfbd659853922f4f254d7e9fbd1bb627b64ddb29e58",
+    "baseline_source": "cd0202173ab33773d6014e6aa19fe63f98d4462a",
+    "compose_only_image_changed": true,
+    "image": "mb-pm:report-workbench-e33b48d-20261102",
+    "image_id": "sha256:8a7080dd4492336f5934b099b826b87ceb28767165e19e71f929203bf1aab292",
+    "instances": {
+      "mb-pm-v2-app-1": {
+        "anonymous_api": 401,
+        "application_scope_column": true,
+        "assistant_entry": 200,
+        "database": "mb_pm",
+        "health": 200,
+        "index_sha256": "bf243029e5bcdd1084c182d2fe13293a674dbb8e53a70ad3441b18fe06d39102",
+        "knowledge_papers": 280,
+        "production_artifact": {
+          "api_base": "/api/v1",
+          "app_mode": "domain",
+          "files_verified": 173,
+          "index_sha256": "bf243029e5bcdd1084c182d2fe13293a674dbb8e53a70ad3441b18fe06d39102",
+          "production_api": true,
+          "schema": 1,
+          "source": "e33b48d62494a1ab064a796b3269c0efd1623c71"
+        },
+        "routing_cases": 6,
+        "runtime": {
+          "database": "mb_pm",
+          "new_tables_authorized": true,
+          "runtime_dml_only": true,
+          "workers_disabled": false
+        },
+        "web_configured": true
+      },
+      "mb-pm-v2-app-direct-1": {
+        "anonymous_api": 401,
+        "application_scope_column": true,
+        "assistant_entry": 200,
+        "database": "mb_pm",
+        "health": 200,
+        "index_sha256": "bf243029e5bcdd1084c182d2fe13293a674dbb8e53a70ad3441b18fe06d39102",
+        "knowledge_papers": 280,
+        "production_artifact": {
+          "api_base": "/api/v1",
+          "app_mode": "domain",
+          "files_verified": 173,
+          "index_sha256": "bf243029e5bcdd1084c182d2fe13293a674dbb8e53a70ad3441b18fe06d39102",
+          "production_api": true,
+          "schema": 1,
+          "source": "e33b48d62494a1ab064a796b3269c0efd1623c71"
+        },
+        "routing_cases": 6,
+        "runtime": {
+          "database": "mb_pm",
+          "new_tables_authorized": true,
+          "runtime_dml_only": true,
+          "workers_disabled": false
+        },
+        "web_configured": true
+      }
+    },
+    "migration": "019",
+    "model_settings_preserved": true,
+    "other_containers_unchanged": 22,
+    "prior_assistant_messages_unchanged": true,
+    "prior_notes_reports_revision_checked": true,
+    "prior_record_ids_retained": true,
+    "rollback_database_downgrade": false,
+    "security_settings_preserved": true,
+    "source": "e33b48d62494a1ab064a796b3269c0efd1623c71",
+    "tables_checked": 43
+  },
+  "candidate-verification.json": {
+    "migration": "019",
+    "permissions": {
+      "missing_profile_does_not_fallback": true,
+      "personal_default_capabilities_checked": 2
+    },
+    "prior_data_preserved": true,
+    "probe": {
+      "anonymous_api": 401,
+      "application_scope_column": true,
+      "assistant_entry": 200,
+      "database": "report_workbench_check_e33b48d_20261102",
+      "health": 200,
+      "index_sha256": "bf243029e5bcdd1084c182d2fe13293a674dbb8e53a70ad3441b18fe06d39102",
+      "knowledge_papers": 280,
+      "routing_cases": 6,
+      "web_configured": true
+    },
+    "report_workbench_e2e": {
+      "checks": [
+        "isolated_database_guard",
+        "migration_019",
+        "create_and_reload",
+        "outline_parent",
+        "authorized_quote_validation",
+        "rename_save_pin_tags",
+        "report_cas",
+        "automatic_snapshot",
+        "named_snapshot_cas",
+        "single_chapter_restore",
+        "personal_template_hierarchy",
+        "template_cycle_rejection",
+        "topic_rename_archive_cas",
+        "topic_delete_tombstone",
+        "notes_detail",
+        "account_issuer_isolation",
+        "trashed_note_hidden",
+        "word_editable_styles_table_image",
+        "word_toc_page_fields",
+        "word_xml_valid"
+      ],
+      "database": "report_workbench_check_e33b48d_20261102",
+      "external_model_calls": 0,
+      "production_records_written": 0,
+      "status": "passed"
+    },
+    "runtime": {
+      "database": "report_workbench_check_e33b48d_20261102",
+      "new_tables_authorized": true,
+      "runtime_dml_only": true,
+      "workers_disabled": true
+    }
+  },
+  "image.json": {
+    "baseline_sha256": "e135ddccebf89b2622ac32a85e4519af76d4e3b1c512146f1e6b3fdfdcfbbd41",
+    "dist_archive_sha256": "63e3032d9cbd68599313eb594fc7e2a1951d34c65da3850cf5612fbbfe1a9b95",
+    "id": "sha256:8a7080dd4492336f5934b099b826b87ceb28767165e19e71f929203bf1aab292",
+    "image": "mb-pm:report-workbench-e33b48d-20261102",
+    "nonroot_readability": {
+      "backend_and_static_readable": true,
+      "gid": 10001,
+      "readable_files": {
+        "alembic": 22,
+        "app": 129,
+        "static": 174
+      },
+      "uid": 10001
+    },
+    "production_artifact": {
+      "api_base": "/api/v1",
+      "app_mode": "domain",
+      "files_verified": 173,
+      "image_static_archive_sha256": "405a1a4a8eaad5c039bd2dfbd659853922f4f254d7e9fbd1bb627b64ddb29e58",
+      "index_sha256": "bf243029e5bcdd1084c182d2fe13293a674dbb8e53a70ad3441b18fe06d39102",
+      "production_api": true,
+      "schema": 1,
+      "source": "e33b48d62494a1ab064a796b3269c0efd1623c71"
+    },
+    "source": "e33b48d62494a1ab064a796b3269c0efd1623c71",
+    "source_archive_sha256": "da082ba28fb64c15ec5a84af611cde4dabfb5008e81db5f5e812054ac2cc2d79"
+  },
+  "operations.json": {
+    "baseline_instances": {
+      "app": {
+        "container_id": "1c7d6199e10dbb62d42293fe8ad3a769da249177e9513e2c596eda439fe8adc3",
+        "image": "sha256:55402e5c12eb962ecacf8bef84b01dfe0e5b8dd38cd77b387ab0221518a2a23c",
+        "image_id": "sha256:55402e5c12eb962ecacf8bef84b01dfe0e5b8dd38cd77b387ab0221518a2a23c",
+        "name": "mb-pm-v2-app-1"
+      },
+      "app-direct": {
+        "container_id": "ec076ae0d4ac9308bdebe912c03082fe28017694e17c0c921dc8e41461be31fb",
+        "image": "sha256:55402e5c12eb962ecacf8bef84b01dfe0e5b8dd38cd77b387ab0221518a2a23c",
+        "image_id": "sha256:55402e5c12eb962ecacf8bef84b01dfe0e5b8dd38cd77b387ab0221518a2a23c",
+        "name": "mb-pm-v2-app-direct-1"
+      }
+    },
+    "baseline_sha256": "e135ddccebf89b2622ac32a85e4519af76d4e3b1c512146f1e6b3fdfdcfbbd41",
+    "baseline_source": "cd0202173ab33773d6014e6aa19fe63f98d4462a",
+    "candidate_verified": true,
+    "compose_files": [
+      "/home/prometheus/mb-pm-v2/compose.yml",
+      "/home/prometheus/mb-pm-v2/compose.production.yml",
+      "/home/prometheus/mb-pm-v2/compose.direct.yml",
+      "/home/prometheus/mb-pm-v2/releases/header-9516977/compose.no-note-sync.yml",
+      "/home/prometheus/mb-pm-v2/releases/assistant-dikw-e294fdc/compose.knowledge.private.yml",
+      "/home/prometheus/mb-pm-v2/releases/knowledge-sources-687bddc-20261101/compose.knowledge-sources.yml",
+      "/home/prometheus/mb-pm-v2/releases/deepseek-search-99ca39d-20261101/compose.deepseek-search.yml",
+      "/home/prometheus/security-hardening-20261102/limits-1.json",
+      "/home/prometheus/security-hardening-20261102/pm-release-cd02021/compose.security.active.yml",
+      "/home/prometheus/mb-pm-v2/releases/report-workbench-e33b48d-20261102/compose.report-workbench.yml"
+    ],
+    "database_downgrade": false,
+    "image": "mb-pm:report-workbench-e33b48d-20261102",
+    "image_id": "sha256:8a7080dd4492336f5934b099b826b87ceb28767165e19e71f929203bf1aab292",
+    "maximum_release_paid_model_calls": 0,
+    "migration": "019",
+    "migration_strategy": "targeted_019_only",
+    "production_database_restored": false,
+    "production_deployed_and_verified": true,
+    "production_migration_applied": true,
+    "rollback_compose_files": [
+      "/home/prometheus/mb-pm-v2/compose.yml",
+      "/home/prometheus/mb-pm-v2/compose.production.yml",
+      "/home/prometheus/mb-pm-v2/compose.direct.yml",
+      "/home/prometheus/mb-pm-v2/releases/header-9516977/compose.no-note-sync.yml",
+      "/home/prometheus/mb-pm-v2/releases/assistant-dikw-e294fdc/compose.knowledge.private.yml",
+      "/home/prometheus/mb-pm-v2/releases/knowledge-sources-687bddc-20261101/compose.knowledge-sources.yml",
+      "/home/prometheus/mb-pm-v2/releases/deepseek-search-99ca39d-20261101/compose.deepseek-search.yml",
+      "/home/prometheus/security-hardening-20261102/limits-1.json",
+      "/home/prometheus/security-hardening-20261102/pm-release-cd02021/compose.security.active.yml"
+    ],
+    "rolled_back": false,
+    "runtime_role_preserved": true,
+    "source": "e33b48d62494a1ab064a796b3269c0efd1623c71"
+  },
+  "production-migration.json": {
+    "assistant_017_structure": true,
+    "business_018_constraints": 14,
+    "business_values_valid": true,
+    "database": "mb_pm",
+    "database_restored": false,
+    "downgrade": false,
+    "isolated": false,
+    "ledger": [
+      "019"
+    ],
+    "prior_ledger": [
+      "019"
+    ],
+    "prior_ledger_present": true,
+    "prior_ledger_rows_preserved": true,
+    "revision": "019",
+    "runtime_role_dml_granted": true,
+    "strategy": "targeted_019_only"
+  },
+  "public_verification": {
+    "checked_at_utc": "2026-11-03T00:41:17.490406+00:00",
+    "url": "https://www.openlims.ai/solutions",
+    "source": "e33b48d62494a1ab064a796b3269c0efd1623c71",
+    "statuses": {
+      "health": 200,
+      "manifest": 200,
+      "report": 200,
+      "anonymous_reports": 401
+    },
+    "public_index_matches_image": true,
+    "index_sha256": "bf243029e5bcdd1084c182d2fe13293a674dbb8e53a70ad3441b18fe06d39102",
+    "api_base": "/api/v1",
+    "app_mode": "domain",
+    "authenticated_customer_session_tested": false
+  },
+  "knowledge_library": {
+    "checked_at_utc": "2026-11-03T00:22:23.646021+00:00",
+    "production_source": "5938424e5764876a7b343e5ad837c9d48377f2bf",
+    "production_image": "sha256:809520eeb9bf98c60012e1afddc193da68b0ac6e3de707b5b4d4d152f7f725fd",
+    "feature_source": "fb85df15c1e65ebf162ba1e84905dc5d228b235e",
+    "ancestry": {
+      "status": "ahead",
+      "ahead_by": 2,
+      "behind_by": 0,
+      "merge_base": "fb85df15c1e65ebf162ba1e84905dc5d228b235e",
+      "feature_is_ancestor": true
+    },
+    "checks": {
+      "health": 200,
+      "anonymous": 401,
+      "anonymous_library": 401,
+      "oidc": "oidc",
+      "core_status": 200,
+      "active_sources": 280,
+      "reader_navigation": true,
+      "reader_selection": true,
+      "excerpt_protocol": true,
+      "shared_notes": true
+    },
+    "stable": true
+  },
+  "ci": {
+    "headRefOid": "61e6152cef8ec6ab452ce4381b4d296220edfeb6",
+    "mergeCommit": {
+      "oid": "e33b48d62494a1ab064a796b3269c0efd1623c71"
+    },
+    "state": "MERGED",
+    "statusCheckRollup": [
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-11-02T23:23:42Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41544065464/job/125615177557",
+        "name": "前端 · 类型检查 + 构建（硬护栏）",
+        "startedAt": "2026-11-02T23:16:08Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-11-02T23:17:25Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41544065389/job/125615175992",
+        "name": "dependencies",
+        "startedAt": "2026-11-02T23:16:01Z",
+        "status": "COMPLETED",
+        "workflowName": "Security"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-11-02T23:16:10Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41544065464/job/125615177202",
+        "name": "后端 · ruff 格式检查（硬护栏）",
+        "startedAt": "2026-11-02T23:16:01Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-11-02T23:18:32Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41544065389/job/125615176596",
+        "name": "container",
+        "startedAt": "2026-11-02T23:16:01Z",
+        "status": "COMPLETED",
+        "workflowName": "Security"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-11-02T23:19:12Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41544065464/job/125615177575",
+        "name": "后端 · pytest（PostgreSQL · 硬护栏）",
+        "startedAt": "2026-11-02T23:16:01Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-11-02T23:18:36Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41544065464/job/125615177573",
+        "name": "Docker · 镜像构建验证（硬护栏）",
+        "startedAt": "2026-11-02T23:16:01Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-11-02T23:17:35Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41544065464/job/125615177550",
+        "name": "Lint 报告（软护栏 · 不阻断）",
+        "startedAt": "2026-11-02T23:16:01Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      }
+    ]
+  },
+  "pdf_validation": {
+    "bytes": 914494,
+    "styles": [
+      {
+        "h1": "30px",
+        "h2": "20px",
+        "p": "14px",
+        "pMargin": "14px",
+        "list": "decimal",
+        "headingWeight": "700"
+      }
+    ],
+    "pageErrors": [],
+    "blockedOrigins": [],
+    "sourceRevision": "df20b230bb31076162023efe4eb911009ba53587",
+    "pdfSha256": "9a65da00200739bb5458e98d8cc607ac048a0a89d73749d129933fe322652af6",
+    "exportSourceSha256": "bfa32f9b6b333be521f0a1bccd5e703865ce62657353dc232e416d2bf769291f",
+    "pdfPages": 3,
+    "pageSize": "A4",
+    "visualInspection": {
+      "chineseReadable": true,
+      "headingHierarchy": true,
+      "listsNumbered": true,
+      "tableIntact": true,
+      "referencesIntact": true,
+      "allPageNumbersVisible": true,
+      "noClippingOrOverlap": true
+    },
+    "execution": "Isolated headless Chromium, actual html2canvas and jsPDF, local synthetic data; no model/API/user browser; downloads intercepted as PDF Blob without event wait.",
+    "sourceTreeMatchesDeployedMain": true
+  }
+}
