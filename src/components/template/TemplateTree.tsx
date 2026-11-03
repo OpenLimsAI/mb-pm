@@ -99,7 +99,7 @@ function SubProjectNode({
           {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
         </button>
         <span className="tag bg-purple-100 text-purple-800 font-mono shrink-0">Lv2</span>
-        <span className="text-sm font-medium text-ink-900 truncate flex-1">{sub.name}</span>
+        <span className="text-sm font-medium text-ink-900 min-w-0 truncate flex-1" title={sub.name}>{sub.name}</span>
         {sub.module && <Tag tone="gray">{sub.module}</Tag>}
         {sub.stage && <Tag tone="blue">{sub.stage}</Tag>}
         <span className="text-xs text-ink-500 shrink-0">{tasks.length} 任务</span>
@@ -176,7 +176,7 @@ function TaskNode({
       <span className="tag bg-emerald-100 text-emerald-800 font-mono shrink-0">Lv3</span>
       {task.isMilestone && <Diamond className="w-3 h-3 text-amber-600 shrink-0" />}
       {task.taskCode && <span className="font-mono text-[10px] text-ink-500 shrink-0">{task.taskCode}</span>}
-      <span className={cn('text-sm flex-1 truncate', task.isMilestone ? 'font-semibold' : 'text-ink-900')}>
+      <span className={cn('text-sm min-w-0 flex-1 truncate', task.isMilestone ? 'font-semibold' : 'text-ink-900')} title={task.name}>
         {task.name}
       </span>
       {task.module && <Tag tone="gray">{task.module}</Tag>}

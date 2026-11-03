@@ -111,7 +111,7 @@ function MilestoneNode({ milestone, isFirst, isLast, onClick }: {
       </div>
 
       {/* 名称 + 日期 */}
-      <button onClick={onClick} className="mt-1.5 px-1 text-center group">
+      <button onClick={onClick} title={milestone.name} className="mt-1.5 px-1 text-center group">
         <div className="flex items-center justify-center gap-1">
           {milestone.isCriticalPath && <Flame className="w-3 h-3 text-red-500 shrink-0" />}
           <span className="text-xs font-medium text-ink-800 line-clamp-2 group-hover:text-brand-700">{milestone.name}</span>

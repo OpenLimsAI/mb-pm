@@ -177,7 +177,7 @@ function FinanceOverview() {
                   {data.overBudget.slice(0, 4).map(({ p, f }) => (
                     <li key={p.id} className="flex items-center gap-2 text-sm">
                       <span className="text-xs font-mono text-ink-500">{p.code}</span>
-                      <span className="truncate flex-1">{p.name}</span>
+                      <span className="min-w-0 truncate flex-1" title={p.name}>{p.name}</span>
                       <span className="text-red-600 font-medium">{executionRate(f!)}%</span>
                     </li>
                   ))}
@@ -222,7 +222,7 @@ function FinanceOverview() {
                       <div className="flex items-center gap-2 min-w-0">
                         <HealthTag health={p.health} />
                         <span className="font-mono text-[11px] text-ink-400 shrink-0">{p.code}</span>
-                        <span className="text-ink-900 truncate">{p.name}</span>
+                        <span className="text-ink-900 min-w-0 truncate" title={p.name}>{p.name}</span>
                       </div>
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums font-medium text-ink-900">{f ? fmt(f.totalBudget) : '—'}</td>

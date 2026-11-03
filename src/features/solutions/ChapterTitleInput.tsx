@@ -10,7 +10,7 @@ export default function ChapterTitleInput({ title, onChange, compact = false }: 
     setDraft({ base: next, value: next })
     if (next !== title) onChange(next)
   }
-  return <input aria-label="章节标题" className={compact ? 'ks-focus-chapter-title' : 'ks-section-title-input'} value={value} maxLength={200} placeholder="输入章节标题" title="直接修改章节标题，离开输入框后保存" onChange={event => setDraft({ base: title, value: event.target.value })} onBlur={commit} onKeyDown={event => {
+  return <input aria-label="章节标题" className={compact ? 'ks-focus-chapter-title' : 'ks-section-title-input'} value={value} maxLength={200} placeholder="输入章节标题" title={`${value} · 直接修改章节标题，离开输入框后保存`} onChange={event => setDraft({ base: title, value: event.target.value })} onBlur={commit} onKeyDown={event => {
     if (event.nativeEvent.isComposing) return
     if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur() }
     if (event.key === 'Escape') { event.preventDefault(); cancelBlur.current = true; setDraft({ base: title, value: title }); event.currentTarget.blur() }

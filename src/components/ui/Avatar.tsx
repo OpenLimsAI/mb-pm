@@ -12,7 +12,7 @@ export function Avatar({ user, size = 'md' }: { user: User; size?: 'sm' | 'md' |
   return (
     <span
       className={cn(
-        'inline-flex items-center justify-center rounded-full text-white font-medium select-none',
+        'inline-flex shrink-0 items-center justify-center rounded-full text-white font-medium select-none',
         sizeClasses[size]
       )}
       style={{ background: user?.avatarColor ?? '#94a3b8' }}

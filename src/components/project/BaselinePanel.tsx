@@ -118,10 +118,10 @@ export function BaselinePanel({ project }: { project: Project }) {
                     <Flag className={cn('w-3.5 h-3.5 shrink-0', active ? 'text-brand-600' : 'text-ink-400')} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-ink-900 truncate">{b.label}</span>
+                        <span className="text-sm font-medium text-ink-900 min-w-0 truncate" title={b.label}>{b.label}</span>
                         {active && <Tag tone="blue">对标中</Tag>}
                       </div>
-                      <div className="text-[11px] text-ink-500 truncate">
+                      <div className="text-[11px] text-ink-500 truncate" title={[b.createdAt.slice(0, 10), author?.displayName, b.reason].filter(Boolean).join(' · ')}>
                         {b.createdAt.slice(0, 10)}
                         {author && <> · {author.displayName}</>}
                         {b.reason && <> · {b.reason}</>}
@@ -240,7 +240,7 @@ function DriftRow({ m }: { m: MilestoneDrift }) {
         <div className="flex items-center gap-1.5 min-w-0">
           <Diamond className="w-3 h-3 text-amber-600 shrink-0" />
           <span className="font-mono text-[10px] text-ink-400 shrink-0">{m.code}</span>
-          <span className="text-xs truncate">{m.name}</span>
+          <span className="text-xs min-w-0 flex-1 truncate" title={m.name}>{m.name}</span>
           {m.isCriticalPath && <Flame className="w-3 h-3 text-red-500 shrink-0" aria-label="关键路径" />}
         </div>
       </td>

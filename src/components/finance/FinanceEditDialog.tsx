@@ -54,7 +54,7 @@ export function FinanceEditDialog({ project, finance, onClose }: {
           <Wallet className="w-5 h-5 text-brand-600" />
           <div className="min-w-0 flex-1">
             <h2 id="finance-edit-title" className="font-semibold text-ink-900">{finance ? '编辑项目预算' : '设置项目预算'}</h2>
-            <p className="text-xs text-ink-500 truncate">{project.code} · {project.name} · 金额单位：万元</p>
+            <p className="text-xs text-ink-500 truncate" title={`${project.code} · ${project.name} · 金额单位：万元`}>{project.code} · {project.name} · 金额单位：万元</p>
           </div>
           <button type="button" aria-label="关闭" className="p-1 rounded hover:bg-ink-100 text-ink-500" onClick={onClose} disabled={saving}><X className="w-4 h-4" /></button>
         </div>

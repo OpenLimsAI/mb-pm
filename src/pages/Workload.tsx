@@ -1,7 +1,7 @@
 // 人员负荷全景图（FR-SW-001 / FR-SW-002 / FR-SW-003）
 // 8 周热力图（负荷率 = 已分配工时 / 可用工时）+ 未来 4 周过载预警 + 推荐负责人（可直接改派真实任务）。
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { Users, Sparkles, AlertTriangle, ListChecks, X, Filter, RefreshCw, Eye, UserCog, Gauge } from 'lucide-react'
 import { addDays, format, parseISO } from 'date-fns'
 import { Card, CardHeader, CardBody, Button, Tag, Avatar } from '../components/ui'
@@ -16,6 +16,8 @@ import { useDataStore } from '../store/data'
 import { isTaskDone } from '../lib/schedule'
 import { getScope, scopeLabel } from '../lib/scope'
 import { cn } from '../lib/cn'
+import { ColumnResizer } from '../components/ui/ColumnResizer'
+import { useColumnWidth } from '../lib/useColumnWidth'
 
 type Filters = {
   group: SpecialtyGroup | 'all'
@@ -24,6 +26,8 @@ type Filters = {
 }
 
 export default function Workload() {
+  const heatmapContainer = useRef<HTMLDivElement>(null)
+  const memberColumn = useColumnWidth({ storageKey: 'pm:workload-member-column', defaultWidth: 220, minWidth: 160, maxWidth: 600, reserveWidth: 160, containerRef: heatmapContainer })
   const user = useAuth((s) => s.currentUser)
   // 订阅数据版本：改派 / 进展录入后热力图随之重算
   const version = useDataStore((s) => s.version)
@@ -191,11 +195,12 @@ export default function Workload() {
 
       {/* 热力图 */}
       <Card className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
+        <div ref={heatmapContainer} className="overflow-x-auto">
+          <table className="text-sm border-collapse" style={{ tableLayout: 'fixed', width: memberColumn.width + 256 + weekHeaders.length * 60, minWidth: '100%' }}>
+            <colgroup><col style={{ width: memberColumn.width }} /><col style={{ width: 96 }} /><col style={{ width: 80 }} /><col style={{ width: 80 }} />{weekHeaders.map(week => <col key={week.weekKey} />)}</colgroup>
             <thead>
               <tr className="bg-ink-100 text-xs uppercase tracking-wider text-ink-700">
-                <th className="text-left px-3 py-2 sticky left-0 bg-ink-100 z-10 min-w-[180px]">成员</th>
+                <th className="text-left px-3 py-2 sticky left-0 bg-ink-100 z-10 border-r border-ink-300/40">成员<ColumnResizer label="调整人员负荷成员列宽度" width={memberColumn.width} minWidth={memberColumn.minWidth} maxWidth={memberColumn.maxWidth} onChange={memberColumn.setWidth} onReset={memberColumn.resetWidth} /></th>
                 <th className="px-3 py-2 text-center w-24">专业组</th>
                 <th className="px-3 py-2 text-right w-20">平均</th>
                 <th className="px-3 py-2 text-right w-20">峰值</th>
@@ -220,11 +225,11 @@ export default function Workload() {
             <tbody>
               {filtered.map((h) => (
                 <tr key={h.user.id} className="border-t border-ink-300/40 hover:bg-ink-100/40">
-                  <td className="px-3 py-2 sticky left-0 bg-white z-10">
+                  <td className="px-3 py-2 sticky left-0 bg-white z-10 border-r border-ink-300/40">
                     <div className="flex items-center gap-2">
                       <Avatar user={h.user} size="sm" />
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-ink-900 truncate">{h.user.displayName}</div>
+                        <div className="text-sm font-medium text-ink-900 truncate" title={h.user.displayName}>{h.user.displayName}</div>
                         <div className="text-[10px] text-ink-500">{h.user.weeklyAvailableHours}h/周</div>
                       </div>
                     </div>

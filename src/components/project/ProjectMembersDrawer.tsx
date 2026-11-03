@@ -159,8 +159,8 @@ export function ProjectMembersDrawer({ project, onClose }: Props) {
                       <input type="checkbox" checked={checked} disabled={!!load} onChange={() => toggle(u.id)} className="accent-brand-600" />
                       <Avatar user={u} size="sm" />
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm text-ink-900 truncate">{u.displayName}</div>
-                        <div className="text-[11px] text-ink-500 truncate">{roleLabels[u.role]}{u.specialtyGroup ? ` · ${u.specialtyGroup}` : ''}</div>
+                        <div className="text-sm text-ink-900 truncate" title={u.displayName}>{u.displayName}</div>
+                        <div className="text-[11px] text-ink-500 truncate" title={`${roleLabels[u.role]}${u.specialtyGroup ? ` · ${u.specialtyGroup}` : ''}`}>{roleLabels[u.role]}{u.specialtyGroup ? ` · ${u.specialtyGroup}` : ''}</div>
                       </div>
                       {u.isActive === false && <Tag tone="gray">已停用</Tag>}
                       {load && (

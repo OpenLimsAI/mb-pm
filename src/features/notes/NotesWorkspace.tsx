@@ -88,7 +88,7 @@ export default function NotesWorkspace({ client, mode = 'embedded', userName, ac
         <div className="pn-nav-divider" />
         <button type="button" className="pn-nav" aria-current={trashed ? 'page' : undefined} onClick={() => browse('', true)}><Trash2 size={18} aria-hidden="true" /><span>回收站</span></button>
       </nav>
-      <div className="pn-sidebar-account"><span className="pn-avatar">{Array.from(userName || '我')[0]}</span><div><strong>{userName || '我的空间'}</strong><span><ShieldCheck size={11} aria-hidden="true" />个人笔记</span></div></div>
+      <div className="pn-sidebar-account"><span className="pn-avatar">{Array.from(userName || '我')[0]}</span><div><strong title={userName || '我的空间'}>{userName || '我的空间'}</strong><span><ShieldCheck size={11} aria-hidden="true" />个人笔记</span></div></div>
     </aside>}
     <Content className="pn-content" id={app ? 'pn-content' : undefined}>
       {app && <div className="pn-page-heading"><div><h2>{heading}<span className="pn-total">{total}</span></h2><p>{trashed ? '暂存移除的笔记，随时可以恢复。' : source ? `整理来自${noteSourceNames[source]}的摘录与思考。` : '把阅读中的收获，沉淀为自己的知识。'}</p></div>{createButton}</div>}

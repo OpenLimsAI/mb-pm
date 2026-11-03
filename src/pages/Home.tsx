@@ -266,7 +266,7 @@ function RiskRow({ item }: { item: RiskItem }) {
             className="flex items-center gap-2 px-2.5 py-2 rounded-md hover:bg-ink-100 transition-colors">
         <Icon className={cn('w-3.5 h-3.5 shrink-0', riskSevColor[item.severity])} />
         <span className="text-xs font-mono text-ink-500 shrink-0">{item.projectCode}</span>
-        <span className={cn('text-sm truncate flex-1', item.isCriticalPath && 'font-semibold')}>{item.title}</span>
+        <span className={cn('text-sm min-w-0 truncate flex-1', item.isCriticalPath && 'font-semibold')} title={item.title}>{item.title}</span>
         {item.isCriticalPath && <Flame className="w-3.5 h-3.5 text-rose-500 shrink-0" />}
         {owner && <Avatar user={owner} size="sm" />}
         <span className={cn('text-xs font-medium shrink-0 tabular-nums', riskSevColor[item.severity])}>{item.detail}</span>
@@ -357,7 +357,7 @@ function ProjectCardWithMilestones({ project, bar }: { project: Project; bar: st
         <span className="text-xs font-mono text-ink-500">{project.code}</span>
         <HealthTag health={project.health} />
       </div>
-      <div className="text-sm font-medium text-ink-900 mt-1 line-clamp-1">{project.name}</div>
+      <div className="text-sm font-medium text-ink-900 mt-1 line-clamp-1" title={project.name}>{project.name}</div>
       <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
         <Tag tone="gray">{project.productType}</Tag>
         <Tag tone="blue">{project.currentStage}</Tag>
@@ -384,7 +384,7 @@ function ProjectCardWithMilestones({ project, bar }: { project: Project; bar: st
           return (
             <div key={m.id} className="flex items-center gap-1.5">
               <Diamond className={cn('w-3 h-3 shrink-0', overdue ? 'text-red-600' : urgent ? 'text-amber-600' : 'text-ink-500')} />
-              <span className={cn('text-[11px] truncate flex-1', m.isCriticalPath && 'font-semibold')}>{m.name}</span>
+              <span className={cn('text-[11px] min-w-0 truncate flex-1', m.isCriticalPath && 'font-semibold')} title={m.name}>{m.name}</span>
               {m.isCriticalPath && <Flame className="w-3 h-3 text-rose-500 shrink-0" />}
               <span className={cn('text-[11px] font-medium shrink-0 tabular-nums',
                 overdue ? 'text-red-600' : urgent ? 'text-amber-600' : 'text-ink-500')}>

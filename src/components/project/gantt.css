@@ -41,7 +41,6 @@
   overflow: hidden;
 }
 .gantt-scroll {
-  --gantt-label-width: clamp(120px, 38cqi, var(--gantt-label-max-width));
   flex: 1;
   min-height: 0;
   overflow: auto;
@@ -91,3 +90,5 @@
   outline-offset: 2px;
   z-index: 15;
 }
+
+.gantt-label-column > .column-resizer > span { top: 72px; margin-top: 72px; }

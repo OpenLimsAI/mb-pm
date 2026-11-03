@@ -153,7 +153,7 @@ export function PersonalKanban({ user }: { user: User }) {
                           {t.isMilestone && <Diamond className="w-3 h-3 text-amber-600" />}
                         </div>
                         <div className="text-sm text-ink-900 truncate" title={t.name}>{t.name}</div>
-                        <div className="text-[11px] text-ink-500 truncate">{project?.code} · {sub?.name}</div>
+                        <div className="text-[11px] text-ink-500 truncate" title={[project?.code, project?.name, sub?.name].filter(Boolean).join(' · ')}>{project?.code} · {sub?.name}</div>
                       </div>
                       <div className="text-right shrink-0">
                         <StatusTag status={t.status} />
@@ -189,7 +189,7 @@ export function PersonalKanban({ user }: { user: User }) {
                             {mp.project.health === 'red' ? '风险' : mp.project.health === 'yellow' ? '关注' : '健康'}
                           </Tag>
                         </div>
-                        <div className="text-sm font-medium text-ink-900 truncate">{mp.project.name}</div>
+                        <div className="text-sm font-medium text-ink-900 truncate" title={mp.project.name}>{mp.project.name}</div>
                         <div className="text-[11px] text-ink-500 mt-0.5">
                           我有 {mp.taskCount} 个任务（已完成 {mp.doneCount}）
                         </div>
@@ -226,7 +226,7 @@ function KanbanCard({ task, onOpen }: { task: Task; onOpen: () => void }) {
       </div>
       <div className="text-sm font-medium text-ink-900">{task.name}</div>
       {project && (
-        <div className="text-[11px] text-ink-500 mt-1 truncate">{project.code} · {sub?.name}</div>
+        <div className="text-[11px] text-ink-500 mt-1 truncate" title={[project.code, project.name, sub?.name].filter(Boolean).join(' · ')}>{project.code} · {sub?.name}</div>
       )}
       {!task.isMilestone && (
         <div className="mt-2 flex items-center justify-between gap-2">

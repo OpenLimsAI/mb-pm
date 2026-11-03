@@ -562,7 +562,7 @@ function SubGroup({ sub, onDelete, onAdd }: {
           {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
         </button>
         <span className="text-xs font-mono px-1 rounded bg-purple-200 text-purple-800">Lv2</span>
-        <span className="text-sm font-medium flex-1 truncate">{sub.name}</span>
+        <span className="text-sm font-medium min-w-0 flex-1 truncate" title={sub.name}>{sub.name}</span>
         {sub.module && <Tag tone="gray">{sub.module}</Tag>}
         <span className="text-[11px] text-ink-500">{tasks.length} 任务</span>
         <button
@@ -597,7 +597,7 @@ function TaskRow({ task, onDelete }: { task: TemplateNode; onDelete: (id: string
       {task.isMilestone && <Diamond className="w-3 h-3 text-amber-600 shrink-0" />}
       <span className="text-xs font-mono px-1 rounded bg-emerald-100 text-emerald-800">Lv3</span>
       {task.taskCode && <span className="text-[10px] font-mono text-ink-500 shrink-0">{task.taskCode}</span>}
-      <span className={cn('text-sm flex-1 truncate', task.isMilestone && 'font-semibold')}>{task.name}</span>
+      <span className={cn('text-sm min-w-0 flex-1 truncate', task.isMilestone && 'font-semibold')} title={task.name}>{task.name}</span>
       {isCustom && <Tag tone="blue">自定义</Tag>}
       {!task.isMilestone && task.defaultDuration !== undefined && (
         <span className="text-[10px] text-ink-500 flex items-center gap-0.5"><Calendar className="w-3 h-3" />{task.defaultDuration}d</span>
