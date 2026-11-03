@@ -28,6 +28,8 @@ def release_data():
         for key in (
             "APP_SECRET",
             "CASDOOR_CLIENT_SECRET",
+            "PORTAL_PUBLIC_URL",
+            "PORTAL_CLIENT_ID",
             "PORTAL_CLIENT_SECRET",
             "SOLUTION_KB_TOKEN",
             "SOLUTION_KB_CORE_URL",
@@ -56,6 +58,83 @@ def release_data():
         for name in release.SERVICES
     ]
     return before, after, containers
+
+
+def mixed_portal_release_data():
+    """The normal instance hosts an independent portal; emergency PM reuses PM IAM."""
+    before, after, containers = release_data()
+    for config in (before, after):
+        env = config["services"]["app-direct"]["environment"]
+        for key in list(env):
+            if key.startswith("PORTAL_"):
+                del env[key]
+    containers[1]["Config"]["Env"] = [
+        value for value in containers[1]["Config"]["Env"] if not value.startswith("PORTAL_")
+    ]
+    return before, after, containers
+
+
+def test_release_accepts_independent_portal_and_pm_only_emergency_instance():
+    before, after, containers = mixed_portal_release_data()
+    release.validate_configs(before, after, containers, {}, {}, "fixed-image")
+    assert "PORTAL_CLIENT_SECRET" not in after["services"]["app-direct"]["environment"]
+
+
+@pytest.mark.parametrize("key", ["PORTAL_PUBLIC_URL", "PORTAL_CLIENT_ID", "PORTAL_CLIENT_SECRET"])
+def test_release_rejects_losing_an_enabled_portal_setting(key):
+    before, after, containers = mixed_portal_release_data()
+    after["services"]["app"]["environment"].pop(key)
+    with pytest.raises(SystemExit):
+        release.validate_configs(before, after, containers, {}, {}, "fixed-image")
+
+
+@pytest.mark.parametrize(
+    "added",
+    [
+        {"PORTAL_CLIENT_SECRET": "unreviewed"},
+        {
+            "PORTAL_PUBLIC_URL": "https://synthetic.invalid",
+            "PORTAL_CLIENT_ID": "unreviewed",
+            "PORTAL_CLIENT_SECRET": "unreviewed",
+        },
+        {"PORTAL_JWKS_URL": "https://synthetic.invalid/jwks"},
+        {"PORTAL_CLIENT_SECRET": ""},
+    ],
+)
+def test_release_rejects_silently_enabling_or_adding_portal_config_to_emergency_instance(added):
+    before, after, containers = mixed_portal_release_data()
+    after["services"]["app-direct"]["environment"].update(added)
+    with pytest.raises(SystemExit, match="portal configuration would be added"):
+        release.validate_configs(before, after, containers, {}, {}, "fixed-image")
+
+
+@pytest.mark.parametrize(
+    "remaining", ["PORTAL_PUBLIC_URL", "PORTAL_CLIENT_ID", "PORTAL_CLIENT_SECRET"]
+)
+def test_release_rejects_preexisting_partial_portal_config(remaining):
+    before, after, containers = mixed_portal_release_data()
+    value = "synthetic-" + remaining
+    for config in (before, after):
+        config["services"]["app-direct"]["environment"][remaining] = value
+    containers[1]["Config"]["Env"].append(remaining + "=" + value)
+    with pytest.raises(SystemExit, match="independent portal configuration is incomplete"):
+        release.validate_configs(before, after, containers, {}, {}, "fixed-image")
+
+
+def test_release_rejects_image_default_changing_live_portal_secret():
+    before, after, containers = mixed_portal_release_data()
+    # Previously inherited values are still security configuration, not disposable build defaults.
+    for config in (before, after):
+        config["services"]["app"]["environment"].pop("PORTAL_CLIENT_SECRET")
+    with pytest.raises(SystemExit, match="portal configuration would be added, lost or changed"):
+        release.validate_configs(
+            before,
+            after,
+            containers,
+            {"PORTAL_CLIENT_SECRET": "synthetic-PORTAL_CLIENT_SECRET"},
+            {"PORTAL_CLIENT_SECRET": "replacement"},
+            "fixed-image",
+        )
 
 
 def test_release_preserves_all_live_settings_not_only_known_secrets():
