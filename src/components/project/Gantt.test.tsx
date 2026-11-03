@@ -22,6 +22,31 @@ vi.mock('../../mock', async (importOriginal) => ({
 vi.mock('../../lib/cpm', () => ({ computeCPM: () => ({ criticalPathIds: new Set(), byId: new Map(fixture.tasks.map((t) => [t.id, t])) }) }))
 
 describe('项目甘特图时间缩放', () => {
+  it('调宽名称列后保留任务全文提示，并按新可视宽度缩放时间轴', () => {
+    const select = vi.fn()
+    const view = render(<Gantt project={fixture.project as Project} onSelectTask={select} />)
+    try {
+      const timeline = screen.getByRole('region', { name: '甘特图时间轴' })
+      Object.defineProperty(timeline, 'clientWidth', { configurable: true, value: 820 })
+      const divider = screen.getByRole('separator', { name: '调整任务名称列宽' })
+      const labels = timeline.querySelector('.gantt-label-column') as HTMLElement
+      expect(within(labels).getByText('长任务')).toHaveAttribute('title', '长任务')
+      expect(within(labels).getByText('子项目')).toHaveAttribute('title', '子项目')
+      fireEvent.keyDown(divider, { key: 'ArrowRight', shiftKey: true })
+      expect(timeline.style.getPropertyValue('--gantt-label-width')).toBe('368px')
+      expect(select).not.toHaveBeenCalled()
+      timeline.scrollLeft = 800
+      fireEvent.change(screen.getByRole('slider', { name: '时间轴缩放' }), { target: { value: '33' } })
+      const halfVisible = (820 - 368) / 2
+      expect(timeline.scrollLeft).toBeCloseTo((800 + halfVisible) / 8 * 3 - halfVisible)
+      fireEvent.doubleClick(divider)
+      expect(timeline.style.getPropertyValue('--gantt-label-width')).toBe('320px')
+    } finally {
+      view.unmount()
+      localStorage.removeItem('pm-column:project-gantt')
+    }
+  })
+
   it('连续缩放时间轴、任务、里程碑与依赖线，并保持视图中心', () => {
     render(<Gantt project={fixture.project as Project} />)
     const timeline = screen.getByRole('region', { name: '甘特图时间轴' })

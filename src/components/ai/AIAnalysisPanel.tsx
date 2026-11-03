@@ -2,7 +2,7 @@
 // 同一份 AI 设置（服务商 / 模型）、默认提示词可在本次临时修改、报告存档（最近 20 份）、
 // 数据变化后标记过期、导出 Markdown。各场景只提供数据接口与文案。
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { ArrowRight, Clock3, Download, FileText, Loader2, MessageSquareText, RefreshCw, RotateCcw, Sparkles } from 'lucide-react'
 import SafeMarkdown from '../SafeMarkdown'
 import { aiError, getAIStatus, MAX_PROMPT_LENGTH, providerLabel, type AIAnalysis, type AIAnalysisKind, type AIStatus } from '../../api/ai'
@@ -12,6 +12,8 @@ import { useAuth } from '../../store/auth'
 import { can } from '../../lib/permissions'
 import { Link } from 'react-router-dom'
 import { cn } from '../../lib/cn'
+import { ColumnResizer } from '../ui/ColumnResizer'
+import { useColumnWidth } from '../../lib/useColumnWidth'
 
 export interface AIAnalysisPanelProps {
   kind: AIAnalysisKind
@@ -35,6 +37,16 @@ export interface AIAnalysisPanelProps {
 export function AIAnalysisPanel({ kind, title, description, subject, focusPlaceholder, dataNotice, emptyHint, staleNotice, tags, load, generate }: AIAnalysisPanelProps) {
   const online = useDataStore(s => s.mode) === 'api'
   const canConfigureAI = can(useAuth(s => s.currentUser?.role), 'ai.config')
+  const userId = useAuth(s => s.currentUser?.id) ?? 'anonymous'
+  const historyContainer = useRef<HTMLDivElement>(null)
+  const historyColumn = useColumnWidth({
+    storageKey: `mb-pm:analysis-history-width:${userId}`,
+    defaultWidth: 220,
+    minWidth: 180,
+    maxWidth: 480,
+    reserveWidth: 416,
+    containerRef: historyContainer,
+  })
   const version = useDataStore(s => s.version)
   const [status, setStatus] = useState<AIStatus | null>(null)
   const [records, setRecords] = useState<AIAnalysis[]>([])
@@ -78,7 +90,7 @@ export function AIAnalysisPanel({ kind, title, description, subject, focusPlaceh
   }
 
   return (
-    <div className="space-y-4">
+    <div ref={historyContainer} className="space-y-4">
       <section className="card p-5 bg-gradient-to-br from-white to-brand-50/50">
         <div className="flex flex-wrap justify-between items-start gap-4">
           <div><h2 className="font-semibold flex items-center gap-2"><Sparkles className="w-5 h-5 text-brand-600" />{title}</h2><p className="text-sm text-ink-500 mt-2">{description}</p></div>
@@ -106,11 +118,12 @@ export function AIAnalysisPanel({ kind, title, description, subject, focusPlaceh
       {generating && <div role="status" className="card p-5 flex items-center gap-3 text-sm"><Loader2 className="w-5 h-5 animate-spin text-brand-600" /><div>正在读取本次快照并生成分析<p className="text-xs text-ink-500 mt-1">本地大模型可能需要几分钟；完成后会保存到分析记录。</p></div></div>}
       {online && loading && <div className="py-10 text-center text-sm text-ink-500">正在加载分析记录…</div>}
       {online && !loading && !active && !generating && <div className="card py-14 text-center"><FileText className="w-9 h-9 text-ink-300 mx-auto mb-3" /><h3 className="text-sm font-medium">还没有分析记录</h3><p className="text-xs text-ink-500 mt-2">{emptyHint}</p></div>}
-      {active && <div className="grid xl:grid-cols-[220px_1fr] gap-4 items-start">
-        <aside className="card p-3 space-y-2">
+      {active && <div className="grid xl:grid-cols-[var(--analysis-list-width)_minmax(0,1fr)] gap-4 items-start" style={{ '--analysis-list-width': `${historyColumn.width}px` } as CSSProperties}>
+        <aside className="card p-3 space-y-2 relative min-w-0">
           <div className="flex items-center justify-between px-2 py-1"><h3 className="text-sm font-medium">最近分析</h3><button title="刷新分析记录" aria-label="刷新分析记录" className="text-ink-500 hover:text-brand-600" onClick={() => setReload(v => v + 1)} disabled={generating}><RefreshCw className="w-3.5 h-3.5" /></button></div>
-          <div className="max-h-[600px] overflow-y-auto space-y-1">{records.map(r => <button key={r.id} onClick={() => setSelected(r.id)} className={cn('w-full rounded-md text-left p-3', active.id === r.id ? 'bg-brand-50 text-brand-800' : 'hover:bg-ink-100 text-ink-700')}><div className="text-xs flex gap-1.5 items-center"><Clock3 className="w-3 h-3" />{formatTime(r.createdAt)}</div><div className="text-xs mt-1 truncate">{r.model}</div><div className="text-xs mt-1 truncate opacity-70">{r.focus || '全面分析'}</div></button>)}</div>
+          <div className="max-h-[600px] overflow-y-auto space-y-1">{records.map(r => <button key={r.id} onClick={() => setSelected(r.id)} className={cn('w-full rounded-md text-left p-3', active.id === r.id ? 'bg-brand-50 text-brand-800' : 'hover:bg-ink-100 text-ink-700')}><div className="text-xs flex gap-1.5 items-center"><Clock3 className="w-3 h-3" />{formatTime(r.createdAt)}</div><div className="text-xs mt-1 truncate" title={r.model}>{r.model}</div><div className="text-xs mt-1 truncate opacity-70" title={r.focus || '全面分析'}>{r.focus || '全面分析'}</div></button>)}</div>
           <p className="text-[10px] text-ink-500 px-2">显示最近 20 份报告</p>
+          <ColumnResizer label="调整分析记录栏宽度" width={historyColumn.width} minWidth={historyColumn.minWidth} maxWidth={historyColumn.maxWidth} onChange={historyColumn.setWidth} onReset={historyColumn.resetWidth} className="hidden xl:block !mt-0" />
         </aside>
         <article className="card p-6 min-w-0">
           <div className="flex flex-wrap items-start justify-between gap-3 border-b border-ink-300/60 pb-4 mb-5"><div><h3 className="font-semibold text-lg">{subject} · 分析报告</h3><p className="text-xs text-ink-500 mt-2">{formatTime(active.createdAt)} · {providerLabel(active.provider)} / {active.model}{active.usage.fallback ? ' · 云端连接失败，已使用本地备用' : ''}</p></div><Button size="sm" onClick={download} icon={<Download className="w-3.5 h-3.5" />}>导出 Markdown</Button></div>

@@ -169,7 +169,7 @@ export function DelayImpact({ project }: { project: Project }) {
                   {imp.affectsMilestone && <Diamond className="w-3.5 h-3.5 text-red-500" />}
                   {imp.affectsCritical && !imp.affectsMilestone && <Flame className="w-3.5 h-3.5 text-red-500" />}
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-ink-900 truncate">{imp.taskName}</div>
+                    <div className="text-sm font-medium text-ink-900 truncate" title={imp.taskName}>{imp.taskName}</div>
                     <div className="text-xs text-ink-500 mt-0.5">
                       <span className="font-mono">{imp.taskCode}</span> · 计划结束改为{' '}
                       <span className="text-red-600 font-mono">{imp.newPlannedEnd}</span>

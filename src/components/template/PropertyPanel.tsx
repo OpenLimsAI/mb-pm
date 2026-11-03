@@ -365,7 +365,7 @@ function PredecessorEditor({
                   className="w-full text-left px-2 py-1.5 hover:bg-brand-50 text-xs flex items-center gap-2"
                 >
                   <span className="font-mono text-ink-500">{c.taskCode}</span>
-                  <span className="flex-1 truncate">{c.name}</span>
+                  <span className="min-w-0 flex-1 truncate" title={c.name}>{c.name}</span>
                   <span className="text-ink-500 text-[10px]">{c.subName}</span>
                 </button>
               ))

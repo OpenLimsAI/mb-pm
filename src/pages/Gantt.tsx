@@ -4,6 +4,7 @@
 // 管理者看组合全景；执行者（rd / production / qa_qc）固定单项目视图，只见自己参与的项目。
 
 import { useState, useMemo, useRef, useLayoutEffect } from 'react'
+import { useColumnWidth } from '../lib/useColumnWidth'
 import { Link } from 'react-router-dom'
 import {
   GanttChartSquare, Flame, Diamond, Layers, FolderKanban, ExternalLink, Eye,
@@ -157,6 +158,7 @@ export function MultiProjectGantt({ projects, version, selectedTaskId, onSelectT
 }) {
   const [zoom, setZoom] = useState(66)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const column = useColumnWidth({ storageKey: 'pm-column:portfolio-gantt', defaultWidth: LABEL_W, containerRef: scrollRef })
   const centerDayRef = useRef<number | null>(null)
   const dayWidth = dayWidthForZoom(zoom)
   const scale = scaleForDayWidth(dayWidth)
@@ -179,7 +181,7 @@ export function MultiProjectGantt({ projects, version, selectedTaskId, onSelectT
     if (next === zoom) return
     const el = scrollRef.current
     if (el) {
-      const visibleWidth = Math.min(visibleTimelineWidth(el, LABEL_W), Math.max(0, totalWidth - el.scrollLeft))
+      const visibleWidth = Math.min(visibleTimelineWidth(el, column.width), Math.max(0, totalWidth - el.scrollLeft))
       centerDayRef.current = (el.scrollLeft + visibleWidth / 2) / dayWidth
     }
     setZoom(next)
@@ -188,9 +190,9 @@ export function MultiProjectGantt({ projects, version, selectedTaskId, onSelectT
   useLayoutEffect(() => {
     const el = scrollRef.current
     if (!el || centerDayRef.current === null) return
-    restoreTimelineCenter(el, centerDayRef.current, dayWidth, totalWidth, LABEL_W)
+    restoreTimelineCenter(el, centerDayRef.current, dayWidth, totalWidth, column.width)
     centerDayRef.current = null
-  }, [dayWidth, totalWidth])
+  }, [dayWidth, totalWidth, column.width])
 
   // 行结构：项目头 + 每个 sub 的所有 task
   type Row = { type: 'project'; project: Project } | { type: 'task'; task: Task; project: Project }
@@ -281,7 +283,8 @@ export function MultiProjectGantt({ projects, version, selectedTaskId, onSelectT
       <CardBody className="gantt-card-body">
         <GanttViewport
           scrollRef={scrollRef}
-          labelWidth={LABEL_W}
+          labelWidth={column.width}
+          resize={{ minWidth: column.minWidth, maxWidth: column.maxWidth, onChange: column.setWidth, onReset: column.resetWidth }}
           timelineWidth={totalWidth}
           headerHeight={HEADER_H}
           bodyHeight={totalH}
@@ -298,11 +301,11 @@ export function MultiProjectGantt({ projects, version, selectedTaskId, onSelectT
                     >
                       <Link
                         to={`/projects/${r.project.id}`}
-                        className="flex items-center gap-2 truncate hover:text-brand-700"
+                        className="flex items-center gap-2 min-w-0 flex-1 hover:text-brand-700" title={`${r.project.code} · ${r.project.name}`}
                       >
-                        <span className="font-mono text-[10px] text-ink-500">{r.project.code}</span>
-                        <HealthTag health={r.project.health} />
-                        <span className="text-sm font-semibold text-ink-900 truncate">{r.project.name}</span>
+                        <span className="font-mono text-[10px] text-ink-500 shrink-0 max-w-[42%] truncate" title={r.project.code}>{r.project.code}</span>
+                        <span className="shrink-0"><HealthTag health={r.project.health} /></span>
+                        <span className="text-sm font-semibold text-ink-900 truncate min-w-0 flex-1" title={r.project.name}>{r.project.name}</span>
                       </Link>
                     </div>
                   )
@@ -317,8 +320,8 @@ export function MultiProjectGantt({ projects, version, selectedTaskId, onSelectT
                   >
                     {r.task.isMilestone && <Diamond className="w-3 h-3 text-amber-600 shrink-0" />}
                     {isCritical && <Flame className="w-3 h-3 text-red-500 shrink-0" />}
-                    <span className="font-mono text-[10px] text-ink-600 shrink-0 max-w-[42%] truncate">{r.task.code}</span>
-                    <span className="truncate flex-1 font-semibold">{r.task.name}</span>
+                    <span className="font-mono text-[10px] text-ink-600 shrink-0 max-w-[42%] truncate" title={r.task.code}>{r.task.code}</span>
+                    <span className="truncate flex-1 min-w-0 font-semibold" title={r.task.name}>{r.task.name}</span>
                     {owner && <Avatar user={owner} size="sm" />}
                   </div>
                 )

@@ -35,7 +35,7 @@ function Modal({ title, onClose, busy, wide, tabs, children }: {
       <div className="absolute inset-0 bg-black/40" onClick={() => !busy && onClose()} />
       <div className={cn('relative w-full max-h-[92vh] bg-white rounded-xl shadow-2xl flex flex-col', wide ? 'max-w-[900px]' : 'max-w-[460px]')}>
         <div className="flex items-center gap-2 px-5 pt-4 pb-3">
-          <h2 id={titleId} className="text-base font-semibold text-ink-900 flex-1 min-w-0 truncate">{title}</h2>
+          <h2 id={titleId} title={title} className="text-base font-semibold text-ink-900 flex-1 min-w-0 truncate">{title}</h2>
           <button onClick={onClose} disabled={busy} className="p-1.5 rounded-md hover:bg-ink-100 text-ink-500" aria-label="关闭">
             <X className="w-4 h-4" />
           </button>

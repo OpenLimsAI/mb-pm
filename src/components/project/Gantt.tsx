@@ -1,3 +1,4 @@
+import { useColumnWidth } from '../../lib/useColumnWidth'
 import { useCallback, useMemo, useState, useRef, useEffect, useLayoutEffect } from 'react'
 import {
   GanttChartSquare, Flame, Diamond, ChevronDown, ChevronRight, GitBranch,
@@ -109,11 +110,12 @@ export function Gantt({ project, selectedTaskId, onSelectTask, fillHeight = fals
 
   // 同步水平滚动：toolbar 信息只读
   const scrollRef = useRef<HTMLDivElement>(null)
+  const column = useColumnWidth({ storageKey: 'pm-column:project-gantt', defaultWidth: LABEL_W, containerRef: scrollRef })
   const centerDayRef = useRef<number | null>(null)
   const changeZoom = (value: number) => {
     const el = scrollRef.current
     if (el) {
-      const visibleWidth = Math.min(visibleTimelineWidth(el, LABEL_W), Math.max(0, totalWidth - el.scrollLeft))
+      const visibleWidth = Math.min(visibleTimelineWidth(el, column.width), Math.max(0, totalWidth - el.scrollLeft))
       centerDayRef.current = (el.scrollLeft + visibleWidth / 2) / dayW
     }
     setZoom(Math.max(0, Math.min(100, value)))
@@ -121,9 +123,9 @@ export function Gantt({ project, selectedTaskId, onSelectTask, fillHeight = fals
   useLayoutEffect(() => {
     const el = scrollRef.current
     if (!el || centerDayRef.current === null) return
-    restoreTimelineCenter(el, centerDayRef.current, dayW, totalWidth, LABEL_W)
+    restoreTimelineCenter(el, centerDayRef.current, dayW, totalWidth, column.width)
     centerDayRef.current = null
-  }, [dayW, totalWidth])
+  }, [dayW, totalWidth, column.width])
   const xOfRef = useRef(xOf)
   useLayoutEffect(() => { xOfRef.current = xOf }, [xOf])
   useEffect(() => {
@@ -134,10 +136,10 @@ export function Gantt({ project, selectedTaskId, onSelectTask, fillHeight = fals
     if (!t) return
     const tx = xOfRef.current(parseISO(t.plannedStart))
     const target = tx - 80
-    if (target < el.scrollLeft || target > el.scrollLeft + visibleTimelineWidth(el, LABEL_W) - 80) {
+    if (target < el.scrollLeft || target > el.scrollLeft + visibleTimelineWidth(el, column.width) - 80) {
       el.scrollTo({ left: target, behavior: 'smooth' })
     }
-  }, [selectedTaskId, cpm.byId])
+  }, [selectedTaskId, cpm.byId, column.width])
 
   return (
     <Card className={cn('gantt-card', fillHeight && 'gantt-card--fill')}>
@@ -167,7 +169,8 @@ export function Gantt({ project, selectedTaskId, onSelectTask, fillHeight = fals
       <CardBody className="gantt-card-body">
         <GanttViewport
           scrollRef={scrollRef}
-          labelWidth={LABEL_W}
+          labelWidth={column.width}
+          resize={{ minWidth: column.minWidth, maxWidth: column.maxWidth, onChange: column.setWidth, onReset: column.resetWidth }}
           timelineWidth={totalWidth}
           headerHeight={HEADER_H}
           bodyHeight={rows.length * ROW_H}
@@ -186,7 +189,7 @@ export function Gantt({ project, selectedTaskId, onSelectTask, fillHeight = fals
               >
                 {r.type === 'sub' ? (
                   <button
-                    className="flex items-center gap-1 truncate w-full"
+                    className="flex items-center gap-1 min-w-0 w-full" title={r.sub.name}
                     onClick={(e) => {
                       e.stopPropagation()
                       const next = new Set(collapsed)
@@ -196,8 +199,8 @@ export function Gantt({ project, selectedTaskId, onSelectTask, fillHeight = fals
                     }}
                   >
                     {collapsed.has(r.sub.id) ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                    <span className="truncate">{r.sub.name}</span>
-                    <span className="ml-auto text-ink-600 text-[11px]">{getSubTasks(r.sub.id).length}</span>
+                    <span className="truncate flex-1 min-w-0" title={r.sub.name}>{r.sub.name}</span>
+                    <span className="ml-auto shrink-0 text-ink-600 text-[11px]">{getSubTasks(r.sub.id).length}</span>
                   </button>
                 ) : (
                   <TaskLabel task={r.task} isCritical={cpm.criticalPathIds.has(r.task.id) && showCP} />
@@ -415,11 +418,11 @@ function ToggleButton({ active, onClick, icon, label }: { active: boolean; onCli
 function TaskLabel({ task, isCritical }: { task: Task; isCritical?: boolean }) {
   const owner = findUser(task.ownerId)
   return (
-    <div className="flex items-center gap-1.5 truncate">
+    <div className="flex items-center gap-1.5 min-w-0 w-full">
       {task.isMilestone && <Diamond className="w-3 h-3 text-amber-600 shrink-0" />}
       {isCritical && <Flame className="w-3 h-3 text-red-500 shrink-0" />}
-      <span className="truncate font-semibold">{task.name}</span>
-      <span className="ml-auto pl-1 flex items-center gap-1.5">
+      <span className="truncate flex-1 min-w-0 font-semibold" title={task.name}>{task.name}</span>
+      <span className="ml-auto pl-1 flex items-center gap-1.5 shrink-0">
         {owner && <Avatar user={owner} size="sm" />}
       </span>
     </div>

@@ -96,7 +96,7 @@ export default function Templates() {
                       <Tag tone="gray">{t.productType}</Tag>
                       {!t.isActive && <Tag tone="red">已停用</Tag>}
                     </div>
-                    <p className="text-xs text-ink-500 line-clamp-2">{t.description}</p>
+                    <p className="text-xs text-ink-500 line-clamp-2" title={t.description}>{t.description}</p>
                   </div>
                   {canManage && (
                     <button

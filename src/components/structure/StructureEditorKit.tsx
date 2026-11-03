@@ -298,7 +298,7 @@ export function TaskRow({
         ? <Diamond className="w-3.5 h-3.5 text-amber-600 shrink-0" />
         : <span className="text-[9px] font-mono px-1 rounded bg-emerald-100 text-emerald-800 shrink-0">L3</span>}
       <span className={cn('text-[10px] font-mono text-ink-400 shrink-0 truncate', codeClassName)} title={code}>{code}</span>
-      <button onClick={onEdit} className={cn('text-sm flex-1 truncate text-left hover:text-brand-700 hover:underline', isMilestone && 'font-semibold')}>
+      <button onClick={onEdit} title={name} className={cn('text-sm min-w-0 flex-1 truncate text-left hover:text-brand-700 hover:underline', isMilestone && 'font-semibold')}>
         {name}
       </button>
       {warning && (
@@ -515,12 +515,12 @@ export function PredecessorPicker({ candidates, selected, onToggle }: {
             return (
               <label
                 key={c.id}
-                title={disabled ? c.disabledReason ?? undefined : undefined}
+                title={[c.name, disabled ? c.disabledReason : undefined].filter(Boolean).join(' · ')}
                 className={cn('flex items-center gap-2 px-3 py-1.5', disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-brand-50/40', checked && 'bg-brand-50/60')}
               >
                 <input type="checkbox" checked={checked} disabled={disabled} onChange={() => onToggle(c.id)} className="accent-brand-600" />
-                <span className="font-mono text-[10px] text-ink-400 w-24 shrink-0 truncate">{c.code}</span>
-                <span className="text-xs truncate flex-1">{c.name}</span>
+                <span className="font-mono text-[10px] text-ink-400 w-24 shrink-0 truncate" title={c.code}>{c.code}</span>
+                <span className="text-xs min-w-0 truncate flex-1">{c.name}</span>
                 <span className="text-[10px] text-ink-400 shrink-0">{c.subName}</span>
               </label>
             )

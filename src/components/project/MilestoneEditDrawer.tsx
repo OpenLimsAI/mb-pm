@@ -260,7 +260,7 @@ export function MilestoneEditDrawer({ target, project, onClose }: Props) {
                               <label className={cn('flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-brand-50/40', checked && 'bg-brand-50/60')}>
                                 <input type="checkbox" checked={checked} onChange={() => toggle(t.id)} className="accent-brand-600" />
                                 <span className="font-mono text-[10px] text-ink-400 shrink-0">{t.code}</span>
-                                <span className="text-xs truncate flex-1">{t.name}</span>
+                                <span className="text-xs min-w-0 truncate flex-1" title={t.name}>{t.name}</span>
                                 {owner && <Avatar user={owner} size="sm" />}
                               </label>
                             </li>

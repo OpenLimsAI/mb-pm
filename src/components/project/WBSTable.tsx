@@ -24,6 +24,8 @@ import { can } from '../../lib/permissions'
 import { getTaskSchedule, isTaskDone, scheduleToneText } from '../../lib/schedule'
 import { cn } from '../../lib/cn'
 import { ADD_TO_TEAM_HINT, teamIds } from '../../lib/projectTeam'
+import { ColumnResizer } from '../ui/ColumnResizer'
+import { useColumnWidth } from '../../lib/useColumnWidth'
 import './wbs-views.css'
 
 const TASK_STATUSES: TaskStatus[] = ['未开始', '进行中', '阻塞', '延迟', '已完成', '已验证']
@@ -51,6 +53,7 @@ export function WBSTable({ project, onOpenTask, selectedTaskId, fillHeight = fal
   // 订阅数据版本：任一行保存后重新汇总并刷新本表
   useDataStore((s) => s.version)
 
+  const taskColumn = useColumnWidth({ storageKey: 'pm:wbs-task-column', defaultWidth: 380, minWidth: 220, maxWidth: 800 })
   const [keyword, setKeyword] = useState('')
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all')
   const [ownerFilter, setOwnerFilter] = useState<string>('all')
@@ -173,10 +176,11 @@ export function WBSTable({ project, onOpenTask, selectedTaskId, fillHeight = fal
         {totalShown === 0 ? (
           <div className="py-12 text-center text-sm text-ink-500">没有匹配的任务，试试调整筛选条件。</div>
         ) : (
-          <table className="wbs-task-table w-full text-sm min-w-[1090px]">
+          <table className="wbs-task-table text-sm" style={{ tableLayout: 'fixed', width: taskColumn.width + 908, minWidth: '100%' }}>
+            <colgroup><col style={{ width: taskColumn.width }} />{[100, 110, 120, 80, 80, 124, 170].map((width, i) => <col key={i} style={{ width }} />)}<col /></colgroup>
             <thead>
               <tr className="text-[11px] text-ink-500">
-                <th scope="col" className="text-left font-medium px-3 py-2 w-[30%]">任务</th>
+                <th scope="col" className="text-left font-medium px-3 py-2 border-r border-ink-300/40">任务<ColumnResizer label="调整 WBS 任务列宽度" width={taskColumn.width} minWidth={taskColumn.minWidth} maxWidth={taskColumn.maxWidth} onChange={taskColumn.setWidth} onReset={taskColumn.resetWidth} /></th>
                 <th scope="col" className="text-left font-medium px-2 py-2 w-[100px]">负责人</th>
                 <th scope="col" className="text-left font-medium px-2 py-2 w-[110px]">状态</th>
                 <th scope="col" className="text-left font-medium px-2 py-2 w-[120px]">进度</th>
@@ -184,7 +188,7 @@ export function WBSTable({ project, onOpenTask, selectedTaskId, fillHeight = fal
                 <th scope="col" className="text-right font-medium px-2 py-2 w-[80px]">花费(万)</th>
                 <th scope="col" className="text-left font-medium px-2 py-2 w-[124px]">计划开始</th>
                 <th scope="col" className="text-left font-medium px-2 py-2 w-[170px]">计划结束</th>
-                <th scope="col" className="text-left font-medium px-2 py-2 w-[124px]">实际结束</th>
+                <th scope="col" className="text-left font-medium px-2 py-2">实际结束</th>
               </tr>
             </thead>
             <tbody>
@@ -226,7 +230,7 @@ function SubGroup({ sub, tasks, collapsed, onToggle, onOpenTask, selectedTaskId,
           <div className="flex items-center gap-2">
             {collapsed ? <ChevronRight className="w-3.5 h-3.5 text-ink-500" /> : <ChevronDown className="w-3.5 h-3.5 text-ink-500" />}
             <span className="tag bg-purple-100 text-purple-800 font-mono text-[10px]">Lv2</span>
-            <span className="text-sm font-medium text-ink-900">{sub.name}</span>
+            <span className="text-sm font-medium text-ink-900 min-w-0 truncate" title={sub.name}>{sub.name}</span>
             <span className="text-[11px] text-ink-500">{sub.stage} · {sub.module}</span>
             <span className="text-[11px] text-ink-400">{tasks.length} 项</span>
             {subBudget > 0 && (
@@ -357,16 +361,16 @@ function WBSRow({ task, onOpenTask, selected, team }: {
       selected && 'bg-brand-50/60',
     )}>
       {/* 任务名（点击打开抽屉看完整信息） */}
-      <td className="px-3 py-1.5">
+      <td className="px-3 py-1.5 border-r border-ink-300/40">
         <div className="flex items-center gap-1.5 min-w-0">
           {isMilestone
             ? <Diamond className="w-3.5 h-3.5 text-amber-600 shrink-0" />
             : <span className="tag bg-emerald-100 text-emerald-800 font-mono text-[9px] shrink-0">L3</span>}
-          <span className="font-mono text-[10px] text-ink-400 shrink-0">{task.code}</span>
+          <span className="font-mono text-[10px] text-ink-500 shrink-0 max-w-[38%] truncate" title={task.code}>{task.code}</span>
           <button
             onClick={() => onOpenTask?.(task.id)}
-            className={cn('truncate text-left hover:text-brand-700 hover:underline', isMilestone && 'font-semibold')}
-            title="点击查看完整详情（依赖 / 备注 / 交付物）"
+            className={cn('min-w-0 flex-1 truncate text-left hover:text-brand-700 hover:underline', isMilestone && 'font-semibold')}
+            title={`${task.name} · 点击查看完整详情（依赖 / 备注 / 交付物）`}
           >
             {task.name}
           </button>
@@ -382,7 +386,7 @@ function WBSRow({ task, onOpenTask, selected, team }: {
           <select
             value={task.ownerId}
             onChange={(e) => onOwnerChange(e.target.value)}
-            title="点击改派负责人"
+            title={`${findUser(task.ownerId)?.displayName ?? '未分配'} · 点击改派负责人`}
             className="h-7 w-[76px] px-1 text-xs text-ink-700 rounded border border-transparent hover:border-ink-300 bg-transparent focus:border-brand-400 focus:bg-white focus:outline-none cursor-pointer truncate"
           >
             {!ownerInList && <option value={task.ownerId}>{owner?.displayName ?? '（未知负责人）'}</option>}

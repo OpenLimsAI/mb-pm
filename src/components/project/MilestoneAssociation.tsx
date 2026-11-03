@@ -135,7 +135,7 @@ function PredRow({ task, onOpen }: { task: Task; onOpen?: (id: string) => void }
       >
         <Icon className={cn('w-4 h-4 shrink-0', iconColor)} />
         <span className="font-mono text-[10px] text-ink-400 shrink-0">{task.code}</span>
-        <span className={cn('text-xs truncate flex-1', done && 'text-ink-500')}>{task.name}</span>
+        <span className={cn('text-xs min-w-0 truncate flex-1', done && 'text-ink-500')} title={task.name}>{task.name}</span>
         {owner && <Avatar user={owner} size="sm" />}
         <StatusTag status={task.status} />
         <ChevronRight className="w-3 h-3 text-ink-300 group-hover:text-ink-500 shrink-0" />

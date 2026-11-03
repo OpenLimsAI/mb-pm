@@ -373,7 +373,7 @@ function TaskRow({
         <div className={cn('text-sm mt-0.5 text-ink-900', task.isMilestone && 'font-semibold')}>{task.name}</div>
       </td>
       <td className="px-3 py-2.5">
-        <div className="text-xs text-ink-700 truncate max-w-[200px]" title={project?.name}>{project?.code}</div>
+        <div className="text-xs text-ink-700 truncate max-w-[200px]" title={[project?.code, project?.name].filter(Boolean).join(' · ')}>{project?.code}</div>
         <div className="text-[11px] text-ink-500 truncate max-w-[200px]" title={sub?.name}>{sub?.name}</div>
       </td>
       <td className="px-3 py-2.5">

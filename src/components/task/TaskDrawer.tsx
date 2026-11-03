@@ -459,7 +459,7 @@ function DepRow({ task, type, lag }: { task: Task; type: DependencyType; lag: nu
   return (
     <li className="flex items-center gap-2 px-2 py-1.5 rounded bg-ink-100/60 text-xs">
       <span className="font-mono text-[10px] text-ink-500">{task.code}</span>
-      <span className="flex-1 truncate">{task.name}</span>
+      <span className="min-w-0 flex-1 truncate" title={task.name}>{task.name}</span>
       <Tag tone="gray">{depTypeLabel[type]}</Tag>
       {lag !== 0 && <Tag tone={lag > 0 ? ('yellow' as const) : 'gray'}>{lag > 0 ? `+${lag}d` : `${lag}d`}</Tag>}
       <StatusTag status={task.status} />

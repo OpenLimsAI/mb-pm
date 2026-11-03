@@ -1,7 +1,9 @@
 // 模板预览（FR-TE-004）
 // 模拟生成完整的甘特图视图，展示项目从假定的开始日期出发会形成的任务排期、关键路径、里程碑分布
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { GanttViewport } from '../components/project/GanttViewport'
+import { useColumnWidth } from '../lib/useColumnWidth'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Eye, Calendar, Diamond, Flame } from 'lucide-react'
 import { addDays, differenceInCalendarDays, format, parseISO, startOfMonth, isWeekend } from 'date-fns'
@@ -16,6 +18,7 @@ const DAY_W = 14
 const ROW_H = 32
 const HEADER_H = 56
 const LABEL_W = 320
+type PreviewRow = { type: 'sub'; sub: TemplateNode } | { type: 'task'; task: Task }
 
 export default function TemplatePreview() {
   const { id } = useParams<{ id: string }>()
@@ -56,8 +59,7 @@ export default function TemplatePreview() {
   const stats = computeStats(version.structureJson)
 
   // 渲染：sub 行 + task 行（同 Gantt 组件思路简化版）
-  type Row = { type: 'sub'; sub: TemplateNode } | { type: 'task'; task: Task }
-  const rows: Row[] = []
+  const rows: PreviewRow[] = []
   version.structureJson.children?.forEach((sub) => {
     rows.push({ type: 'sub', sub })
     sub.children?.forEach((tNode) => {
@@ -65,10 +67,6 @@ export default function TemplatePreview() {
       if (task) rows.push({ type: 'task', task })
     })
   })
-
-  const totalWidth = totalDays * DAY_W
-
-  const xOf = (d: Date) => differenceInCalendarDays(d, projectStart) * DAY_W
 
   return (
     <div className="p-6 max-w-[1600px] mx-auto">
@@ -112,18 +110,34 @@ export default function TemplatePreview() {
         <KpiBlock label="项目总跨度" value={`${totalDays} 天`} />
       </div>
 
-      <Card className="overflow-hidden">
-        <CardHeader title="模拟甘特图" subtitle={`${format(projectStart, 'yyyy-MM-dd')} → ${format(addDays(projectStart, totalDays), 'yyyy-MM-dd')}`} />
-        <CardBody className="p-0">
+      <Card className="gantt-card">
+        <CardHeader className="gantt-toolbar" title="模拟甘特图" subtitle={`${format(projectStart, 'yyyy-MM-dd')} → ${format(addDays(projectStart, totalDays), 'yyyy-MM-dd')}`} />
+        <CardBody className="gantt-card-body">
           {tasks.length === 0 ? (
             <EmptyState title="模板为空" description="请先在编辑器中添加任务" />
           ) : (
-            <div className="flex border-t border-ink-300/40">
-              {/* 任务列 */}
-              <div className="shrink-0 border-r border-ink-300/40 bg-white" style={{ width: LABEL_W }}>
-                <div className="bg-ink-100 sticky top-0 z-10 px-3 flex items-center text-xs font-medium" style={{ height: HEADER_H }}>
-                  任务（{tasks.length}）
-                </div>
+            <TemplateGantt rows={rows} tasks={tasks} months={months} projectStart={projectStart} totalDays={totalDays} criticalPathIds={cpm.criticalPathIds} />
+          )}
+        </CardBody>
+      </Card>
+
+      <div className="mt-3 px-3 py-2 rounded-md bg-amber-50 text-amber-700 text-xs flex items-start gap-2">
+        <Eye className="w-3.5 h-3.5 mt-0.5" />
+        <span>预览基于模板默认工期与依赖关系生成，仅供模板调整时验证合理性。真实创建项目时还会综合人员负荷、资源日历等因素。</span>
+      </div>
+    </div>
+  )
+}
+
+function TemplateGantt({ rows, tasks, months, projectStart, totalDays, criticalPathIds }: { rows: PreviewRow[]; tasks: Task[]; months: { date: Date; label: string; x: number }[]; projectStart: Date; totalDays: number; criticalPathIds: Set<string> }) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const column = useColumnWidth({ storageKey: 'pm-column:template-gantt', defaultWidth: LABEL_W, containerRef: scrollRef })
+  const totalWidth = totalDays * DAY_W
+  const xOf = (d: Date) => differenceInCalendarDays(d, projectStart) * DAY_W
+  return <GanttViewport scrollRef={scrollRef} labelWidth={column.width} timelineWidth={totalWidth} headerHeight={HEADER_H} bodyHeight={rows.length * ROW_H}
+    resize={{ minWidth: column.minWidth, maxWidth: column.maxWidth, onChange: column.setWidth, onReset: column.resetWidth }}
+    labelHeader={<div className="px-3 h-full flex items-center text-xs font-medium">任务（{tasks.length}）</div>}
+    labels={<>
                 {rows.map((r, i) => (
                   <div
                     key={i}
@@ -134,23 +148,19 @@ export default function TemplatePreview() {
                     style={{ height: ROW_H }}
                   >
                     {r.type === 'sub' ? (
-                      <span className="truncate">{r.sub.name}</span>
+                      <span className="truncate min-w-0 flex-1" title={r.sub.name}>{r.sub.name}</span>
                     ) : (
-                      <span className="flex items-center gap-1.5 truncate w-full">
+                      <span className="flex items-center gap-1.5 min-w-0 w-full">
                         {r.task.isMilestone && <Diamond className="w-3 h-3 text-amber-600 shrink-0" />}
-                        {cpm.criticalPathIds.has(r.task.id) && <Flame className="w-3 h-3 text-red-500 shrink-0" />}
-                        <span className="font-mono text-[10px] text-ink-500">{r.task.code}</span>
-                        <span className="truncate">{r.task.name}</span>
+                        {criticalPathIds.has(r.task.id) && <Flame className="w-3 h-3 text-red-500 shrink-0" />}
+                        <span className="font-mono text-[10px] text-ink-500 shrink-0 max-w-[42%] truncate" title={r.task.code}>{r.task.code}</span>
+                        <span className="truncate min-w-0 flex-1" title={r.task.name}>{r.task.name}</span>
                       </span>
                     )}
                   </div>
                 ))}
-              </div>
-
-              {/* 时间轴 + bars */}
-              <div className="flex-1 overflow-x-auto relative">
-                <div style={{ width: totalWidth, position: 'relative' }}>
-                  <div className="bg-ink-100 sticky top-0 z-10 border-b border-ink-300/40" style={{ height: HEADER_H }}>
+    </>}
+    timeHeader={<>
                     <div className="absolute inset-x-0 top-0 h-6">
                       {months.map((m) => (
                         <div key={m.label} className="absolute top-0 h-full text-xs flex items-center px-1.5 text-ink-700 font-medium border-r border-ink-300/60 bg-ink-100" style={{ left: m.x }}>
@@ -174,9 +184,8 @@ export default function TemplatePreview() {
                         )
                       })}
                     </div>
-                  </div>
-
-                  <div className="relative" style={{ height: rows.length * ROW_H }}>
+    </>}
+  >
                     {/* 周末背景 */}
                     {Array.from({ length: totalDays }).map((_, i) => {
                       const d = addDays(projectStart, i)
@@ -196,7 +205,7 @@ export default function TemplatePreview() {
                       const left = xOf(parseISO(t.plannedStart))
                       const w = Math.max(t.isMilestone ? 16 : 6, differenceInCalendarDays(parseISO(t.plannedEnd), parseISO(t.plannedStart)) * DAY_W)
                       const top = i * ROW_H + (ROW_H - 18) / 2
-                      const isCritical = cpm.criticalPathIds.has(t.id)
+                      const isCritical = criticalPathIds.has(t.id)
 
                       if (t.isMilestone) {
                         return (
@@ -229,20 +238,7 @@ export default function TemplatePreview() {
                         </div>
                       )
                     })}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </CardBody>
-      </Card>
-
-      <div className="mt-3 px-3 py-2 rounded-md bg-amber-50 text-amber-700 text-xs flex items-start gap-2">
-        <Eye className="w-3.5 h-3.5 mt-0.5" />
-        <span>预览基于模板默认工期与依赖关系生成，仅供模板调整时验证合理性。真实创建项目时还会综合人员负荷、资源日历等因素。</span>
-      </div>
-    </div>
-  )
+  </GanttViewport>
 }
 
 function KpiBlock({ label, value, icon }: { label: string; value: number | string; icon?: React.ReactNode }) {
