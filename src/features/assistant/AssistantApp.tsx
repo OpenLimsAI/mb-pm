@@ -13,6 +13,7 @@ import { ArrowDownToLine, ArrowUp, Bot, Check, ChevronDown, ChevronRight, Copy, 
 import { taskSummary } from './client'
 import type { AssistantArtifact, AssistantClient, AssistantTask, AssistantPreflight, TaskInput, TaskQuestion, TaskSummary } from './client'
 import useAssistantRequests from './useAssistantRequests'
+import useAssistantConfiguration from './useAssistantConfiguration'
 import RequestProgressView from './RequestProgressView'
 import type { ModelSettings, ModelSettingsClient } from '../solutions/modelSettings'
 import { parseReportFile, REPORT_IMPORT_ACCEPT } from '../solutions/reportImport'
@@ -24,6 +25,7 @@ import './assistant.css'
 
 interface Props { client: AssistantClient; modelClient: ModelSettingsClient; userName: string; preview: boolean; namespace?: string }
 interface Draft { question: string; context: string; label: string }
+interface ComposerFailure { message: string; configurationRevision?: number; action?: 'data' | 'model' }
 const emptyDraft = (): Draft => ({ question: '', context: '', label: '' })
 const issue = (reason: unknown) => reason instanceof Error ? reason.message : '操作未完成，请重试。'
 function download(artifact: AssistantArtifact) {
@@ -38,19 +40,24 @@ function AssistantWorkspace({ client, modelClient, userName, preview, namespace 
   const preferenceScope = `${namespace}:${preview ? 'preview' : 'live'}`
   const initialPreferences = useRef(readPreferences(preferenceScope))
   const storageKey = `assistant-data-sources:${namespace}:${preview ? 'preview' : 'live'}`
-  const [dataSources, setDataSources] = useState<ApplicationDataSource[]>(() => { try { return readDataSources(localStorage, storageKey) } catch { return [] } })
-  const [answerMode, setAnswerMode] = useState<AnswerMode>(() => readPreferences(preferenceScope).answerMode || 'auto')
+  const { dataSources, setDataSources, answerMode, setAnswerMode, model, setModel, revision: configurationRevision, getSnapshot: configurationSnapshot } = useAssistantConfiguration(() => {
+    const preferences = readPreferences(preferenceScope)
+    let sources: ApplicationDataSource[] = []
+    try { sources = readDataSources(localStorage, storageKey) } catch { /* Start without application data. */ }
+    return { dataSources: sources, answerMode: preferences.answerMode || 'auto', model: preferences.model || 'enterprise' }
+  })
   const [sourceDraft, setSourceDraft] = useState<ApplicationDataSource[]>(dataSources)
   const [tasks, setTasks] = useState<TaskSummary[]>([]), [total, setTotal] = useState(0), [task, setTask] = useState<AssistantTask | null>(null)
   const [search, setSearch] = useState(''), [trashed, setTrashed] = useState(false), [offset, setOffset] = useState(0), [reload, setReload] = useState(0)
   const [loading, setLoading] = useState(true), [opening, setOpening] = useState(false), [listError, setListError] = useState(''), [taskError, setTaskError] = useState(''), [notice, setNotice] = useState('')
-  const [drafts, setDrafts] = useState<Record<string, Draft>>({}), [legacyPending, setPending] = useState<Record<string, boolean>>({}), [errors, setErrors] = useState<Record<string, string>>({})
-  const [modelSettings, setModelSettings] = useState<ModelSettings | null>(null), [model, setModel] = useState(() => readPreferences(preferenceScope).model || 'enterprise'), [modelError, setModelError] = useState('')
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({}), [legacyPending, setPending] = useState<Record<string, boolean>>({}), [errors, setErrors] = useState<Record<string, ComposerFailure | undefined>>({})
+  const [modelSettings, setModelSettings] = useState<ModelSettings | null>(null), [modelError, setModelError] = useState('')
   const capabilities = useSearchCapabilities(client, model, modelSettings?.revision)
   const [dialog, setDialog] = useState<'create' | 'settings' | 'data' | 'materials' | 'delete' | 'restore' | null>(null), [formBusy, setFormBusy] = useState(false), [formError, setFormError] = useState('')
   const [sourceView, setSourceView] = useState<{ taskId: string; path: string; title?: string; body?: string; offset?: number; totalChars?: number; nextOffset?: number | null; error?: string; loading?: boolean } | null>(null)
   const sourceSequence = useRef(0)
-  const [preflight, setPreflight] = useState<AssistantPreflight | null>(null)
+  const [preflightResult, setPreflight] = useState<{ revision: number; result: AssistantPreflight } | null>(null)
+  const preflight = preflightResult?.revision === configurationRevision ? preflightResult.result : null
   const [materialParts, setMaterialParts] = useState<MaterialPart[]>([]), [selectedParts, setSelectedParts] = useState<string[]>([])
   const [actionTarget, setActionTarget] = useState<TaskSummary | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false), [resultOpen, setResultOpen] = useState(true), [resultPeek, setResultPeek] = useState(false), [expanded, setExpanded] = useState(false)
@@ -74,11 +81,11 @@ function AssistantWorkspace({ client, modelClient, userName, preview, namespace 
         const latest = old[row.id] || emptyDraft()
         return latest.question.trim() === job.question && latest.context === job.context ? { ...old, [row.id]: emptyDraft() } : old
       })
-      setErrors(old => ({ ...old, [row.id]: '' })); delete retries.current[row.id]
+      setErrors(old => ({ ...old, [row.id]: undefined })); delete retries.current[row.id]
     },
     fail(taskId, message, job) {
       if (job?.status === 'failed' || job?.status === 'cancelled') delete retries.current[taskId]
-      setErrors(old => ({ ...old, [taskId]: job?.status === 'cancelled' ? '' : message }))
+      setErrors(old => ({ ...old, [taskId]: job?.status === 'cancelled' ? undefined : { message } }))
     },
   })
   const resumeRequest = requests.resume
@@ -90,7 +97,7 @@ function AssistantWorkspace({ client, modelClient, userName, preview, namespace 
     try { const row = await client.get(id); if (alive.current && token === openSequence.current) { setTask(row); setResultTab(row.finalArtifactId ? 'artifacts' : 'overview'); setArtifactId(row.finalArtifactId || ''); setDrafts(old => { const saved = readDraft(preferenceScope, id); return old[id] || !saved ? old : { ...old, [id]: saved } }); const preferences = readPreferences(preferenceScope, id); if (preferences.answerMode) setAnswerMode(preferences.answerMode); if (preferences.model) setModel(preferences.model); try { setDataSources(readDataSources(localStorage, localStorage.getItem(`${storageKey}:${id}`) ? `${storageKey}:${id}` : storageKey)) } catch { /* Selection stays in memory. */ } if (!row.deletedAt) resumeRequest(id) } }
     catch (reason) { if (alive.current && token === openSequence.current) { setTaskError(issue(reason)); setSidebarOpen(true) } }
     finally { if (alive.current && token === openSequence.current) setOpening(false) }
-  }, [client, resumeRequest, preferenceScope, storageKey])
+  }, [client, resumeRequest, preferenceScope, storageKey, setAnswerMode, setModel, setDataSources])
   useEffect(() => {
     const token = ++listSequence.current
     let current = true
@@ -109,19 +116,21 @@ function AssistantWorkspace({ client, modelClient, userName, preview, namespace 
     const load = () => { const token = ++generation; modelClient.get().then(value => { if (!current || token !== generation) return; setModelSettings(value); setModelError(''); const initialLoad = !initialized; initialized = true; setModel(previous => (!initialLoad || initialPreferences.current.model === 'enterprise') && previous === 'enterprise' || value.profiles.some(p => p.id === previous) ? previous : value.defaultProfileId || 'enterprise') }).catch(() => { if (current && token === generation) setModelError('模型配置暂时无法读取，可打开 AI 模型设置后重试。') }) }
     load(); const stopListening = listenForSearchConfigurationChanges(load)
     return () => { current = false; generation += 1; stopListening() }
-  }, [modelClient, preferenceScope])
+  }, [modelClient, preferenceScope, setModel])
   useEffect(() => { if (task) { try { writeDataSources(localStorage, `${storageKey}:${task.id}`, dataSources) } catch { /* In-memory choice remains available. */ } } }, [task, dataSources, storageKey])
   useEffect(() => { for (const [id, value] of Object.entries(drafts)) { if (!writeDraft(preferenceScope, id, value)) { setNotice('浏览器暂时无法保存草稿，请在离开页面前复制重要输入。'); break } } }, [drafts, preferenceScope])
   useEffect(() => { if (!modelSettings) return; const value = { answerMode, model }; writePreferences(preferenceScope, 'default', value); if (task) writePreferences(preferenceScope, task.id, value) }, [answerMode, model, task, preferenceScope, modelSettings])
   useEffect(() => {
     if (!client.preflight) return
     let current = true
-    client.preflight({ modelProfileId: model, answerMode, dataSources }).then(value => { if (current) setPreflight(value) }).catch(() => { if (current) setPreflight({ ready: true, checks: [{ key: 'connection', status: 'warning', message: '暂时无法检查配置，发送时将再次确认。' }] }) })
+    client.preflight({ modelProfileId: model, answerMode, dataSources }).then(value => { if (current && configurationSnapshot().revision === configurationRevision) setPreflight({ revision: configurationRevision, result: value }) }).catch(() => { if (current && configurationSnapshot().revision === configurationRevision) setPreflight({ revision: configurationRevision, result: { ready: true, checks: [{ key: 'connection', status: 'warning', message: '暂时无法检查配置，发送时将再次确认。' }] } }) })
     return () => { current = false }
-  }, [client, model, answerMode, dataSources])
+  }, [client, model, answerMode, dataSources, configurationRevision, configurationSnapshot])
   useEffect(() => { messagesEnd.current?.scrollIntoView?.({ block: 'end' }) }, [task?.id, task?.messageCount])
   useEffect(() => { const keyboard = (event: KeyboardEvent) => { if (event.key === 'Escape' && !dialog) { setSidebarOpen(false); setResultPeek(false); setExpanded(false) } }; document.addEventListener('keydown', keyboard); return () => document.removeEventListener('keydown', keyboard) }, [dialog])
   const draft = task ? drafts[task.id] || emptyDraft() : emptyDraft(), busy = !!task && !!pending[task.id]
+  const taskFailure = task ? errors[task.id] : undefined
+  const visibleFailure = taskFailure && (taskFailure.configurationRevision === undefined || taskFailure.configurationRevision === configurationRevision) ? taskFailure : undefined
   const artifact = task?.artifacts.find(item => item.id === artifactId) || task?.artifacts.find(item => item.id === task.finalArtifactId) || task?.artifacts.at(-1)
   const artifactAnswer = artifact && task?.messages.find(message => message.role === 'assistant' && message.id === artifact.id)
   const updateDraft = (patch: Partial<Draft>) => { if (!task) return; setDrafts(old => ({ ...old, [task.id]: { ...(old[task.id] || emptyDraft()), ...patch } })) }
@@ -183,15 +192,27 @@ function AssistantWorkspace({ client, modelClient, userName, preview, namespace 
   }
   async function send(options?: { continueFromRequest?: string; question?: string; context?: string; answerMode?: AnswerMode; dataSources?: ApplicationDataSource[]; model?: string }) {
     if (!task || task.deletedAt || pending[task.id] || locked.current.has(task.id) || moving.current.has(task.id)) return
-    const target = task, sent = { ...draft, ...(options?.question !== undefined ? { question: options.question, context: options.context || '' } : {}) }, chosenModel = options?.model || model, chosenMode = options?.answerMode || answerMode, chosenSources = options?.dataSources || dataSources
+    const settings = configurationSnapshot()
+    const target = task, sent = { ...draft, ...(options?.question !== undefined ? { question: options.question, context: options.context || '' } : {}) }, chosenModel = options?.model || settings.value.model, chosenMode = options?.answerMode || settings.value.answerMode, chosenSources = options?.dataSources || settings.value.dataSources
     if (!sent.question.trim() || sent.question.length > 12000 || sent.context.length > 20000) return
     const fingerprint = JSON.stringify([sent.question, sent.context, chosenModel, chosenSources, chosenMode, options?.continueFromRequest]), retry = retries.current[target.id]
     const input: TaskQuestion = { requestId: retry?.fingerprint === fingerprint ? retry.requestId : crypto.randomUUID(), question: sent.question.trim(), context: sent.context, modelProfileId: chosenModel, data_sources: chosenSources, answerMode: chosenMode, ...(options?.continueFromRequest ? { continueFromRequest: options.continueFromRequest } : {}) }
     retries.current[target.id] = { fingerprint, requestId: input.requestId }
-    locked.current.add(target.id); setPending(old => ({ ...old, [target.id]: true })); setErrors(old => ({ ...old, [target.id]: '' }))
+    locked.current.add(target.id); setPending(old => ({ ...old, [target.id]: true })); setErrors(old => ({ ...old, [target.id]: undefined }))
+    let submitted = false
+    const outdated = () => !alive.current || active.current !== target.id || configurationSnapshot().revision !== settings.revision
     try {
-      if (client.preflight) { const checked = await client.preflight({ modelProfileId: chosenModel, answerMode: chosenMode, dataSources: chosenSources, question: sent.question, taskId: target.id, referenceMaterialAvailable: !!sent.context.trim() }); if (active.current === target.id) setPreflight(checked); if (!checked.ready) throw new Error(checked.checks.filter(check => check.status === 'blocked').map(check => check.message).join('；') || checked.message || '请先检查数据与模型设置。') }
-      if (!alive.current) return
+      if (client.preflight) {
+        const checked = await client.preflight({ modelProfileId: chosenModel, answerMode: chosenMode, dataSources: chosenSources, question: sent.question, taskId: target.id, referenceMaterialAvailable: !!sent.context.trim() })
+        if (outdated()) { if (alive.current && active.current === target.id) setNotice('设置已更新，刚才的提问尚未发送，请重新回答。'); return }
+        if (!checked.ready) {
+          const blocked = checked.checks.filter(check => check.status === 'blocked')
+          setErrors(old => ({ ...old, [target.id]: { message: blocked.map(check => check.message).join('；') || checked.message || '请先检查数据与模型设置。', configurationRevision: settings.revision, action: blocked.some(check => ['scope', 'knowledge', 'projects'].includes(check.key)) ? 'data' : 'model' } }))
+          return
+        }
+      }
+      if (outdated()) return
+      submitted = true
       if (requests.enabled) { await requests.submit(target, input); return }
       const row = await client.send(target, input)
       if (!alive.current) return
@@ -202,7 +223,7 @@ function AssistantWorkspace({ client, modelClient, userName, preview, namespace 
         return latest.question === sent.question && latest.context === sent.context ? { ...old, [target.id]: emptyDraft() } : old
       })
       delete retries.current[target.id]
-    } catch (reason) { if (alive.current) setErrors(old => ({ ...old, [target.id]: issue(reason) })) }
+    } catch (reason) { if (alive.current && (submitted || !outdated())) setErrors(old => ({ ...old, [target.id]: { message: issue(reason) } })) }
     finally { locked.current.delete(target.id); if (alive.current) setPending(old => ({ ...old, [target.id]: false })) }
   }
   function materials() { if (!task) return; setMaterialParts([]); setSelectedParts([]); setMaterialDraft(draft.context); setMaterialLabel(draft.label); setMaterialError(''); setDialog('materials') }
@@ -237,7 +258,7 @@ function AssistantWorkspace({ client, modelClient, userName, preview, namespace 
         {notice && <div className="aa-notice" role="status"><Check size={14} /><span>{notice}</span><button type="button" className="aa-icon-button" aria-label="关闭提示" onClick={() => setNotice('')}><X size={13} /></button></div>}
         {taskError && <div className="aa-error" role="alert"><span>{taskError}</span><button type="button" className="aa-button" onClick={() => setSidebarOpen(true)}>任务列表</button>{active.current && <button type="button" className="aa-button" onClick={() => void openTask(active.current!)}>重新打开</button>}</div>}
         <div className="aa-messages" aria-label="任务对话">{!task && !opening && !taskError && <div className="aa-welcome"><span className="aa-welcome-icon"><Sparkles size={29} /></span><h2>把一个想法，变成一份成果</h2><p>与 AI 一起解读资料、整理思路、规划任务和撰写内容。</p><button className="aa-button aa-primary" type="button" onClick={newTask}><Plus size={15} />创建第一项任务</button></div>}{task && !task.messages.length && !busy && <div className="aa-welcome"><span className="aa-welcome-icon"><Bot size={29} /></span><h2>从一个清晰的目标开始</h2><p>告诉助手你想完成什么，也可以先导入资料。</p></div>}{task && <Conversation messages={task.messages} artifacts={task.artifacts} userName={userName} onCopy={content => void copy(content)} onArtifact={showArtifact} onSource={path => { if (task) void openSource(task.id, path) }} onReask={(question, context, mode) => { setAnswerMode(mode); void send({ question, context, answerMode: mode }) }} busy={busy} />}{task && requests.progress[task.id] ? <RequestProgressView progress={requests.progress[task.id]} onCancel={client.cancelRequest && requests.progress[task.id].job ? () => requests.cancel(task.id, requests.progress[task.id].job!.requestId) : undefined} onRetry={() => { const job = requests.progress[task.id].job; if (job) void send({ question: job.question, context: job.context }) }} onContinue={() => { const job = requests.progress[task.id].job; if (job) void send({ question: job.question, context: job.context, continueFromRequest: job.requestId, answerMode: job.requestedMode, dataSources: job.dataSources, model: job.modelProfileId || undefined }) }} onCopyDiagnostic={text => void copy(text)} onSettings={() => { setSourceDraft(dataSources); setDialog('data') }} onEditQuestion={() => document.querySelector<HTMLTextAreaElement>('.aa-composer textarea')?.focus()} preview={preview} /> : busy && <div className="aa-thinking" role="status"><LoaderCircle size={16} className="aa-spin" />{preview ? '正在演示自动判断与回答流程…' : '正在判断并查找所需资料…'}</div>}<div ref={messagesEnd} /></div>
-        {task?.deletedAt ? <div className="aa-readonly"><Trash2 size={17} /><span>此任务在回收站，对话和产物仍保留。</span><button className="aa-button" type="button" onClick={() => setSidebarOpen(true)}>在任务列表中恢复</button></div> : <div className="aa-composer-wrap">{task && errors[task.id] && <div className="aa-error" role="alert">{errors[task.id]}<button type="button" className="aa-button" onClick={() => void openTask(task.id)}>刷新任务</button></div>}<div className="aa-composer-mode"><AnswerModeControl value={answerMode} onChange={setAnswerMode} disabled={busy} /><small aria-label="当前应用数据范围">应用数据：{dataSourceLabel(dataSources)}</small></div><form className="aa-composer" onSubmit={event => { event.preventDefault(); void send() }}><textarea aria-label="给 AI 助手的任务" placeholder={task ? '描述你想完成的工作，或继续追问…' : '先新建任务，开始与 AI 协作'} value={draft.question} maxLength={12000} disabled={!task || opening} onChange={event => updateDraft({ question: event.target.value })} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) { event.preventDefault(); void send() } }} />{draft.context && <div className="aa-attached"><button type="button" onClick={materials}><Paperclip size={13} />{draft.label || '本轮资料'} · {draft.context.length.toLocaleString()} 字</button><button type="button" aria-label="移除本轮资料" onClick={() => updateDraft({ context: '', label: '' })}><X size={12} /></button></div>}<div className="aa-composer-actions"><button className="aa-icon-button" type="button" aria-label="添加任务资料" title="导入或粘贴本轮资料" disabled={!task} onClick={materials}><Plus size={20} /></button>{(draft.question || draft.context) && !busy && <button type="button" className="aa-clear-filter" onClick={() => updateDraft(emptyDraft())}>清空草稿</button>}<span className="aa-composer-spacer" /><label className="aa-model-select"><Bot size={13} /><select aria-label="助手回答模型" value={model} onChange={event => setModel(event.target.value)} disabled={busy}><option value="enterprise">企业默认模型</option>{modelSettings?.profiles.map(profile => <option value={profile.id} key={profile.id}>{profile.name} · {modelPriceLabel(profile.provider, profile.baseUrl, profile.model)}</option>)}</select><ChevronDown size={12} /></label><button className="aa-send" aria-label="发送任务消息" title="发送 · Enter" type="submit" disabled={!task || busy || !draft.question.trim() || opening}>{busy ? <LoaderCircle size={17} className="aa-spin" /> : <ArrowUp size={18} />}</button></div></form>{preflight && <div className="aa-preflight" role="status">{preflight.checks.filter(check => check.status !== 'ready').map(check => <p key={check.key}>{check.message}</p>)}{preflight.ready && preflight.checks.every(check => check.status === 'ready') && <small>配置检查通过；实际可用性以本次请求结果为准。</small>}</div>}{modelError && <p className="aa-model-error" role="status">{modelError}</p>}<p className="aa-disclaimer">{preview ? '本地交互演示 · 不调用外部模型' : 'AI 生成内容请核对后使用'}<span>草稿在此浏览器保留 7 天 · Enter 发送</span></p></div>}
+        {task?.deletedAt ? <div className="aa-readonly"><Trash2 size={17} /><span>此任务在回收站，对话和产物仍保留。</span><button className="aa-button" type="button" onClick={() => setSidebarOpen(true)}>在任务列表中恢复</button></div> : <div className="aa-composer-wrap">{task && visibleFailure && <div className="aa-error" role="alert">{visibleFailure.message}{visibleFailure.action === 'data' ? <button type="button" className="aa-button" onClick={() => { setSourceDraft(dataSources); setDialog('data') }}>打开数据设置</button> : visibleFailure.action === 'model' ? <a className="aa-button" href={'/model-settings' + (preview ? '?preview=1' : '')} target="_blank" rel="noreferrer">打开 AI 模型设置</a> : <button type="button" className="aa-button" onClick={() => void openTask(task.id)}>刷新任务</button>}</div>}<div className="aa-composer-mode"><AnswerModeControl value={answerMode} onChange={setAnswerMode} disabled={busy} /><small aria-label="当前应用数据范围">应用数据：{dataSourceLabel(dataSources)}</small></div><form className="aa-composer" onSubmit={event => { event.preventDefault(); void send() }}><textarea aria-label="给 AI 助手的任务" placeholder={task ? '描述你想完成的工作，或继续追问…' : '先新建任务，开始与 AI 协作'} value={draft.question} maxLength={12000} disabled={!task || opening} onChange={event => updateDraft({ question: event.target.value })} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) { event.preventDefault(); void send() } }} />{draft.context && <div className="aa-attached"><button type="button" onClick={materials}><Paperclip size={13} />{draft.label || '本轮资料'} · {draft.context.length.toLocaleString()} 字</button><button type="button" aria-label="移除本轮资料" onClick={() => updateDraft({ context: '', label: '' })}><X size={12} /></button></div>}<div className="aa-composer-actions"><button className="aa-icon-button" type="button" aria-label="添加任务资料" title="导入或粘贴本轮资料" disabled={!task} onClick={materials}><Plus size={20} /></button>{(draft.question || draft.context) && !busy && <button type="button" className="aa-clear-filter" onClick={() => updateDraft(emptyDraft())}>清空草稿</button>}<span className="aa-composer-spacer" /><label className="aa-model-select"><Bot size={13} /><select aria-label="助手回答模型" value={model} onChange={event => setModel(event.target.value)} disabled={busy}><option value="enterprise">企业默认模型</option>{modelSettings?.profiles.map(profile => <option value={profile.id} key={profile.id}>{profile.name} · {modelPriceLabel(profile.provider, profile.baseUrl, profile.model)}</option>)}</select><ChevronDown size={12} /></label><button className="aa-send" aria-label="发送任务消息" title="发送 · Enter" type="submit" disabled={!task || busy || !draft.question.trim() || opening}>{busy ? <LoaderCircle size={17} className="aa-spin" /> : <ArrowUp size={18} />}</button></div></form>{preflight && <div className="aa-preflight" role="status">{preflight.checks.filter(check => check.status !== 'ready').map(check => <p key={check.key}>{check.message}</p>)}{preflight.ready && preflight.checks.every(check => check.status === 'ready') && <small>配置检查通过；实际可用性以本次请求结果为准。</small>}</div>}{modelError && <p className="aa-model-error" role="status">{modelError}</p>}<p className="aa-disclaimer">{preview ? '本地交互演示 · 不调用外部模型' : 'AI 生成内容请核对后使用'}<span>草稿在此浏览器保留 7 天 · Enter 发送</span></p></div>}
       </main>
       {resultPeek && <button className="aa-result-scrim" aria-label="收起结果区" onClick={() => setResultPeek(false)} />}
       <aside className="aa-result-pane" aria-label="任务结果区"><div className="aa-result-header"><div role="tablist" aria-label="结果内容"><button role="tab" type="button" aria-selected={resultTab === 'overview'} onClick={() => setResultTab('overview')}>概览</button><button role="tab" type="button" aria-selected={resultTab === 'artifacts'} onClick={() => setResultTab('artifacts')}>产物<span>{task?.artifacts.length || 0}</span></button></div><div><button type="button" className="aa-icon-button" aria-label={expanded ? '还原结果区' : '最大化结果区'} onClick={() => setExpanded(v => !v)}>{expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button><button type="button" className="aa-icon-button" aria-label="关闭结果区" onClick={() => { setResultPeek(false); setResultOpen(false); setExpanded(false) }}><PanelLeftClose size={16} /></button></div></div>
@@ -252,7 +273,7 @@ function AssistantWorkspace({ client, modelClient, userName, preview, namespace 
       <div className="aa-data-sources">{([{ id: 'projects', label: '项目管理', description: '允许按问题需要只读查询你有权限的项目目录、状态与进度' }, { id: 'knowledge', label: '知识库', description: '允许按问题需要查询你有权限的知识库资料' }] as const).map(source => <label key={source.id}><input type="checkbox" checked={sourceDraft.includes(source.id)} onChange={event => setSourceDraft(current => normalizeDataSources(event.target.checked ? [...current, source.id] : current.filter(id => id !== source.id)))} /><span><strong>{source.label}</strong><small>{source.description}</small></span></label>)}</div>
       {answerMode === 'knowledge' && !sourceDraft.includes('knowledge') && <p className="aa-data-requirement" role="note">当前为“仅知识库”，请勾选知识库后保存；不使用知识库时，请将回答方式改为“自动”或“通用回答”。</p>}
       <section className="aa-data-network" aria-label="独立的联网搜索设置"><h3>联网搜索单独判断</h3><p>不勾选应用数据，不代表禁止联网。是否搜索公开网页，由“回答方式”和搜索服务是否可用决定。</p><SearchCapability value={capabilities} preview={preview} /></section>
-      <div className="aa-form-footer"><span>保存后用于后续提问，历史回答保持原样</span><button className="aa-button" type="button" onClick={closeDialog}>取消</button><button className="aa-button aa-primary" type="button" onClick={() => { setDataSources(sourceDraft); try { writeDataSources(localStorage, storageKey, sourceDraft) } catch { /* Current session still uses the selection. */ } closeDialog() }}>保存设置</button></div>
+      <div className="aa-form-footer"><span>保存后用于后续提问，历史回答保持原样</span><button className="aa-button" type="button" onClick={closeDialog}>取消</button><button className="aa-button aa-primary" type="button" onClick={() => { setDataSources(sourceDraft); try { writeDataSources(localStorage, storageKey, sourceDraft) } catch { /* Current session still uses the selection. */ } setNotice(visibleFailure?.configurationRevision !== undefined || busy ? '数据设置已保存，请重新回答。' : '数据设置已保存，将用于后续提问。'); closeDialog() }}>保存设置</button></div>
     </AssistantDialog>}
     {dialog === 'materials' && <AssistantDialog title="本轮任务资料" description="发送问题时，以下正文会随本轮问题一起交给所选模型。" onClose={closeDialog} wide><div className="aa-material-toolbar"><input ref={materialInput} type="file" accept={REPORT_IMPORT_ACCEPT} aria-label="导入助手资料文件" hidden onChange={event => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void importMaterial(file) }} /><button className="aa-button" type="button" disabled={parsing} onClick={() => materialInput.current?.click()}>{parsing ? <LoaderCircle size={14} className="aa-spin" /> : <Paperclip size={14} />}导入 Word / PDF / Markdown</button><span>本轮最多 20,000 字</span></div>{materialError && <p className="aa-error" role="alert">{materialError}</p>}{materialParts.length > 0 && <details className="aa-material-parts" open={materialParts.length > 3}><summary>选择资料片段 · 共 {materialParts.length} 段（位置为提取正文字符范围）</summary>{materialParts.map(part => <label key={part.id}><input type="checkbox" checked={selectedParts.includes(part.id)} onChange={event => { const ids = event.target.checked ? [...selectedParts, part.id] : selectedParts.filter(id => id !== part.id); setSelectedParts(ids); setMaterialDraft(selectedMaterial(materialLabel, materialParts, ids)); setMaterialError('') }} /><span>{part.title}<small>第 {part.start + 1}–{part.end} 字</small></span></label>)}</details>}<label className="aa-field">资料正文<textarea rows={12} aria-label="本轮资料正文" maxLength={20000} value={materialDraft} onChange={event => { setMaterialDraft(event.target.value); setMaterialLabel('本轮资料'); setMaterialParts([]); setSelectedParts([]) }} placeholder="导入文件，或直接粘贴与本次任务相关的内容…" /></label><div className="aa-form-footer"><span>{materialDraft.length.toLocaleString()} / 20,000 字</span><button className="aa-button" type="button" onClick={closeDialog}>取消</button><button className="aa-button aa-primary" type="button" disabled={parsing || materialDraft.length > 20000} onClick={() => { updateDraft({ context: materialDraft, label: materialDraft ? materialLabel || '本轮资料' : '' }); closeDialog() }}>应用资料</button></div>{task && task.messages.some(m => m.context) && <div className="aa-history-materials"><h3>已用于历史对话的资料</h3>{task.messages.filter(m => m.role === 'user' && m.context).map(m => <details key={m.id}><summary>{m.content.slice(0, 65)} · {m.context.length.toLocaleString()} 字</summary><pre>{m.context}</pre></details>)}</div>}</AssistantDialog>}
   </div>
