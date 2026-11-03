@@ -1,0 +1,232 @@
+{
+  "source": "c304a1ed1f1d33676470f2857a5769641ad30697",
+  "feature_pr": "https://github.com/OpenLimsAI/mb-pm/pull/147",
+  "feature_head": "24994e0931968224b40c6df3a1b6c1ebd4e1395f",
+  "merge_commit": "c304a1ed1f1d33676470f2857a5769641ad30697",
+  "source_tree": "c8214e2c5171f852d50da79a0e1a5134eb9ef70e",
+  "ci": [
+    {
+      "name": "container",
+      "conclusion": "success",
+      "url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41665195229/job/126018512525"
+    },
+    {
+      "name": "dependencies",
+      "conclusion": "success",
+      "url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41665195229/job/126018511741"
+    },
+    {
+      "name": "后端 · pytest（PostgreSQL · 硬护栏）",
+      "conclusion": "success",
+      "url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41665195344/job/126018510138"
+    },
+    {
+      "name": "后端 · ruff 格式检查（硬护栏）",
+      "conclusion": "success",
+      "url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41665195344/job/126018510003"
+    },
+    {
+      "name": "前端 · 类型检查 + 构建（硬护栏）",
+      "conclusion": "success",
+      "url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41665195344/job/126018509770"
+    },
+    {
+      "name": "Docker · 镜像构建验证（硬护栏）",
+      "conclusion": "success",
+      "url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41665195344/job/126018509719"
+    },
+    {
+      "name": "Lint 报告（软护栏 · 不阻断）",
+      "conclusion": "success",
+      "url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41665195344/job/126018509221"
+    }
+  ],
+  "frontend_tests": {
+    "files": 91,
+    "passed": 892
+  },
+  "prepared": {
+    "source": "c304a1ed1f1d33676470f2857a5769641ad30697",
+    "image": "sha256:3b005b7e4b9686a83cf1a3952c36754b92dbb616571c17e31f1f9664ce2febc1",
+    "previous_image": "sha256:2fa76968006be951fecc48859895856813ab838fa5f584c4e4874ab76ff0a27d",
+    "backend_files_identical_to_main": 131,
+    "static_sha256": "e46d7c1b8db8386363da95cf37815506a228e6674ce6f6274a998e71c5b715e3",
+    "release_directory": "/home/prometheus/mb-pm-v2/releases/project-actions-c304a1e-20261103-r2",
+    "source_sha256": "30190c3507783277343d13b3d6d4cf5e97c289060b191a0aa3e3fcea11a7e161",
+    "built_sha256": "aa56a5cdc0c48e4a389427e6519b5215afae3f9d4bf99873d3ffbd5809fc4b5b"
+  },
+  "security_scan": {
+    "source": "c304a1ed1f1d33676470f2857a5769641ad30697",
+    "image": "sha256:3b005b7e4b9686a83cf1a3952c36754b92dbb616571c17e31f1f9664ce2febc1",
+    "image_config_sha256": "sha256:03711f05df8510b4fbf7cf8fc789956ebb8459773929a9a6f04bc8f6aec3a988",
+    "high_critical_fixable_vulnerabilities": 0,
+    "scanner": "aquasec/trivy@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c",
+    "database": {
+      "Version": 2,
+      "NextUpdate": "2026-11-03T19:15:11.074748061Z",
+      "UpdatedAt": "2026-11-02T19:15:11.074748541Z",
+      "DownloadedAt": "2026-11-03T00:56:04.428558899Z"
+    }
+  },
+  "production": {
+    "source": "c304a1ed1f1d33676470f2857a5769641ad30697",
+    "image": "sha256:3b005b7e4b9686a83cf1a3952c36754b92dbb616571c17e31f1f9664ce2febc1",
+    "previous_image": "sha256:2fa76968006be951fecc48859895856813ab838fa5f584c4e4874ab76ff0a27d",
+    "instances": 2,
+    "preserved_files": [
+      "/home/prometheus/mb-pm-v2/compose.yml",
+      "/home/prometheus/mb-pm-v2/compose.production.yml",
+      "/home/prometheus/mb-pm-v2/compose.direct.yml",
+      "/home/prometheus/mb-pm-v2/releases/header-9516977/compose.no-note-sync.yml",
+      "/home/prometheus/mb-pm-v2/releases/assistant-dikw-e294fdc/compose.knowledge.private.yml",
+      "/home/prometheus/mb-pm-v2/releases/knowledge-sources-687bddc-20261101/compose.knowledge-sources.yml",
+      "/home/prometheus/mb-pm-v2/releases/deepseek-search-99ca39d-20261101/compose.deepseek-search.yml",
+      "/home/prometheus/security-hardening-20261102/limits-1.json",
+      "/home/prometheus/security-hardening-20261102/pm-release-cd02021/compose.security.active.yml",
+      "/home/prometheus/mb-pm-v2/releases/report-workbench-e33b48d-20261102/compose.report-workbench.yml",
+      "/home/prometheus/mb-pm-v2/releases/efficient-workspace-c6e4b9f-20261103/rollout/pm.fixed-images.json",
+      "/home/prometheus/mb-pm-v2/releases/knowledge-sso-20261102/application-switch/group-0.active.json",
+      "/home/prometheus/mb-pm-v2/releases/report-editor-layout-48401af-20261103/rollout/pm.fixed-images.json",
+      "/home/prometheus/mb-pm-v2/releases/assistant-scope-8147c1d-20261102-r2/compose.assistant-scope.yml",
+      "/home/prometheus/mb-pm-v2/releases/reference-papers-b79f0da-20261103/rollout/pm.fixed-images.json",
+      "/home/prometheus/mb-pm-v2/releases/assistant-layout-642e187-20261103-r2/compose.assistant-layout.yml"
+    ],
+    "verification": [
+      {
+        "nonroot_uid": 10001,
+        "runtime_role": "maibo_pm_runtime",
+        "elevated_db_flags": false,
+        "business_constraints": {
+          "projects": 4,
+          "sub_projects": 2,
+          "tasks": 7,
+          "project_finances": 1
+        },
+        "core_connection": "verified_readonly",
+        "source_count": 331,
+        "production_api_build": true,
+        "source": "c304a1ed1f1d33676470f2857a5769641ad30697",
+        "csp": true,
+        "anonymous_api": 401,
+        "persistent_data_readable": true
+      },
+      {
+        "nonroot_uid": 10001,
+        "runtime_role": "maibo_pm_runtime",
+        "elevated_db_flags": false,
+        "business_constraints": {
+          "projects": 4,
+          "sub_projects": 2,
+          "tasks": 7,
+          "project_finances": 1
+        },
+        "core_connection": "verified_readonly",
+        "source_count": 331,
+        "production_api_build": true,
+        "source": "c304a1ed1f1d33676470f2857a5769641ad30697",
+        "csp": true,
+        "anonymous_api": 401,
+        "persistent_data_readable": true
+      }
+    ],
+    "migrations": false,
+    "tables_checked": 43,
+    "prior_record_ids_preserved": true,
+    "prior_assistant_messages_preserved": true,
+    "model_settings_preserved": true,
+    "backend_files_changed": []
+  },
+  "public": {
+    "checked_at_utc": "2026-11-03T16:26:08.529245+00:00",
+    "source": "c304a1ed1f1d33676470f2857a5769641ad30697",
+    "checks": [
+      {
+        "url": "https://pm.openlims.ai/health",
+        "expected_status": 200,
+        "status": 200,
+        "passed": true
+      },
+      {
+        "url": "https://pm.openlims.ai/build-info.json",
+        "expected_status": 200,
+        "status": 200,
+        "source": "c304a1ed1f1d33676470f2857a5769641ad30697",
+        "passed": true
+      },
+      {
+        "url": "https://pm.openlims.ai/projects",
+        "expected_status": 200,
+        "status": 200,
+        "index_sha256": "58b14d6cd6a7d4edf99472182fe16d08c21b3fecce182b1940298e0fd59c3917",
+        "cloudflare_analytics_scripts_removed": 1,
+        "normalized_index_sha256": "736d90ce4ed4d3ab1ba22dfaf7445b9a03b0deeeb5f3043b0027fd5a389c7627",
+        "index_matches_image_after_known_edge_injection": true,
+        "passed": true
+      },
+      {
+        "url": "https://pm.openlims.ai/api/v1/projects",
+        "expected_status": 401,
+        "status": 401,
+        "passed": true
+      },
+      {
+        "url": "https://www.openlims.ai/health",
+        "expected_status": 200,
+        "status": 200,
+        "passed": true
+      },
+      {
+        "url": "https://www.openlims.ai/build-info.json",
+        "expected_status": 200,
+        "passed": true,
+        "source": "c304a1ed1f1d33676470f2857a5769641ad30697",
+        "retry_after_error": "The read operation timed out",
+        "retry_checked_at_utc": "2026-11-03T16:26:31.640727+00:00"
+      },
+      {
+        "url": "https://www.openlims.ai/login",
+        "expected_status": 200,
+        "status": 200,
+        "index_sha256": "58b14d6cd6a7d4edf99472182fe16d08c21b3fecce182b1940298e0fd59c3917",
+        "cloudflare_analytics_scripts_removed": 1,
+        "normalized_index_sha256": "736d90ce4ed4d3ab1ba22dfaf7445b9a03b0deeeb5f3043b0027fd5a389c7627",
+        "index_matches_image_after_known_edge_injection": true,
+        "passed": true
+      },
+      {
+        "url": "https://www.openlims.ai/api/v1/projects",
+        "expected_status": 401,
+        "status": 401,
+        "passed": true
+      }
+    ],
+    "all_passed": true
+  },
+  "browser": {
+    "checked_at_utc": "2026-11-03T16:29:36.814250+00:00",
+    "url": "https://pm.openlims.ai/projects",
+    "authenticated_existing_customer_session": true,
+    "production_business_records_written": 0,
+    "checks": {
+      "default_cards_show_4_real_projects": true,
+      "single_click_enters_project": true,
+      "return_preserves_search": true,
+      "recent_visit_project_shortcut": true,
+      "cross_project_task_opens_existing_drawer": true,
+      "horizon_7_and_30_days_updates_tasks_and_milestones": true,
+      "refresh_preserves_workbench_and_horizon": true
+    },
+    "final_state": "全部项目 / 卡片；搜索清空；工作台范围恢复为未来30天"
+  },
+  "actual_image_login_check": "passed: anonymous /me=401, username/password editable, submit enabled",
+  "local_browser_checks": {
+    "desktop_cards_workbench_and_task_drawer": true,
+    "mobile_no_horizontal_overflow": true,
+    "console_errors": 0,
+    "return_scroll_before": 150,
+    "return_scroll_after": 150
+  },
+  "backup_directory": "/home/prometheus/mb-pm-v2/releases/project-actions-c304a1e-20261103-r2/rollout/private-backup",
+  "rollback_command_file": "/home/prometheus/mb-pm-v2/releases/project-actions-c304a1e-20261103-r2/rollout/rollback-command.json",
+  "verification_scope": "生产浏览器仅验证导航、筛选与详情阅读；未代客户保存任务进展、创建、复制、编辑或删除业务记录。"
+}
