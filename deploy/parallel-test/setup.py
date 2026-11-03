@@ -71,7 +71,7 @@ radiusServerPort = 1812
 radiusDefaultOrganization = "built-in"
 radiusSecret = "{radius}"
 quota = {{"organization": -1, "user": -1, "application": -1, "provider": -1}}
-logConfig = {{"adapter":"file", "filename": "logs/casdoor.log", "maxdays":99999, "perm":"0770"}}
+logConfig = {{"adapter":"file", "filename": "logs/casdoor.log", "maxdays":14, "maxsize":10485760, "daily":true, "rotate":true, "perm":"0770"}}
 initDataNewOnly = true
 initDataFile = "/init_data.json"
 """

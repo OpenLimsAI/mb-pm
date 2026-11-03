@@ -88,6 +88,35 @@ def test_stopped_missing_and_candidates_cannot_look_healthy(run_monitor, capsys)
     assert "synthetic-private-value" not in output.read_text() + capsys.readouterr().out
 
 
+@pytest.mark.parametrize("mount,expected", [
+    (None, False),
+    ({"Type": "tmpfs", "Destination": "/tmp", "RW": True}, False),
+    ({"Type": "volume", "Destination": "/files", "RW": True}, False),
+    ({"Type": "volume", "Destination": "/tmp", "RW": False}, False),
+    ({"Type": "volume", "Destination": "/tmp", "RW": True}, True),
+    ({"Type": "bind", "Destination": "/tmp", "RW": True}, True),
+])
+def test_iam_session_storage_is_independent_of_database_health(run_monitor, mount, expected):
+    run, _, _ = run_monitor
+    item = container("mb-pm-v2-casdoor-1")
+    item["Mounts"] = [{"Type": "volume", "Destination": "/logs", "RW": True}] + ([] if mount is None else [mount])
+    report, code, _ = run([item], expected=["mb-pm-v2-casdoor-1"])
+    assert report["containers"][0]["casdoor_sessions_persistent"] is expected
+    assert ("mb-pm-v2-casdoor-1:casdoor_sessions_not_persistent" in report["alerts"]) is not expected
+    assert code == (0 if expected else 1)
+
+
+def test_iam_diagnostic_logs_are_not_substituted_by_session_or_database_storage(run_monitor):
+    run, _, _ = run_monitor
+    item = container("mb-pm-v2-casdoor-1")
+    item["Mounts"] = [{"Type": "volume", "Destination": "/tmp", "RW": True}]
+    report, code, _ = run([item], expected=["mb-pm-v2-casdoor-1"])
+    assert report["containers"][0]["casdoor_sessions_persistent"] is True
+    assert report["containers"][0]["casdoor_logs_persistent"] is False
+    assert "mb-pm-v2-casdoor-1:casdoor_logs_not_persistent" in report["alerts"]
+    assert code == 1
+
+
 @pytest.mark.parametrize("field,value", [
     ("Memory", 0), ("Memory", 257 * 1024**2), ("MemorySwap", -1), ("MemorySwap", 0),
     ("PidsLimit", -1), ("PidsLimit", 11), ("NanoCpus", 0), ("NanoCpus", 2_000_000_000),

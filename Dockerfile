@@ -48,7 +48,8 @@ COPY backend/requirements.lock ./
 RUN pip install --require-hashes -r requirements.lock \
     && pip uninstall --yes setuptools wheel
 RUN groupadd --gid 10001 app && useradd --uid 10001 --gid app --no-create-home app \
-    && mkdir -p /code/.local && chown app:app /code/.local
+    && mkdir -p /code/.local /data/ai /data/information \
+    && chown app:app /code/.local /data/ai /data/information
 
 # 后端源码（含 app/seed/seed.json 种子）
 COPY backend/app ./app

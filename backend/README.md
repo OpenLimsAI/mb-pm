@@ -39,6 +39,8 @@ uv pip install --python .venv -r requirements.txt
 | `PMS_PUBLIC_URL` | `http://localhost:5175` | 用户访问本系统的 origin；回调 `{PMS_PUBLIC_URL}/api/v1/auth/callback` |
 | `IAM_SESSION_SECONDS` / `IAM_COOKIE_SECURE` | `3600` / `false` | 会话最长时长；HTTPS 部署须设 `true` |
 
+后端开发 Compose 为 AI 设置和原件显式挂载独立的 `ai_settings`、`information_originals` 数据卷；重建保留已有卷。裸机运行仍使用 `.local` 默认目录。已有容器中保存过的配置/原件须先迁移再挂卷，不能直接用空卷覆盖；详情见[容器业务数据持久化](../docs/configuration.md#容器业务数据持久化)。
+
 ## 数据模型（三级 WBS）
 
 `User · Project · ProjectMember · SubProject · Task · TaskDependency · Template · TemplateVersion · ProjectFinance · ProjectBaseline · AuditLog`

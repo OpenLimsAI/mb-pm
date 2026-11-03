@@ -59,6 +59,10 @@ services:
       - ./app.conf:/conf/app.conf:ro
       - ./init_data.json:/init_data.json:ro
       - ./assets:/files:ro
+      # Casdoor's file session provider stores browser SSO in ./tmp (WORKDIR=/).
+      # Keep it across container replacement, independently of the IAM database.
+      - casdoor-sessions:/tmp
+      - casdoor-logs:/logs
     networks: [internal]
 
   app:
@@ -89,12 +93,14 @@ services:
       PORTAL_JWKS_URL: ${PORTAL_JWKS_URL:-}
       IAM_COOKIE_SECURE: "false"    # 测试经 SSH 隧道走 http；正式切到 HTTPS 域名时改 true
       AI_SETTINGS_PATH: /data/ai/ai-settings.json
+      INFORMATION_DATA_DIR: /data/information
       ASSISTANT_WEB_ENABLED: ${ASSISTANT_WEB_ENABLED:-false}
       ASSISTANT_WEB_PROVIDER: ${ASSISTANT_WEB_PROVIDER:-deepseek}
       ASSISTANT_WEB_API_KEY: ${ASSISTANT_WEB_API_KEY:-}
       ASSISTANT_WEB_MAX_RESULTS: ${ASSISTANT_WEB_MAX_RESULTS:-5}
     volumes:
       - ai_settings:/data/ai
+      - information_originals:/data/information
     ports:
       - "127.0.0.1:18082:8000"
     healthcheck:
@@ -111,3 +117,8 @@ volumes:
   pms_pgdata:
   iam_pgdata:
   ai_settings:
+  information_originals:
+  casdoor-sessions:
+    name: mb-pm-v2-casdoor-sessions
+  casdoor-logs:
+    name: mb-pm-v2-casdoor-logs
