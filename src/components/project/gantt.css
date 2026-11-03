@@ -46,7 +46,8 @@
   min-height: 0;
   overflow: auto;
   position: relative;
-  overscroll-behavior: contain;
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: auto;
   scroll-padding-block-start: var(--gantt-header-height);
   scroll-padding-inline-start: var(--gantt-label-width);
   border-top: 1px solid rgb(148 163 184 / 0.25);

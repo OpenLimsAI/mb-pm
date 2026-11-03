@@ -4,6 +4,7 @@ import type { Project, SubProject, Task } from '../../types'
 import { Card, CardHeader, CardBody, Tag, StatusTag, Avatar } from '../ui'
 import { findUser, getProjectSubs, getSubTasks } from '../../mock'
 import { cn } from '../../lib/cn'
+import './wbs-views.css'
 
 interface Props {
   project: Project
@@ -13,15 +14,17 @@ interface Props {
   criticalPathIds?: Set<string>
   /** 卡片右上角操作；增删改结构统一在页首「编辑项目」中进行 */
   action?: ReactNode
+  fillHeight?: boolean
 }
 
-export function WBSTree({ project, onSelectTask, selectedTaskId, highlightCriticalPath, criticalPathIds, action }: Props) {
+export function WBSTree({ project, onSelectTask, selectedTaskId, highlightCriticalPath, criticalPathIds, action, fillHeight = false }: Props) {
   const subs = getProjectSubs(project.id).sort((a, b) => a.sortOrder - b.sortOrder)
   const owner = findUser(project.ownerId)
 
   return (
-    <Card>
+    <Card className={cn('wbs-view-card', fillHeight && 'wbs-view-card--fill')}>
       <CardHeader
+        className="wbs-view-header"
         title={
           <span className="flex items-center gap-2">
             <FolderTree className="w-4 h-4 text-brand-600" />
@@ -31,7 +34,7 @@ export function WBSTree({ project, onSelectTask, selectedTaskId, highlightCritic
         subtitle={`项目（Lv1）→ 子项目（Lv2，${subs.length}）→ 任务（Lv3）· 系统不允许 Lv3 下创建子节点`}
         action={action}
       />
-      <CardBody className="p-0">
+      <CardBody className="p-0 wbs-view-scroll" role="region" aria-label="WBS 树任务区域" tabIndex={0}>
         {/* Level 1：项目 */}
         <div className="border-b border-ink-300/40 bg-brand-50/40 px-4 py-2.5 flex items-center gap-2">
           <span className="tag bg-brand-100 text-brand-800 font-mono">Lv1</span>
