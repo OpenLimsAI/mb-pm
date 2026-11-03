@@ -1,0 +1,172 @@
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { beforeEach, expect, it, vi } from 'vitest'
+import AssistantApp from './AssistantApp'
+import { createPreviewAssistantClient, type AssistantRequest } from './client'
+import { readDraft, writeDraft } from './localDrafts'
+import type { ModelSettingsClient } from '../solutions/modelSettings'
+
+const question = '最新的生物制药论文'
+const context = '本轮参考正文'
+const scope = 'composer-flow:preview'
+const composer = () => screen.getByRole('textbox', { name: '给 AI 助手的任务' })
+const models: ModelSettingsClient = { get: async () => ({ revision: 1, profiles: [], defaultProfileId: null }), save: vi.fn(), test: vi.fn() }
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>(done => { resolve = done })
+  return { promise, resolve }
+}
+beforeEach(() => localStorage.clear())
+
+async function fixture() {
+  const client = createPreviewAssistantClient(crypto.randomUUID())
+  const task = await client.create({ id: crypto.randomUUID(), title: '输入框提交回归', instructions: '' })
+  let record: AssistantRequest | null = null
+  const makeJob = (patch: Partial<AssistantRequest> = {}): AssistantRequest => ({
+    requestId: vi.mocked(client.submitRequest!).mock.lastCall?.[1].requestId || crypto.randomUUID(),
+    taskId: task.id, question, context, status: 'queued', stage: 'queued', partialContent: '', error: '',
+    diagnosticId: 'b'.repeat(32), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), ...patch,
+  })
+  client.activeRequest = vi.fn(async () => ({ request: record }))
+  client.getRequest = vi.fn(async () => record!)
+  client.submitRequest = vi.fn(async () => { record = makeJob(); return record })
+  const props = { client, modelClient: models, userName: '测试用户', namespace: 'composer-flow', preview: true }
+  const seed = () => writeDraft(scope, task.id, { question, context, label: '参考资料' })
+  const open = async () => {
+    const view = render(<AssistantApp {...props} />)
+    await screen.findByRole('heading', { name: task.title, level: 2 })
+    await waitFor(() => expect(composer()).toBeEnabled())
+    await waitFor(() => expect(client.activeRequest).toHaveBeenCalled())
+    return view
+  }
+  const send = async () => {
+    await waitFor(() => expect(screen.getByRole('button', { name: '发送任务消息' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: '发送任务消息' }))
+    await waitFor(() => expect(client.submitRequest).toHaveBeenCalledOnce())
+  }
+  const accept = async (submission: ReturnType<typeof deferred<AssistantRequest>>) => {
+    record = makeJob()
+    await act(async () => submission.resolve(record!))
+    const progress = screen.getByRole('region', { name: '本轮生成进度' })
+    expect(within(progress).getByText(question)).toBeInTheDocument()
+  }
+  const finish = async (patch: Partial<AssistantRequest>) => {
+    record = { ...record!, ...patch }
+    await act(async () => { window.dispatchEvent(new Event('focus')) })
+  }
+  return { client, task, makeJob, seed, open, send, accept, finish, setRecord: (value: AssistantRequest) => { record = value } }
+}
+
+it('keeps input until acceptance, then displays it only in the request card and clears the saved draft', async () => {
+  const f = await fixture(), submission = deferred<AssistantRequest>()
+  f.client.submitRequest = vi.fn(() => submission.promise)
+  f.seed(); await f.open(); await f.send()
+  expect(composer()).toHaveValue(question)
+  expect(screen.getByRole('button', { name: '移除本轮资料' })).toBeInTheDocument()
+  expect(readDraft(scope, f.task.id)?.question).toBe(question)
+  await f.accept(submission)
+  expect(composer()).toHaveValue('')
+  expect(screen.queryByRole('button', { name: '移除本轮资料' })).not.toBeInTheDocument()
+  expect(screen.getByRole('region', { name: '本轮生成进度' })).toHaveTextContent(context)
+  expect(readDraft(scope, f.task.id)).toBeUndefined()
+  expect(f.client.submitRequest).toHaveBeenCalledOnce()
+})
+
+it('keeps a new question typed while acceptance is pending, including after the first request fails', async () => {
+  const f = await fixture(), submission = deferred<AssistantRequest>()
+  f.client.submitRequest = vi.fn(() => submission.promise)
+  f.seed(); await f.open(); await f.send()
+  fireEvent.change(composer(), { target: { value: '下一轮要问的新问题' } })
+  await f.accept(submission)
+  expect(composer()).toHaveValue('下一轮要问的新问题')
+  await f.finish({ status: 'failed', error: '模型等待超时' })
+  expect(composer()).toHaveValue('下一轮要问的新问题')
+  expect(readDraft(scope, f.task.id)?.question).toBe('下一轮要问的新问题')
+})
+
+it('keeps an identical question and material typed after acceptance when the first answer completes', async () => {
+  const f = await fixture()
+  f.seed(); await f.open(); await f.send()
+  await waitFor(() => expect(composer()).toHaveValue(''))
+  fireEvent.change(composer(), { target: { value: question } })
+  fireEvent.click(screen.getByRole('button', { name: '添加任务资料' }))
+  fireEvent.change(screen.getByRole('textbox', { name: '本轮资料正文' }), { target: { value: context } })
+  fireEvent.click(screen.getByRole('button', { name: '应用资料' }))
+  await f.client.send(f.task, { requestId: f.makeJob().requestId, question, context })
+  await f.finish({ status: 'completed' })
+  await waitFor(() => expect(screen.queryByRole('region', { name: '本轮生成进度' })).not.toBeInTheDocument())
+  expect(composer()).toHaveValue(question)
+  expect(readDraft(scope, f.task.id)?.context).toBe(context)
+  expect(f.client.submitRequest).toHaveBeenCalledOnce()
+})
+
+it('preserves the same question with different material instead of clearing or restoring over it', async () => {
+  const f = await fixture(), submission = deferred<AssistantRequest>()
+  f.client.submitRequest = vi.fn(() => submission.promise)
+  f.seed(); await f.open(); await f.send()
+  fireEvent.click(screen.getByRole('button', { name: '添加任务资料' }))
+  fireEvent.change(screen.getByRole('textbox', { name: '本轮资料正文' }), { target: { value: '下一轮的新资料' } })
+  fireEvent.click(screen.getByRole('button', { name: '应用资料' }))
+  await f.accept(submission)
+  expect(composer()).toHaveValue(question)
+  expect(readDraft(scope, f.task.id)?.context).toBe('下一轮的新资料')
+  await f.finish({ status: 'failed', error: '模型等待超时' })
+  expect(readDraft(scope, f.task.id)?.context).toBe('下一轮的新资料')
+})
+
+it.each([false, true])('resumes a running request without repeating its question in the composer (saved old draft: %s)', async saved => {
+  const f = await fixture()
+  if (saved) f.seed()
+  f.setRecord(f.makeJob({ status: 'running', stage: 'waiting_model' }))
+  await f.open()
+  await screen.findByText('本轮提问')
+  expect(screen.getByRole('region', { name: '本轮生成进度' })).toHaveTextContent(question)
+  expect(composer()).toHaveValue('')
+  expect(readDraft(scope, f.task.id)).toBeUndefined()
+  expect(f.client.submitRequest).not.toHaveBeenCalled()
+})
+
+it.each(['failed', 'cancelled'] as const)('restores accepted input after %s when there is no new draft', async status => {
+  const f = await fixture()
+  f.seed(); await f.open(); await f.send()
+  await waitFor(() => expect(composer()).toHaveValue(''))
+  await f.finish({ status, error: status === 'failed' ? '模型等待超时' : '' })
+  expect(composer()).toHaveValue(question)
+  expect(readDraft(scope, f.task.id)?.context).toBe(context)
+  expect(screen.getByRole('button', { name: '重新生成' })).toBeInTheDocument()
+  expect(f.client.submitRequest).toHaveBeenCalledOnce()
+})
+
+it('does not restore a retired failed payload', async () => {
+  const f = await fixture()
+  f.seed(); await f.open(); await f.send()
+  await waitFor(() => expect(composer()).toHaveValue(''))
+  await f.finish({ status: 'failed', payloadExpired: true, question: '', context: '', error: '临时输入已清理' })
+  expect(composer()).toHaveValue('')
+  expect(readDraft(scope, f.task.id)).toBeUndefined()
+  expect(screen.queryByRole('button', { name: '重新生成' })).not.toBeInTheDocument()
+})
+
+it('preserves input when the server rejects the submission', async () => {
+  const f = await fixture()
+  f.client.submitRequest = vi.fn(async () => { throw Object.assign(new Error('请求未被接收'), { status: 422 }) })
+  f.seed(); await f.open(); await f.send()
+  await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('请求未被接收'))
+  expect(composer()).toHaveValue(question)
+  expect(readDraft(scope, f.task.id)?.context).toBe(context)
+  expect(screen.queryByText('本轮提问')).not.toBeInTheDocument()
+})
+
+it('keeps input through an unknown POST result and clears it only when the same request is found', async () => {
+  const f = await fixture(), lookup = deferred<AssistantRequest>()
+  f.client.submitRequest = vi.fn(async () => { throw new Error('提交响应丢失') })
+  f.client.getRequest = vi.fn(() => lookup.promise)
+  f.seed(); await f.open(); await f.send()
+  await waitFor(() => expect(f.client.getRequest).toHaveBeenCalledOnce())
+  expect(composer()).toHaveValue(question)
+  const input = vi.mocked(f.client.submitRequest!).mock.lastCall![1]
+  expect(f.client.getRequest).toHaveBeenCalledWith(f.task.id, input.requestId)
+  await act(async () => lookup.resolve(f.makeJob({ status: 'running', stage: 'waiting_model' })))
+  expect(screen.getByRole('region', { name: '本轮生成进度' })).toHaveTextContent(question)
+  expect(composer()).toHaveValue('')
+  expect(f.client.submitRequest).toHaveBeenCalledOnce()
+})

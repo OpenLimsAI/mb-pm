@@ -11,7 +11,7 @@ import ApplicationActions from '../../components/application/ApplicationActions'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowDownToLine, ArrowUp, Bot, Check, ChevronDown, ChevronRight, Copy, ExternalLink, FileText, LoaderCircle, Maximize2, Menu, MessageSquare, Minimize2, MoreHorizontal, PanelLeftClose, PanelRightClose, PanelRightOpen, Paperclip, Plus, RefreshCw, RotateCcw, Search, Settings2, ShieldCheck, Sparkles, Trash2, X } from 'lucide-react'
 import { taskSummary } from './client'
-import type { AssistantArtifact, AssistantClient, AssistantTask, AssistantPreflight, TaskInput, TaskQuestion, TaskSummary } from './client'
+import type { AssistantArtifact, AssistantClient, AssistantRequest, AssistantTask, AssistantPreflight, TaskInput, TaskQuestion, TaskSummary } from './client'
 import useAssistantRequests from './useAssistantRequests'
 import useAssistantConfiguration from './useAssistantConfiguration'
 import RequestProgressView from './RequestProgressView'
@@ -68,23 +68,28 @@ function AssistantWorkspace({ client, modelClient, userName, preview, namespace 
   const invalidate = useCallback(() => { openSequence.current++; listSequence.current++; importRequest.current?.abort() }, [])
   useEffect(() => { alive.current = true; return () => { alive.current = false; invalidate() } }, [invalidate])
   const refreshList = () => { setOffset(0); setReload(n => n + 1) }
+  function restoreFailedDraft(job: AssistantRequest) {
+    if (job.payloadExpired) return
+    setDrafts(old => {
+      const latest = old[job.taskId]
+      return latest && (latest.question.trim() || latest.context) ? old : { ...old, [job.taskId]: { question: job.question, context: job.context, label: job.context ? '本轮资料' : '' } }
+    })
+  }
   const requests = useAssistantRequests(client, `${namespace}:${preview ? 'preview' : 'live'}`, {
     restore(job) {
+      if (job.status === 'failed' || job.status === 'cancelled') { restoreFailedDraft(job); return }
       setDrafts(old => {
-        return old[job.taskId] ? old : { ...old, [job.taskId]: { question: job.question, context: job.context, label: job.context ? '本轮资料' : '' } }
+        const latest = old[job.taskId]
+        return latest?.question.trim() === job.question && latest.context === job.context ? { ...old, [job.taskId]: emptyDraft() } : old
       })
     },
-    complete(row, job) {
+    complete(row) {
       setTasks(old => old.map(item => item.id === row.id ? taskSummary(row) : item)); refreshList()
       if (active.current === row.id) { openSequence.current++; setTask(row); setOpening(false) }
-      setDrafts(old => {
-        const latest = old[row.id] || emptyDraft()
-        return latest.question.trim() === job.question && latest.context === job.context ? { ...old, [row.id]: emptyDraft() } : old
-      })
       setErrors(old => ({ ...old, [row.id]: undefined })); delete retries.current[row.id]
     },
     fail(taskId, message, job) {
-      if (job?.status === 'failed' || job?.status === 'cancelled') delete retries.current[taskId]
+      if (job?.status === 'failed' || job?.status === 'cancelled') { delete retries.current[taskId]; restoreFailedDraft(job) }
       setErrors(old => ({ ...old, [taskId]: job?.status === 'cancelled' ? undefined : { message } }))
     },
   })
