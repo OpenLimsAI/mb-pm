@@ -1,0 +1,92 @@
+.gantt-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.gantt-page-heading, .gantt-page-scope { flex-shrink: 0; }
+.gantt-single-view {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+.gantt-single-view > a { flex-shrink: 0; }
+.gantt-card {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  height: clamp(320px, calc(100dvh - 18rem), 720px);
+  overflow: hidden;
+}
+.gantt-card.gantt-card--fill {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+.gantt-toolbar {
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.gantt-toolbar > div { min-width: 0; }
+.gantt-toolbar > div:last-child { max-width: 100%; }
+.gantt-card-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.gantt-scroll {
+  --gantt-label-width: clamp(120px, 38cqi, var(--gantt-label-max-width));
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+  overscroll-behavior: contain;
+  scroll-padding-block-start: var(--gantt-header-height);
+  scroll-padding-inline-start: var(--gantt-label-width);
+  border-top: 1px solid rgb(148 163 184 / 0.25);
+}
+.gantt-scroll:focus-visible {
+  outline: 2px solid #087b9c;
+  outline-offset: -2px;
+}
+.gantt-grid {
+  display: flex;
+  align-items: flex-start;
+  width: calc(var(--gantt-label-width) + var(--gantt-time-width));
+  min-width: 100%;
+}
+.gantt-label-column {
+  position: sticky;
+  left: 0;
+  z-index: 30;
+  width: var(--gantt-label-width);
+  flex-shrink: 0;
+  background: white;
+  border-right: 1px solid rgb(148 163 184 / 0.25);
+}
+.gantt-label-header, .gantt-time-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #edf1f3;
+  border-bottom: 1px solid rgb(148 163 184 / 0.25);
+}
+.gantt-label-header { z-index: 40; }
+.gantt-canvas {
+  position: relative;
+  flex-shrink: 0;
+  min-width: calc(100% - var(--gantt-label-width));
+}
+.gantt-legend { flex-shrink: 0; }
+.gantt-task-bar { padding: 0; text-align: left; }
+.gantt-task-bar:focus-visible {
+  outline: 2px solid #087b9c;
+  outline-offset: 2px;
+  z-index: 15;
+}

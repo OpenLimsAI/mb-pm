@@ -12,6 +12,9 @@ import { addDays, addMonths, addYears, differenceInCalendarDays, format, isWeeke
 import { Card, CardHeader, CardBody, Tag, HealthTag, Avatar } from '../components/ui'
 import { Gantt } from '../components/project/Gantt'
 import { TimelineZoomControl } from '../components/project/TimelineZoomControl'
+import { GanttTaskButton } from '../components/project/GanttTaskButton'
+import { GanttViewport } from '../components/project/GanttViewport'
+import { restoreTimelineCenter, visibleTimelineWidth } from '../lib/ganttViewport'
 import { dayWidthForZoom, scaleForDayWidth } from '../lib/ganttZoom'
 import { TaskDrawer } from '../components/task/TaskDrawer'
 import { useAuth } from '../store/auth'
@@ -48,9 +51,9 @@ export default function GanttPage() {
   const single = activeProjects.find((p) => p.id === singleId) ?? activeProjects[0]
 
   return (
-    <div className="p-6 max-w-[1600px] mx-auto">
-      <div className="mb-4 flex items-center justify-between gap-4 flex-wrap">
-        <div>
+    <div className="gantt-page p-6 max-w-[1600px] mx-auto w-full">
+      <div className="gantt-page-heading mb-4 flex items-center justify-between gap-4 flex-wrap">
+        <div className="min-w-[220px] flex-1">
           <h1 className="text-2xl font-semibold text-ink-900 flex items-center gap-2">
             <GanttChartSquare className="w-6 h-6 text-brand-600" />
             甘特图
@@ -61,7 +64,7 @@ export default function GanttPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 max-w-full">
           {!isOwnTaskOnly && (
             <div className="inline-flex rounded-md border border-ink-300 bg-white p-0.5">
               <button
@@ -91,7 +94,7 @@ export default function GanttPage() {
             <select
               value={single?.id ?? ''}
               onChange={(e) => setSingleId(e.target.value)}
-              className="input"
+              className="input w-64 max-w-full"
             >
               {activeProjects.map((p) => <option key={p.id} value={p.id}>{p.code} - {p.name}</option>)}
             </select>
@@ -101,7 +104,7 @@ export default function GanttPage() {
 
       {/* 范围提示条 */}
       {!userScope.isAll && (
-        <div className="mb-3 px-3 py-2 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2">
+        <div className="gantt-page-scope mb-3 px-3 py-2 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2">
           <Eye className="w-3.5 h-3.5" />
           数据范围：<span className="font-medium">{scopeLabel(userScope)}</span>
           <span className="text-amber-600">（按 IAM 角色自动过滤可见项目）</span>
@@ -119,8 +122,8 @@ export default function GanttPage() {
           </CardBody>
         </Card>
       ) : mode === 'single' && single ? (
-        <div className="space-y-3">
-          <Gantt project={single} selectedTaskId={openTaskId ?? undefined} onSelectTask={setOpenTaskId} />
+        <div className="gantt-single-view">
+          <Gantt fillHeight project={single} selectedTaskId={openTaskId ?? undefined} onSelectTask={setOpenTaskId} />
           <Link
             to={`/projects/${single.id}`}
             className="inline-flex items-center gap-1.5 text-xs text-brand-600 hover:underline"
@@ -129,7 +132,7 @@ export default function GanttPage() {
           </Link>
         </div>
       ) : (
-        <MultiProjectGantt projects={activeProjects} version={version} />
+        <MultiProjectGantt fillHeight projects={activeProjects} version={version} selectedTaskId={openTaskId ?? undefined} onSelectTask={setOpenTaskId} />
       )}
 
       <TaskDrawer task={openTaskId ? findTask(openTaskId) || null : null} onClose={() => setOpenTaskId(null)} />
@@ -139,12 +142,19 @@ export default function GanttPage() {
 
 // ====== 多项目联合甘特图 ======
 
-const ROW_H = 22
+const ROW_H = 28
+const BAR_H = 20
 const HEADER_H = 48
 const LABEL_W = 280
 const PROJECT_HEADER_H = 32
 
-export function MultiProjectGantt({ projects, version }: { projects: Project[]; version: number }) {
+export function MultiProjectGantt({ projects, version, selectedTaskId, onSelectTask, fillHeight = false }: {
+  projects: Project[]
+  version: number
+  selectedTaskId?: string
+  onSelectTask?: (id: string) => void
+  fillHeight?: boolean
+}) {
   const [zoom, setZoom] = useState(66)
   const scrollRef = useRef<HTMLDivElement>(null)
   const centerDayRef = useRef<number | null>(null)
@@ -169,7 +179,7 @@ export function MultiProjectGantt({ projects, version }: { projects: Project[]; 
     if (next === zoom) return
     const el = scrollRef.current
     if (el) {
-      const visibleWidth = Math.min(el.clientWidth, Math.max(0, totalWidth - el.scrollLeft))
+      const visibleWidth = Math.min(visibleTimelineWidth(el, LABEL_W), Math.max(0, totalWidth - el.scrollLeft))
       centerDayRef.current = (el.scrollLeft + visibleWidth / 2) / dayWidth
     }
     setZoom(next)
@@ -178,9 +188,9 @@ export function MultiProjectGantt({ projects, version }: { projects: Project[]; 
   useLayoutEffect(() => {
     const el = scrollRef.current
     if (!el || centerDayRef.current === null) return
-    el.scrollLeft = Math.max(0, centerDayRef.current * dayWidth - el.clientWidth / 2)
+    restoreTimelineCenter(el, centerDayRef.current, dayWidth, totalWidth, LABEL_W)
     centerDayRef.current = null
-  }, [dayWidth])
+  }, [dayWidth, totalWidth])
 
   // 行结构：项目头 + 每个 sub 的所有 task
   type Row = { type: 'project'; project: Project } | { type: 'task'; task: Task; project: Project }
@@ -250,9 +260,9 @@ export function MultiProjectGantt({ projects, version }: { projects: Project[]; 
   const totalMs = rows.filter((r) => r.type === 'task' && r.task.isMilestone).length
 
   return (
-    <Card className="overflow-hidden">
+    <Card className={cn('gantt-card', fillHeight && 'gantt-card--fill')}>
       <CardHeader
-        className="flex-wrap gap-3"
+        className="gantt-toolbar"
         title={
           <span className="flex flex-wrap items-center gap-2">
             <Layers className="w-4 h-4 text-brand-600" />
@@ -268,14 +278,15 @@ export function MultiProjectGantt({ projects, version }: { projects: Project[]; 
           <TimelineZoomControl zoom={zoom} onChange={changeZoom} />
         }
       />
-      <CardBody className="p-0">
-        <div className="flex border-t border-ink-300/40">
-          {/* 左：项目 / 任务标签列 */}
-          <div className="shrink-0 border-r border-ink-300/40 bg-white" style={{ width: LABEL_W }}>
-            <div className="bg-ink-100 sticky top-0 z-10 px-3 flex items-center text-xs font-medium" style={{ height: HEADER_H }}>
-              项目 / 任务
-            </div>
-            <div style={{ height: totalH, position: 'relative' }}>
+      <CardBody className="gantt-card-body">
+        <GanttViewport
+          scrollRef={scrollRef}
+          labelWidth={LABEL_W}
+          timelineWidth={totalWidth}
+          headerHeight={HEADER_H}
+          bodyHeight={totalH}
+          labelHeader={<div className="px-3 h-full flex items-center text-[13px] text-ink-900 font-semibold">项目 / 任务</div>}
+          labels={<>
               {rows.map((r, i) => {
                 const top = rowYs[i]
                 if (r.type === 'project') {
@@ -291,7 +302,7 @@ export function MultiProjectGantt({ projects, version }: { projects: Project[]; 
                       >
                         <span className="font-mono text-[10px] text-ink-500">{r.project.code}</span>
                         <HealthTag health={r.project.health} />
-                        <span className="text-sm font-medium truncate">{r.project.name}</span>
+                        <span className="text-sm font-semibold text-ink-900 truncate">{r.project.name}</span>
                       </Link>
                     </div>
                   )
@@ -301,30 +312,24 @@ export function MultiProjectGantt({ projects, version }: { projects: Project[]; 
                 return (
                   <div
                     key={r.task.id}
-                    className="absolute left-0 right-0 pl-6 pr-3 flex items-center gap-1.5 border-b border-ink-300/30 text-xs"
+                    className="absolute left-0 right-0 pl-6 pr-3 flex items-center gap-1.5 border-b border-ink-300/30 text-[13px] text-ink-900"
                     style={{ top, height: ROW_H }}
                   >
                     {r.task.isMilestone && <Diamond className="w-3 h-3 text-amber-600 shrink-0" />}
                     {isCritical && <Flame className="w-3 h-3 text-red-500 shrink-0" />}
-                    <span className="font-mono text-[10px] text-ink-500 shrink-0">{r.task.code}</span>
-                    <span className={cn('truncate flex-1', r.task.isMilestone && 'font-semibold')}>{r.task.name}</span>
+                    <span className="font-mono text-[10px] text-ink-600 shrink-0 max-w-[42%] truncate">{r.task.code}</span>
+                    <span className="truncate flex-1 font-semibold">{r.task.name}</span>
                     {owner && <Avatar user={owner} size="sm" />}
                   </div>
                 )
               })}
-            </div>
-          </div>
-
-          {/* 右：时间轴 + 条形 */}
-          <div ref={scrollRef} role="region" aria-label="甘特图时间轴" tabIndex={0} className="flex-1 min-w-0 overflow-x-auto relative">
-            <div style={{ width: totalWidth, position: 'relative' }}>
-              {/* 头部 */}
-              <div className="bg-ink-100 sticky top-0 z-10 border-b border-ink-300/40" style={{ height: HEADER_H }}>
+          </>}
+          timeHeader={<>
                 <div className="absolute inset-x-0 top-0 h-6">
                   {bands.map((m) => (
                     <div
                       key={m.label}
-                      className="absolute top-0 h-full text-xs flex items-center px-1.5 text-ink-700 font-medium border-r border-ink-300/60 bg-ink-100 overflow-hidden whitespace-nowrap"
+                      className="absolute top-0 h-full text-xs flex items-center px-1.5 text-ink-900 font-semibold border-r border-ink-300/60 bg-ink-100 overflow-hidden whitespace-nowrap"
                       style={{ left: m.left, width: m.width }}
                     >
                       {m.label}
@@ -341,7 +346,7 @@ export function MultiProjectGantt({ projects, version }: { projects: Project[]; 
                     return (
                       <div
                         key={i}
-                        className="absolute top-0 h-full text-[9px] text-ink-500 px-0.5 leading-none pt-1.5 border-l border-ink-300/40"
+                        className="absolute top-0 h-full text-[11px] font-semibold text-ink-700 px-0.5 leading-none pt-1.5 border-l border-ink-300/40"
                         style={{ left: x }}
                       >
                         {scale === 'year' ? `Q${Math.floor(d.getMonth() / 3) + 1}` : scale === 'week' ? format(d, 'M/d') : format(d, 'd')}
@@ -349,10 +354,8 @@ export function MultiProjectGantt({ projects, version }: { projects: Project[]; 
                     )
                   })}
                 </div>
-              </div>
-
-              {/* 主体 */}
-              <div className="relative" style={{ height: totalH }}>
+          </>}
+        >
                 {/* 周末背景 */}
                 {dates.map((d, i) => {
                   if (scale === 'year' || scale === 'month' || !isWeekend(d)) return null
@@ -399,28 +402,36 @@ export function MultiProjectGantt({ projects, version }: { projects: Project[]; 
                   const t = r.task
                   const left = xOf(t.plannedStart)
                   const w = Math.max(t.isMilestone ? 14 : 4, differenceInCalendarDays(parseISO(t.plannedEnd), parseISO(t.plannedStart)) * dayWidth)
-                  const barTop = top + (ROW_H - 12) / 2
+                  const barTop = top + (ROW_H - BAR_H) / 2
                   const isCritical = cpmByProject.get(r.project.id)?.criticalPathIds.has(t.id) || false
                   if (t.isMilestone) {
                     return (
-                      <div
+                      <GanttTaskButton
                         key={t.id}
-                        className="absolute z-10"
-                        style={{ left: left - 6, top: top + 5, width: 12, height: 12 }}
-                        title={`${t.name} · ${t.plannedEnd}`}
+                        task={t}
+                        compact
+                        ownerName={findUser(t.ownerId)?.displayName}
+                        onSelectTask={onSelectTask}
+                        className="gantt-task-bar absolute z-10 cursor-pointer"
+                        style={{ left: left - 6, top: top + (ROW_H - 12) / 2, width: 12, height: 12 }}
                       >
                         <div className={cn(
                           'w-full h-full rotate-45 border-2',
                           isCritical ? 'bg-red-500 border-red-700' : 'bg-amber-500 border-amber-700'
                         )} />
-                      </div>
+                      </GanttTaskButton>
                     )
                   }
                   return (
-                    <div
+                    <GanttTaskButton
                       key={t.id}
+                      task={t}
+                      compact
+                      ownerName={findUser(t.ownerId)?.displayName}
+                      onSelectTask={onSelectTask}
                       className={cn(
-                        'absolute rounded h-3 border z-10',
+                        'gantt-task-bar absolute rounded border z-10 overflow-hidden cursor-pointer',
+                        selectedTaskId === t.id && 'ring-2 ring-brand-300',
                         isCritical
                           ? 'bg-red-500 border-red-700'
                           : t.status === '已完成' || t.status === '已验证'
@@ -429,14 +440,13 @@ export function MultiProjectGantt({ projects, version }: { projects: Project[]; 
                           ? 'bg-amber-500 border-amber-700'
                           : 'bg-brand-500 border-brand-700'
                       )}
-                      style={{ left, top: barTop, width: w }}
-                      title={`${t.name}\n${t.plannedStart} ~ ${t.plannedEnd}\n${t.estimatedEffort} 人天`}
+                      style={{ left, top: barTop, width: w, height: BAR_H }}
                     >
                       <div
-                        className="h-full bg-white/30"
+                        className="h-full bg-white/30 absolute left-0 top-0"
                         style={{ width: `${t.progress}%` }}
                       />
-                    </div>
+                    </GanttTaskButton>
                   )
                 })}
 
@@ -448,13 +458,10 @@ export function MultiProjectGantt({ projects, version }: { projects: Project[]; 
                     style={{ top: rowYs[i] + (rows[i].type === 'project' ? PROJECT_HEADER_H : ROW_H) }}
                   />
                 ))}
-              </div>
-            </div>
-          </div>
-        </div>
+        </GanttViewport>
 
         {/* 图例 */}
-        <div className="px-4 py-2 border-t border-ink-300/40 text-[11px] text-ink-700 flex items-center gap-4 flex-wrap">
+        <div className="gantt-legend px-4 py-2 border-t border-ink-300/40 text-[11px] text-ink-700 flex items-center gap-4 flex-wrap">
           <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded bg-brand-500" />进行中</span>
           <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded bg-emerald-500" />已完成</span>
           <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded bg-amber-500" />延迟/阻塞</span>

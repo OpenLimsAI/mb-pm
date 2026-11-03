@@ -7,11 +7,16 @@ import type { Project, SubProject, Task } from '../../types'
 import { Card, CardHeader, CardBody, Tag, Avatar } from '../ui'
 import { findUser, getProjectSubs, getSubTasks, taskDependencies, TODAY } from '../../mock'
 import { computeCPM } from '../../lib/cpm'
+import { useDataStore } from '../../store/data'
 import { cn } from '../../lib/cn'
 import { dayWidthForZoom, scaleForDayWidth } from '../../lib/ganttZoom'
 import { TimelineZoomControl } from './TimelineZoomControl'
+import { GanttTaskButton } from './GanttTaskButton'
+import { GanttViewport } from './GanttViewport'
+import { restoreTimelineCenter, visibleTimelineWidth } from '../../lib/ganttViewport'
 
 const ROW_H = 34
+const BAR_H = 22
 const HEADER_H = 56
 const LABEL_W = 320
 
@@ -19,16 +24,20 @@ interface Props {
   project: Project
   selectedTaskId?: string
   onSelectTask?: (id: string) => void
+  fillHeight?: boolean
 }
 
-export function Gantt({ project, selectedTaskId, onSelectTask }: Props) {
+export function Gantt({ project, selectedTaskId, onSelectTask, fillHeight = false }: Props) {
   const [zoom, setZoom] = useState(66)
   const [showCP, setShowCP] = useState(true)
   const [showDeps, setShowDeps] = useState(true)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
-  // 取项目的子项目和任务
-  const subs = useMemo<SubProject[]>(() => getProjectSubs(project.id).sort((a, b) => a.sortOrder - b.sortOrder), [project.id])
+  const version = useDataStore((state) => state.version)
+
+  // API 同步会替换任务数组；版本变化后须一起重算范围与关键路径。
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const subs = useMemo<SubProject[]>(() => getProjectSubs(project.id).sort((a, b) => a.sortOrder - b.sortOrder), [project.id, version])
   const allTasks = useMemo<Task[]>(() => subs.flatMap((s) => getSubTasks(s.id)), [subs])
   const cpm = useMemo(() => computeCPM(allTasks, taskDependencies), [allTasks])
 
@@ -104,7 +113,7 @@ export function Gantt({ project, selectedTaskId, onSelectTask }: Props) {
   const changeZoom = (value: number) => {
     const el = scrollRef.current
     if (el) {
-      const visibleWidth = Math.min(el.clientWidth, Math.max(0, totalWidth - el.scrollLeft))
+      const visibleWidth = Math.min(visibleTimelineWidth(el, LABEL_W), Math.max(0, totalWidth - el.scrollLeft))
       centerDayRef.current = (el.scrollLeft + visibleWidth / 2) / dayW
     }
     setZoom(Math.max(0, Math.min(100, value)))
@@ -112,9 +121,9 @@ export function Gantt({ project, selectedTaskId, onSelectTask }: Props) {
   useLayoutEffect(() => {
     const el = scrollRef.current
     if (!el || centerDayRef.current === null) return
-    el.scrollLeft = Math.max(0, centerDayRef.current * dayW - el.clientWidth / 2)
+    restoreTimelineCenter(el, centerDayRef.current, dayW, totalWidth, LABEL_W)
     centerDayRef.current = null
-  }, [dayW])
+  }, [dayW, totalWidth])
   const xOfRef = useRef(xOf)
   useLayoutEffect(() => { xOfRef.current = xOf }, [xOf])
   useEffect(() => {
@@ -125,14 +134,15 @@ export function Gantt({ project, selectedTaskId, onSelectTask }: Props) {
     if (!t) return
     const tx = xOfRef.current(parseISO(t.plannedStart))
     const target = tx - 80
-    if (target < el.scrollLeft || target > el.scrollLeft + el.clientWidth - 200) {
+    if (target < el.scrollLeft || target > el.scrollLeft + visibleTimelineWidth(el, LABEL_W) - 80) {
       el.scrollTo({ left: target, behavior: 'smooth' })
     }
   }, [selectedTaskId, cpm.byId])
 
   return (
-    <Card className="overflow-hidden">
+    <Card className={cn('gantt-card', fillHeight && 'gantt-card--fill')}>
       <CardHeader
+        className="gantt-toolbar"
         title={
           <span className="flex items-center gap-2">
             <GanttChartSquare className="w-4 h-4 text-brand-600" />
@@ -154,22 +164,21 @@ export function Gantt({ project, selectedTaskId, onSelectTask }: Props) {
           </div>
         }
       />
-      <CardBody className="p-0">
-        <div className="flex border-t border-ink-300/40">
-          {/* 左侧任务名固定列 */}
-          <div className="shrink-0 border-r border-ink-300/40 bg-white" style={{ width: LABEL_W }}>
-            {/* 头部对齐 */}
-            <div className="bg-ink-100 border-b border-ink-300/40 sticky top-0 z-10" style={{ height: HEADER_H }}>
-              <div className="px-3 h-full flex items-center text-xs text-ink-700 font-medium">
-                任务（{allTasks.length}）
-              </div>
-            </div>
+      <CardBody className="gantt-card-body">
+        <GanttViewport
+          scrollRef={scrollRef}
+          labelWidth={LABEL_W}
+          timelineWidth={totalWidth}
+          headerHeight={HEADER_H}
+          bodyHeight={rows.length * ROW_H}
+          labelHeader={<div className="px-3 h-full flex items-center text-[13px] text-ink-900 font-semibold">任务（{allTasks.length}）</div>}
+          labels={<>
             {rows.map((r, i) => (
               <div
                 key={i}
                 className={cn(
-                  'flex items-center px-3 border-b border-ink-300/40 text-xs',
-                  r.type === 'sub' ? 'bg-purple-50 font-medium' : 'hover:bg-ink-100/40 cursor-pointer',
+                  'flex items-center px-3 border-b border-ink-300/40 text-[13px] text-ink-900',
+                  r.type === 'sub' ? 'bg-purple-50 font-semibold' : 'hover:bg-ink-100/40 cursor-pointer',
                   r.type === 'task' && selectedTaskId === r.task.id && 'bg-brand-50'
                 )}
                 style={{ height: ROW_H }}
@@ -188,24 +197,19 @@ export function Gantt({ project, selectedTaskId, onSelectTask }: Props) {
                   >
                     {collapsed.has(r.sub.id) ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                     <span className="truncate">{r.sub.name}</span>
-                    <span className="ml-auto text-ink-500 text-[10px]">{getSubTasks(r.sub.id).length}</span>
+                    <span className="ml-auto text-ink-600 text-[11px]">{getSubTasks(r.sub.id).length}</span>
                   </button>
                 ) : (
                   <TaskLabel task={r.task} isCritical={cpm.criticalPathIds.has(r.task.id) && showCP} />
                 )}
               </div>
             ))}
-          </div>
-
-          {/* 右侧时间轴 + 甘特条 */}
-          <div ref={scrollRef} role="region" aria-label="甘特图时间轴" tabIndex={0} className="flex-1 min-w-0 overflow-x-auto overflow-y-visible relative">
-            <div style={{ width: totalWidth, position: 'relative' }}>
-              {/* 头部时间轴 */}
-              <div className="bg-ink-100 border-b border-ink-300/40 sticky top-0 z-10" style={{ height: HEADER_H }}>
+          </>}
+          timeHeader={<>
                 {/* 月份带 */}
                 <div className="absolute inset-x-0 top-0 h-6">
                   {bands.map((band) => (
-                    <div key={band.label} className="absolute top-0 h-full text-xs flex items-center px-1.5 text-ink-700 font-medium border-r border-ink-300/60 bg-ink-100 overflow-hidden whitespace-nowrap" style={{ left: band.left, width: band.width }}>{band.label}</div>
+                    <div key={band.label} className="absolute top-0 h-full text-xs flex items-center px-1.5 text-ink-900 font-semibold border-r border-ink-300/60 bg-ink-100 overflow-hidden whitespace-nowrap" style={{ left: band.left, width: band.width }}>{band.label}</div>
                   ))}
                 </div>
                 {/* 天/周刻度 */}
@@ -215,13 +219,11 @@ export function Gantt({ project, selectedTaskId, onSelectTask }: Props) {
                       (scale === 'month' && (d.getDate() === 1 || d.getDate() === 15)) ||
                       (scale === 'year' && d.getDate() === 1 && d.getMonth() % 3 === 0)
                     if (!show) return null
-                    return <div key={i} className="absolute top-0 h-full text-[10px] text-ink-500 px-0.5 leading-none pt-1.5 border-l border-ink-300/40" style={{ left: i * dayW }}>{scale === 'year' ? `Q${Math.floor(d.getMonth() / 3) + 1}` : scale === 'week' ? format(d, 'M/d') : format(d, 'd')}</div>
+                    return <div key={i} className="absolute top-0 h-full text-[11px] font-semibold text-ink-700 px-0.5 leading-none pt-1.5 border-l border-ink-300/40" style={{ left: i * dayW }}>{scale === 'year' ? `Q${Math.floor(d.getMonth() / 3) + 1}` : scale === 'week' ? format(d, 'M/d') : format(d, 'd')}</div>
                   })}
                 </div>
-              </div>
-
-              {/* 主体网格 + bars */}
-              <div className="relative" style={{ height: rows.length * ROW_H }}>
+          </>}
+        >
                 {/* 周末背景 */}
                 {dates.map((d, i) => {
                   if (!isWeekend(d) || scale === 'month' || scale === 'year') return null
@@ -238,7 +240,7 @@ export function Gantt({ project, selectedTaskId, onSelectTask }: Props) {
                 {/* 今日竖线 */}
                 {isTodayInRange && (
                   <div
-                    className="absolute top-0 bottom-0 w-px bg-red-500/70 z-20 pointer-events-none"
+                    className="absolute top-0 bottom-0 w-px bg-red-500/70 z-10 pointer-events-none"
                     style={{ left: todayX }}
                   >
                     <div className="absolute -top-5 -translate-x-1/2 px-1 bg-red-500 text-white text-[10px] rounded whitespace-nowrap">
@@ -267,54 +269,53 @@ export function Gantt({ project, selectedTaskId, onSelectTask }: Props) {
                   const t = r.task
                   const left = xOf(parseISO(t.plannedStart))
                   const w = Math.max(t.isMilestone ? 20 : 6, differenceInCalendarDays(parseISO(t.plannedEnd), parseISO(t.plannedStart)) * dayW)
-                  const top = i * ROW_H + (ROW_H - 18) / 2
+                  const top = i * ROW_H + (ROW_H - BAR_H) / 2
                   const isCritical = cpm.criticalPathIds.has(t.id)
                   const isSelected = selectedTaskId === t.id
 
                   if (t.isMilestone) {
                     return (
-                      <div
+                      <GanttTaskButton
                         key={t.id}
-                        className="absolute group cursor-pointer"
-                        style={{ left: left - 9, top: top, width: 18, height: 18 }}
-                        title={`${t.name} · ${t.plannedEnd}`}
-                        onClick={() => onSelectTask?.(t.id)}
+                        task={t}
+                        ownerName={findUser(t.ownerId)?.displayName}
+                        onSelectTask={onSelectTask}
+                        className="gantt-task-bar absolute group cursor-pointer"
+                        style={{ left: left - 9, top: i * ROW_H + (ROW_H - 18) / 2, width: 18, height: 18 }}
                       >
                         <div className={cn(
                           'w-full h-full rotate-45 border-2',
                           isCritical && showCP ? 'bg-red-500 border-red-700' : 'bg-amber-500 border-amber-700'
                         )} />
-                      </div>
+                      </GanttTaskButton>
                     )
                   }
 
                   return (
-                    <div
+                    <GanttTaskButton
                       key={t.id}
+                      task={t}
+                      ownerName={findUser(t.ownerId)?.displayName}
+                      onSelectTask={onSelectTask}
                       className={cn(
-                        'absolute rounded h-[18px] cursor-pointer overflow-hidden border transition-all',
+                        'gantt-task-bar absolute rounded cursor-pointer overflow-hidden border transition-all',
                         isCritical && showCP
-                          ? 'bg-red-500 border-red-700 hover:bg-red-600'
+                          ? 'bg-red-500 border-red-700 hover:bg-red-400'
                           : t.status === '已完成' || t.status === '已验证'
                           ? 'bg-emerald-500 border-emerald-700'
                           : t.status === '延迟' || t.status === '阻塞'
                           ? 'bg-amber-500 border-amber-700'
-                          : 'bg-brand-500 border-brand-700 hover:bg-brand-600',
+                          : 'bg-brand-500 border-brand-700 hover:bg-brand-400',
                         isSelected && 'ring-2 ring-brand-300 z-10'
                       )}
-                      style={{ left, top, width: w }}
-                      title={`${t.name}\n${t.plannedStart} ~ ${t.plannedEnd}\n${t.estimatedEffort} 人天`}
-                      onClick={() => onSelectTask?.(t.id)}
+                      style={{ left, top, width: w, height: BAR_H }}
                     >
                       {/* 进度填充 */}
                       <div
                         className="h-full bg-white/30 absolute left-0 top-0"
                         style={{ width: `${t.progress}%` }}
                       />
-                      <div className="px-1.5 text-[10px] text-white whitespace-nowrap relative leading-[18px]">
-                        {t.code}
-                      </div>
-                    </div>
+                    </GanttTaskButton>
                   )
                 })}
 
@@ -374,13 +375,10 @@ export function Gantt({ project, selectedTaskId, onSelectTask }: Props) {
                     })}
                   </svg>
                 )}
-              </div>
-            </div>
-          </div>
-        </div>
+        </GanttViewport>
 
         {/* 图例 */}
-        <div className="px-4 py-2 border-t border-ink-300/40 text-[11px] text-ink-700 flex items-center gap-4 flex-wrap">
+        <div className="gantt-legend px-4 py-2 border-t border-ink-300/40 text-[11px] text-ink-700 flex items-center gap-4 flex-wrap">
           <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded bg-brand-500" />进行中</span>
           <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded bg-emerald-500" />已完成</span>
           <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded bg-amber-500" />延迟/阻塞</span>
@@ -420,7 +418,7 @@ function TaskLabel({ task, isCritical }: { task: Task; isCritical?: boolean }) {
     <div className="flex items-center gap-1.5 truncate">
       {task.isMilestone && <Diamond className="w-3 h-3 text-amber-600 shrink-0" />}
       {isCritical && <Flame className="w-3 h-3 text-red-500 shrink-0" />}
-      <span className={cn('truncate', task.isMilestone && 'font-semibold')}>{task.name}</span>
+      <span className="truncate font-semibold">{task.name}</span>
       <span className="ml-auto pl-1 flex items-center gap-1.5">
         {owner && <Avatar user={owner} size="sm" />}
       </span>
