@@ -4,9 +4,10 @@ import { SCOPE_NAMES } from '../information/api'
 import type { KnowledgeSourceSnapshot, SourceDefinition, SourceDocument } from './api'
 import { defaultCatalogState, isGuideline, restoreCatalog, saveCatalog, type CatalogState } from './catalog-state'
 import './source-catalog.css'
+import ReferenceSourceSection from './ReferenceSourceSection'
 
 type Mutation = (method: 'post' | 'patch', path: string, body: unknown, success: string) => Promise<boolean>
-interface Props { data: KnowledgeSourceSnapshot; busy: boolean; mutate: Mutation; onAdd: () => void; onDownloads: () => void; storageKey?: string; density?: 'compact' | 'standard'; onDensityChange?: (value: 'compact' | 'standard') => void }
+interface Props { focusSource?: string; focusDocument?: string; data: KnowledgeSourceSnapshot; busy: boolean; mutate: Mutation; onAdd: () => void; onDownloads: () => void; storageKey?: string; density?: 'compact' | 'standard'; onDensityChange?: (value: 'compact' | 'standard') => void }
 const running = (status: string) => ['queued', 'running', 'pending'].includes(status)
 const dateText = (value?: string | null) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '尚未搜索'
 const saved = (document: SourceDocument) => document.versions.length > 0
@@ -15,12 +16,12 @@ const PAGE_SIZE = 25
 const DEFAULT_SCHEDULE = { frequency: 'off' as const, downloadUpdates: false, indexUpdates: false }
 const versionLabel = (doc: SourceDocument) => !saved(doc) ? '未下载' : doc.versionStatus === 'update_available' ? '有更新待下载' : doc.versionStatus === 'current' ? '已核验当前版本' : '已保存 · 版本待核对'
 
-export default function SourceManager({ data, busy, mutate, onAdd, onDownloads, storageKey, density = 'compact', onDensityChange }: Props) {
+export default function SourceManager({ data, busy, mutate, onAdd, onDownloads, storageKey, density = 'compact', onDensityChange, focusSource, focusDocument }: Props) {
   return <>
     <div className="kso-head"><div><div className="kso-breadcrumb">获取论文<ChevronRight />来源管理</div><h1>从来源下载</h1><p>搜索来源中的官方资料，选择后下载到服务器，再归入论文文件夹。</p></div><div className="kso-actions">{onDensityChange && <label className="kso-small">列表密度 <select className="kso-select" aria-label="来源列表密度" value={density} onChange={event => onDensityChange(event.target.value as 'compact' | 'standard')}><option value="compact">紧凑</option><option value="standard">标准</option></select></label>}{data.canManage && <button type="button" className="kso-btn" onClick={onAdd}><Plus />添加搜索源</button>}</div></div>
-    {data.sources.map(source => <SourceSection key={`${storageKey || ''}:${source.id}:${source.folderId}:${source.scopes.join(',')}`} {...{ source, data, busy, mutate, onDownloads, storageKey, density }} />)}
+    {[...data.sources].sort((a,b) => Number(b.id === focusSource) - Number(a.id === focusSource)).map(source => source.adapter === 'reference' ? <ReferenceSourceSection key={source.id} {...{source, data, busy, mutate, onDownloads}} focusDocument={source.id === focusSource ? focusDocument : undefined} /> : <SourceSection key={`${storageKey || ''}:${source.id}:${source.folderId}:${source.scopes.join(',')}`} {...{ source, data, busy, mutate, onDownloads, storageKey, density }} />)}
     {!data.sources.length && <div className="kso-empty"><Radar /><h3>先添加一个论文搜索源</h3><p>添加 ICH 官网来源后，在此页搜索、选择和下载，默认归入同名文件夹。</p>{data.canManage && <button type="button" className="kso-btn primary" onClick={onAdd}><Plus />添加搜索源</button>}</div>}
-    <p className="kso-bottom-caption">再次搜索只更新目录，不自动下载或建立索引。其他网站完成适配后才能执行搜索与下载。</p>
+    <p className="kso-bottom-caption">再次搜索只更新官方来源目录；参考论文从应用检索结果导入后，可按需下载公开 PDF。</p>
   </>
 }
 

@@ -76,6 +76,9 @@ def run_step(store, official, *, extract=extract_pdf, connector=bridge.call, job
     jobid = job["id"]
     try:
         authority(db, job["actorSubject"])
+        if app == "knowledge-sources" and store.source(job["sourceId"])["adapter"] == "reference":
+            if not connector("library", job["actorSubject"], imports=[]).get("canWrite"):
+                raise HTTPException(403, "参考论文下载需要有效的知识库写入权限，任务已暂停")
     except Exception as exc:
         job["status"] = "paused"
         job["error"] = safe_error(exc)
@@ -212,6 +215,12 @@ def run_step(store, official, *, extract=extract_pdf, connector=bridge.call, job
                             parse=job["parse"],
                             scopes=doc["scopes"],
                             officialStatus=doc.get("officialStatus", ""),
+                            **(
+                                {"sourceKind": "reference"}
+                                if app == "knowledge-sources"
+                                and store.source(doc["sourceId"])["adapter"] == "reference"
+                                else {}
+                            ),
                         )
                     version.update(
                         indexStatus=reply.get("indexStatus", "pending"),

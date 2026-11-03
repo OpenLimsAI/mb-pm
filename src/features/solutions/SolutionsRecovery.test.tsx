@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SolutionsApp from './SolutionsApp'
 import type { Answer, KnowledgeSource, Solution, SolutionClient } from './types'
 import { readWorkspaceRecovery, RECOVERY_TTL_MS, workspaceRecoveryScope, writeWorkspaceRecovery } from './workspaceRecovery'
@@ -29,8 +29,42 @@ async function open(client: SolutionClient) {
   return view
 }
 beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-editor-mode', 'markdown'); sessionStorage.clear(); vi.restoreAllMocks() })
+afterEach(() => { vi.useRealTimers() })
 
 describe('research workspace survives authentication remounts', () => {
+  it('silently restores chapter and source preferences without claiming that a question was recovered', async () => {
+    writeWorkspaceRecovery(scope, { ...cached(), question: '', topicDrafts: {}, context: '已选章节正文', inlineCards: [] })
+    const client = mockClient()
+    render(app(client))
+    await screen.findByRole('textbox', { name: '章节正文' })
+    await waitFor(() => expect(screen.getByRole('textbox', { name: '章节正文' })).toHaveValue('第二章正文'))
+    expect(screen.getByRole('textbox', { name: '向AI提问' })).toHaveValue('')
+    expect(screen.queryByText(/已恢复/)).not.toBeInTheDocument()
+    expect(client.ask).not.toHaveBeenCalled()
+  })
+
+  it('briefly announces a recovered question without clearing the question when the notice disappears', async () => {
+    writeWorkspaceRecovery(scope, { ...cached(), selectedSourceIds: [] })
+    vi.useFakeTimers()
+    await act(async () => { render(app(mockClient())) })
+    expect(screen.getByText('已恢复未发送的问题，可继续编辑。')).toBeVisible()
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    expect(screen.queryByText('已恢复未发送的问题，可继续编辑。')).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: '向AI提问' })).toHaveValue('未发送的问题')
+    expect(readWorkspaceRecovery(scope)?.question).toBe('未发送的问题')
+  })
+
+  it('does not replace an unsaved report warning with a generic workspace recovery notice', async () => {
+    writeWorkspaceRecovery(scope, { ...cached(), selectedSourceIds: [] })
+    const unsaved = { ...seed(), sections: [{ id: 's1', title: '研究目标', content: '尚未保存的正文' }] }
+    sessionStorage.setItem(`ks-draft:preview:${scope}:r1`, JSON.stringify(unsaved))
+    render(app(mockClient()))
+    await screen.findByRole('textbox', { name: '章节正文' })
+    expect(screen.getByText('已恢复本机未保存草稿，请核对内容并保存。')).toBeVisible()
+    expect(screen.getByRole('textbox', { name: '章节正文' })).toHaveValue('尚未保存的正文')
+    expect(screen.queryByText('已恢复未发送的问题，可继续编辑。')).not.toBeInTheDocument()
+  })
+
   it.each(['general', 'knowledge', 'web'] as const)('restores the %s restriction after authentication without automatically sending the draft', async answerMode => {
     const client = mockClient(), view = await open(client)
     fireEvent.change(screen.getByRole('combobox', { name: '回答方式' }), { target: { value: answerMode } })

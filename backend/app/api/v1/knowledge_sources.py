@@ -14,6 +14,7 @@ from app.api.deps import require_same_origin
 from app.api.v1.portal import session_claims
 from app.core.config import settings
 from app.db.session import get_db
+from app.services import knowledge_source_references as references
 from app.services import password_policy
 from app.services.iam_admin import IAMError
 from app.services.information import bridge
@@ -111,6 +112,14 @@ class StarInput(Input):
     enabled: bool
 
 
+class ReferenceInput(Input):
+    origin_app: Literal["solutions", "assistant"] = Field(alias="originApp")
+    origin_id: str = Field(alias="originId", min_length=1, max_length=64)
+    answer_id: str = Field(alias="answerId", min_length=1, max_length=64)
+    reference_id: str = Field(alias="referenceId", min_length=1, max_length=100)
+    download: bool = False
+
+
 def principal(request: Request, db: Session = Depends(get_db)):
     claims = session_claims(request, db)
     password_policy.enforce(db, claims["sub"], request.url.path)
@@ -124,6 +133,7 @@ def principal(request: Request, db: Session = Depends(get_db)):
         require_same_origin(request, origin=settings.portal_origin)
     return {
         "subject": claims["sub"],
+        "issuer": claims["iss"],
         "tenant": tenant_key(claims["iss"], claims["owner"]),
         "manage": can_manage(account),
     }
@@ -525,6 +535,10 @@ def change_source(
     store = Store(db, actor["tenant"])
     source = store.source(ident)
     changes = body.model_dump(by_alias=True, exclude_unset=True)
+    if source["adapter"] == "reference" and any(
+        key in changes for key in ("name", "scopes", "schedule")
+    ):
+        raise HTTPException(400, "参考论文分类由来源应用确定，不支持修改目录或设置定时检查")
     if any(value is None for key, value in changes.items() if key != "folderId"):
         raise HTTPException(400, "来源设置不能为空")
     if "schedule" in changes:
@@ -561,9 +575,101 @@ def require_worker():
 
 def new_job(store, actor, source, **values):
     require_worker()
-    if source["adapter"] != "ich":
+    if source["adapter"] != "ich" and not (
+        source["adapter"] == "reference" and values.get("kind") == "import"
+    ):
         raise HTTPException(400, "该来源尚未适配，不能检查或下载")
     return store.create_job(source["id"], actor["subject"], app=APP, **values)
+
+
+@router.post("/references", status_code=201)
+def import_reference(
+    body: ReferenceInput, db: Session = Depends(get_db), actor: dict = Depends(principal)
+):
+    ref = references.saved_reference(db, {"iss": actor["issuer"], "sub": actor["subject"]}, body)
+    catalogue = None
+    can_download = False
+    if actor["manage"]:
+        try:
+            catalogue = library(actor)
+            can_download = bool(catalogue.get("canWrite"))
+        except HTTPException:
+            if body.download:
+                raise
+    if body.download and not can_download:
+        raise HTTPException(403, "已登录账号可导入论文来源；下载和建立分类需要知识库负责人权限")
+    if body.download:
+        require_worker()
+    store = Store(db, actor["tenant"])
+    source, document, existing = references.ensure_reference(store, body, ref)
+    result = {
+        "sourceId": source["id"],
+        "documentId": document["id"],
+        "folderId": source.get("folderId"),
+        "category": references.CATEGORIES[body.origin_app],
+        "alreadyImported": existing,
+        "canDownload": can_download,
+        "status": "imported",
+    }
+    versions = [v for v in store.records("version") if v["documentId"] == document["id"]]
+    if versions:
+        result["status"] = "saved"
+    if body.download:
+        active = [
+            j for j in store.active_jobs() if j.get("app") == APP and j["sourceId"] == source["id"]
+        ]
+        same = next(
+            (j for j in active if any(i.get("documentId") == document["id"] for i in j["items"])),
+            None,
+        )
+        if same:
+            result.update(jobId=same["id"], status="queued", folderId=same.get("folderId"))
+        else:
+            # Do not silently revive a paper that was removed or hidden in the KB.
+            latest = versions[-1] if versions else None
+            if (
+                latest
+                and latest.get("kbPath")
+                and not any(p.get("path") == latest["kbPath"] for p in catalogue.get("papers", []))
+            ):
+                proof = library(
+                    actor, imports=[{"documentId": document["id"], "sha256": latest["sha256"]}]
+                )
+                if not pending_archive(latest, proof):
+                    raise HTTPException(409, "原知识库论文已删除或不可访问，不会自动重新收录")
+            if (
+                not latest
+                or latest.get("parseStatus") != "ready"
+                or latest.get("indexStatus") != "ready"
+            ):
+                if active:
+                    raise HTTPException(
+                        409, "此参考论文分类已有未完成下载，请在知识源完成或取消后重试"
+                    )
+                folder = source_folder(store, actor, source)
+                job = new_job(
+                    store,
+                    actor,
+                    source,
+                    kind="import",
+                    document_ids=[document["id"]],
+                    folder_id=folder,
+                    parse=True,
+                )
+                job["displayFolderId"] = folder
+                if latest:
+                    job["items"][0].update(
+                        versionId=latest["id"], phase="resume_saved", result="reused"
+                    )
+                store.put("job", job)
+                result.update(jobId=job["id"], folderId=folder, status="queued")
+    store.audit(
+        actor["subject"],
+        "reference_download" if body.download else "reference_import",
+        document["id"],
+    )
+    db.commit()
+    return result
 
 
 @router.post("/sources/{ident}/check", status_code=202)
@@ -580,15 +686,44 @@ def create_job(body: JobInput, db: Session = Depends(get_db), actor: dict = Depe
     store = Store(db, actor["tenant"])
     source = store.source(body.source_id)
     ids = list(dict.fromkeys(body.document_ids))
+    catalogue = writable_library(actor, store) if source["adapter"] == "reference" else None
     for ident in ids:
         if store.get("document", ident)["sourceId"] != source["id"]:
             raise HTTPException(400, "清单包含不属于该来源的资料")
     require_worker()
+    if source["adapter"] == "reference":
+        existing = next(
+            (
+                j
+                for j in store.active_jobs()
+                if j.get("app") == APP
+                and j["sourceId"] == source["id"]
+                and set(ids) <= {i.get("documentId") for i in j["items"]}
+            ),
+            None,
+        )
+        if existing:
+            return {"id": existing["id"]}
+    retained = {}
+    if catalogue is not None:
+        for version in store.records("version"):
+            if version["documentId"] in ids:
+                retained[version["documentId"]] = version
+        for version in retained.values():
+            if (
+                version.get("kbPath")
+                and not any(p.get("path") == version["kbPath"] for p in catalogue.get("papers", []))
+                and not pending_archive(version, catalogue)
+            ):
+                raise HTTPException(409, "原知识库论文已删除或不可访问，不会自动重新收录")
     folder = source_folder(store, actor, source, body.folder_id)
     job = new_job(
         store, actor, source, kind="import", document_ids=ids, folder_id=folder, parse=body.parse
     )
     job["displayFolderId"] = folder
+    for item in job["items"]:
+        if version := retained.get(item["documentId"]):
+            item.update(versionId=version["id"], phase="resume_saved", result="reused")
     store.put("job", job)
     db.commit()
     return {"id": job["id"]}
@@ -617,6 +752,8 @@ def retry_document(ident: str, db: Session = Depends(get_db), actor: dict = Depe
     store = Store(db, actor["tenant"])
     doc = store.document(ident)
     source = store.source(doc["sourceId"])
+    if source["adapter"] == "reference":
+        writable_library(actor, store)
     require_worker()
     target = source_folder(store, actor, source)
     job = new_job(
@@ -681,7 +818,7 @@ def original(
     actor: dict = Depends(principal),
 ):
     store = Store(db, actor["tenant"])
-    store.get("document", document_id)
+    document = store.get("document", document_id)
     version = store.get("version", version_id)
     if version["documentId"] != document_id:
         raise HTTPException(404, "原文版本不存在")
@@ -698,7 +835,7 @@ def original(
     return FileResponse(
         path,
         media_type="application/pdf",
-        filename=f'ICH-{version["sha256"][:12]}.pdf',
+        filename=f'{"Paper" if document.get("originApp") else "ICH"}-{version["sha256"][:12]}.pdf',
         content_disposition_type="inline",
         headers={
             "X-Content-Type-Options": "nosniff",

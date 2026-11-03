@@ -25,6 +25,7 @@ export interface InlineQuestion extends InlineAnchor {
 }
 
 interface Props {
+  reportId?: string
   content: string
   onCursorChange?: (range: { from: number; to: number; text: string; content: string }) => void
   cards: InlineQuestion[]
@@ -292,12 +293,12 @@ export default function InlineAssistantEditor(props: Props) {
         {part.anchor.answer && <div className="ks-inline-answer">
           <div className="ks-inline-answer-label"><Sparkles size={14} /><strong>{part.anchor.answer.mode === 'ai' ? 'AI 回答' : '知识库检索结果'}</strong>{part.anchor.answer.model && <small>{part.anchor.answer.model}</small>}</div>
           <p className="ks-inline-answer-question">回答对应：{part.anchor.answer.question}</p>
-          <AnswerEvidence answer={part.anchor.answer} preview={props.preview} part="status" /><div className="ks-markdown"><SafeMarkdown>{part.anchor.answer.content}</SafeMarkdown></div><AnswerEvidence answer={part.anchor.answer} preview={props.preview} part="sources" />
+          <AnswerEvidence answer={part.anchor.answer} preview={props.preview} part="status" /><div className="ks-markdown"><SafeMarkdown>{part.anchor.answer.content}</SafeMarkdown></div><AnswerEvidence answer={part.anchor.answer} preview={props.preview} part="sources" referenceOrigin={props.reportId ? { originApp: 'solutions', originId: props.reportId, answerId: part.anchor.answer.id } : undefined} />
           <div className="ks-answer-citations">{part.anchor.answer.references.map((ref, n) => <button type="button" key={`${ref.id}-${n}`} onClick={() => onSource(ref.sourceId)}><BookOpen size={13} />{n + 1}. {ref.title}</button>)}</div>
           <div className="ks-inline-adopt"><button type="button" className="ks-button ks-primary" disabled={disabled || part.anchor.status === 'asking'} onClick={() => onAdopt(part.anchor.id)}><Check size={14} />采纳到报告</button><button type="button" className="ks-button" onClick={() => onRemove(part.anchor.id)}>不采纳，移除卡片</button></div>
         </div>}
         <footer>卡片仅在本次编辑中保留；已完成回答可在 AI 研究助手中查看。</footer>
       </section>)}
-    {props.onAskSelectedText && props.onPolishSelectedText && props.onAdoptSelectedAnswer && <SelectionAssistant selection={!disabled && selectedText?.document === content ? selectedText : null} onSaveNote={props.onSaveNote} preview={props.preview} modelLabel={props.modelLabel} scope={scope} onDismiss={() => setSelectedText(null)} onAsk={props.onAskSelectedText} onPolish={props.onPolishSelectedText} onAdopt={props.onAdoptSelectedAnswer} onReplace={replaceSelectedText} onSource={onSource} />}
+    {props.onAskSelectedText && props.onPolishSelectedText && props.onAdoptSelectedAnswer && <SelectionAssistant reportId={props.reportId} selection={!disabled && selectedText?.document === content ? selectedText : null} onSaveNote={props.onSaveNote} preview={props.preview} modelLabel={props.modelLabel} scope={scope} onDismiss={() => setSelectedText(null)} onAsk={props.onAskSelectedText} onPolish={props.onPolishSelectedText} onAdopt={props.onAdoptSelectedAnswer} onReplace={replaceSelectedText} onSource={onSource} />}
   </div>
 }

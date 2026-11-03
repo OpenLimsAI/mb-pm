@@ -1,0 +1,97 @@
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { beforeEach, expect, it, vi } from 'vitest'
+import ReferenceImport from './ReferenceImport'
+import { importKnowledgeReference } from '../knowledge-sources/api'
+import { AnswerEvidence } from './AnswerTools'
+vi.mock('../knowledge-sources/api', () => ({ importKnowledgeReference: vi.fn(), sourceError: () => '暂时无法连接，请重试。' }))
+const source = { id: 'web-one', title: '研究论文', url: 'https://example.org/paper', publishedAt: null, retrievedAt: '', excerpt: '论文摘要' }
+const origin = { originApp: 'solutions' as const, originId: 'report-1', answerId: 'answer-1' }
+const result = { sourceId: 'report-references', documentId: 'document-1', folderId: null, category: '研究报告参考论文', alreadyImported: false, canDownload: true, status: 'imported' as const }
+beforeEach(() => vi.resetAllMocks())
+it('imports only a saved source identity, then downloads explicitly and links to the task in the same tab', async () => {
+  vi.mocked(importKnowledgeReference).mockResolvedValueOnce(result).mockResolvedValueOnce({ ...result, status: 'queued', jobId: 'job-1', folderId: 'folder-1' })
+  render(<AnswerEvidence answer={{answerMode:'web', webReferences:[source]}} part="sources" referenceOrigin={origin} />)
+  fireEvent.click(screen.getByRole('button', { name: '导入知识源' }))
+  const dialog = screen.getByRole('dialog', {name:'导入知识源'})
+  expect(within(dialog).getByText('研究报告参考论文')).toBeInTheDocument()
+  expect(importKnowledgeReference).not.toHaveBeenCalled()
+  fireEvent.click(within(dialog).getByRole('button', { name: '确认导入' }))
+  await screen.findByText('论文已导入知识源，尚未下载原文。')
+  expect(importKnowledgeReference).toHaveBeenLastCalledWith({ ...origin, referenceId: 'web-one', download: false })
+  expect(screen.getByText('下载后归入知识库并建立问答索引。')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '下载原文' }))
+  await screen.findByText('下载任务已提交，可在知识源查看进度。')
+  expect(importKnowledgeReference).toHaveBeenLastCalledWith({ ...origin, referenceId: 'web-one', download: true })
+  expect(screen.getByRole('link', { name: '查看知识源' })).toHaveAttribute('href', '/knowledge-sources?source=report-references&document=document-1&job=job-1')
+  expect(screen.getByRole('link', { name: '查看知识源' })).not.toHaveAttribute('target')
+})
+it('keeps import available to readers and tells them who can download', async () => {
+  vi.mocked(importKnowledgeReference).mockResolvedValue({ ...result, canDownload:false })
+  render(<ReferenceImport source={source} origin={{ ...origin, originApp:'assistant' }} />)
+  const trigger = screen.getByRole('button', {name:'导入知识源'})
+  fireEvent.click(trigger)
+  expect(screen.getByText('个人AI助手参考论文')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', {name:'确认导入'}))
+  await screen.findByText('已保留论文信息，可由知识库负责人在知识源中下载。')
+  expect(screen.queryByRole('button', {name:'下载原文'})).not.toBeInTheDocument()
+  fireEvent.keyDown(screen.getByRole('dialog'), {key:'Escape'})
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(trigger).toHaveFocus()
+})
+it('keeps failures retryable without marking the source imported', async () => {
+  vi.mocked(importKnowledgeReference).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(result)
+  render(<ReferenceImport source={source} origin={origin} />)
+  fireEvent.click(screen.getByRole('button', {name:'导入知识源'}));fireEvent.click(screen.getByRole('button', {name:'确认导入'}))
+  expect(await screen.findByRole('alert')).toHaveTextContent('请重试')
+  expect(screen.queryByRole('link', {name:'查看知识源'})).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', {name:'确认导入'}))
+  await screen.findByText('论文已导入知识源，尚未下载原文。')
+  await waitFor(() => expect(importKnowledgeReference).toHaveBeenCalledTimes(2))
+})
+it('never calls a real API in preview, and does not claim a server download', () => {
+  render(<ReferenceImport source={source} origin={origin} preview />)
+  fireEvent.click(screen.getByRole('button', {name:'导入知识源'}));fireEvent.click(screen.getByRole('button', {name:'演示导入'}))
+  expect(screen.getByText('演示完成：该论文将归入「研究报告参考论文」。')).toBeInTheDocument()
+  expect(importKnowledgeReference).not.toHaveBeenCalled()
+  expect(screen.queryByRole('link', {name:'查看知识源'})).not.toBeInTheDocument()
+})
+it('offers no import action for unsafe URLs or answers without saved origin identity', () => {
+  const {rerender}=render(<ReferenceImport source={{...source,url:'https://localhost/paper'}} origin={origin} />)
+  expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  rerender(<AnswerEvidence answer={{answerMode:'web', webReferences:[source]}} part="sources" />)
+  expect(screen.queryByRole('button', {name:'导入知识源'})).not.toBeInTheDocument()
+})
+it('resets the import result when the answer changes while a source id is reused', async () => {
+  vi.mocked(importKnowledgeReference).mockResolvedValueOnce(result).mockResolvedValueOnce({...result, documentId:'document-new'})
+  const {rerender}=render(<AnswerEvidence answer={{answerMode:'web',webReferences:[source]}} part="sources" referenceOrigin={origin} />)
+  fireEvent.click(screen.getByRole('button',{name:'导入知识源'}));fireEvent.click(screen.getByRole('button',{name:'确认导入'}))
+  await screen.findByText('论文已导入知识源，尚未下载原文。')
+  expect(screen.getByRole('link',{name:'查看知识源'})).toHaveAttribute('href','/knowledge-sources?source=report-references&document=document-1')
+  const nextOrigin={...origin,answerId:'answer-new'}
+  rerender(<AnswerEvidence answer={{answerMode:'web',webReferences:[{...source,url:'https://example.org/new-paper'}]}} part="sources" referenceOrigin={nextOrigin} />)
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button',{name:'已导入 · 查看'})).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button',{name:'导入知识源'}));fireEvent.click(screen.getByRole('button',{name:'确认导入'}))
+  await screen.findByText('论文已导入知识源，尚未下载原文。')
+  expect(importKnowledgeReference).toHaveBeenLastCalledWith({...nextOrigin,referenceId:source.id,download:false})
+  expect(screen.getByRole('link',{name:'查看知识源'})).toHaveAttribute('href','/knowledge-sources?source=report-references&document=document-new')
+})
+it('keeps Tab and Escape inside an import dialog nested in a parent dialog', () => {
+  const parentKeyboard=vi.fn(), documentKeyboard=vi.fn()
+  document.addEventListener('keydown',documentKeyboard)
+  try {
+    render(<div role="dialog" aria-label="父级问答" onKeyDown={parentKeyboard}><ReferenceImport source={source} origin={origin} preview /></div>)
+    fireEvent.click(screen.getByRole('button',{name:'导入知识源'}))
+    const dialog=screen.getByRole('dialog',{name:'导入知识源'})
+    const first=within(dialog).getByRole('button',{name:'关闭论文导入'}), last=within(dialog).getByRole('button',{name:'演示导入'})
+    last.focus();expect(last).toHaveFocus();fireEvent.keyDown(last,{key:'Tab'})
+    expect(first).toHaveFocus()
+    fireEvent.keyDown(first,{key:'Tab',shiftKey:true})
+    expect(last).toHaveFocus()
+    fireEvent.keyDown(last,{key:'Escape'})
+    expect(screen.queryByRole('dialog',{name:'导入知识源'})).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog',{name:'父级问答'})).toBeInTheDocument()
+    expect(parentKeyboard).not.toHaveBeenCalled()
+    expect(documentKeyboard).not.toHaveBeenCalled()
+  } finally { document.removeEventListener('keydown',documentKeyboard) }
+})

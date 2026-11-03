@@ -25,6 +25,20 @@ export interface WorkspaceRecovery {
   listOpen: boolean
 }
 
+export const RECOVERED_QUESTION_NOTICE = '已恢复未发送的问题，可继续编辑。'
+
+/** Navigational state is restored silently; only recovered work needs a notice. */
+export function workspaceRecoveryNotice(saved: WorkspaceRecovery | null): string {
+  if (!saved) return ''
+  if (saved.interrupted || saved.inlineCards.some(card => card.status === 'asking')) {
+    return '已恢复研究现场；上次生成不会自动重试，请核对已保存的问答历史。'
+  }
+  return saved.question.trim()
+    || Object.values(saved.topicDrafts).some(draft => draft.question.trim())
+    || saved.inlineCards.some(card => card.status === 'idle' && card.question.trim())
+    ? RECOVERED_QUESTION_NOTICE : ''
+}
+
 function object(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
