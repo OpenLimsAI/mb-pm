@@ -1,4 +1,5 @@
-import { Search, X } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { Search, X, SlidersHorizontal } from 'lucide-react'
 import { productTypes, stages } from '../../mock/dictionaries'
 import { users } from '../../mock/users'
 import type { Health, ProductType, Stage, ProjectStatus } from '../../types'
@@ -9,27 +10,42 @@ export function ProjectFilters({
   filters,
   onChange,
   onReset,
+  viewControl,
 }: {
   filters: FilterState
   onChange: (next: FilterState) => void
   onReset: () => void
+  viewControl?: ReactNode
 }) {
-  const owners = users.filter((u) => u.role === 'project_lead' || u.role === 'cmc_lead')
+  const [expanded, setExpanded] = useState(false)
+  const owners = users
+  const advancedCount = [filters.productType !== 'all', filters.stage !== 'all', filters.health !== 'all', filters.status !== '活跃'].filter(Boolean).length
   const isModified = JSON.stringify(filters) !== JSON.stringify(initialFilters)
 
   return (
-    <div className="bg-white rounded-card shadow-card border border-ink-300/40 p-3 mb-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[200px] max-w-md">
+    <div className="project-filter-area">
+      <div className="project-filter-toolbar">
+        <div className="relative flex-1 min-w-[180px]">
           <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-500" />
-          <input
+          <input type="search"
             value={filters.keyword}
             onChange={(e) => onChange({ ...filters, keyword: e.target.value })}
-            placeholder="搜索项目编号、名称、描述…"
+            aria-label="搜索项目"
+            placeholder="搜索项目名称、编号或负责人"
             className="w-full pl-8 pr-3 py-1.5 rounded-md bg-ink-100 text-sm border border-transparent focus:outline-none focus:bg-white focus:border-brand-500"
           />
         </div>
 
+        <Select
+          label="负责人"
+          value={filters.ownerId}
+          onChange={(v) => onChange({ ...filters, ownerId: v })}
+          options={[{ v: 'all', l: '全部' }, ...owners.map((u) => ({ v: u.id, l: u.displayName }))]}
+        />
+        <button type="button" className="project-filter-toggle" aria-expanded={expanded} aria-controls="project-advanced-filters" onClick={() => setExpanded(!expanded)}><SlidersHorizontal size={14} />筛选{advancedCount > 0 && ` (${advancedCount})`}</button>
+        {viewControl}
+      </div>
+      <div id="project-advanced-filters" className="project-advanced-filters" hidden={!expanded}>
         <Select
           label="产品"
           value={filters.productType}
@@ -52,12 +68,6 @@ export function ProjectFilters({
             { v: 'yellow', l: '🟡 关注' },
             { v: 'green', l: '🟢 健康' },
           ]}
-        />
-        <Select
-          label="负责人"
-          value={filters.ownerId}
-          onChange={(v) => onChange({ ...filters, ownerId: v })}
-          options={[{ v: 'all', l: '全部' }, ...owners.map((u) => ({ v: u.id, l: u.displayName }))]}
         />
         <Select
           label="状态"
