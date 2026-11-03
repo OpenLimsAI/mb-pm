@@ -230,7 +230,7 @@ def test_current_casdoor_user_status_is_checked_without_admin(case, monkeypatch)
             )
         assert exc.value.status_code == (
             503
-            if case in {"offline", "timeout"}
+            if case in {"offline", "timeout", "missing_flag", "typed_flag"}
             else 403
             if case in {"disabled", "deleted"}
             else 401

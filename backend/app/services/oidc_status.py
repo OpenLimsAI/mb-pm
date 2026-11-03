@@ -43,11 +43,16 @@ def ensure_active_token(
             raise ValueError("provider format")
     except (httpx.HTTPError, ValueError, TypeError):
         raise HTTPException(503, "统一身份状态服务暂不可用，请稍后重新登录") from None
-    if (
-        current.get("active") is not True
-        or current.get("client_id") != expected_audience
-        or current.get("sub") != claims.get("sub")
+    # A provider error/malformed document is not evidence that this login was revoked.
+    if not isinstance(current.get("active"), bool):
+        raise HTTPException(503, "统一身份令牌状态不完整，请稍后重试")
+    if not current["active"]:
+        raise HTTPException(401, "统一身份令牌已失效，请重新登录")
+    if any(
+        not isinstance(current.get(key), str) or not current[key] for key in ("client_id", "sub")
     ):
+        raise HTTPException(503, "统一身份令牌状态不完整，请稍后重试")
+    if current.get("client_id") != expected_audience or current.get("sub") != claims.get("sub"):
         raise HTTPException(401, "统一身份令牌已失效或状态不匹配，请重新登录")
 
     ensure_enabled_user(token, claims, authenticated_iat=authenticated_iat)
@@ -75,12 +80,13 @@ def ensure_enabled_user(token: str, claims: dict, *, authenticated_iat: int | No
     if (
         current.get("status") != "ok"
         or not isinstance(user, dict)
-        or user.get("id") != claims.get("sub")
-        or user.get("owner") != settings.CASDOOR_ORG
+        or any(not isinstance(user.get(key), str) or not user[key] for key in ("id", "owner"))
         or not isinstance(user.get("isForbidden"), bool)
         or not isinstance(user.get("isDeleted"), bool)
     ):
-        raise HTTPException(401, "统一身份账号状态不完整或主体不匹配")
+        raise HTTPException(503, "统一身份账号状态不完整，请稍后重试")
+    if user["id"] != claims.get("sub") or user["owner"] != settings.CASDOOR_ORG:
+        raise HTTPException(401, "统一身份账号主体不匹配")
     if user["isForbidden"] or user["isDeleted"]:
         raise HTTPException(403, "统一身份账号已停用或删除")
 

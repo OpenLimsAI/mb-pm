@@ -77,7 +77,7 @@
 
 升级不会为旧会话补造刷新令牌，用户须正常登录一次后进入续期模式。仅调大 `IAM_SESSION_SECONDS` 无法延长旧令牌的一小时寿命。IAM 的 7 天单点登录 Cookie 与上述业务会话时限分别生效。显式退出后不会自动恢复登录。
 
-两个生产实例通过 PostgreSQL 会话行锁串行刷新，身份校验完成后立即释放锁，不持有到 AI 生成结束。刷新重新校验签名、issuer、client/audience、subject、组织、账号状态及原始授权链撤销标记；后续刷新不能越过统一退出。IAM 暂时故障返回 503，不授权请求、不清除有效工作现场；`invalid_grant` 返回 401，要求重新登录。已成功旋转但状态核验暂时失败的新凭据会加密保留，下一次仍须重新核验才能使用。
+两个生产实例通过 PostgreSQL 会话行锁串行刷新，身份校验完成后立即释放锁，不持有到 AI 生成结束。刷新重新校验签名、issuer、client/audience、subject、组织、账号状态及原始授权链撤销标记；后续刷新不能越过统一退出。IAM 暂时故障或响应缺少有效的账号/令牌状态字段时返回 503，不授权请求、不删除会话或清除有效工作现场；`invalid_grant` 返回 401，要求重新登录。已成功旋转但状态核验暂时失败的新凭据会加密保留，下一次仍须重新核验才能使用。
 
 单点登录探测区分已登录、未登录与暂无法确认，超时或跨域失败提供重试和顶层 IAM 入口，不等同账号已退出。`auth.audit` 输出 UTC 时间、随机请求 ID、路由模板、实例、HTTP 状态与安全原因码；响应含 `X-Request-ID`，鉴权失败另含 `X-Auth-Reason`。日志不包含账号、Cookie、令牌、查询参数、问答内容或模型密钥。常见原因码为 `session_missing`、`session_expired`、`session_idle`、`token_expired`、`revoked`、`account_disabled`、`provider_unavailable`、`refresh_rejected`。
 
@@ -125,7 +125,7 @@ PM 回调为 `https://pm.openlims.ai/api/v1/auth/callback`，登出回跳为 `ht
 - 系统管理员是单独的平台管理身份，对应 `admin`；PM 业务角色对应项目成员（默认 `rd`）或负责人 `cmc_lead`。修改 PM 角色不移除 `admin`；取消平台身份后回落到保留的业务角色。它不等同于 Casdoor 的 `isAdmin` 组织管理员属性。
 - KB 准入识别启用的 `kb_manager` / `kb_editor` / `kb_viewer`。账号管理可选知识库负责人（`kb_manager`）或知识库用户（`kb_editor`），负责人选项在前；历史 `kb_viewer` 保留只读，只有明确选择角色并保存才升级。相应 IAM 角色须先创建并启用；平台管理员不自动获得 KB 负责人身份。配套服务与代理要求见[知识库权限交接](../deploy/knowledge-permissions/README.md)。
 - 账号写接口使用 `platform_admin`、`pm_identity`、`kb_role`，KB 写入只接受 `manager` / `editor`；旧 `identity` 仅保留在读取响应中，旧字段写入及任意角色数组会被拒绝，避免整包覆盖平台权限。
-- PM 根据经验签令牌中的角色判定权限；复核会话不等于实时查询 IAM 最新角色，角色变更生效需结合令牌有效期与各应用续期规则。
+- 启用 `OIDC_GLOBAL_LOGOUT_ENABLED` 并确认账号状态字段对本人可见后，PM 在经验签令牌绑定的同一账号/组织上逐请求读取当前启用角色；旧 JWT 中的角色快照不再决定权限。有效字段确认主体不匹配、停用或撤销时仍拒绝访问；身份服务响应缺字段不能被误当成已经撤权。
 
 ## 信息获取
 
