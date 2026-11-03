@@ -1,0 +1,303 @@
+{
+  "source": "263e10ca896329ad889512533b45f8876b4139e4",
+  "feature_pr": "https://github.com/OpenLimsAI/mb-pm/pull/149",
+  "feature_head": "c98d6b109f8e565246dc07b49a30d0217dc74d28",
+  "feature_head_tree": "3ca6fa562bcdb645939bee38d82c1cc55488f2f8",
+  "merge_commit": "263e10ca896329ad889512533b45f8876b4139e4",
+  "source_tree": "bde8a17ce4ded3c18d5a062bfbfec0116f47bc33",
+  "source_tree_note": "功能 head 与固定 main 的树差异仅为并发 PR #148 的三份发布文档；运行代码一致。",
+  "ci": [
+    {
+      "name": "dependencies",
+      "status": "completed",
+      "conclusion": "success",
+      "completed_at": "2026-11-03T16:58:41Z",
+      "details_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41679500468/job/126069066097"
+    },
+    {
+      "name": "container",
+      "status": "completed",
+      "conclusion": "success",
+      "completed_at": "2026-11-03T16:59:37Z",
+      "details_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41679500468/job/126069065604"
+    },
+    {
+      "name": "前端 · 类型检查 + 构建（硬护栏）",
+      "status": "completed",
+      "conclusion": "success",
+      "completed_at": "2026-11-03T17:05:52Z",
+      "details_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41679500359/job/126069062097"
+    },
+    {
+      "name": "后端 · pytest（PostgreSQL · 硬护栏）",
+      "status": "completed",
+      "conclusion": "success",
+      "completed_at": "2026-11-03T17:01:04Z",
+      "details_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41679500359/job/126069062030"
+    },
+    {
+      "name": "后端 · ruff 格式检查（硬护栏）",
+      "status": "completed",
+      "conclusion": "success",
+      "completed_at": "2026-11-03T16:58:08Z",
+      "details_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41679500359/job/126069061891"
+    },
+    {
+      "name": "Lint 报告（软护栏 · 不阻断）",
+      "status": "completed",
+      "conclusion": "success",
+      "completed_at": "2026-11-03T16:59:07Z",
+      "details_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41679500359/job/126069061806"
+    },
+    {
+      "name": "Docker · 镜像构建验证（硬护栏）",
+      "status": "completed",
+      "conclusion": "success",
+      "completed_at": "2026-11-03T16:59:33Z",
+      "details_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41679500359/job/126069061209"
+    }
+  ],
+  "frontend_tests": {
+    "files": 92,
+    "passed": 901
+  },
+  "prepared": {
+    "source": "263e10ca896329ad889512533b45f8876b4139e4",
+    "image": "sha256:f682e53deedb4bca2b48b6769f2bc1523047f9e87becbee879e66c640a20ecd2",
+    "previous_image": "sha256:3b005b7e4b9686a83cf1a3952c36754b92dbb616571c17e31f1f9664ce2febc1",
+    "backend_files_identical_to_main": 155,
+    "static_sha256": "3c8df8614c42b0570a716314da8b99a7a7e5f1706e8e3569df20a0973848cf4d",
+    "release_directory": "/home/prometheus/mb-pm-v2/releases/gantt-263e10c-20261103",
+    "source_sha256": "7ed8f37276185f909112c384658678f550cde58a57ea3128d99242cf6babb38f",
+    "built_sha256": "1149db53647481aa0f51ceabcb0fd948a76d4775e39a4c2d98f8e214e36f3489",
+    "image_tag": "mb-pm:gantt-263e10c-20261103"
+  },
+  "security_scan": {
+    "source": "263e10ca896329ad889512533b45f8876b4139e4",
+    "image": "sha256:f682e53deedb4bca2b48b6769f2bc1523047f9e87becbee879e66c640a20ecd2",
+    "image_config_sha256": "sha256:364dd7365dda8fd32b53303f6c93aa1838fcb5487b1864c4f4f9c49d8ae17eb5",
+    "high_critical_fixable_vulnerabilities": 0,
+    "scanner": "aquasec/trivy@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c",
+    "database": {
+      "Version": 2,
+      "NextUpdate": "2026-11-03T19:15:11.074748061Z",
+      "UpdatedAt": "2026-11-02T19:15:11.074748541Z",
+      "DownloadedAt": "2026-11-03T00:56:04.428558899Z"
+    }
+  },
+  "production": {
+    "source": "263e10ca896329ad889512533b45f8876b4139e4",
+    "image": "sha256:f682e53deedb4bca2b48b6769f2bc1523047f9e87becbee879e66c640a20ecd2",
+    "previous_image": "sha256:3b005b7e4b9686a83cf1a3952c36754b92dbb616571c17e31f1f9664ce2febc1",
+    "instances": 2,
+    "preserved_files": [
+      "/home/prometheus/mb-pm-v2/compose.yml",
+      "/home/prometheus/mb-pm-v2/compose.production.yml",
+      "/home/prometheus/mb-pm-v2/compose.direct.yml",
+      "/home/prometheus/mb-pm-v2/releases/header-9516977/compose.no-note-sync.yml",
+      "/home/prometheus/mb-pm-v2/releases/assistant-dikw-e294fdc/compose.knowledge.private.yml",
+      "/home/prometheus/mb-pm-v2/releases/knowledge-sources-687bddc-20261101/compose.knowledge-sources.yml",
+      "/home/prometheus/mb-pm-v2/releases/deepseek-search-99ca39d-20261101/compose.deepseek-search.yml",
+      "/home/prometheus/security-hardening-20261102/limits-1.json",
+      "/home/prometheus/security-hardening-20261102/pm-release-cd02021/compose.security.active.yml",
+      "/home/prometheus/mb-pm-v2/releases/report-workbench-e33b48d-20261102/compose.report-workbench.yml",
+      "/home/prometheus/mb-pm-v2/releases/efficient-workspace-c6e4b9f-20261103/rollout/pm.fixed-images.json",
+      "/home/prometheus/mb-pm-v2/releases/knowledge-sso-20261102/application-switch/group-0.active.json",
+      "/home/prometheus/mb-pm-v2/releases/report-editor-layout-48401af-20261103/rollout/pm.fixed-images.json",
+      "/home/prometheus/mb-pm-v2/releases/assistant-scope-8147c1d-20261102-r2/compose.assistant-scope.yml",
+      "/home/prometheus/mb-pm-v2/releases/reference-papers-b79f0da-20261103/rollout/pm.fixed-images.json",
+      "/home/prometheus/mb-pm-v2/releases/assistant-layout-642e187-20261103-r2/compose.assistant-layout.yml",
+      "/home/prometheus/mb-pm-v2/releases/project-actions-c304a1e-20261103-r2/rollout/pm.fixed-images.json"
+    ],
+    "verification": [
+      {
+        "nonroot_uid": 10001,
+        "runtime_role": "maibo_pm_runtime",
+        "elevated_db_flags": false,
+        "business_constraints": {
+          "projects": 4,
+          "sub_projects": 2,
+          "tasks": 7,
+          "project_finances": 1
+        },
+        "core_connection": "verified_readonly",
+        "source_count": 331,
+        "production_api_build": true,
+        "source": "263e10ca896329ad889512533b45f8876b4139e4",
+        "csp": true,
+        "anonymous_api": 401,
+        "persistent_data_readable": true
+      },
+      {
+        "nonroot_uid": 10001,
+        "runtime_role": "maibo_pm_runtime",
+        "elevated_db_flags": false,
+        "business_constraints": {
+          "projects": 4,
+          "sub_projects": 2,
+          "tasks": 7,
+          "project_finances": 1
+        },
+        "core_connection": "verified_readonly",
+        "source_count": 331,
+        "production_api_build": true,
+        "source": "263e10ca896329ad889512533b45f8876b4139e4",
+        "csp": true,
+        "anonymous_api": 401,
+        "persistent_data_readable": true
+      }
+    ],
+    "migrations": false,
+    "tables_checked": 43,
+    "prior_record_ids_preserved": true,
+    "prior_assistant_messages_preserved": true,
+    "model_settings_preserved": true,
+    "backend_files_changed": [],
+    "restore_proof": {
+      "isolated_restore": true,
+      "tables_restored": 43,
+      "network": "none",
+      "ports_published": false,
+      "temporary_database_removed": true
+    },
+    "live": [
+      {
+        "name": "/mb-pm-v2-app-1",
+        "image": "sha256:f682e53deedb4bca2b48b6769f2bc1523047f9e87becbee879e66c640a20ecd2",
+        "health": "healthy",
+        "started": "2026-11-03T17:13:57.202882979Z",
+        "compose_files": 18
+      },
+      {
+        "name": "/mb-pm-v2-app-direct-1",
+        "image": "sha256:f682e53deedb4bca2b48b6769f2bc1523047f9e87becbee879e66c640a20ecd2",
+        "health": "healthy",
+        "started": "2026-11-03T17:13:57.199843028Z",
+        "compose_files": 18
+      }
+    ],
+    "compose_files_before": 17,
+    "compose_files_after": 18,
+    "backend_migrations_and_lock_files_identical": true,
+    "gantt_bundle": {
+      "readable_task_buttons": true,
+      "frozen_gantt_headers": true,
+      "dark_bold_text": true
+    },
+    "checked_at_utc": "2026-11-03T17:15:28.906599+00:00"
+  },
+  "public": {
+    "checked_at_utc": "2026-11-03T17:14:56.786507+00:00",
+    "source": "263e10ca896329ad889512533b45f8876b4139e4",
+    "checks": [
+      {
+        "url": "https://pm.openlims.ai/health",
+        "expected_status": 200,
+        "status": 200,
+        "passed": true
+      },
+      {
+        "url": "https://pm.openlims.ai/build-info.json",
+        "expected_status": 200,
+        "status": 200,
+        "source": "263e10ca896329ad889512533b45f8876b4139e4",
+        "passed": true
+      },
+      {
+        "url": "https://pm.openlims.ai/gantt",
+        "expected_status": 200,
+        "status": 200,
+        "index_sha256": "f5d952610be648bb932d5ed6a8df9cd6c2b3570e3115f517953d0b86d7eb3813",
+        "cloudflare_analytics_scripts_removed": 1,
+        "normalized_index_sha256": "39cbad887b073b0866549b2b6a69001ee95eb36206f7f3d2c2e26a39faf7e208",
+        "index_matches_image_after_known_edge_injection": true,
+        "passed": true
+      },
+      {
+        "url": "https://pm.openlims.ai/api/v1/projects",
+        "expected_status": 401,
+        "status": 401,
+        "passed": true
+      },
+      {
+        "url": "https://www.openlims.ai/health",
+        "expected_status": 200,
+        "status": 200,
+        "passed": true
+      },
+      {
+        "url": "https://www.openlims.ai/build-info.json",
+        "expected_status": 200,
+        "status": 200,
+        "source": "263e10ca896329ad889512533b45f8876b4139e4",
+        "passed": true
+      },
+      {
+        "url": "https://www.openlims.ai/login",
+        "expected_status": 200,
+        "status": 200,
+        "index_sha256": "f5d952610be648bb932d5ed6a8df9cd6c2b3570e3115f517953d0b86d7eb3813",
+        "cloudflare_analytics_scripts_removed": 1,
+        "normalized_index_sha256": "39cbad887b073b0866549b2b6a69001ee95eb36206f7f3d2c2e26a39faf7e208",
+        "index_matches_image_after_known_edge_injection": true,
+        "passed": true
+      },
+      {
+        "url": "https://www.openlims.ai/api/v1/projects",
+        "expected_status": 401,
+        "status": 401,
+        "passed": true
+      }
+    ],
+    "all_passed": true
+  },
+  "local_browser_checks": {
+    "entries": [
+      "全局多项目甘特",
+      "全局单项目甘特",
+      "项目详情 WBS 甘特"
+    ],
+    "frozen_heading_toolbar_dates_and_labels": true,
+    "bidirectional_scroll": true,
+    "continuous_zoom_center_preserved": true,
+    "subproject_collapse": true,
+    "mouse_and_keyboard_task_details": true,
+    "viewport_900x600": true,
+    "console_errors": 0
+  },
+  "production_browser": {
+    "authenticated_existing_customer_session": false,
+    "observed_state": "甘特入口进入正常登录页",
+    "authenticated_gantt_acceptance": "pending",
+    "console_check": "not_completed: browser tool timed out",
+    "pending_entries": [
+      "全局多项目甘特",
+      "全局单项目甘特",
+      "项目详情 WBS 甘特"
+    ]
+  },
+  "text": {
+    "task_name_font_px": 12,
+    "task_name_font_weight": 700,
+    "task_name_color": "#020617",
+    "left_task_name_font_px": 13,
+    "left_task_name_font_weight": 600,
+    "month_year_font_px": 12,
+    "date_tick_font_px": 11,
+    "date_font_weight": 600,
+    "minimum_contrast_ratio": 5.36,
+    "contrast_scope": "普通、已完成/已验证、延迟/阻塞、关键路径背景；未填充、30%白色进度覆盖及悬停状态",
+    "single_task_bar_height_px": 22,
+    "single_row_height_px": 34,
+    "multi_task_bar_height_px": 20,
+    "multi_row_height_px": 28,
+    "single_milestone_size_px": 18,
+    "multi_milestone_size_px": 12
+  },
+  "backup_directory": "/home/prometheus/mb-pm-v2/releases/gantt-263e10c-20261103/rollout/private-backup",
+  "backup_directory_mode": "0700",
+  "encrypted_postgresql_backup_bytes": 3461616,
+  "rollback_command_file": "/home/prometheus/mb-pm-v2/releases/gantt-263e10c-20261103/rollout/rollback-command.json",
+  "rollback_image": "sha256:3b005b7e4b9686a83cf1a3952c36754b92dbb616571c17e31f1f9664ce2febc1",
+  "verification_scope": "生产双实例、静态产物、公网和匿名鉴权检查通过；真实账号下三个甘特入口仍待补验。无生产登录后甘特或生产控制台无错结论。保留数据库及后续业务写入，纯文档合并不再次部署。"
+}
