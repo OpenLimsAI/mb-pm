@@ -281,10 +281,35 @@
     "fullscreen_background_isolation": true
   },
   "production_browser": {
-    "authenticated_session": false,
-    "observed_url": "https://pm.openlims.ai/login",
-    "content_read": "timed_out",
-    "authenticated_wbs_acceptance": "pending",
-    "console_check": "not_completed"
+    "checked_at_utc": "2026-11-03T18:37:26.935818+00:00",
+    "browser": "Google Chrome",
+    "authenticated_session": true,
+    "role": "system administrator",
+    "origin": "https://pm.openlims.ai",
+    "real_project_task_count": 33,
+    "interaction_mode": "read_only",
+    "fixed_table_headers_after_scroll": true,
+    "fixed_tree_heading_after_scroll": true,
+    "three_views_in_fullscreen": true,
+    "gantt_header_and_footer_visible_after_scroll": true,
+    "escape_exits_fullscreen": true,
+    "normal_gantt_bottom_scroll_chaining": true,
+    "console_messages": 0,
+    "devtools_issues": {
+      "page_errors": 0,
+      "breaking_changes": 0,
+      "possible_improvements": 1,
+      "improvement": "A form field element should have an id or name attribute"
+    },
+    "not_exercised_in_production": [
+      "business data editing and saving",
+      "task drawer Escape priority",
+      "other accounts and browsers"
+    ],
+    "iab_attempt": {
+      "authenticated_session": false,
+      "observed_url": "https://pm.openlims.ai/login",
+      "content_read": "timed_out"
+    }
   }
 }
