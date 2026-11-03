@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { EditorContent, useEditor } from '@tiptap/react'
+import { EditorContent, useEditor, useEditorState } from '@tiptap/react'
 import type { Editor } from '@tiptap/react'
 import { mergeAttributes } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
@@ -20,13 +20,14 @@ const SafeImage = Image.extend({
   },
 }).configure({ allowBase64: true })
 
-export function RichBodySegment({ value, label, disabled, onChange, onRange, onActive, onSlash }: {
-  value: string; label: string; disabled: boolean
+export function RichBodySegment({ value, label, disabled, segmented = false, finalSegment = true, onChange, onRange, onActive, onSlash }: {
+  value: string; label: string; disabled: boolean; segmented?: boolean; finalSegment?: boolean
   onChange: (value: string, start: number, end: number) => void
   onRange: (range: RichRange | null) => void
   onActive: (handle: RichHandle) => void
   onSlash: (offset: number) => void
 }) {
+  const placeholder = segmented ? '继续撰写，或输入 / 提问…' : '从研究问题开始，写下观察、依据和你的判断。输入 / 插入 AI 问答…'
   const latest = useRef({ value, onChange, onRange, onActive, onSlash })
   useEffect(() => { latest.current = { value, onChange, onRange, onActive, onSlash } })
   const slashRef = useRef<number | null>(null)
@@ -35,7 +36,7 @@ export function RichBodySegment({ value, label, disabled, onChange, onRange, onA
   const editor = useEditor({
     extensions: [StarterKit.configure({ link: { openOnClick: false, protocols: ['https', 'http', 'mailto'] } }), TableKit.configure({ table: { resizable: true } }), SafeImage, Markdown],
     content: value, contentType: 'markdown', editable: !disabled,
-    editorProps: { attributes: { role: 'textbox', 'aria-label': label, 'aria-multiline': 'true', class: 'ks-rich-document' },
+    editorProps: { attributes: { role: 'textbox', 'aria-label': label, 'aria-multiline': 'true', 'data-placeholder': placeholder, class: 'ks-rich-document' },
       handlePaste(view, event) {
         const html = event.clipboardData?.getData('text/html')
         if (!html) return false
@@ -63,12 +64,13 @@ export function RichBodySegment({ value, label, disabled, onChange, onRange, onA
     onSelectionUpdate({ editor: instance }) { latest.current.onRange(getRange(instance, latest.current.value)) },
     onFocus({ editor: instance }) { latest.current.onActive({ editor: instance, range: () => getRange(instance, latest.current.value) }); latest.current.onRange(getRange(instance, latest.current.value)) },
   })
+  const empty = useEditorState({ editor, selector: ({ editor: current }) => current?.isEmpty ?? false })
   const host = useRef<HTMLDivElement>(null)
   useEffect(() => { if (!editor || !host.current) return; const element = host.current; handles.set(element, editor); latest.current.onActive({ editor, range: () => getRange(editor, latest.current.value) }); return () => { handles.delete(element) } }, [editor])
   useEffect(() => { if (editor && !editor.view.composing) { if (editor.getMarkdown() !== value) editor.commands.setContent(value, { contentType: 'markdown', emitUpdate: false }); if (editor.isFocused) latest.current.onRange(getRange(editor, value)) } }, [editor, value])
   useEffect(() => { editor?.setEditable(!disabled, false) }, [editor, disabled])
-  useEffect(() => { if (editor) editor.setOptions({ editorProps: { ...editor.options.editorProps, attributes: { role: 'textbox', 'aria-label': label, 'aria-multiline': 'true', class: 'ks-rich-document' } } }) }, [editor, label])
-  return <div className="ks-rich-segment" ref={host}><EditorContent editor={editor} />{slash !== null && !disabled && <div className="ks-rich-slash" role="menu" aria-label="插入功能"><button type="button" role="menuitem" onMouseDown={event => event.preventDefault()} onClick={() => { onSlash(slash); setSlash(null) }}>✦ AI 问答 · 在此提问</button><button type="button" aria-label="取消插入功能" onClick={() => setSlash(null)}>×</button></div>}</div>
+  useEffect(() => { if (editor) editor.setOptions({ editorProps: { ...editor.options.editorProps, attributes: { role: 'textbox', 'aria-label': label, 'aria-multiline': 'true', 'data-placeholder': placeholder, class: 'ks-rich-document' } } }) }, [editor, label, placeholder])
+  return <div className={`ks-body-segment ks-rich-segment${segmented ? ' ks-rich-fragment' : ''}`} data-final-segment={finalSegment} data-empty={empty} ref={host}><EditorContent className="ks-rich-content" editor={editor} />{slash !== null && !disabled && <div className="ks-rich-slash" role="menu" aria-label="插入功能"><button type="button" role="menuitem" onMouseDown={event => event.preventDefault()} onClick={() => { onSlash(slash); setSlash(null) }}>✦ AI 问答 · 在此提问</button><button type="button" aria-label="取消插入功能" onClick={() => setSlash(null)}>×</button></div>}</div>
 }
 const handles = new WeakMap<Element, Editor>()
 
