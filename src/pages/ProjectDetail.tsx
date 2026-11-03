@@ -23,6 +23,7 @@ import { ProjectStructureEditor } from '../components/project/ProjectStructureEd
 import { TaskDrawer } from '../components/task/TaskDrawer'
 import { EmptyState } from '../components/ui'
 import { cn } from '../lib/cn'
+import { recordProjectVisit } from '../lib/projectNavigation'
 import { getProjectMDMLaunchUrl } from '../api/projects'
 
 // Tab 顺序：概览 → 里程碑 → WBS → 延迟推演 → 基线 → 团队 → AI 分析（仅管理者）
@@ -33,6 +34,7 @@ type WbsView = 'table' | 'tree' | 'gantt'
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>()
   const role = useAuth((s) => s.currentUser?.role)
+  const userId = useAuth((s) => s.currentUser?.id) ?? 'offline'
   const canAnalyze = can(role, 'ai.analyze')
   // 「编辑项目」（项目信息、预算、子项目 / 任务 / 依赖）：与账号管理身份对应；后端另按项目可见范围校验
   const canEditProject = can(role, 'project.edit')
@@ -52,6 +54,10 @@ export default function ProjectDetail() {
     const timer = window.setTimeout(() => setNotice(null), 8000)
     return () => window.clearTimeout(timer)
   }, [notice])
+
+  useEffect(() => {
+    if (project) recordProjectVisit(userId, project.id)
+  }, [userId, project])
 
   if (!project) {
     return (
