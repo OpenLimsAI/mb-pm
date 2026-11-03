@@ -14,6 +14,7 @@ from app.services.information.ich import OfficialClient
 from app.services.information.store import Store, iso
 from app.services.information.worker import authority, run_step, safe_error
 from app.services.knowledge_source_status import version_state
+from app.services.reference_download import ReferenceClient
 
 APP = "knowledge-sources"
 logger = logging.getLogger("cmc-pms.knowledge-sources")
@@ -209,7 +210,9 @@ def scheduled_followup(store, job):
     store.db.commit()
 
 
-def tick(session_factory=SessionLocal, official_factory=OfficialClient):
+def tick(
+    session_factory=SessionLocal, official_factory=OfficialClient, reference_factory=ReferenceClient
+):
     if not settings.KNOWLEDGE_SOURCE_APP_ENABLED or not settings.KNOWLEDGE_SOURCE_WORKER_ENABLED:
         return
     db = session_factory()
@@ -258,7 +261,10 @@ def tick(session_factory=SessionLocal, official_factory=OfficialClient):
         )
         if target:
             store = Store(db, target.tenant)
-            official = official_factory()
+            source = store.source(target.data["sourceId"])
+            official = (
+                reference_factory() if source["adapter"] == "reference" else official_factory()
+            )
             try:
                 progress = run_step(
                     store, official, job_id=target.id, connector=bridge.call, app=APP

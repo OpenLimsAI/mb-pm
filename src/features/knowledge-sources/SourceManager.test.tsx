@@ -138,3 +138,24 @@ describe('source catalogue workflow', () => {
   })
 
 })
+
+it('shows imported reference papers with empty ICH scopes and submits the selected PDF download', async () => {
+  data.sources = [{ ...data.sources[0], id:'report-refs', name:'研究报告参考论文', adapter:'reference', scopes:[], folderId:null }]
+  data.documents = [doc('ref-1',{sourceId:'report-refs',title:'从报告找到的论文',scopes:[],url:'https://example.org/paper'})]
+  mount()
+  expect(screen.getByRole('region',{name:'研究报告参考论文来源与论文'})).toBeInTheDocument()
+  expect(screen.queryByRole('button',{name:'再次搜索'})).not.toBeInTheDocument()
+  expect(screen.queryByText('该来源等待适配')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('checkbox',{name:'选择 从报告找到的论文'}))
+  fireEvent.click(screen.getByRole('button',{name:'下载所选（1）'}))
+  await waitFor(()=>expect(mutate).toHaveBeenCalledWith('post','/jobs',{sourceId:'report-refs',documentIds:['ref-1'],parse:true},expect.any(String)))
+})
+it('allows readers to view imported metadata without offering a download or ICH configuration',()=>{
+  data.canManage=false
+  data.sources = [{ ...data.sources[0], id:'assistant-refs', name:'个人AI助手参考论文', adapter:'reference', scopes:[], folderId:null }]
+  data.documents = [doc('ref-2',{sourceId:'assistant-refs',title:'助手找到的论文',scopes:[]})]
+  mount()
+  expect(screen.getByText('助手找到的论文')).toBeInTheDocument()
+  expect(screen.queryByRole('button',{name:/下载所选/})).not.toBeInTheDocument()
+  expect(screen.getByText(/下载原文由具备知识库写入权限/)).toBeInTheDocument()
+})

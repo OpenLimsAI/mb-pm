@@ -35,3 +35,7 @@ export function sourceError(error: unknown): string {
   }
   return '暂时无法完成操作，请刷新后重试。'
 }
+
+export interface ReferenceOrigin { originApp: 'solutions' | 'assistant'; originId: string; answerId: string }
+export interface ImportedReference { sourceId: string; documentId: string; folderId: string | null; category: string; jobId?: string; alreadyImported: boolean; canDownload: boolean; status: 'imported' | 'queued' | 'saved' }
+export const importKnowledgeReference = (input: ReferenceOrigin & { referenceId: string; download: boolean }) => client.post('/references', snakeize(input)).then(r => camelize<ImportedReference>(r.data))

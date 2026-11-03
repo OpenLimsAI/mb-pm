@@ -242,3 +242,25 @@ describe('knowledge source real-data application', () => {
     expect(mocks.get).not.toHaveBeenCalled()
   })
 })
+
+it('opens the imported reference category and highlights its document from a same-tab entry link', async () => {
+  snapshot.sources = [{ ...snapshot.sources[0], id:'report-refs',name:'研究报告参考论文',adapter:'reference',scopes:[],folderId:null }]
+  snapshot.documents = [{ ...snapshot.documents[0], id:'imported-paper',sourceId:'report-refs',title:'链接带入的论文',scopes:[],url:'https://example.org/paper' }]
+  window.history.replaceState({},'', '/knowledge-sources?source=report-refs&document=imported-paper')
+  try {
+    mount()
+    expect(await screen.findByRole('heading',{name:'从来源下载'})).toBeInTheDocument()
+    expect(screen.getByRole('article',{name:'链接带入的论文'})).toHaveClass('kso-reference-focused')
+    fireEvent.click(screen.getByRole('button',{name:/全部论文/}))
+    expect(screen.getByRole('heading',{name:'全部论文'})).toBeInTheDocument()
+  } finally { window.history.replaceState({},'', '/') }
+})
+it('opens a queued reference download from its job link without resetting it to the library', async () => {
+  snapshot.jobs = [{id:'linked-job',sourceId:'ich',folderId:'ich',kind:'import',status:'completed',total:1,processed:1,saved:1,failed:0,pending:0,parse:true,createdAt:'2026-11-01T10:00:00Z',updatedAt:'2026-11-01T10:00:00Z',items:[]}]
+  window.history.replaceState({},'', '/knowledge-sources?source=ich&document=newdoc&job=linked-job')
+  try {
+    mount()
+    expect(await screen.findByRole('heading',{name:'下载任务'})).toBeInTheDocument()
+    await waitFor(()=>expect(document.querySelector('.kso-job.is-target')).toHaveAttribute('open'))
+  } finally { window.history.replaceState({},'', '/') }
+})

@@ -37,7 +37,10 @@ export default function KnowledgeSourceApp() {
 function Workspace({ preview, allowed, userName, storageKey }: { preview: boolean; allowed: boolean; userName: string; storageKey: string }) {
   const [data, setData] = useState<KnowledgeSourceSnapshot | null>(null)
   const [loading, setLoading] = useState(!preview && allowed), [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false)
-  const [view, setView] = useKnowledgePreference<View>(`${storageKey}:view`, 'library'), [folder, setFolder] = useKnowledgePreference(`${storageKey}:folder`, 'all'), [selected, setSelected] = useState(''), [picks, setPicks] = useState<string[]>([])
+  const [savedView, setView] = useKnowledgePreference<View>(`${storageKey}:view`, 'library'), [savedFolder, setFolder] = useKnowledgePreference(`${storageKey}:folder`, 'all'), [selected, setSelected] = useState(''), [picks, setPicks] = useState<string[]>([])
+  const [entry, setEntry] = useState(() => { const query = new URLSearchParams(window.location.search); return { source: query.get('source') || '', document: query.get('document') || '', job: query.get('job') || '', folder: query.get('folder') || '' } })
+  const view: View = entry.job ? 'downloads' : entry.source ? 'sources' : entry.folder ? 'library' : savedView
+  const folder = entry.folder || savedFolder
   const [search, setSearch] = useKnowledgePreference(`${storageKey}:search`, ''), [filter, setFilter] = useState('all'), [sort, setSort] = useState('recent'), [details, setDetails] = useKnowledgePreference(`${storageKey}:details`, true)
   const [density, setDensity] = useKnowledgePreference<'compact' | 'standard'>(`${storageKey}:density`, 'compact'), [recentDays, setRecentDays] = useState('30'), [shown, setShown] = useState(100), [undoTokens, setUndoTokens] = useState<string[]>([]), [progress, setProgress] = useState('')
   const [refreshedAt,setRefreshedAt]=useState(''), lastFullRefresh=useRef(0)
@@ -77,7 +80,7 @@ function Workspace({ preview, allowed, userName, storageKey }: { preview: boolea
     catch (e) { if (alive.current) { if(path==='/papers/folders') await refresh(); setError(sourceError(e)); } return false }
     finally { mutationLock.current = false; if (alive.current) {setBusy(false);setProgress('')} }
   }
-  function go(v: View, target = folder) { setView(v); setFolder(target); setSearch(''); setFilter('all'); setPicks([]);setShown(100) }
+  function go(v: View, target = folder) { setEntry({ source: '', document: '', job: '', folder: '' }); setView(v); setFolder(target); setSearch(''); setFilter('all'); setPicks([]);setShown(100) }
   const open = (m: ModalState) => { focusBack.current = document.activeElement as HTMLElement; setModal(m) }
   const close = useCallback(() => { if (mutationLock.current) return; setModal(null); window.setTimeout(() => focusBack.current?.isConnected && focusBack.current.focus(), 0) }, [])
   const d = data || EMPTY
@@ -116,7 +119,7 @@ function Workspace({ preview, allowed, userName, storageKey }: { preview: boolea
       <main id="kso-content" className="kso-main" aria-busy={loading || busy}>
         {preview ? <Empty title="知识源界面预览">预览不连接知识库。请正常登录后查看真实论文、文件夹和来源下载任务。</Empty> : !allowed ? <Empty title="知识源暂不可用">请返回工作台刷新应用权限，或联系管理员。</Empty> : loading ? <Empty title="正在读取知识库"><LoaderCircle className="if-spin" />正在加载论文、文件夹和来源状态。</Empty> : !data ? <Empty title="知识库尚未连接">{error || '请检查连接后刷新，当前没有可确认的论文清单。'}</Empty> : <>
           {d.integration.status !== 'ready' && <div className="kso-connection" role="status">{d.integration.message}</div>}
-          {view === 'sources' ? <SourceManager storageKey={storageKey} density={density} onDensityChange={setDensity} data={d} busy={busy} mutate={mutate} onAdd={() => open({ kind: 'source' })} onDownloads={() => go('downloads')} /> : view === 'updates' ? <SourceInsights data={d} busy={busy} mutate={mutate}/> : view === 'downloads' ? <DownloadTasks data={d} busy={busy} mutate={mutate} go={go} /> : <>
+          {view === 'sources' ? <SourceManager focusSource={entry.source} focusDocument={entry.document} storageKey={storageKey} density={density} onDensityChange={setDensity} data={d} busy={busy} mutate={mutate} onAdd={() => open({ kind: 'source' })} onDownloads={() => go('downloads')} /> : view === 'updates' ? <SourceInsights data={d} busy={busy} mutate={mutate}/> : view === 'downloads' ? <DownloadTasks focusJob={entry.job} data={d} busy={busy} mutate={mutate} go={go} /> : <>
             <div><div className="kso-breadcrumb"><Database />知识库<ChevronRight />{title}</div><div className="kso-head"><div><h1>{title}</h1><p>{folder === 'unsorted' ? '尚未放入主题文件夹的论文，包含仅在下载源文件夹中的资料。' : source ? '来源下载的默认归档位置，也可以继续放入其他主题文件夹。' : '统一管理知识库论文，按主题分类，并随时查看已有原文。'}</p></div><div className="kso-actions">{d.canOrganize && currentFolder && <Button onClick={() => open({ kind: 'rename-folder', folderId: folder })} disabled={busy}><Pencil />重命名</Button>}{d.canManage && <Button primary className="kso-download-cta" onClick={() => go('sources')}><Download /><span><strong>从来源下载</strong><small>搜索官网资料并归档到文件夹</small></span><ChevronRight /></Button>}</div></div></div>
             {currentFolder && d.canOrganize && <FolderMaintenance folder={currentFolder} data={d} busy={busy} mutate={mutate} onRemoved={()=>go('library','all')}/>}
             {source && <div className="kso-source-strip"><div><Link2 /><div><strong>已关联下载源 {source.name}</strong><span> · 下载后自动归入此文件夹，整理时复用原件</span></div></div><Button quiet onClick={() => go('sources')}>管理来源<ArrowUpRight /></Button></div>}
