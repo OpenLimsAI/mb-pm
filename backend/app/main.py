@@ -24,6 +24,10 @@ from app.api.v1 import (
     finances,
     information,
     knowledge_ai,
+    knowledge_source_acquisition_v3,
+    knowledge_source_library_v3,
+    knowledge_source_manual_index_v3,
+    knowledge_source_workspace_v3,
     knowledge_sources,
     mdm_integration,
     notes,
@@ -373,6 +377,11 @@ app.include_router(feedback.router, prefix=API_PREFIX)
 app.include_router(portal_settings.router, prefix=API_PREFIX)
 app.include_router(information.router, prefix=API_PREFIX)
 app.include_router(knowledge_sources.router, prefix=API_PREFIX)
+app.include_router(knowledge_source_library_v3.router, prefix=API_PREFIX)
+app.include_router(knowledge_source_manual_index_v3.router, prefix=API_PREFIX)
+app.include_router(knowledge_source_library_v3.upload_router, prefix=API_PREFIX)
+app.include_router(knowledge_source_workspace_v3.router, prefix=API_PREFIX)
+app.include_router(knowledge_source_acquisition_v3.router, prefix=API_PREFIX)
 app.include_router(notes.router, prefix=API_PREFIX)
 app.include_router(assistant.router, prefix=API_PREFIX)
 app.include_router(knowledge_ai.router, prefix=API_PREFIX)

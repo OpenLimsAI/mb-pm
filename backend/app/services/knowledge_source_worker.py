@@ -20,6 +20,104 @@ APP = "knowledge-sources"
 logger = logging.getLogger("cmc-pms.knowledge-sources")
 
 
+def _filing_context(store, subject, connector):
+    """Current readable library and metadata, never the first displayed page."""
+    from app.api.v1.knowledge_sources import paper_snapshot
+
+    proofs = [
+        {"documentId": value["documentId"], "sha256": value["sha256"]}
+        for value in store.records("version")
+        if value.get("kbPath") and value.get("indexStatus") != "ready"
+    ]
+    pending = []
+    for offset in range(0, max(1, len(proofs)), 5000):
+        catalogue = connector("library", subject, imports=proofs[offset : offset + 5000])
+        if not catalogue.get("canWrite"):
+            raise ValueError("自动归档需要当前知识库写入权限，原件和已完成下载保留")
+        pending.extend(catalogue.get("pendingArchives", []))
+    catalogue = {**catalogue, "pendingArchives": pending}
+    papers = paper_snapshot(store, {"subject": subject}, catalogue)
+    metadata, offset = {}, 0
+    while True:
+        result = connector(
+            "queryLibrary", subject, query="", offset=offset, limit=100, sort="recent"
+        )
+        metadata.update({item["path"]: item for item in result.get("papers", [])})
+        following = result.get("nextOffset")
+        if following is None:
+            break
+        if not isinstance(following, int) or following <= offset:
+            raise ValueError("知识库元数据分页异常，未执行自动归档")
+        offset = following
+    return catalogue, [
+        {
+            **paper,
+            **{
+                key: value
+                for key, value in metadata.get(paper["id"], {}).items()
+                if key in {"metadata", "tags", "hash"}
+            },
+        }
+        for paper in papers
+    ]
+
+
+def automatic_filing(store, job, connector=bridge.call):
+    """After a committed import batch, apply only its owner's explicit rules.
+
+    Filing has a separate outcome: failure never changes the completed import,
+    removes an original, retries a download or restores an old database.
+    """
+    from app.services.knowledge_source_workspace_v3 import apply_enabled_rules, workspace
+
+    job = store.get("job", job["id"])
+    if (
+        job.get("kind") != "import"
+        or job.get("status") not in {"completed", "partial"}
+        or not job.get("filingV3StartedAt")
+        or job.get("filingV3Done")
+    ):
+        return
+    subject = job["actorSubject"]
+    enabled = [rule for rule in workspace(store, subject)["rules"] if rule.get("enabled")]
+    versions = [
+        store.get("version", item["versionId"])
+        for item in job["items"]
+        if item.get("versionId") and item.get("status") == "saved"
+    ]
+    receipt = {"status": "skipped", "ruleApplications": 0, "undoTokens": [], "results": []}
+    if enabled and versions:
+        try:
+            authority(store.db, subject)
+            catalogue, papers = _filing_context(store, subject, connector)
+            results = apply_enabled_rules(
+                store,
+                {"subject": subject, "tenant": store.tenant},
+                catalogue=catalogue,
+                papers=papers,
+                connect=connector,
+                paper_ids=["archive:" + value["id"] for value in versions],
+            )
+            applications = sum(item.get("count", 0) for item in results)
+            receipt = {
+                "status": "completed"
+                if all(item["saved"] for item in results)
+                else "partial"
+                if applications
+                else "failed",
+                "ruleApplications": applications,
+                "undoTokens": [token for item in results for token in item.get("undoTokens", [])],
+                "results": results,
+            }
+        except Exception as exc:
+            store.db.rollback()
+            receipt = {**receipt, "status": "failed", "error": "自动归档未完成：" + safe_error(exc)}
+    current = store.lock("job", job["id"])
+    current.update(filingV3Done=True, ruleFiling={**receipt, "completedAt": iso()})
+    store.put("job", current)
+    store.db.commit()
+
+
 def synchronize_classification(store, job, connector=bridge.call):
     """Carry folders assigned while parsing onto the same eventual Core paper."""
     for item in job["items"]:
@@ -234,6 +332,8 @@ def tick(
             )
             .all()
         ):
+            if row.data.get("filingV3StartedAt") and not row.data.get("filingV3Done"):
+                automatic_filing(Store(db, row.tenant), row.data, bridge.call)
             if row.data.get("scheduled") and not row.data.get("followupDone"):
                 scheduled_followup(Store(db, row.tenant), row.data)
         schedule_due(db)
@@ -261,6 +361,22 @@ def tick(
         )
         if target:
             store = Store(db, target.tenant)
+            current = store.lock("job", target.id)
+            if current.get("kind") == "import" and not current.get("filingV3StartedAt"):
+                current["filingV3StartedAt"] = iso()
+                store.put("job", current)
+            db.commit()
+            if current.get("kind") == "manual-index":
+                from app.services.knowledge_source_manual_index_v3 import (
+                    run_step as manual_index_step,
+                )
+
+                progress = manual_index_step(store, target.id, connector=bridge.call)
+                if progress:
+                    finished = store.get("job", target.id)
+                    if finished["status"] == "completed":
+                        synchronize_classification(store, finished, bridge.call)
+                return
             source = store.source(target.data["sourceId"])
             official = (
                 reference_factory() if source["adapter"] == "reference" else official_factory()
@@ -270,6 +386,8 @@ def tick(
                     store, official, job_id=target.id, connector=bridge.call, app=APP
                 )
                 if progress:
+                    finished = store.get("job", target.id)
+                    automatic_filing(store, finished, bridge.call)
                     finished = store.get("job", target.id)
                     synchronize_classification(store, finished, bridge.call)
                     scheduled_followup(store, finished)
