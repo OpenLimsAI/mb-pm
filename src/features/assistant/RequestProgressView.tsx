@@ -9,15 +9,17 @@ export default function RequestProgressView({ progress, onCancel, onRetry, onCon
   const job = progress.job, failed = progress.phase === 'failed', cancelled = job?.status === 'cancelled'
   useEffect(() => { if (failed) return; const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer) }, [failed])
   const elapsed = job ? Math.max(0, Math.floor(((job.finishedAt ? Date.parse(job.finishedAt) : now) - Date.parse(job.createdAt)) / 1000)) : 0
-  const label = cancelled ? '已停止生成' : failed ? '本次生成未完成' : progress.message || (job ? labels[job.stage] || '正在处理问题…' : '正在检查回答进度…')
   const code = job?.errorCode || ''
+  const timedOut = failed && code === 'model_timeout'
+  const hasDraft = !!job?.partialContent.trim()
+  const label = cancelled ? '已停止生成' : timedOut ? hasDraft ? '生成中断，草稿已保存' : '尚未收到回答' : failed ? '本次生成未完成' : progress.message || (job ? labels[job.stage] || '正在处理问题…' : '正在检查回答进度…')
   const needsModel = ['model_auth', 'model_rejected', 'model_rate_limit'].includes(code)
   const needsScope = /^(web_|knowledge_|project_)/.test(code)
   const tooLong = ['output_limit', 'response_too_large'].includes(code)
   const rawFailureReason = job?.error || progress.message || '未能读取这次回答的状态，请重新打开任务核对。'
   const diagnosticSuffix = job?.diagnosticId ? `（诊断编号：${job.diagnosticId}）` : ''
-  const failureReason = diagnosticSuffix && rawFailureReason.endsWith(diagnosticSuffix) ? rawFailureReason.slice(0, -diagnosticSuffix.length).trimEnd() : rawFailureReason
-  const diagnostic = job ? `任务编号：${job.taskId}\n请求编号：${job.requestId}\n诊断编号：${job.diagnosticId || '尚未生成'}\n状态：${job.status}\n错误类型：${job.errorCode || '未提供'}\n提交时间：${job.createdAt}` : ''
+  const failureReason = timedOut ? job?.payloadExpired ? '这次请求已超时。临时输入已清理，请重新输入问题发起新一轮。' : hasDraft ? '等待后续回答超时，已经收到的正文保留在下方。可以根据草稿重新整理。' : '等待模型回答超时。问题已保留，可以重新生成；无需重新输入。' : diagnosticSuffix && rawFailureReason.endsWith(diagnosticSuffix) ? rawFailureReason.slice(0, -diagnosticSuffix.length).trimEnd() : rawFailureReason
+  const diagnostic = job ? `任务编号：${job.taskId}\n请求编号：${job.requestId}\n诊断编号：${job.diagnosticId || '尚未生成'}\n状态：${job.status}\n错误类型：${job.errorCode || '未提供'}\n提交时间：${job.createdAt}\n开始时间：${job.startedAt || '尚未开始'}\n结束时间：${job.finishedAt || '尚未结束'}\n已保存正文：${job.partialContent.length} 字` : ''
   return <section className={`aa-request-progress${cancelled ? ' is-cancelled' : failed ? ' is-failed' : ''}`} aria-label="本轮生成进度">
     <div className="aa-thinking" role="status">{!failed && <LoaderCircle size={16} className="aa-spin" />}<strong>{label}</strong>{job && Number.isFinite(elapsed) && <span>已用时 {elapsed < 60 ? `${elapsed} 秒` : `${Math.floor(elapsed / 60)} 分 ${elapsed % 60} 秒`}</span>}</div>
     {job && <div className="aa-pending-question"><span>本轮提问</span><p>{job.question}</p>{job.context && <details className="aa-context-details"><summary>已保存的本轮资料 · {job.context.length.toLocaleString()} 字</summary><pre>{job.context}</pre></details>}</div>}

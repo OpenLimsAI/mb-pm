@@ -138,7 +138,7 @@ def test_fragmented_sse_reports_only_visible_content_on_the_worker_thread(monkey
     assert headers["Authorization"] == "Bearer " + CFG["api_key"]
     assert body["stream"] is True and body["max_tokens"] == 8192
     assert body["reasoning_effort"] == "low" and body["stream_options"] == {"include_usage": True}
-    assert connections[0].timeout <= 15 and max(connections[0].sock.timeouts) <= 120
+    assert connections[0].timeout <= 15 and max(connections[0].sock.timeouts) <= 150
     assert CFG == original and response.closed and connections[0].closed
 
 

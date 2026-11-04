@@ -19,7 +19,19 @@ def upgrade():
             "tasks", sa.Column("revision", sa.Integer(), nullable=False, server_default="1")
         )
     if bind.dialect.name == "postgresql":
-        op.alter_column("audit_logs", "target_id", type_=sa.String(64), existing_type=sa.String(40))
+        target_type = next(
+            column["type"]
+            for column in inspector.get_columns("audit_logs")
+            if column["name"] == "target_id"
+        )
+        if (
+            isinstance(target_type, sa.String)
+            and target_type.length is not None
+            and target_type.length < 64
+        ):
+            op.alter_column(
+                "audit_logs", "target_id", type_=sa.String(64), existing_type=target_type
+            )
     if "pm_saved_views" not in tables:
         op.create_table(
             "pm_saved_views",

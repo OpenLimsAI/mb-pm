@@ -274,3 +274,9 @@ python -m pytest -q tests/test_knowledge_source_library_v3.py tests/test_knowled
 重点覆盖：服务端分页及全文覆盖率、共享修订冲突、部分成功回执、正文/PDF 位置、跨页证据、删除/撤权屏障、规则归档幂等与撤销、手动索引严格确认/绑定 taskId/活跃注册、通用下载控制拒绝操作 Core 索引，以及模型缓存与实际用量。当前 source worker 的 manual-index 分支不构造 PDF 下载客户端；原件计量与索引完成分开。
 
 知识库的 `source-library-cache.sqlite` 可重建，既有 metadata/标签/分类/导入回执仍是持久用户数据。只安装代码或首次显示页面不能声称全文已全部索引。新规则、计划与研究生成均不因启动而自动执行。完整 20 项范围及限制见[功能映射](knowledge-source-v3.md)。
+
+## Kimi生成与阶段超时回归
+
+后端在 `backend` 运行 `pytest tests/test_kimi_generation.py tests/test_assistant_generation.py tests/test_assistant_output_recovery.py tests/test_assistant_diagnostics.py tests/test_assistant_transport_diagnostics.py tests/test_model_search.py`；前端运行 `npm test -- src/features/assistant/RequestProgressView.test.tsx src/features/assistant/AssistantApp.test.tsx`。
+
+使用模拟时间和传输覆盖官方地址/区域、低思考与深度分析、121秒首响应、持续思考但无正文、正文后断流、停止/失权/旧线程未退出、剩余预算不足、一次恢复共用额度、搜索不重复，以及日志和草稿不泄漏推理内容或密钥。不通过真实等待几分钟构造自动化测试；真实服务商验收单独记录模型、流式首正文、耗时和调用次数，不输出凭据或回答正文。

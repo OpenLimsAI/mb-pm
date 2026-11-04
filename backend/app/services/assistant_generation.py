@@ -2,7 +2,8 @@
 
 The job worker owns the progress callback. Network I/O runs in a monitored thread;
 callbacks (and therefore job leases/database writes) stay on the calling thread.
-No transport retries, model fallback, credentials or reasoning text are exposed.
+One bounded same-model recovery may follow an empty timeout or output limit.
+No model fallback, credentials or reasoning text are exposed.
 """
 
 import codecs
@@ -25,7 +26,10 @@ from app.services import assistant_diagnostics as diagnostics
 from app.services import assistant_generation_policy as policy
 
 CONNECT_SECONDS = 15
+FIRST_RESPONSE_SECONDS = 150
 IDLE_SECONDS = 120
+FIRST_CONTENT_SECONDS = 180
+RECOVERY_MIN_SECONDS = 60
 MAX_BYTES = 2_000_000
 MAX_CONTENT = 80_000
 POLL_SECONDS = 0.5
@@ -37,6 +41,7 @@ class Generation:
     callback: object
     deadline: float
     output_recoveries: int = 0
+    timeout_recoveries: int = 0
 
 
 @contextmanager
@@ -44,7 +49,7 @@ def run_context(callback, budget_seconds=300):
     seconds = float(budget_seconds)
     if not math.isfinite(seconds) or seconds <= 0:
         raise ValueError("Generation budget must be a positive finite number")
-    seconds = min(600, seconds)
+    seconds = min(900, seconds)
     token = CURRENT.set(Generation(callback, time.monotonic() + seconds))
     try:
         guard()
@@ -81,8 +86,14 @@ def checkpoint():
 def _remaining(state):
     remaining = state.deadline - time.monotonic()
     if remaining <= 0:
-        raise ai.AIError("模型生成达到本轮等待上限", code="model_timeout")
+        raise _timeout("total")
     return remaining
+
+
+def _timeout(kind):
+    error = ai.AIError("模型等待达到本轮时限", code="model_timeout")
+    error.timeout_kind = kind
+    return error
 
 
 official_deepseek = policy.official_deepseek
@@ -94,12 +105,42 @@ def claim_output_recovery(provider, cfg):
         return False
     checkpoint()
     state = CURRENT.get()
-    if state is None or state.output_recoveries or _remaining(state) < 15:
+    if (
+        state is None
+        or state.output_recoveries
+        or state.timeout_recoveries
+        or _remaining(state) < 15
+    ):
         return False
     state.output_recoveries += 1
     trace = diagnostics.CURRENT.get()
     if trace is not None:
         trace.emit("output_recovery_started")
+    return True
+
+
+def claim_timeout_recovery(provider, cfg, error):
+    # Only the known official streaming contract can be replayed; a stuck old
+    # transport, any visible answer or exhausted total budget cannot be retried.
+    state = CURRENT.get()
+    if (
+        state is None
+        or not policy.kimi(provider, cfg)
+        or state.output_recoveries
+        or state.timeout_recoveries
+        or getattr(error, "visible_content", "")
+        or not getattr(error, "stream_quiesced", False)
+        or getattr(error, "timeout_kind", None)
+        not in {"connect", "response_headers", "stream_idle", "first_content", "upstream_timeout"}
+    ):
+        return False
+    checkpoint()
+    if _remaining(state) < RECOVERY_MIN_SECONDS:
+        return False
+    state.timeout_recoveries += 1
+    trace = diagnostics.CURRENT.get()
+    if trace is not None:
+        trace.emit("timeout_recovery_started")
     return True
 
 
@@ -115,6 +156,29 @@ class _Wire:
         self.lock = threading.Lock()
         self.connection = None
         self.response = None
+        self.response_at = None
+        self.abort_error = None
+        self.phase = "connect"
+        self.started = time.monotonic()
+        self.phase_started_at = self.started
+        self.last_data_at = None
+        self.first_byte = False
+        self.body_phase = "json_body"
+
+    def phase_started(self, phase):
+        self.phase = phase
+        self.phase_started_at = time.monotonic()
+        diagnostics.transport_event(phase)
+
+    def received(self, chunk):
+        if not chunk:
+            return
+        self.last_data_at = time.monotonic()
+        if not self.first_byte:
+            self.first_byte = True
+            diagnostics.transport_event(
+                "first_byte", first_byte_ms=round((self.last_data_at - self.started) * 1000)
+            )
 
     def publish(self, kind, value):
         while not self.stop.is_set():
@@ -131,6 +195,7 @@ class _Wire:
                 self.connection = connection
             if response is not None:
                 self.response = response
+                self.response_at = time.monotonic()
         if self.stop.is_set():
             self.abort()
             raise _StoppedError()
@@ -157,6 +222,12 @@ class _Wire:
             raise _StoppedError()
         return min(limit, _remaining(self.state))
 
+    def response_timeout(self):
+        remaining = FIRST_RESPONSE_SECONDS - (time.monotonic() - self.started)
+        if remaining <= 0:
+            raise _timeout("response_headers")
+        return self.timeout(remaining)
+
 
 def _response_socket(response):
     raw = getattr(getattr(response, "fp", None), "raw", None)
@@ -167,7 +238,7 @@ def _visible(content):
     return policy.visible(content)
 
 
-def _monitor(work, *, content=False, prefix=""):
+def _monitor(work, *, content=False, prefix="", first_content_limit=None):
     state = CURRENT.get()
     if state is None:
         raise RuntimeError("Generation context is required")
@@ -185,10 +256,11 @@ def _monitor(work, *, content=False, prefix=""):
                     pass
 
     thread = threading.Thread(target=lambda: context.run(target), daemon=True)
-    stage = "recovering" if state.output_recoveries else "waiting_model"
+    stage = "recovering" if state.output_recoveries or state.timeout_recoveries else "waiting_model"
     text, first = "", bool(prefix)
     last_safe_visible = prefix if len(prefix) <= MAX_CONTENT else ""
-    started = time.monotonic()
+    started = wire.started
+    failure = None
     progress(stage=stage)
     thread.start()
     try:
@@ -197,6 +269,29 @@ def _monitor(work, *, content=False, prefix=""):
             try:
                 kind, value = wire.events.get(timeout=min(POLL_SECONDS, _remaining(state)))
             except queue.Empty:
+                now = time.monotonic()
+                if (
+                    wire.phase in {"connect", "request"}
+                    and now - wire.phase_started_at >= CONNECT_SECONDS
+                ):
+                    raise _timeout(wire.phase) from None
+                if wire.response is None and now - started >= FIRST_RESPONSE_SECONDS:
+                    raise _timeout("response_headers") from None
+                last_activity = (
+                    wire.last_data_at if wire.last_data_at is not None else wire.response_at
+                )
+                if (
+                    wire.phase in {"stream_idle", "json_body"}
+                    and last_activity is not None
+                    and now - last_activity >= IDLE_SECONDS
+                ):
+                    raise _timeout(wire.phase) from None
+                if (
+                    first_content_limit is not None
+                    and not first
+                    and now - started >= first_content_limit
+                ):
+                    raise _timeout("first_content") from None
                 progress(stage=stage)
                 continue
             if kind == "content" and content:
@@ -212,6 +307,7 @@ def _monitor(work, *, content=False, prefix=""):
                     if not first:
                         first = True
                         progress(first_content=True)
+                        diagnostics.transport_event("first_content")
                         trace = diagnostics.CURRENT.get()
                         if trace is not None:
                             trace.emit(
@@ -220,16 +316,36 @@ def _monitor(work, *, content=False, prefix=""):
                                 duration_ms=round((time.monotonic() - started) * 1000),
                             )
                     progress(stage=stage, partial_content=visible)
+                elif (
+                    first_content_limit is not None
+                    and time.monotonic() - started >= first_content_limit
+                ):
+                    raise _timeout("first_content")
             elif kind == "error":
                 raise value
             elif kind == "result":
                 guard()
                 return value
-    except Exception:
+    except Exception as exc:
+        failure = exc
         # Incremental writes are throttled. Persist the last safe visible chunk
         # on a timeout/length error without extending the model wait budget.
         # The request callback still fences cancelled/expired worker tokens.
         visible = last_safe_visible
+        if isinstance(exc, ai.AIError):
+            if not getattr(exc, "visible_content", ""):
+                exc.visible_content = visible
+            if exc.code == "model_timeout":
+                timeout_kind = getattr(exc, "timeout_kind", "total")
+                age = (
+                    round((time.monotonic() - wire.last_data_at) * 1000)
+                    if wire.last_data_at is not None
+                    else None
+                )
+                exc.last_data_age_ms = age
+                diagnostics.transport_event(
+                    wire.phase, timeout_kind=timeout_kind, last_data_age_ms=age
+                )
         if visible and len(visible) <= MAX_CONTENT:
             try:
                 progress(final_partial=True, partial_content=visible)
@@ -237,11 +353,16 @@ def _monitor(work, *, content=False, prefix=""):
                 pass  # Never replace the original failure or bypass a fence.
         raise
     finally:
+        if isinstance(failure, ai.AIError):
+            wire.abort_error = failure
         wire.abort()
         thread.join(timeout=1)
+        if isinstance(failure, ai.AIError):
+            failure.stream_quiesced = not thread.is_alive()
 
 
 def _pinned_open(cfg, path, body, wire):
+    wire.phase_started("connect")
     endpoint = solution_ai.model_url(cfg["base_url"])
     parts = urlsplit(endpoint)
     port = parts.port or (443 if parts.scheme == "https" else 80)
@@ -256,7 +377,8 @@ def _pinned_open(cfg, path, body, wire):
     connection = cls(parts.hostname, port, addresses[0], timeout=wire.timeout(CONNECT_SECONDS))
     wire.install(connection=connection)
     connection.connect()
-    connection.sock.settimeout(wire.timeout(IDLE_SECONDS))
+    wire.phase_started("request")
+    connection.sock.settimeout(wire.timeout(CONNECT_SECONDS))
     headers = {
         "Content-Type": "application/json",
         "Accept": "text/event-stream" if body.get("stream") else "application/json",
@@ -264,9 +386,14 @@ def _pinned_open(cfg, path, body, wire):
     if cfg.get("api_key"):
         headers["Authorization"] = "Bearer " + cfg["api_key"]
     connection.request("POST", parts.path.rstrip("/") + path, json.dumps(body).encode(), headers)
-    connection.sock.settimeout(wire.timeout(IDLE_SECONDS))
+    wire.phase_started("response_headers")
+    connection.sock.settimeout(wire.response_timeout())
     response = connection.getresponse()
     wire.install(response=response)
+    diagnostics.transport_event(
+        "response_headers", response_ms=round((time.monotonic() - wire.started) * 1000)
+    )
+    wire.body_phase = "stream_idle" if body.get("stream") else "json_body"
     return response
 
 
@@ -290,20 +417,23 @@ def _check_status(response):
     status = getattr(response, "status", 200)
     diagnostics.transport_status(status)
     if not 200 <= status < 300:
-        raise ai.AIError(
+        error = ai.AIError(
             "模型服务拒绝请求", code=diagnostics.upstream_code(status), upstream_status=status
         )
+        if status in (408, 504):
+            error.timeout_kind = "upstream_timeout"
+        raise error
 
 
 def _read(wire, size):
-    if wire.connection is not None:
-        sock = getattr(wire.connection, "sock", None)
-    else:
-        sock = _response_socket(wire.response)
+    wire.phase = wire.body_phase
+    sock = getattr(wire.connection, "sock", None) or _response_socket(wire.response)
     timeout = wire.timeout(IDLE_SECONDS)
     if sock is not None:
         sock.settimeout(timeout)
-    return wire.response.read1(size)
+    chunk = wire.response.read1(size)
+    wire.received(chunk)
+    return chunk
 
 
 def _close(wire):
@@ -313,7 +443,9 @@ def _close(wire):
         wire.connection.close()
 
 
-def _network_error(exc):
+def _network_error(exc, phase, interrupted=None):
+    if interrupted is not None:
+        return interrupted
     if isinstance(exc, urllib.error.HTTPError):
         return ai.AIError(
             "模型服务拒绝请求",
@@ -323,7 +455,10 @@ def _network_error(exc):
     timed_out = isinstance(exc, TimeoutError) or isinstance(
         getattr(exc, "reason", None), TimeoutError
     )
-    return ai.AIError("模型连接或读取失败", code="model_timeout" if timed_out else "model_network")
+    error = ai.AIError("模型连接或读取失败", code="model_timeout" if timed_out else "model_network")
+    if timed_out:
+        error.timeout_kind = phase
+    return error
 
 
 def _json_request(provider, cfg, path, body, wire, private):
@@ -356,7 +491,7 @@ def _json_request(provider, cfg, path, body, wire, private):
     except ai.AIError:
         raise
     except (OSError, urllib.error.URLError, http.client.HTTPException) as exc:
-        raise _network_error(exc) from None
+        raise _network_error(exc, wire.phase, wire.abort_error) from None
     except (ValueError, UnicodeError, TypeError):
         raise ai.AIError("模型响应格式无效", code="model_invalid_response") from None
     finally:
@@ -373,6 +508,7 @@ class _Events:
         self.finish = None
         self.content = ""
         self.usage = {}
+        self.reasoning_seen = False
 
     def feed(self, chunk):
         self.buffer += self.decoder.decode(chunk)
@@ -425,7 +561,14 @@ class _Events:
                 raise ai.AIError("模型正文超过接收容量", code="response_too_large")
             if value:
                 self.wire.publish("content", value)
-        # reasoning_content is deliberately ignored, never queued or stored.
+        # Treat reasoning as activity only; never queue, persist or log its text.
+        if (
+            not self.reasoning_seen
+            and isinstance(delta.get("reasoning_content"), str)
+            and delta["reasoning_content"]
+        ):
+            self.reasoning_seen = True
+            diagnostics.transport_event("first_reasoning")
         finish = choice.get("finish_reason")
         if finish is not None:
             if not isinstance(finish, str) or self.finish is not None:
@@ -462,7 +605,7 @@ def _stream_request(provider, cfg, path, body, wire, kind):
     except ai.AIError:
         raise
     except (OSError, urllib.error.URLError, http.client.HTTPException) as exc:
-        raise _network_error(exc) from None
+        raise _network_error(exc, wire.phase, wire.abort_error) from None
     except (ValueError, UnicodeError, TypeError):
         raise ai.AIError("模型流响应不完整或格式无效", code="model_invalid_response") from None
     finally:
@@ -478,7 +621,7 @@ def call(provider, cfg, messages, request_fn=None, kind="general"):
     original_messages, draft, recovering = messages, "", False
 
     def work(wire):
-        timeout = min(IDLE_SECONDS, _remaining(state))
+        timeout = min(FIRST_RESPONSE_SECONDS, _remaining(state))
         if streaming:
             body = {
                 "model": cfg["model"],
@@ -518,8 +661,24 @@ def call(provider, cfg, messages, request_fn=None, kind="general"):
         try:
             if recovering:
                 checkpoint()
-            return _monitor(work, content=streaming, prefix=draft)
+            return _monitor(
+                work,
+                content=streaming,
+                prefix=draft,
+                first_content_limit=FIRST_CONTENT_SECONDS
+                if streaming and policy.kimi(provider, cfg)
+                else None,
+            )
         except ai.AIError as exc:
+            if (
+                streaming
+                and not recovering
+                and exc.code == "model_timeout"
+                and claim_timeout_recovery(provider, cfg, exc)
+            ):
+                messages = policy.timeout_messages(original_messages)
+                recovering = True
+                continue
             if (
                 not streaming
                 or recovering

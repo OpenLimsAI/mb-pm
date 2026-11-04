@@ -48,3 +48,33 @@ it('offers an honest draft recovery action and copies the retained text without 
   expect(screen.queryByRole('button', { name: '接着草稿继续' })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: '导出 Markdown' })).not.toBeInTheDocument()
 })
+
+it('distinguishes waiting for the first answer from losing a reply after visible text', () => {
+  const { rerender } = render(<RequestProgressView progress={{ phase: 'failed', job: job({ errorCode: 'model_timeout', error: '模型等待超时' }) }} />)
+  expect(screen.getByRole('status')).toHaveTextContent('尚未收到回答')
+  expect(screen.getByRole('alert')).toHaveTextContent('问题已保留，可以重新生成；无需重新输入。')
+  expect(screen.queryByText('未完成草稿 · 已保留正文，使用前请核对')).not.toBeInTheDocument()
+  rerender(<RequestProgressView progress={{ phase: 'failed', job: job({ errorCode: 'model_timeout', error: '模型等待超时', partialContent: '已生成的正文', canContinue: true }) }} />)
+  expect(screen.getByRole('status')).toHaveTextContent('生成中断，草稿已保存')
+  expect(screen.getByRole('alert')).toHaveTextContent('已经收到的正文保留在下方')
+  expect(screen.getByText('已生成的正文')).toBeInTheDocument()
+})
+
+it('copies request timing and saved text count without copying the question or draft', () => {
+  const copy = vi.fn()
+  render(<RequestProgressView progress={{ phase: 'failed', job: job({ errorCode: 'model_timeout', question: 'PRIVATE QUESTION', context: 'PRIVATE CONTEXT', partialContent: 'PRIVATE DRAFT', startedAt: '2026-11-04T00:00:01Z', finishedAt: '2026-11-04T00:02:02Z' }) }} onCopyDiagnostic={copy} />)
+  fireEvent.click(screen.getByRole('button', { name: '复制诊断信息' }))
+  expect(copy).toHaveBeenCalledOnce()
+  expect(copy.mock.calls[0][0]).toContain('开始时间：2026-11-04T00:00:01Z')
+  expect(copy.mock.calls[0][0]).toContain('结束时间：2026-11-04T00:02:02Z')
+  expect(copy.mock.calls[0][0]).toContain('已保存正文：13 字')
+  expect(copy.mock.calls[0][0]).not.toContain('PRIVATE')
+})
+
+it('does not promise retained input or a retry after a timed out request has expired', () => {
+  render(<RequestProgressView progress={{ phase: 'failed', job: job({ errorCode: 'model_timeout', payloadExpired: true, question: '', canContinue: true }) }} onRetry={vi.fn()} onContinue={vi.fn()} />)
+  expect(screen.getByRole('alert')).toHaveTextContent('临时输入已清理，请重新输入问题发起新一轮。')
+  expect(screen.getByRole('alert')).not.toHaveTextContent('问题已保留')
+  expect(screen.queryByRole('button', { name: '重新生成' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '根据草稿重新整理' })).not.toBeInTheDocument()
+})

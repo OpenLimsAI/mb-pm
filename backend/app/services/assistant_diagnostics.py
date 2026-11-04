@@ -45,7 +45,27 @@ PUBLIC_ERRORS = {
     "model_error": (503, "AI 回答未完成，问题已保留。请提供诊断编号以便排查。"),
 }
 FINISH_REASONS = {"stop", "length", "tool_calls", "function_call", "content_filter", "unload"}
-PROVIDERS = {"deepseek", "minimax", "ollama", "openai", "custom"}
+PROVIDERS = {"deepseek", "kimi", "minimax", "ollama", "openai", "custom"}
+TRANSPORT_PHASES = {
+    "connect",
+    "request",
+    "response_headers",
+    "first_byte",
+    "first_reasoning",
+    "first_content",
+    "stream_idle",
+    "json_body",
+}
+TIMEOUT_KINDS = {
+    "connect",
+    "request",
+    "response_headers",
+    "stream_idle",
+    "json_body",
+    "first_content",
+    "total",
+    "upstream_timeout",
+}
 TOOLS = {
     "web_search",
     "dikw_health",
@@ -82,6 +102,8 @@ def upstream_code(status):
         if status in (401, 403)
         else "model_rate_limit"
         if status == 429
+        else "model_timeout"
+        if status in (408, 504)
         else "model_rejected"
     )
 
@@ -100,6 +122,8 @@ class Attempt:
         self.tool_calls = 0
         self.model = {}
         self.upstream_status = None
+        self.model_started_at = None
+        self.transport = {}
 
     def emit(self, event, **fields):
         # All callers supply allowlisted metadata; never pass exception text, cfg, bodies or claims.
@@ -174,6 +198,7 @@ def request_scope(request_id):
             dependency_status=exc.status_code if status != exc.status_code else None,
             model_rounds=trace.model_rounds,
             tool_calls=trace.tool_calls,
+            **(trace.transport if _http_code(exc) == "model_timeout" else {}),
         )
         detail = exc.detail if isinstance(exc.detail, str) else "请求未完成，问题已保留。"
         raise HTTPException(
@@ -214,6 +239,8 @@ def model_call(request_fn, provider, cfg, path, body, *, timeout):
     trace.upstream_status = None
     trace.stage = "model"
     started = monotonic()
+    trace.model_started_at = started
+    trace.transport = {}
     budget = body.get(
         "max_completion_tokens", body.get("max_tokens", body.get("options", {}).get("num_predict"))
     )
@@ -222,16 +249,23 @@ def model_call(request_fn, provider, cfg, path, body, *, timeout):
         round=trace.model_rounds,
         timeout_seconds=timeout,
         output_budget=number(budget),
+        stream=body.get("stream") is True,
+        reasoning_effort=body.get("reasoning_effort")
+        if isinstance(body.get("reasoning_effort"), str)
+        and body["reasoning_effort"] in {"none", "minimal", "low", "medium", "high", "xhigh", "max"}
+        else None,
     )
     try:
         result = request_fn(provider, cfg, path, body, timeout=timeout)
     except Exception as exc:
+        failure_transport(trace, exc)
         trace.emit(
             "model_failed",
             round=trace.model_rounds,
             duration_ms=round((monotonic() - started) * 1000),
             code=error_code(exc),
             upstream_status=number(getattr(exc, "upstream_status", None)) or trace.upstream_status,
+            **trace.transport,
         )
         raise
     finish = None
@@ -267,8 +301,62 @@ def model_call(request_fn, provider, cfg, path, body, *, timeout):
         reasoning_tokens=number(details.get("reasoning_tokens"))
         if isinstance(details, dict)
         else None,
+        **trace.transport,
     )
     return result
+
+
+def failure_transport(trace, exc):
+    """Copy only fixed categories and bounded counters, never exception strings."""
+    supplied = getattr(exc, "timeout_kind", None)
+    if isinstance(supplied, str) and supplied in TIMEOUT_KINDS:
+        trace.transport["timeout_kind"] = supplied
+    phase = getattr(exc, "timeout_phase", None)
+    if isinstance(phase, str) and phase in TRANSPORT_PHASES:
+        trace.transport["transport_phase"] = phase
+    age = number(getattr(exc, "last_data_age_ms", None))
+    if age is not None:
+        trace.transport["last_data_age_ms"] = age
+    status = number(getattr(exc, "upstream_status", None)) or trace.upstream_status
+    if status in (408, 504):
+        trace.transport["timeout_kind"] = "upstream_timeout"
+
+
+def transport_event(
+    phase, *, response_ms=None, first_byte_ms=None, last_data_age_ms=None, timeout_kind=None
+):
+    """Record transport milestones and times, with no content-bearing arguments.
+
+    Per-chunk activity remains on the transport's in-memory clock. Call this only
+    for phase/first-activity milestones and failures, not every streamed token.
+    """
+    trace = CURRENT.get()
+    if trace is None or not isinstance(phase, str) or phase not in TRANSPORT_PHASES:
+        return
+    trace.transport["transport_phase"] = phase
+    for field, value in (
+        ("response_ms", response_ms),
+        ("first_byte_ms", first_byte_ms),
+        ("last_data_age_ms", last_data_age_ms),
+    ):
+        valid = number(value)
+        if valid is not None:
+            trace.transport[field] = valid
+    first_fields = {
+        "first_byte": "first_byte_ms",
+        "first_reasoning": "first_reasoning_ms",
+        "first_content": "first_content_ms",
+    }
+    field = first_fields.get(phase)
+    if field and trace.model_started_at is not None and field not in trace.transport:
+        trace.transport[field] = max(0, round((monotonic() - trace.model_started_at) * 1000))
+    if isinstance(timeout_kind, str) and timeout_kind in TIMEOUT_KINDS:
+        trace.transport["timeout_kind"] = timeout_kind
+    trace.emit(
+        "model_transport",
+        round=trace.model_rounds,
+        **trace.transport,
+    )
 
 
 def transport_status(status):

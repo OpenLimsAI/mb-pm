@@ -5,6 +5,7 @@ import { resolve, join, extname, sep } from 'node:path'
 import { spawn } from 'node:child_process'
 import { setTimeout as delay } from 'node:timers/promises'
 import { verifyProductionBuild } from './production-build.mjs'
+import { monitorChromeStartup, waitForChromeSocket } from './chrome-startup.mjs'
 
 const directory = resolve(process.argv[2] || 'dist')
 verifyProductionBuild(directory, process.env.SOURCE_REVISION)
@@ -28,7 +29,7 @@ const server = createServer((request, response) => {
   catch { response.writeHead(404); response.end() }
 })
 
-let browser, socket
+let browser, socket, chromeStartup
 const pending = new Map()
 let callId = 0
 function call(method, params = {}) {
@@ -56,18 +57,12 @@ try {
     '--no-first-run', '--no-default-browser-check', '--disable-background-networking',
     '--disable-component-update', '--disable-extensions', '--password-store=basic',
     `--user-data-dir=${profile}`, '--remote-debugging-port=0', 'about:blank',
-  ], { stdio: 'ignore' })
-  let launchError
-  browser.once('error', error => { launchError = error })
-  const portFile = join(profile, 'DevToolsActivePort')
-  await waitFor(() => { if (launchError) throw launchError; return existsSync(portFile) }, 10000)
-  const port = Number(readFileSync(portFile, 'utf8').split('\n')[0])
-  if (!Number.isInteger(port) || port <= 0) throw new Error('Chrome did not expose a local debug port')
-  const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()
-  const target = targets.find(item => item.type === 'page')
-  if (!target?.webSocketDebuggerUrl) throw new Error('Chrome did not create a test page')
+  ], { stdio: ['ignore', 'pipe', 'pipe'] })
+  chromeStartup = monitorChromeStartup(browser)
+  const endpoint = await chromeStartup.waitForEndpoint(profile)
+  const target = await chromeStartup.waitForPage(endpoint)
   socket = new WebSocket(target.webSocketDebuggerUrl)
-  await new Promise((resolve, reject) => { socket.addEventListener('open', resolve, { once: true }); socket.addEventListener('error', reject, { once: true }) })
+  await waitForChromeSocket(socket)
   socket.addEventListener('message', event => {
     const message = JSON.parse(event.data), request = pending.get(message.id)
     if (!request) return
@@ -94,6 +89,9 @@ try {
   if (!state.submit.exists || state.submit.disabled) throw new Error('Production login button is disabled')
   if (!requests.includes('/api/v1/portal/me')) throw new Error('Production bundle did not query the real API path')
   console.log('Production bundle smoke passed: anonymous /me=401, username/password editable, submit enabled')
+} catch (error) {
+  if (chromeStartup) console.error(chromeStartup.diagnostics())
+  throw error
 } finally {
   for (const request of pending.values()) clearTimeout(request.timeout)
   socket?.close()
@@ -106,6 +104,7 @@ try {
       await exited
     }
   }
+  chromeStartup?.dispose()
   if (server.listening) await new Promise(resolve => server.close(resolve))
   // Chromium helpers may finish profile writes just after the parent exits.
   // Retry transient filesystem cleanup races only within this private test profile.
