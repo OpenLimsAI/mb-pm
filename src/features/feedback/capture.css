@@ -1,0 +1,11 @@
+.feedback-capture-dialog{width:min(1160px,96vw);max-height:94dvh;border:1px solid #d9e4e7;border-radius:18px;padding:22px;color:#244650;background:#fff;box-shadow:0 24px 80px #153a4c40;z-index:1000}
+.feedback-capture-dialog::backdrop{background:#183a4db3}
+.feedback-capture-dialog header,.feedback-capture-dialog footer{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.feedback-capture-dialog h2{font-size:22px;margin:0 0 5px}.feedback-capture-dialog p{font-size:13px;color:#657e87;margin:4px 0 12px}
+.feedback-capture-dialog button{border:1px solid #d2e2e5;border-radius:8px;padding:8px 12px;background:#fff;cursor:pointer;color:#30616b;font:inherit}
+.feedback-capture-dialog button:disabled{opacity:.5;cursor:default}.feedback-capture-dialog button[aria-pressed=true]{background:#e8f4f4;border-color:#298b92;color:#086a75}
+.feedback-capture-toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.feedback-capture-toolbar input{padding:8px;border:1px solid #c9dfe3;border-radius:6px;min-width:180px}
+.feedback-capture-stage{background:#e8eef0;overflow:auto;max-height:60dvh;min-height:100px;text-align:center;border-radius:10px}
+.feedback-capture-stage canvas{max-width:100%;height:auto;touch-action:none;cursor:crosshair;display:block;margin:auto}
+.feedback-capture-dialog footer{font-size:13px;margin-top:15px}.feedback-capture-dialog footer span{margin-right:auto;color:#657e87}.feedback-capture-dialog .feedback-create{background:#087c87;color:#fff}
+@media(max-width:640px){.feedback-capture-dialog{padding:14px}.feedback-capture-dialog footer{flex-wrap:wrap}.feedback-capture-dialog footer span{width:100%}}
