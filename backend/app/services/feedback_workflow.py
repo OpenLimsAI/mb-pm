@@ -234,7 +234,20 @@ def metadata_rows(db, rows, claims):
 
 
 def watch(db, row, subject, enabled=True, *, explicit=True):
-    state = db.get(FeedbackWatch, (row.id, subject))
+    # SessionLocal disables autoflush. An explicit claim and the activity recorder
+    # can subscribe the same actor before either watch has been persisted.
+    state = next(
+        (
+            pending
+            for pending in db.new
+            if isinstance(pending, FeedbackWatch)
+            and pending.feedback_id == row.id
+            and pending.subject == subject
+        ),
+        None,
+    )
+    if state is None:
+        state = db.get(FeedbackWatch, (row.id, subject))
     if state is None:
         db.add(FeedbackWatch(feedback_id=row.id, subject=subject, enabled=enabled))
     elif explicit:

@@ -42,7 +42,9 @@ def wall(token_factory):
             "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
         )
     Base.metadata.create_all(engine)
-    db = Session(engine)
+    # Match the real SessionLocal factory; pending relationship writes must not
+    # rely on a SELECT implicitly flushing them.
+    db = Session(engine, autoflush=False)
     app = FastAPI()
     app.include_router(feedback.router, prefix="/api/v1")
     app.dependency_overrides[get_db] = lambda: db

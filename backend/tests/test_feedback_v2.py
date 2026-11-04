@@ -636,3 +636,46 @@ def test_postgres_parallel_create_keys_and_short_numbers_are_unique(client):
             if counter:
                 db.delete(counter)
             db.commit()
+
+
+def test_claim_and_activity_subscriptions_match_production_non_autoflush_sessions(wall):
+    from app.models.feedback import FeedbackWatch
+
+    client, login, db = wall
+    assert db.autoflush is False
+    login("reporter")
+    item = create(client)
+    login("handler")
+    claimed = post(client, item, "claim", {})
+    assert claimed.status_code == 200, claimed.text
+    assert claimed.json()["is_following"] is True
+    first_history_count = db.query(FeedbackActivity).filter_by(feedback_id=item["id"]).count()
+    assert post(client, item, "claim", {}).status_code == 200
+    assert (
+        db.query(FeedbackActivity).filter_by(feedback_id=item["id"]).count() == first_history_count
+    )
+    assert db.query(FeedbackWatch).filter_by(feedback_id=item["id"], subject="handler").count() == 1
+    assert client.get(BASE + "/notifications").json()["unread_count"] == 0
+    login("reporter")
+    assert client.get(BASE + "/notifications").json()["unread_count"] == 1
+    login("colleague")
+    reply = post(client, item, "replies", {"body": "补充复现信息", "request_id": "new-watcher"})
+    assert reply.status_code == 201, reply.text
+    assert reply.json()["feedback"]["is_following"] is True
+    assert (
+        db.query(FeedbackWatch).filter_by(feedback_id=item["id"], subject="colleague").count() == 1
+    )
+    assert client.get(BASE + "/notifications").json()["unread_count"] == 0
+    assert (
+        client.put(BASE + "/" + item["id"] + "/follow", json={"enabled": False}).status_code == 200
+    )
+    reply = post(client, item, "replies", {"body": "再次补充，但保持取消关注"})
+    assert reply.status_code == 201
+    assert reply.json()["feedback"]["is_following"] is False
+    assert (
+        db.query(FeedbackWatch).filter_by(feedback_id=item["id"], subject="colleague").count() == 1
+    )
+    login("handler")
+    assert client.get(BASE + "/notifications").json()["unread_count"] == 2
+    login("reporter")
+    assert client.get(BASE + "/notifications").json()["unread_count"] == 3
