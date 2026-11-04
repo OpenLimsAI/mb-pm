@@ -10,13 +10,14 @@ export interface SourcePaper {
 }
 export interface SourceDocument extends InformationDocument { isNew?: boolean; unread?: boolean; versionStatus?: 'not_saved' | 'unverified' | 'current' | 'update_available'; verifiedAt?: string }
 export interface SourceDefinition extends InformationSource { archiveFolderId?: string; schedule?: { frequency: 'off' | 'daily' | 'weekly'; downloadUpdates: boolean; indexUpdates: boolean; nextCheckAt?: string } }
-export type SourceJob = Omit<InformationJob, 'items'> & { kind?: string; app?: string; summary?: Record<string, number>; items: (InformationJob['items'][number] & { phase?: string; failurePhase?: string; result?: string; scope?: string })[] }
+export type SourceJob = Omit<InformationJob, 'items'> & { kind?: string; app?: string; summary?: Record<string, number>; canUndoRuleFiling?: boolean; ruleFiling?: {status:string;ruleApplications?:number;undoTokens?:string[];error?:string}; items: (InformationJob['items'][number] & { phase?: string; failurePhase?: string; result?: string; scope?: string })[] }
 export interface SourceFolder { id: string; name: string; writable?: boolean; kind?: 'topic' | 'source'; parentId?: string | null }
 export interface KnowledgeSourceSnapshot {
   papers: SourcePaper[]; folders: SourceFolder[]; sources: SourceDefinition[]
   jobs: SourceJob[]; documents: SourceDocument[]
   changes?: InformationEvent[]; resources?: Record<string, unknown>; refreshedAt?: string; undoToken?: string; catalogRevision: number; canManage: boolean; canOrganize: boolean; starred: string[]
   integration: { status: string; message: string; kbUrl?: string }
+  libraryV3?: boolean; libraryTotal?: number; folderCounts?: Record<string, number>; tags?: {id:string;name:string;color?:string}[]; canEdit?:boolean
 }
 
 // Portal cookie only: never copy a Core credential or use the PM auth store.
@@ -25,7 +26,7 @@ client.interceptors.response.use(response => response, error => {
   if (error.response?.status === 401) window.dispatchEvent(new Event('portal:unauthorized'))
   return Promise.reject(error)
 })
-export const getKnowledgeSources = (signal?: AbortSignal) => client.get('/snapshot', { signal }).then(r => camelize<KnowledgeSourceSnapshot>(r.data))
+export const getKnowledgeSources = (signal?: AbortSignal) => client.get('/snapshot', { signal, params: { summary: true } }).then(r => camelize<KnowledgeSourceSnapshot>(r.data))
 export const getKnowledgeSourceJobs = () => client.get('/jobs/status').then(r => camelize<{ jobs: SourceJob[]; refreshedAt: string }>(r.data))
 export const mutateKnowledgeSources = (method: 'post' | 'patch', path: string, value: unknown) => client.request({ method, url: path, data: snakeize(value) }).then(r => camelize(r.data))
 export function sourceError(error: unknown): string {

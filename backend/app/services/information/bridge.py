@@ -51,7 +51,17 @@ def call(operation, subject, **values):
                 "X-Information-Signature": signature,
                 "X-Information-Content-SHA256": content_digest,
             },
-            timeout=httpx.Timeout(90 if operation == "import" else 12, connect=5),
+            timeout=httpx.Timeout(
+                120
+                if operation == "exportPapers"
+                else 90
+                if operation in ("import", "uploadPaper")
+                else 35
+                if operation
+                in ("readOriginal", "readPaper", "indexUploadedPaper", "statusUploadedPaper")
+                else 12,
+                connect=5,
+            ),
             follow_redirects=False,
             trust_env=False,
         )

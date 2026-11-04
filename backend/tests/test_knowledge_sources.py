@@ -529,7 +529,11 @@ def test_receipted_import_before_core_registration_remains_an_archive(ks, index_
         ).status_code
         == 200
     )
-    assert not any(op == "folderMutation" for op, _, _ in calls)
+    # Signed pending receipts now let KB persist classification before Core
+    # registration, so later ingestion cannot lose the user's folder choice.
+    mutation = next(values for op, _, values in reversed(calls) if op == "folderMutation")
+    assert mutation["mutation"]["paths"] == [P1]
+    assert mutation["imports"] == [{"documentId": doc["id"], "sha256": version["sha256"]}]
     body = {"paperId": paper["id"], "enabled": True}
     assert (
         client.post(

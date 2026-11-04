@@ -19,6 +19,27 @@ def _available(papers):
     return result
 
 
+def _core_path(paper):
+    return paper.get("kbPath") if paper["id"].startswith("archive:") else paper["id"]
+
+
+def _pending_imports(store, papers):
+    proofs = []
+    versions = {v["id"]: v for v in store.records("version")}
+    for paper in papers:
+        if paper["id"].startswith("archive:") and paper.get("kbPath") and paper.get("versionId"):
+            version = versions.get(paper["versionId"])
+            if not version:
+                raise HTTPException(409, "原件版本已变化，请刷新后重试")
+            proofs.append(
+                {
+                    "documentId": version.get("kbDocumentId", version["documentId"]),
+                    "sha256": version["sha256"],
+                }
+            )
+    return {"imports": proofs} if proofs else {}
+
+
 def _classify(store, paper, folders, removed):
     if not paper.get("documentId"):
         return
@@ -60,11 +81,7 @@ def organize_papers(store, actor, body, *, catalogue, connect, papers):
         target = target - set(folder_ids) if mode == "remove" else target | set(folder_ids)
         before[ident], after[ident] = sorted(current), sorted(target)
     paths = list(
-        dict.fromkeys(
-            available[ident]["id"]
-            for ident in ids
-            if not available[ident]["id"].startswith("archive:")
-        )
+        dict.fromkeys(_core_path(available[ident]) for ident in ids if _core_path(available[ident]))
     )
     revision = catalogue["revision"]
     if paths:
@@ -76,7 +93,12 @@ def organize_papers(store, actor, body, *, catalogue, connect, papers):
         }
         if mode == "move":
             mutation["fromFolderId"] = origin
-        revision = connect("folderMutation", actor["subject"], mutation=mutation)["revision"]
+        revision = connect(
+            "folderMutation",
+            actor["subject"],
+            mutation=mutation,
+            **_pending_imports(store, [available[ident] for ident in ids]),
+        )["revision"]
     for ident in ids:
         paper = available[ident]
         current = (
@@ -126,9 +148,9 @@ def undo_organization(store, actor, body, *, catalogue, connect, papers):
         if not set(folders) <= known:
             raise HTTPException(409, "原文件夹已删除，不能撤销")
     memberships = {
-        available[ident]["id"]: folders
+        _core_path(available[ident]): folders
         for ident, folders in entry["before"].items()
-        if not available[ident]["id"].startswith("archive:")
+        if _core_path(available[ident])
     }
     revision = catalogue["revision"]
     if memberships:
@@ -141,6 +163,7 @@ def undo_organization(store, actor, body, *, catalogue, connect, papers):
                 "paths": list(memberships),
                 "memberships": memberships,
             },
+            **_pending_imports(store, [available[ident] for ident in entry["before"]]),
         )["revision"]
     for ident, folders in entry["before"].items():
         paper = available[ident]

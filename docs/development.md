@@ -250,3 +250,27 @@ GitHub Actions 检查前端账号权限覆盖率、门户路由及构建、后�
 正式入口 `/knowledge-sources` 使用门户会话与真实 `/api/v1/knowledge-sources` 接口，需配对知识库桥接版本及开启新应用/后台开关；旧 `INFORMATION_APP_ENABLED` 继续关闭。开发预览只显示连接提示，不执行真实采集。
 
 针对性检查：`npx vitest run src/features/knowledge-sources/KnowledgeSourceApp.test.tsx src/pages/Workspace.test.tsx`、`node scripts/test-portal-routing.mjs`，后端知识源测试与全量检查按原测试说明执行。需检验全库读取、多分类去重、目录预览、下载部分失败与重试、旧监控不恢复和权限失效。
+
+
+## 知识源研究工作区 v3（2026-11-04 代码更新）
+
+需配套知识库 v3 签名桥接。门户仍使用 `/knowledge-sources`，新增服务端前缀 `/api/v1/knowledge-sources/v3`；前端不会持有 Core token 或桥接密钥。测试必须使用隔离数据库、IAM/Core/官网/模型替身，不连接生产数据或付费模型。环境部署与真实账户验收单独记录。
+
+在项目根目录运行针对回归：
+
+```sh
+npx vitest run src/features/knowledge-sources
+npx tsc -b
+npm run lint
+node scripts/test-portal-routing.mjs
+```
+
+在 `backend` 目录、安装依赖且使用隔离测试库后运行：
+
+```sh
+python -m pytest -q tests/test_knowledge_source_library_v3.py tests/test_knowledge_source_acquisition_v3.py tests/test_knowledge_source_manual_index_v3.py tests/test_knowledge_source_workspace_v3.py tests/test_knowledge_source_research_v3.py tests/test_knowledge_source_worker_filing_v3.py tests/test_knowledge_source_resource_receipts_v3.py tests/test_knowledge_sources.py
+```
+
+重点覆盖：服务端分页及全文覆盖率、共享修订冲突、部分成功回执、正文/PDF 位置、跨页证据、删除/撤权屏障、规则归档幂等与撤销、手动索引严格确认/绑定 taskId/活跃注册、通用下载控制拒绝操作 Core 索引，以及模型缓存与实际用量。当前 source worker 的 manual-index 分支不构造 PDF 下载客户端；原件计量与索引完成分开。
+
+知识库的 `source-library-cache.sqlite` 可重建，既有 metadata/标签/分类/导入回执仍是持久用户数据。只安装代码或首次显示页面不能声称全文已全部索引。新规则、计划与研究生成均不因启动而自动执行。完整 20 项范围及限制见[功能映射](knowledge-source-v3.md)。

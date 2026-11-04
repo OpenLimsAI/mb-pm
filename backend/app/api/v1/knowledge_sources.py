@@ -160,7 +160,7 @@ def library(actor, store=None, imports=None):
     # unindexed imports from its own durable receipts, never infer access from a path.
     if imports is None:
         imports = [
-            {"documentId": v["documentId"], "sha256": v["sha256"]}
+            {"documentId": v.get("kbDocumentId", v["documentId"]), "sha256": v["sha256"]}
             for v in (store.records("version") if store else [])
             if v.get("kbPath") and v.get("indexStatus") != "ready"
         ]
@@ -179,7 +179,7 @@ def pending_archive(version, catalogue):
         (
             proof
             for proof in catalogue.get("pendingArchives", [])
-            if proof.get("documentId") == version["documentId"]
+            if proof.get("documentId") == version.get("kbDocumentId", version["documentId"])
             and proof.get("sha256") == version["sha256"]
             and proof.get("path") == version.get("kbPath")
             and proof.get("indexStatus") in ("not_requested", "pending", "failed")
@@ -268,6 +268,11 @@ def paper_snapshot(store, actor, result):
 def archive_paper(store, doc, version, source, versions=None):
     classification = classifications(store, doc["id"])
     return {
+        **{
+            key: value
+            for key, value in doc.get("metadata", {}).items()
+            if key in {"authors", "year", "doi", "pmid", "abstract", "journal"}
+        },
         "id": "archive:" + version["id"],
         "documentId": doc["id"],
         "versionId": version["id"],
@@ -284,6 +289,7 @@ def archive_paper(store, doc, version, source, versions=None):
         "parseStatus": version["parseStatus"],
         "originalUrl": f'/api/v1/knowledge-sources/documents/{doc["id"]}/versions/{version["id"]}/original',
         "kbUrl": version.get("kbUrl"),
+        "kbPath": version.get("kbPath"),
         "type": doc.get("documentType", "官方资料"),
         "language": doc.get("language", "来源未标注"),
         "officialDate": version.get("officialDate"),
@@ -302,17 +308,26 @@ def archive_paper(store, doc, version, source, versions=None):
 
 
 @router.get("/snapshot")
-def snapshot(db: Session = Depends(get_db), actor: dict = Depends(principal)):
+def snapshot(
+    db: Session = Depends(get_db), actor: dict = Depends(principal), summary: bool = False
+):
     store = Store(db, actor["tenant"])
     store.ensure_source()
     result, issue = {}, None
     try:
-        result = library(actor, store)
+        result = connected("librarySummary", actor["subject"]) if summary else library(actor, store)
+        if summary:
+            from app.api.v1.knowledge_source_library_v3 import library_statistics
+
+            result = library_statistics(store, actor, result)
     except HTTPException as exc:
+        result = {}
         issue = str(exc.detail)
     folders = [{**f, "writable": bool(result.get("canWrite"))} for f in result.get("folders", [])]
     sources = []
     for source in store.records("source"):
+        if source.get("adapter") == "manual":
+            continue
         if not source.get("archiveFolderId"):
             canonical = "ICH" if source["adapter"] == "ich" else source["name"]
             match = next(
@@ -346,8 +361,8 @@ def snapshot(db: Session = Depends(get_db), actor: dict = Depends(principal)):
             version["originalUrl"] = (
                 f'/api/v1/knowledge-sources/documents/{doc["id"]}/versions/{version["id"]}/original'
             )
-    jobs = public_jobs(store)
-    papers = paper_snapshot(store, actor, result)
+    jobs = public_jobs(store, actor["subject"])
+    papers = [] if summary else paper_snapshot(store, actor, result)
     known_folders = {folder["id"] for folder in result.get("folders", [])}
     for paper in papers:
         paper["folderIds"] = [ident for ident in paper["folderIds"] if ident in known_folders]
@@ -372,7 +387,14 @@ def snapshot(db: Session = Depends(get_db), actor: dict = Depends(principal)):
         "catalogRevision": result.get("revision", 0),
         "canManage": actor["manage"],
         "canOrganize": bool(result.get("canWrite")),
-        "starred": [p["id"] for p in papers if p["starred"]],
+        "canEdit": bool(result.get("canEdit") or result.get("canWrite")),
+        "starred": prefs.get("knowledgeSourceStars", [])
+        if summary
+        else [p["id"] for p in papers if p["starred"]],
+        "libraryV3": bool(summary and not issue),
+        "libraryTotal": result.get("total", len(papers)),
+        "folderCounts": result.get("folderCounts", {}),
+        "tags": [{"id": tag, "name": tag} for tag in result.get("tagsCatalog", [])],
         "integration": {
             "status": "error" if issue else "ready",
             "message": issue or "与现有知识库共用论文和文件夹，下载与问答索引分别记录。",
@@ -737,6 +759,10 @@ def control_job(
     job = store.get("job", ident)
     if job.get("app") != APP:
         raise HTTPException(404, "知识源任务不存在，旧采集任务仍保持停用")
+    if job.get("kind") == "manual-index":
+        raise HTTPException(
+            409, "知识库级索引不能通过下载控制停止或重试，请回到资料详情确认真实任务状态"
+        )
     if body.action in ("resume", "retry"):
         require_worker()
     job = store.control_job(ident, body.action)
@@ -769,7 +795,7 @@ def retry_document(ident: str, db: Session = Depends(get_db), actor: dict = Depe
 
 @router.get("/jobs/status")
 def job_status(db: Session = Depends(get_db), actor: dict = Depends(principal)):
-    jobs = public_jobs(Store(db, actor["tenant"]))
+    jobs = public_jobs(Store(db, actor["tenant"]), actor["subject"])
     return {"jobs": jobs, "revision": job_revision(jobs), "refreshedAt": iso()}
 
 
@@ -824,7 +850,13 @@ def original(
         raise HTTPException(404, "原文版本不存在")
     if version.get("kbPath"):
         catalogue = library(
-            actor, imports=[{"documentId": document_id, "sha256": version["sha256"]}]
+            actor,
+            imports=[
+                {
+                    "documentId": version.get("kbDocumentId", document_id),
+                    "sha256": version["sha256"],
+                }
+            ],
         )
         active = any(p.get("path") == version["kbPath"] for p in catalogue.get("papers", []))
         if not active and not pending_archive(version, catalogue):
