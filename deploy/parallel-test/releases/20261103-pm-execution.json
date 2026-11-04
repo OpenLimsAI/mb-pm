@@ -1,0 +1,408 @@
+{
+  "release": "pm-execution-collaboration-20261103",
+  "feature_pr": "https://github.com/OpenLimsAI/mb-pm/pull/156",
+  "feature_ci": {
+    "headRefOid": "f40835cdceef0a8a191d02ec35d1a413cdeb34e4",
+    "statusCheckRollup": [
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-11-04T04:00:19Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41769873532/job/126377155259",
+        "name": "前端 · 类型检查 + 构建（硬护栏）",
+        "startedAt": "2026-11-04T03:54:50Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-11-04T03:55:17Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41769873558/job/126376910624",
+        "name": "dependencies",
+        "startedAt": "2026-11-04T03:54:01Z",
+        "status": "COMPLETED",
+        "workflowName": "Security"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-11-04T03:54:59Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41769873532/job/126377155059",
+        "name": "后端 · ruff 格式检查（硬护栏）",
+        "startedAt": "2026-11-04T03:54:50Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-11-04T03:55:55Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41769873558/job/126376910488",
+        "name": "container",
+        "startedAt": "2026-11-04T03:54:02Z",
+        "status": "COMPLETED",
+        "workflowName": "Security"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-11-04T03:58:26Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41769873532/job/126377155524",
+        "name": "后端 · pytest（PostgreSQL · 硬护栏）",
+        "startedAt": "2026-11-04T03:54:50Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-11-04T03:56:16Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41769873532/job/126377155390",
+        "name": "Docker · 镜像构建验证（硬护栏）",
+        "startedAt": "2026-11-04T03:54:50Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-11-04T03:55:46Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41769873532/job/126377155284",
+        "name": "Lint 报告（软护栏 · 不阻断）",
+        "startedAt": "2026-11-04T03:54:50Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      }
+    ]
+  },
+  "merge": {
+    "mergeCommit": {
+      "oid": "e0744d047e42c7f19e9740a8665efff44bb4b448"
+    },
+    "mergedAt": "2026-11-04T04:01:51Z",
+    "url": "https://github.com/OpenLimsAI/mb-pm/pull/156"
+  },
+  "production": {
+    "prepared": {
+      "source": "e0744d047e42c7f19e9740a8665efff44bb4b448",
+      "image": "sha256:41bad2398ead99750d977fde5e9e9d1e859fe82390b36d0817501fdb2b856655",
+      "previous_image": "sha256:fea09b49a217be8e4b3f0e99f8ae1175299fe9543c643b077b5e6dcd918da7c8",
+      "backend_files_from_main": 167,
+      "column_bundle": {
+        "wbs_bundle_markers": 10,
+        "wbs_css_contracts": 10,
+        "column_resize_markers": 4
+      },
+      "static_sha256": "66bbf360a1fe7e421849d0d44c39bff9146f1691e281b70d0fc6b1d352232316",
+      "release_directory": "/home/prometheus/mb-pm-v2/releases/pm-p1-e0744d0-20261103",
+      "source_sha256": "3c70d9020c41d6930fcfc578912076220e55367a566a6857bcaa423bc7847361",
+      "built_sha256": "d9543c4b02be75cc18e608a9827292947bbf5a1512b8eddfe7c5817b895391ac"
+    },
+    "security_scan": {
+      "source": "e0744d047e42c7f19e9740a8665efff44bb4b448",
+      "image": "sha256:41bad2398ead99750d977fde5e9e9d1e859fe82390b36d0817501fdb2b856655",
+      "image_config_sha256": "sha256:7c40fe21e11253158d2bb369bb0d2c89c2cedfffcefb20979f5e5b67177999ea",
+      "high_critical_fixable_vulnerabilities": 0,
+      "scanner": "aquasec/trivy@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c",
+      "database": {
+        "Version": 2,
+        "NextUpdate": "2026-11-04T19:16:30.092558916Z",
+        "UpdatedAt": "2026-11-03T19:16:30.092559407Z",
+        "DownloadedAt": "2026-11-03T23:18:18.079262168Z"
+      }
+    },
+    "production": {
+      "source": "e0744d047e42c7f19e9740a8665efff44bb4b448",
+      "image": "sha256:41bad2398ead99750d977fde5e9e9d1e859fe82390b36d0817501fdb2b856655",
+      "previous_image": "sha256:fea09b49a217be8e4b3f0e99f8ae1175299fe9543c643b077b5e6dcd918da7c8",
+      "instances": 2,
+      "preserved_files": [
+        "/home/prometheus/mb-pm-v2/compose.yml",
+        "/home/prometheus/mb-pm-v2/compose.production.yml",
+        "/home/prometheus/mb-pm-v2/compose.direct.yml",
+        "/home/prometheus/mb-pm-v2/releases/header-9516977/compose.no-note-sync.yml",
+        "/home/prometheus/mb-pm-v2/releases/assistant-dikw-e294fdc/compose.knowledge.private.yml",
+        "/home/prometheus/mb-pm-v2/releases/knowledge-sources-687bddc-20261101/compose.knowledge-sources.yml",
+        "/home/prometheus/mb-pm-v2/releases/deepseek-search-99ca39d-20261101/compose.deepseek-search.yml",
+        "/home/prometheus/security-hardening-20261102/limits-1.json",
+        "/home/prometheus/security-hardening-20261102/pm-release-cd02021/compose.security.active.yml",
+        "/home/prometheus/mb-pm-v2/releases/report-workbench-e33b48d-20261102/compose.report-workbench.yml",
+        "/home/prometheus/mb-pm-v2/releases/efficient-workspace-c6e4b9f-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/knowledge-sso-20261102/application-switch/group-0.active.json",
+        "/home/prometheus/mb-pm-v2/releases/report-editor-layout-48401af-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/assistant-scope-8147c1d-20261102-r2/compose.assistant-scope.yml",
+        "/home/prometheus/mb-pm-v2/releases/reference-papers-b79f0da-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/assistant-layout-642e187-20261103-r2/compose.assistant-layout.yml",
+        "/home/prometheus/mb-pm-v2/releases/project-actions-c304a1e-20261103-r2/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/gantt-263e10c-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/wbs-workspace-21252b6-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/column-resize-f56ee9b-20261103/rollout/pm.fixed-images.json"
+      ],
+      "verification": [
+        {
+          "nonroot_uid": 10001,
+          "runtime_role": "maibo_pm_runtime",
+          "elevated_db_flags": false,
+          "business_constraints": {
+            "projects": 4,
+            "sub_projects": 2,
+            "tasks": 7,
+            "project_finances": 1
+          },
+          "core_connection": "verified_readonly",
+          "source_count": 331,
+          "production_api_build": true,
+          "source": "e0744d047e42c7f19e9740a8665efff44bb4b448",
+          "csp": true,
+          "anonymous_api": 401,
+          "persistent_data_readable": true
+        },
+        {
+          "nonroot_uid": 10001,
+          "runtime_role": "maibo_pm_runtime",
+          "elevated_db_flags": false,
+          "business_constraints": {
+            "projects": 4,
+            "sub_projects": 2,
+            "tasks": 7,
+            "project_finances": 1
+          },
+          "core_connection": "verified_readonly",
+          "source_count": 331,
+          "production_api_build": true,
+          "source": "e0744d047e42c7f19e9740a8665efff44bb4b448",
+          "csp": true,
+          "anonymous_api": 401,
+          "persistent_data_readable": true
+        }
+      ],
+      "migrations": "additive-pm-p1",
+      "tables_checked": 53,
+      "pm_business_values_preserved": true,
+      "prior_record_ids_preserved": true,
+      "prior_assistant_messages_preserved": true,
+      "model_settings_preserved": true,
+      "backend_files_changed": [
+        "alembic/versions/2026_11_03_0400-020_pm_execution.py",
+        "app/api/v1/baselines.py",
+        "app/api/v1/planning.py",
+        "app/api/v1/pm_management.py",
+        "app/api/v1/pm_views.py",
+        "app/api/v1/task_collaboration.py",
+        "app/api/v1/task_dependencies.py",
+        "app/api/v1/tasks.py",
+        "app/db/upgrade.py",
+        "app/main.py",
+        "app/models/__init__.py",
+        "app/models/audit_log.py",
+        "app/models/planning.py",
+        "app/models/pm_management.py",
+        "app/models/pm_view.py",
+        "app/models/task.py",
+        "app/models/task_collaboration.py",
+        "app/schemas/assistant.py",
+        "app/schemas/task.py",
+        "app/services/answer_modes.py",
+        "app/services/assistant.py",
+        "app/services/assistant_artifacts.py",
+        "app/services/assistant_knowledge.py",
+        "app/services/assistant_operations.py",
+        "app/services/assistant_requests.py",
+        "app/services/assistant_retrieval.py",
+        "app/services/assistant_sources.py",
+        "app/services/assistant_tool_chat.py",
+        "app/services/planning.py",
+        "app/services/web_search.py"
+      ],
+      "restore_proof": {
+        "isolated_restore": true,
+        "tables_restored": 43,
+        "network": "none",
+        "ports_published": false,
+        "temporary_database_removed": true
+      }
+    },
+    "synthetic_smoke": {
+      "isolated": true,
+      "ports_exposed": false,
+      "production_database_access": false,
+      "result": "schema upgrade complete\nschema upgrade complete\nisolated old-to-new upgrade twice, 10 tables, old rows preserved, new APIs and DML passed"
+    },
+    "pm_business_values": {
+      "tables": [
+        "project_baselines",
+        "project_finances",
+        "project_members",
+        "projects",
+        "sub_projects",
+        "task_dependencies",
+        "tasks"
+      ],
+      "hashes": {
+        "projects": "09cc9278ee32b04970e13df936f1799f291557e6ea16015eee597bc56e2ca466",
+        "sub_projects": "6184ce79bb40c9d6ff42d0b21e2bce5b84decc051af2bf40702b03fa7b7ff738",
+        "tasks": "c2a313c71f40c5a07a08bed15c94eacaacfaa8c515e2a68ba4d8431033df3c91",
+        "task_dependencies": "62c3cc82f80553e6100ef1da4c59ae77b4052de553977264650da436d4fa7daf",
+        "project_finances": "4ba2e22b29b09e148ddd0ae49558acf989352aad0a46283bae67056b1299575f",
+        "project_baselines": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "project_members": "efe9dd619e292a567f7db476eef3baab6c97f8c18e87cdc96118fe9dc8ab9442"
+      },
+      "all_unchanged": true
+    },
+    "live": [
+      {
+        "name": "/mb-pm-v2-app-1",
+        "image": "sha256:41bad2398ead99750d977fde5e9e9d1e859fe82390b36d0817501fdb2b856655",
+        "health": "healthy",
+        "started": "2026-11-04T04:10:51.625833827Z",
+        "compose_files": 21
+      },
+      {
+        "name": "/mb-pm-v2-app-direct-1",
+        "image": "sha256:41bad2398ead99750d977fde5e9e9d1e859fe82390b36d0817501fdb2b856655",
+        "health": "healthy",
+        "started": "2026-11-04T04:10:51.624537034Z",
+        "compose_files": 21
+      }
+    ],
+    "backup": {
+      "directory": "/home/prometheus/mb-pm-v2/releases/pm-p1-e0744d0-20261103/rollout/private-backup",
+      "mode": "0o700",
+      "encrypted_database_bytes": 3369877,
+      "rollback_command_file": "/home/prometheus/mb-pm-v2/releases/pm-p1-e0744d0-20261103/rollout/rollback-command.json"
+    },
+    "checked_at_utc": "2026-11-04T04:13:33.712265+00:00"
+  },
+  "public": {
+    "checked_at_utc": "2026-11-04T04:13:21.714997+00:00",
+    "source": "e0744d047e42c7f19e9740a8665efff44bb4b448",
+    "checks": [
+      {
+        "url": "https://pm.openlims.ai/health",
+        "expected_status": 200,
+        "status": 200,
+        "passed": true
+      },
+      {
+        "url": "https://pm.openlims.ai/build-info.json",
+        "expected_status": 200,
+        "status": 200,
+        "source": "e0744d047e42c7f19e9740a8665efff44bb4b448",
+        "passed": true
+      },
+      {
+        "url": "https://pm.openlims.ai/gantt",
+        "expected_status": 200,
+        "status": 200,
+        "index_sha256": "12f43b67d0a52d8a4a9a1f099ebd6eb5b49b787579c1f1a0a4a876785f0d8ae1",
+        "cloudflare_analytics_scripts_removed": 1,
+        "normalized_index_sha256": "d08862482f4447bc527c68eb827d477922b15423b0d10812159e86562f4a04aa",
+        "index_matches_image_after_known_edge_injection": true,
+        "passed": true
+      },
+      {
+        "url": "https://pm.openlims.ai/api/v1/projects",
+        "expected_status": 401,
+        "status": 401,
+        "passed": true
+      },
+      {
+        "url": "https://www.openlims.ai/health",
+        "expected_status": 200,
+        "status": 200,
+        "passed": true
+      },
+      {
+        "url": "https://www.openlims.ai/build-info.json",
+        "expected_status": 200,
+        "status": 200,
+        "source": "e0744d047e42c7f19e9740a8665efff44bb4b448",
+        "passed": true
+      },
+      {
+        "url": "https://www.openlims.ai/login",
+        "expected_status": 200,
+        "status": 200,
+        "index_sha256": "12f43b67d0a52d8a4a9a1f099ebd6eb5b49b787579c1f1a0a4a876785f0d8ae1",
+        "cloudflare_analytics_scripts_removed": 1,
+        "normalized_index_sha256": "d08862482f4447bc527c68eb827d477922b15423b0d10812159e86562f4a04aa",
+        "index_matches_image_after_known_edge_injection": true,
+        "passed": true
+      },
+      {
+        "url": "https://www.openlims.ai/api/v1/projects",
+        "expected_status": 401,
+        "status": 401,
+        "passed": true
+      }
+    ],
+    "all_passed": true
+  },
+  "browser": {
+    "method": "native Chrome via CUA",
+    "identity": "existing administrator session",
+    "checks": [
+      "project list and named view controls render",
+      "business date and sync timestamp render",
+      "project management routes render without error",
+      "expense forecast reads existing cumulative costs",
+      "data-quality items open corresponding task URL",
+      "task drawer shows actual cost and progress inputs",
+      "collaboration metadata and delivery controls load"
+    ],
+    "business_writes": false,
+    "verification_tab_closed": true,
+    "original_tab_restored": true
+  },
+  "synthetic": {
+    "task": {
+      "checks": [
+        "member_progress_effort_cost_single_save_without_protected_fields",
+        "scoped_comment_with_real_mention",
+        "immutable_link_file_versions_and_authorized_download",
+        "server_persistence_after_reload",
+        "two_page_revision_conflict_preserves_draft_and_explicit_rebase",
+        "milestone_config_submit_designated_reviewer_acceptance_and_rollup"
+      ],
+      "errors": []
+    },
+    "management": {
+      "checks": [
+        "register-create-edit-close",
+        "cost-create-forecast-void-preserve-history",
+        "real-changes-and-weekly-download",
+        "notification-daily-pause-escape",
+        "quality-task-deep-link"
+      ],
+      "errors": []
+    },
+    "navigation": {
+      "checks": [
+        "named_view_restored_in_second_browser_context",
+        "global_task_search_direct_link_and_reload"
+      ],
+      "errors": []
+    }
+  },
+  "planning": {
+    "baselineCreated": true,
+    "calendarSaved": true,
+    "lockConflict": true,
+    "scheduleApplied": true,
+    "pageErrors": [],
+    "calendarDiff": true,
+    "reloadPersistence": true,
+    "capacitySaved": true,
+    "capacityReload": true,
+    "zeroCapacityVisible": true,
+    "scope": "isolated synthetic local API/UI only",
+    "screenshots": [
+      "planning-lock-conflict.png",
+      "planning-applied.png",
+      "planning-baseline-diff.png",
+      "planning-workload-capacity.png",
+      "planning-workload-zero.png"
+    ]
+  }
+}
