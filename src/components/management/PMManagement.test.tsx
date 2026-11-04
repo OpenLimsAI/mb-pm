@@ -9,7 +9,7 @@ const state = vi.hoisted(() => ({ role: 'admin', register: vi.fn(), costs: vi.fn
 vi.mock('../../api/pmManagement', () => ({ pmManagement: state, managementError: (error: Error) => error.message }))
 vi.mock('../../store/auth', () => ({ useAuth: (selector: (s: unknown) => unknown) => selector({ currentUser: { role: state.role } }) }))
 vi.mock('../../store/data', () => ({ useDataStore: (selector: (s: unknown) => unknown) => selector({ mode: 'api', version: 0 }) }))
-vi.mock('../../mock', () => ({ users: [{ id: 'owner', displayName: '负责人', isActive: true }], getProjectTasks: () => [{ id: 'task-1', name: '实验任务' }] }))
+vi.mock('../../mock', () => ({ TODAY: new Date(2026, 10, 4), users: [{ id: 'owner', displayName: '负责人', isActive: true }], getProjectTasks: () => [{ id: 'task-1', name: '实验任务' }] }))
 const project = { id: 'project-1', code: 'P1', name: '试验项目', ownerId: 'owner', memberIds: [] } as unknown as Project
 function mount() { return render(<MemoryRouter><PMManagement project={project} /></MemoryRouter>) }
 beforeEach(() => {
