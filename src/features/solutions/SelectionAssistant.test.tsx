@@ -31,6 +31,15 @@ function openPolish(body: HTMLTextAreaElement) {
 beforeEach(() => { localStorage.setItem('ks-editor-mode', 'markdown') })
 
 describe('selected report text assistant', () => {
+  it('keeps reference-bearing selections available for questions while preventing destructive polish', () => {
+    const { body, polish } = mount('结论[[cite:stable-ref]]及条件')
+    select(body, 0, body.value.length)
+    expect(screen.getByRole('button', { name: 'Polish 文字' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '询问 AI' })).toBeEnabled()
+    expect(polish).not.toHaveBeenCalled()
+    expect(body.value).toContain('[[cite:stable-ref]]')
+  })
+
   it('offers two actions after selecting text, without sending requests or editing', () => {
     const { body, ask, polish, edit } = mount()
     select(body)
@@ -80,6 +89,20 @@ describe('selected report text assistant', () => {
     expect(body).toHaveValue('前文。重复文字。重复文字。后文。')
     fireEvent.click(screen.getByRole('button', { name: '重做正文编辑' }))
     expect(body).toHaveValue('前文。重复文字。专家修订。后文。')
+  })
+
+  it('lets the author keep one original sentence and adopt another AI change', async () => {
+    const { body, polish } = mount('原来结论。保持句。原来建议。')
+    polish.mockResolvedValueOnce({ content: '修订结论。保持句。修订建议。', model: 'test', mode: 'ai' })
+    select(body, 0, body.value.length)
+    fireEvent.click(screen.getByRole('button', { name: 'Polish 文字' }))
+    const dialog = screen.getByRole('dialog', { name: 'Polish 文字 · 润色' })
+    fireEvent.click(within(dialog).getByRole('button', { name: '开始润色' }))
+    await within(dialog).findByRole('textbox', { name: '润色后的文字' })
+    fireEvent.click(within(dialog).getAllByRole('button', { name: '保留此处原文' })[0])
+    expect(within(dialog).getByRole('textbox', { name: '润色后的文字' })).toHaveValue('原来结论。保持句。修订建议。')
+    fireEvent.click(within(dialog).getByRole('button', { name: '替换选中文字' }))
+    expect(body).toHaveValue('原来结论。保持句。修订建议。')
   })
 
   it('keeps the original after a failure or cancellation and permits retrying', async () => {

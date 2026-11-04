@@ -12,6 +12,8 @@ const savedSizes = {
 const allVisible = { editor: true, knowledge: true, ai: true }
 
 beforeEach(() => {
+  Range.prototype.getBoundingClientRect = () => ({ x: 0, y: 0, width: 100, height: 20, top: 0, right: 100, bottom: 20, left: 0, toJSON: () => ({}) })
+  Range.prototype.getClientRects = () => ({ length: 0, item: () => null, [Symbol.iterator]: function* () {} }) as unknown as DOMRectList
   localStorage.clear()
   sessionStorage.clear()
   localStorage.setItem('ks-writing-mode', 'split')

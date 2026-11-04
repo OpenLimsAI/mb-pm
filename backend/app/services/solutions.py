@@ -16,7 +16,7 @@ from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import and_, or_, select, update
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from app.models import IAMIdentity, User
 from app.models.solution import (
@@ -93,6 +93,14 @@ def readable(claims):
         KnowledgeSolution.deleted_at.is_(None),
         or_(
             KnowledgeSolution.owner_id == claims["sub"],
+            select(SolutionEvent.id)
+            .where(
+                SolutionEvent.solution_id == KnowledgeSolution.id,
+                SolutionEvent.action == "report_member",
+                SolutionEvent.actor_id == claims["sub"],
+                SolutionEvent.details["role"].as_string().in_(("editor", "commenter")),
+            )
+            .exists(),
             and_(
                 KnowledgeSolution.reviewer_id == claims["sub"],
                 KnowledgeSolution.status.in_(("in_review", "final")),
@@ -101,7 +109,7 @@ def readable(claims):
     )
 
 
-def get_solution(db, solution_id, claims, *, owner=False):
+def get_solution(db, solution_id, claims, *, owner=False, edit=False):
     row = db.scalar(
         select(KnowledgeSolution).where(KnowledgeSolution.id == solution_id, readable(claims))
     )
@@ -109,6 +117,10 @@ def get_solution(db, solution_id, claims, *, owner=False):
         raise HTTPException(404, "报告不存在或无权访问")
     if owner and row.owner_id != claims["sub"]:
         raise HTTPException(403, "只有报告作者可执行此操作")
+    if edit:
+        from app.services.report_collaboration import check_edit
+
+        check_edit(db, row, claims)
     return row
 
 
@@ -133,10 +145,18 @@ def solution_out(row, claims=None):
         "reviewer_name",
         "review_notes",
     )
+    from app.services.report_collaboration import can_edit
+
+    db = object_session(row)
+    editable = bool(
+        claims
+        and row.status == "draft"
+        and (row.owner_id == claims["sub"] or db and can_edit(db, row, claims))
+    )
     return jsonable_encoder(
         {
             **{name: getattr(row, name) for name in fields},
-            "can_edit": bool(claims and row.owner_id == claims["sub"] and row.status == "draft"),
+            "can_edit": editable,
         }
     )
 
@@ -238,7 +258,7 @@ def visible_source_text(text):
     return " ".join(html.unescape(text).split())
 
 
-def check_references(db, references, claims, *, existing=None):
+def check_references(db, references, claims, *, existing=None, shared=False):
     """References are immutable quotes, never client-supplied assertions about an ID."""
     sources = {
         s.id: s
@@ -248,8 +268,21 @@ def check_references(db, references, claims, *, existing=None):
             )
         )
     }
-    historical = {json.dumps(ref, sort_keys=True) for ref in (existing or [])}
+
+    def signature(ref):
+        return json.dumps(
+            {
+                k: v
+                for k, v in ref.items()
+                if v is not None and k not in ("id", "section_id", "anchor_text", "applicability")
+            },
+            sort_keys=True,
+        )
+
+    historical = {signature(ref) for ref in (existing or [])}
     for ref in references:
+        if shared and not ref["source_id"].startswith("kb:") and signature(ref) in historical:
+            continue
         source = (
             SimpleNamespace(**solution_knowledge.get_source(claims, ref["source_id"]))
             if ref["source_id"].startswith("kb:")
@@ -257,7 +290,7 @@ def check_references(db, references, claims, *, existing=None):
         )
         if not source:
             raise HTTPException(403, "部分引用来源已不可用或无访问权限，请复核引用")
-        if json.dumps(ref, sort_keys=True) in historical:
+        if signature(ref) in historical:
             continue  # Original immutable quote remains tied to its adopted version.
         if ref["source_version"] != source.version:
             raise HTTPException(409, "来源版本不一致，请重新选择引用")
@@ -371,7 +404,13 @@ def save_solution(db, row, payload, claims):
     values["requires_kb"] = row.requires_kb or any(
         ref["source_id"].startswith("kb:") for ref in values["references"]
     )
-    check_references(db, values["references"], claims, existing=row.references)
+    check_references(
+        db,
+        values["references"],
+        claims,
+        existing=row.references,
+        shared=row.owner_id != claims["sub"],
+    )
     from app.services.solution_workbench import automatic_snapshot
 
     automatic_snapshot(db, row, claims, values)

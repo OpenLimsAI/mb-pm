@@ -17,6 +17,13 @@ from app.api.v1 import portal
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.solution import KnowledgeSolution, SolutionAnswer, SolutionSource
+from app.schemas.report_collaboration import (
+    CommentInput,
+    MemberInput,
+    NoteLinkInput,
+    PresenceInput,
+    ResolveCommentInput,
+)
 from app.schemas.solution import (
     AskInput,
     PolishInput,
@@ -28,12 +35,14 @@ from app.schemas.solution import (
     SolutionSave,
     SourceInput,
     TemplateInput,
+    TemplateShareInput,
     TopicInput,
     TopicRevision,
 )
 from app.schemas.solution_ai import ModelSettingsInput, ModelTestInput
 from app.services import assistant_diagnostics as diagnostics
 from app.services import password_policy, solution_ai, solution_knowledge
+from app.services import report_collaboration as collaboration
 from app.services import solution_workbench as workbench
 from app.services import solutions as service
 
@@ -259,7 +268,10 @@ def source_detail(
         row = service.get_solution(db, solution_id, claims)
         service.check_solution_evidence(db, row, claims)
         refs = [ref for ref in row.references if ref["source_id"] == source_id]
-        if refs and row.reviewer_id == claims["sub"]:
+        if refs and (
+            row.reviewer_id == claims["sub"]
+            or collaboration.member(db, row, claims) in ("editor", "commenter")
+        ):
             # Reviewer sees only the explicitly granted quote, not the author's library.
             ref = refs[0]
             return {
@@ -289,6 +301,16 @@ def create_template(
     payload: TemplateInput, db: Session = Depends(get_db), claims: dict = Depends(identity)
 ):
     return workbench.create_template(db, payload, claims)
+
+
+@router.put("/templates/{template_id}/sharing")
+def share_template(
+    template_id: str,
+    payload: TemplateShareInput,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    return workbench.share_template(db, template_id, payload, claims)
 
 
 @router.delete("/templates/{template_id}", status_code=204)
@@ -375,7 +397,7 @@ def save(
     db: Session = Depends(get_db),
     claims: dict = Depends(identity),
 ):
-    row = service.get_solution(db, solution_id, claims, owner=True)
+    row = service.get_solution(db, solution_id, claims, edit=True)
     return service.save_solution(db, row, payload, claims)
 
 
@@ -483,3 +505,80 @@ def publish(solution_id: str, db: Session = Depends(get_db), claims: dict = Depe
         return service.publish(
             db, service.get_solution(db, solution_id, claims, owner=True), claims
         )
+
+
+@router.get("/{solution_id}/collaboration")
+def report_collaboration(
+    solution_id: str, db: Session = Depends(get_db), claims: dict = Depends(identity)
+):
+    return collaboration.collaboration(db, service.get_solution(db, solution_id, claims), claims)
+
+
+@router.put("/{solution_id}/collaboration/members/{subject}", status_code=204)
+def report_member(
+    solution_id: str,
+    subject: str,
+    payload: MemberInput,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    collaboration.save_member(
+        db, service.get_solution(db, solution_id, claims, owner=True), subject, payload, claims
+    )
+    return Response(status_code=204)
+
+
+@router.post("/{solution_id}/collaboration/comments", status_code=201)
+def report_comment(
+    solution_id: str,
+    payload: CommentInput,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    collaboration.create_comment(db, service.get_solution(db, solution_id, claims), payload, claims)
+    return {"saved": True}
+
+
+@router.put("/{solution_id}/collaboration/comments/{comment_id}", status_code=204)
+def resolve_report_comment(
+    solution_id: str,
+    comment_id: str,
+    payload: ResolveCommentInput,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    collaboration.resolve_comment(
+        db, service.get_solution(db, solution_id, claims), comment_id, payload, claims
+    )
+    return Response(status_code=204)
+
+
+@router.put("/{solution_id}/collaboration/presence")
+def report_presence(
+    solution_id: str,
+    payload: PresenceInput,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    return collaboration.heartbeat(
+        db, service.get_solution(db, solution_id, claims), payload, claims
+    )
+
+
+@router.get("/{solution_id}/note-links")
+def report_note_links(
+    solution_id: str, db: Session = Depends(get_db), claims: dict = Depends(identity)
+):
+    return collaboration.note_links(db, service.get_solution(db, solution_id, claims), claims)
+
+
+@router.post("/{solution_id}/note-links", status_code=201)
+def report_link_note(
+    solution_id: str,
+    payload: NoteLinkInput,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    return collaboration.link_note(
+        db, service.get_solution(db, solution_id, claims, edit=True), payload, claims
+    )

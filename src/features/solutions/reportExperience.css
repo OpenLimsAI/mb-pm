@@ -1,0 +1,14 @@
+.ks-workbench-tools { width:min(960px,94vw); max-height:90vh; overflow:auto; color:#294659; }
+.ks-tools-tabs,.ks-plan-steps { display:flex; flex-wrap:wrap; gap:8px; padding:12px 0; border-bottom:1px solid #dce6ef; margin-bottom:18px; }
+.ks-tools-tabs [aria-pressed=true],.ks-plan-steps [aria-pressed=true] { background:#e5f2fa; border-color:#9fc3de; color:#234d76; }
+.ks-quality-items { padding-left:24px; }
+.ks-quality-items li { padding:14px; margin:10px 0; border:1px solid #dce6ef; border-radius:8px; }
+.ks-quality-items blockquote { margin:8px 0; padding:8px 12px; background:#f4f8fb; border-left:3px solid #b5cbdc; white-space:pre-wrap; }
+.ks-reuse-results { display:grid; gap:12px; }
+.ks-reuse-results article { border:1px solid #dce6ef; padding:16px; border-radius:8px; }
+.ks-reuse-results small { display:block; color:#6e8799; margin-top:6px; }
+.ks-reuse-results .ks-button { margin:4px 8px 4px 0; }
+.ks-plan-sources { display:grid; gap:10px; max-height:280px; overflow:auto; margin:16px 0; }
+.ks-plan-sources label { display:flex; align-items:center; gap:10px; padding:10px; background:#f4f8fb; border-radius:6px; }
+.ks-workbench-tools textarea { line-height:1.8; }
+@media(max-width:600px) { .ks-workbench-tools { padding:16px; } .ks-tools-tabs .ks-button { flex:1; font-size:12px; } }

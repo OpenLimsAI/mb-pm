@@ -1,3 +1,5 @@
+import { createPreviewNotesClient } from '../notes/client'
+import type { ReportCollaboration, ReportNoteLink } from './types'
 import { previewCapabilities, previewProvenance, previewWebAnswer } from '../answerModes/preview'
 import type { Answer, KnowledgeSource, Solution, SolutionClient, SolutionInput, Version, ReportTemplate, TopicMetadata } from './types'
 import { emptySolution } from './template'
@@ -7,7 +9,7 @@ import { libraryEmbedUrl, validLibraryPath } from './libraryEmbed'
 const now = () => new Date().toISOString()
 const uid = () => crypto.randomUUID()
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T
-interface DemoState { templates?: ReportTemplate[]; topics?: Record<string, TopicMetadata[]>; trash?: { solution: Solution; deletedAt: string }[]; solutions: Solution[]; sources: KnowledgeSource[]; versions: Record<string, Version[]>; answers: Record<string, Answer[]> }
+interface DemoState { collaboration?: Record<string, ReportCollaboration>; noteLinks?: Record<string, ReportNoteLink[]>; templates?: ReportTemplate[]; topics?: Record<string, TopicMetadata[]>; trash?: { solution: Solution; deletedAt: string }[]; solutions: Solution[]; sources: KnowledgeSource[]; versions: Record<string, Version[]>; answers: Record<string, Answer[]> }
 
 function initialState(userId: string, userName: string): DemoState {
   const input = emptySolution('缓冲体系选择与验证报告')
@@ -53,11 +55,25 @@ export function createDemoClient(namespace: string, userId: string, userName: st
   function changed(s: Solution) { s.revision++; s.updatedAt = now(); s.canEdit = s.status === 'draft' }
   function verify(s: Solution, revision: number) { if (s.revision !== revision) throw Object.assign(new Error('报告已在其他页面更新，请先重新载入并比较当前草稿。'), { status: 409 }) }
   function newSolution(input: SolutionInput): Solution { return { ...clone(input), id: uid(), ownerId: userId, ownerName: userName, status: 'draft', revision: 1, version: 1, updatedAt: now(), reviewerId: null, reviewerName: '', reviewNotes: '', canEdit: true } }
+  function collaboration(state: DemoState, id: string): ReportCollaboration {
+    const s = get(state, id)
+    const current = (state.collaboration ||= {})[id] ||= { revision: s.revision, canManage: true, members: [{ id: userId, name: userName, role: 'owner' }], comments: [], presence: [] }
+    current.revision = s.revision
+    return current
+  }
   const client: SolutionClient = {
+    collaboration: async id => clone(collaboration(read(), id)),
+    saveMember: async () => { throw new Error('本地预览仅演示当前账号；请在真实登录模式中添加组织协作者。') },
+    comment: async (id, input) => { const state = read(), s = get(state, id), current = collaboration(state, id); if (!s.sections.some(section => section.id === input.sectionId)) throw new Error('章节不存在'); if (input.parentId && !current.comments.some(c => c.id === input.parentId && !c.parentId && c.sectionId === input.sectionId)) throw new Error('批注线程不存在'); current.comments.push({ ...input, id: uid(), actorId: userId, actorName: userName, parentId: input.parentId || null, resolved: false, revision: 1, createdAt: now() }); write(state) },
+    resolveComment: async (id, commentId, revision, resolved) => { const state = read(), current = collaboration(state, id), comment = current.comments.find(c => c.id === commentId); if (!comment || comment.revision !== revision) throw new Error('批注已更新，请刷新'); comment.resolved = resolved; comment.revision++; write(state) },
+    presence: async (id, sectionId) => { const state = read(), current = collaboration(state, id); current.presence = [{ actorId: userId, actorName: userName, sectionId, seenAt: now() }]; write(state); return clone(current) },
+    noteLinks: async id => clone(read().noteLinks?.[id] || []),
+    linkNote: async (id, noteId, sectionId, expectedRevision) => { const note = await createPreviewNotesClient(`${namespace}:${userId}`, storage).get!(noteId); const state = read(), report = get(state, id); if (expectedRevision !== undefined && note.revision !== expectedRevision) throw new Error('笔记已在其他页面更新，请重新比较后重试。'); const target = report.sections.find(section => section.id === sectionId); if (!target?.content.includes(note.content)) throw new Error('请先将笔记内容成功保存到报告，再更新来源关联'); const link = { id: `${sectionId}:${noteId}`, noteId, sectionId, noteTitle: note.title, noteRevision: note.revision, content: note.content }; const links = (state.noteLinks ||= {})[id] ||= []; state.noteLinks[id] = [...links.filter(v => v.id !== link.id), link]; write(state); return clone(link) },
     snapshot: async (id, revision, name) => { const state = read(), s = get(state, id); verify(s, revision); changed(s); snapshot(state, s, name); write(state); return clone(state.versions[id][0]) },
     restoreSection: async (id, versionId, revision, sectionId) => { const state = read(), s = get(state, id); verify(s, revision); const version = state.versions[id]?.find(v => v.id === versionId), section = version?.snapshot.sections.find(v => v.id === sectionId); if (!section) throw new Error('历史章节不存在'); snapshot(state, s, '恢复章节前'); const restored = { ...clone(section), parentId: s.sections.some(v => v.id === section.parentId) ? section.parentId : null }; s.sections = s.sections.some(v => v.id === sectionId) ? s.sections.map(v => v.id === sectionId ? restored : v) : [...s.sections, restored]; s.references = [...s.references.filter(r => r.sectionId !== sectionId), ...clone(version!.snapshot.references.filter(r => r.sectionId === sectionId))]; changed(s); write(state); return clone(s) },
     templates: async () => clone(read().templates || []),
-    createTemplate: async (name, sections) => { const state = read(), value = { id: uid(), name, sections: clone(sections), createdAt: now() }; (state.templates ||= []).push(value); write(state); return clone(value) },
+    createTemplate: async (name, sections, sharing) => { const state = read(), value = { id: uid(), name, sections: clone(sections), createdAt: now(), shared: sharing?.shared || false, sourceSolutionId: sharing?.sourceSolutionId, canDelete: true }; (state.templates ||= []).push(value); write(state); return clone(value) },
+    shareTemplate: async (id, sharing) => { const state = read(), template = state.templates?.find(item => item.id === id); if (!template || template.canDelete === false) throw new Error('模板不存在或不是模板作者'); Object.assign(template, sharing); write(state); return clone(template) },
     deleteTemplate: async id => { const state = read(); state.templates = (state.templates || []).filter(t => t.id !== id); write(state) },
     topics: async id => clone(read().topics?.[id] || []),
     saveTopic: async (id, topic) => { const state = read(); get(state,id); const list = (state.topics ||= {})[id] ||= []; const current = list.find(t => t.id === topic.id); if ((current?.revision || 0) !== topic.revision) throw new Error('主题已更新，请重新打开报告'); const saved = { ...topic, revision: topic.revision + 1 }; state.topics[id] = [...list.filter(t => t.id !== topic.id), saved]; write(state); return clone(saved) },
