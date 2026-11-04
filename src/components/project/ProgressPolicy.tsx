@@ -69,6 +69,9 @@ export function ProgressPolicy({ project }: { project: Project }) {
     } finally { if (epoch === generation.current) setBusy(false) }
   }
   const shown = preview ?? current
+  const storedProgress = shown?.storedProgress
+  const currentCalculatedProgress = preview?.beforeProgress ?? current?.progress
+  const hasStoredDifference = storedProgress !== undefined && currentCalculatedProgress !== undefined && storedProgress !== currentCalculatedProgress
   return <Card><CardHeader title="进度计算规则" subtitle="查看每项任务对项目进度的贡献。修改规则先预览，再填写原因保存。" /><CardBody className="space-y-4">
     {!online && <p className="text-sm text-ink-500">连接后端后可查看并配置真实项目的计算规则。</p>}
     {online && !current && <Button disabled={busy} onClick={() => void load()}>{busy ? '正在载入…' : '重新载入计算规则'}</Button>}
@@ -83,7 +86,8 @@ export function ProgressPolicy({ project }: { project: Project }) {
     </>}
     {shown && <>
       <div className="bg-brand-50 rounded-lg p-3 text-sm" aria-live="polite">
-        <p className="font-medium">{preview ? `预览：${preview.beforeProgress}% → ${preview.progress}%` : `当前计算：${shown.progress}%`} · {names[shown.method]}</p>
+        <p className="font-medium">{preview ? `预览：${preview.storedProgress ?? preview.beforeProgress}% → ${preview.progress}%` : `当前计算：${shown.progress}%`} · {names[shown.method]}</p>
+        {hasStoredDifference && <p className="mt-1 text-amber-800">当前记录{storedProgress}%，按当前规则重算{currentCalculatedProgress}%；保存规则或后续更新任务后同步。</p>}
         <p className="mt-1">{amount(shown.numerator)} ÷ {amount(shown.denominator)} = {amount(shown.exactProgress)}%，显示为 {shown.progress}%</p>
         {!shown.denominator && <p className="mt-1 text-amber-800">总权重为 0，当前规则下进度为 0%。可补充预计工时或自定义权重。</p>}
         {!!current?.hiddenTaskCount && <p className="mt-1">项目汇总包含 {current.hiddenTaskCount} 项当前账号不可查看的任务，下表仅显示有权访问的任务。</p>}

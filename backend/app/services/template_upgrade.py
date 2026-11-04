@@ -28,6 +28,7 @@ from app.models.planning import ProjectCalendar
 from app.models.task_collaboration import TaskAcceptance, TaskActivity, TaskDeliverable
 from app.models.template_upgrade import ProjectTemplateState
 from app.schemas.structure import StructureSubIn, StructureTaskIn
+from app.schemas.template import validate_template_structure
 from app.services.planning import calendar_dict, is_workday, move_workdays
 from app.services.rollup import recompute_project, recompute_subproject
 from app.services.scope import is_full_access
@@ -62,10 +63,79 @@ def digest(value):
     ).hexdigest()
 
 
+# JSON saved through the browser is recursively snake-cased by the API client,
+# while seeded/Excel template versions use the original TemplateNode camel keys.
+# Normalize only known node/predecessor fields into an independent read model;
+# the stored version JSON and stable node IDs are never modified or inferred.
+NODE_ALIASES = {
+    "taskCode": "task_code",
+    "defaultDuration": "default_duration",
+    "defaultEffort": "default_effort",
+    "isMilestone": "is_milestone",
+    "defaultRole": "default_role",
+    "costBudget": "cost_budget",
+    "ctdSection": "ctd_section",
+    "regulatoryRef": "regulatory_ref",
+    "milestoneLabel": "milestone_label",
+    "isCriticalPath": "is_critical_path",
+}
+PREDECESSOR_ALIASES = {"taskCode": "task_code", "lagDays": "lag_days"}
+
+
+def _known_aliases(value, aliases):
+    if not isinstance(value, dict):
+        invalid("模板节点或前置依赖格式无效")
+    result = dict(value)
+    for camel, snake in aliases.items():
+        if camel in value and snake in value:
+            # JSON booleans must not compare equal to numeric 0/1 here.
+            different_type = isinstance(value[camel], bool) != isinstance(value[snake], bool)
+            if different_type or value[camel] != value[snake]:
+                invalid(f"模板字段 {camel} 与 {snake} 的值冲突，请明确保留一致的值")
+        if snake in value:
+            result[camel] = value[snake]
+            result.pop(snake, None)
+    return result
+
+
+def normalized_tree(raw):
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except (TypeError, ValueError):
+            invalid("模板结构不是有效 JSON")
+    count = 0
+
+    def node(value, depth):
+        nonlocal count
+        count += 1
+        if depth > 2 or count > 10000:
+            invalid("模板只支持项目、子项目、任务三级且节点不超过 10000")
+        result = _known_aliases(value, NODE_ALIASES)
+        children = result.get("children")
+        if children is not None:
+            if not isinstance(children, list):
+                invalid("模板子节点必须为列表")
+            result["children"] = [node(child, depth + 1) for child in children]
+        predecessors = result.get("predecessors")
+        if predecessors is not None:
+            if not isinstance(predecessors, list) or len(predecessors) > 200:
+                invalid("模板前置依赖必须为列表且每项任务不超过 200 条")
+            result["predecessors"] = [
+                _known_aliases(pred, PREDECESSOR_ALIASES) for pred in predecessors
+            ]
+        return result
+
+    tree = node(raw, 0)
+    try:
+        validate_template_structure(tree)
+    except ValueError as error:
+        invalid(str(error))
+    return tree
+
+
 def flatten(version):
-    root = version.structure_json
-    if isinstance(root, str):
-        root = json.loads(root)
+    root = normalized_tree(version.structure_json)
     subs, nodes, codes = {}, {}, {}
     for sub in root.get("children", []):
         sid = sub.get("id")

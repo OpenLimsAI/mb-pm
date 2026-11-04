@@ -4,6 +4,8 @@ from copy import deepcopy
 from datetime import UTC, date, datetime
 from uuid import uuid4
 
+import pytest
+
 from app.db.session import SessionLocal
 from app.models import Project, Task, TaskDependency, Template, TemplateVersion
 from app.models.task_collaboration import TaskActivity
@@ -314,3 +316,239 @@ def test_owner_transferred_between_api_check_and_locked_apply_is_rejected(
         assert db.get(Project, pid).owner_id == "t-admin"
         assert db.get(Task, f"{pid}-t1").name == "测试任务 1"
         assert db.get(ProjectTemplateState, pid) is None
+
+
+def stored_case(tree, style):
+    """Simulate browser recursive snakeize versus seed/Excel JSON."""
+    from app.services.template_upgrade import NODE_ALIASES, PREDECESSOR_ALIASES
+
+    result = deepcopy(tree)
+
+    def visit(node, index=0):
+        for key, snake in NODE_ALIASES.items():
+            if key in node and (style == "snake" or (style == "mixed" and index % 2 == 0)):
+                node[snake] = node.pop(key)
+        for i, pred in enumerate(node.get("predecessors") or []):
+            for key, snake in PREDECESSOR_ALIASES.items():
+                if key in pred and (style == "snake" or (style == "mixed" and i % 2 == 0)):
+                    pred[snake] = pred.pop(key)
+        for i, child in enumerate(node.get("children") or []):
+            visit(child, index + i + 1)
+
+    visit(result)
+    return result
+
+
+@pytest.mark.parametrize(
+    "source_style,target_style", [("snake", "camel"), ("camel", "snake"), ("mixed", "mixed")]
+)
+@pytest.mark.parametrize("kind", ["FS", "SS", "FF", "SF"])
+def test_legacy_snake_and_camel_versions_upgrade_without_rewriting_template_json(
+    client, auth_headers, project_factory, source_style, target_style, kind
+):
+    pid, body = setup_project(project_factory)
+    with SessionLocal() as db:
+        project = db.get(Project, pid)
+        project.planned_start = date(2026, 1, 1)
+        rows = db.query(TemplateVersion).filter_by(template_id=project.template_id).all()
+        source = next(v for v in rows if v.version_number == "V1")
+        target = next(v for v in rows if v.version_number == "V2")
+        old = deepcopy(source.structure_json)
+        new = deepcopy(old)
+        node = new["children"][0]["children"][0]
+        node.update(
+            defaultDuration=3,
+            defaultEffort=4,
+            costBudget=0,
+            defaultRole="上游",
+            ctdSection="3.2.S",
+            regulatoryRef="合成参考",
+            milestoneLabel="合成节点说明",
+            isCriticalPath=True,
+        )
+        milestone = new["children"][0]["children"][1]
+        milestone.update(
+            isMilestone=True,
+            defaultDuration=0,
+            defaultEffort=0,
+            costBudget=0,
+            predecessors=[{"taskCode": "T-1", "type": kind, "lagDays": 1}],
+        )
+        new["children"][0]["children"].append(
+            {
+                "id": "n3",
+                "taskCode": "T-3",
+                "name": "新增依赖任务",
+                "defaultDuration": 2,
+                "defaultEffort": 1,
+                "costBudget": 0,
+                "predecessors": [{"taskCode": "T-2", "type": "FS", "lagDays": 2}],
+            }
+        )
+        source.structure_json = stored_case(old, source_style)
+        target.structure_json = stored_case(new, target_style)
+        before = {v.id: deepcopy(v.structure_json) for v in rows}
+        first, second = db.get(Task, f"{pid}-t1"), db.get(Task, f"{pid}-t2")
+        first.planned_start, first.planned_end = date(2026, 1, 1), date(2026, 1, 3)
+        first.status, first.progress = "进行中", 37
+        first.actual_start, first.actual_effort, first.actual_cost = date(2026, 1, 1), 3, 5
+        second.planned_start, second.planned_end = date(2026, 1, 5), date(2026, 1, 9)
+        db.commit()
+    catalog = client.get(url(pid), headers=auth_headers)
+    assert catalog.status_code == 200, catalog.text
+    assert len(catalog.json()["versions"]) == 2
+    snap = preview(client, auth_headers, pid, body)
+    assert not snap["unmapped"]
+    response = apply(client, auth_headers, pid, body, snap)
+    assert response.status_code == 200, response.text
+    assert response.json()["remaining"] == 0 and response.json()["template_version"] == "V2"
+    with SessionLocal() as db:
+        first, second = db.get(Task, f"{pid}-t1"), db.get(Task, f"{pid}-t2")
+        assert first.planned_end == date(2026, 1, 4)
+        assert (first.progress, float(first.actual_effort), float(first.actual_cost)) == (37, 3, 5)
+        assert float(first.estimated_effort) == 4 and float(first.cost_budget) == 0
+        assert (
+            "3.2.S" in first.notes and "合成参考" in first.notes and "合成节点说明" in first.notes
+        )
+        assert second.is_milestone and second.planned_end == second.planned_start == date(
+            2026, 1, 5
+        )
+        dep = (
+            db.query(TaskDependency)
+            .filter_by(predecessor_id=first.id, successor_id=second.id)
+            .one()
+        )
+        assert (dep.type, dep.lag_days) == (kind, 1)
+        added_id = db.get(ProjectTemplateState, pid).task_mapping["n3"]
+        added = db.get(Task, added_id)
+        # New task proposal is anchored to the existing predecessor plan so it
+        # remains safe even if a user elects not to shorten that predecessor.
+        assert (added.planned_start, added.planned_end) == (date(2026, 1, 11), date(2026, 1, 13))
+        assert added.progress == 0 and added.actual_start is None
+        assert {
+            v.id: v.structure_json
+            for v in db.query(TemplateVersion).filter(TemplateVersion.id.in_(before))
+        } == before
+
+
+@pytest.mark.parametrize(
+    "camel,snake,left,right",
+    [
+        ("taskCode", "task_code", "T-1", "T-conflict"),
+        ("defaultDuration", "default_duration", 4, 5),
+        ("defaultEffort", "default_effort", 1, 2),
+        ("isMilestone", "is_milestone", False, True),
+        ("defaultRole", "default_role", "上游", "下游"),
+        ("costBudget", "cost_budget", 0, 1),
+        ("ctdSection", "ctd_section", "3.2.S", "3.2.P"),
+        ("regulatoryRef", "regulatory_ref", "A", "B"),
+        ("milestoneLabel", "milestone_label", "A", "B"),
+        ("isCriticalPath", "is_critical_path", False, True),
+    ],
+)
+def test_conflicting_node_aliases_rejected_without_changes(
+    client, auth_headers, project_factory, camel, snake, left, right
+):
+    pid, body = setup_project(project_factory)
+    with SessionLocal() as db:
+        project = db.get(Project, pid)
+        target = (
+            db.query(TemplateVersion)
+            .filter_by(template_id=project.template_id, version_number="V2")
+            .one()
+        )
+        tree = deepcopy(target.structure_json)
+        tree["children"][0]["children"][0].update({camel: left, snake: right})
+        target.structure_json = tree
+        db.commit()
+    result = client.get(url(pid), headers=auth_headers)
+    assert result.status_code == 422 and "冲突" in result.text
+    result = client.post(url(pid, "preview"), headers=auth_headers, json=body)
+    assert result.status_code == 422 and camel in result.text and snake in result.text
+    with SessionLocal() as db:
+        assert db.get(Task, f"{pid}-t1").name == "测试任务 1"
+        assert db.get(ProjectTemplateState, pid) is None
+
+
+def test_equal_aliases_normalize_on_copy_and_conflicting_predecessor_aliases_reject():
+    from fastapi import HTTPException
+
+    from app.services.template_upgrade import normalized_tree
+
+    tree = {
+        "id": "root",
+        "children": [
+            {
+                "id": "sub",
+                "children": [
+                    {
+                        "id": "n",
+                        "taskCode": "A",
+                        "task_code": "A",
+                        "defaultDuration": 2,
+                        "default_duration": 2,
+                        "predecessors": [
+                            {"taskCode": "B", "task_code": "B", "lagDays": 1, "lag_days": 1}
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+    before = deepcopy(tree)
+    result = normalized_tree(tree)
+    node = result["children"][0]["children"][0]
+    assert node["taskCode"] == "A" and node["defaultDuration"] == 2
+    assert "task_code" not in node and "default_duration" not in node
+    assert node["predecessors"] == [{"taskCode": "B", "lagDays": 1}]
+    assert tree == before
+    for key, value in (("task_code", "C"), ("lag_days", 2)):
+        conflicted = deepcopy(tree)
+        conflicted["children"][0]["children"][0]["predecessors"][0][key] = value
+        with pytest.raises(HTTPException, match="冲突"):
+            normalized_tree(conflicted)
+    bool_number = {"id": "r", "isMilestone": True, "is_milestone": 1}
+    with pytest.raises(HTTPException, match="冲突"):
+        normalized_tree(bool_number)
+
+
+def test_empty_old_version_and_snake_history_do_not_block_catalog(
+    client, auth_headers, project_factory
+):
+    pid, _ = setup_project(project_factory)
+    with SessionLocal() as db:
+        project = db.get(Project, pid)
+        for row in db.query(TemplateVersion).filter_by(template_id=project.template_id):
+            row.structure_json = (
+                {"id": "root", "name": "空白旧版", "children": []}
+                if row.version_number == "V1"
+                else stored_case(row.structure_json, "snake")
+            )
+        db.commit()
+    result = client.get(url(pid), headers=auth_headers)
+    assert result.status_code == 200, result.text
+    rows = {v["version"]: v for v in result.json()["versions"]}
+    assert rows["V1"]["nodes"] == [] and len(rows["V2"]["nodes"]) == 2
+
+
+@pytest.mark.parametrize("damage", ["missing-code", "duplicate-code", "negative-duration"])
+def test_genuinely_damaged_templates_still_rejected(client, auth_headers, project_factory, damage):
+    pid, _ = setup_project(project_factory)
+    with SessionLocal() as db:
+        project = db.get(Project, pid)
+        target = (
+            db.query(TemplateVersion)
+            .filter_by(template_id=project.template_id, version_number="V2")
+            .one()
+        )
+        tree = stored_case(target.structure_json, "snake")
+        nodes = tree["children"][0]["children"]
+        if damage == "missing-code":
+            nodes[0].pop("task_code")
+        elif damage == "duplicate-code":
+            nodes[0]["task_code"] = nodes[1]["task_code"]
+        else:
+            nodes[0]["default_duration"] = -1
+        target.structure_json = tree
+        db.commit()
+    assert client.get(url(pid), headers=auth_headers).status_code == 422
