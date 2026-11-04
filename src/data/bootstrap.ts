@@ -1,5 +1,6 @@
 import { planningApi } from '../api/planning'
-import { setWorkingCalendars, setWeeklyCapacities } from '../lib/workingCalendar'
+import { getWorkingCalendar, setWorkingCalendars, setWeeklyCapacities } from '../lib/workingCalendar'
+import type { FullPlanSnapshot } from '../lib/fullPlanBaseline'
 // 应用引导 + 数据同步 —— 连接前端与 FastAPI 后端。
 //
 // 启动：GET /auth/me 确认 IAM 会话（HttpOnly cookie）→ 拉取当前用户可见范围内的全量数据
@@ -27,10 +28,11 @@ import { useAuth } from '../store/auth'
 import { useDataStore } from '../store/data'
 import { hydrateCreatedIntoMock, useProjectsStore, type ProjectBundle } from '../store/projects'
 import { deriveRollup } from '../lib/instantiate'
+import { calculateProgress } from '../lib/progress'
 import { diffPredecessors } from '../lib/dependency-utils'
 import { TODAY, getProjectSpan } from '../mock'
 import { includeAssignees, teamIds } from '../lib/projectTeam'
-import type { BaselineSnapshot, Priority, ProductType, Project, ProjectBaseline, SubProject, Task, TaskDependency, TaskStatus, Template, TemplateNode, TemplateVersion, User } from '../types'
+import type { Priority, ProductType, Project, ProjectBaseline, SubProject, Task, TaskDependency, TaskStatus, Template, TemplateNode, TemplateVersion, User } from '../types'
 
 function replaceArray<T>(target: T[], items: T[]): void {
   target.length = 0
@@ -51,6 +53,7 @@ function normalizeApiTask(t: Task): Task {
   return {
     ...t,
     estimatedEffort: toNum(t.estimatedEffort) ?? 0,
+    progressWeight: t.progressWeight == null ? null : toNum(t.progressWeight) ?? null,
     actualEffort: toNum(t.actualEffort),
     costBudget: toNum(t.costBudget),
     actualCost: toNum(t.actualCost),
@@ -306,20 +309,16 @@ function applyLocalTaskUpdate(taskId: string, patch: TaskProgressPatch): void {
 function recomputeRollupForSub(subProjectId: string): void {
   const sub = subProjects.find((s) => s.id === subProjectId)
   if (!sub) return
+  const proj = projects.find((p) => p.id === sub.projectId)
   const subTasks = tasks.filter((x) => x.subProjectId === sub.id)
-  sub.progress = subTasks.length
-    ? Math.round(subTasks.reduce((a, x) => a + x.progress, 0) / subTasks.length)
-    : 0
+  sub.progress = calculateProgress(subTasks, proj?.progressMethod)
   sub.status = sub.progress >= 100 ? '已完成' : sub.progress > 0 ? '进行中' : '未开始'
 
-  const proj = projects.find((p) => p.id === sub.projectId)
   if (!proj) return
   const projSubIds = new Set(subProjects.filter((s) => s.projectId === proj.id).map((s) => s.id))
   const projTasks = tasks.filter((x) => projSubIds.has(x.subProjectId))
-  proj.progress = projTasks.length
-    ? Math.round(projTasks.reduce((a, x) => a + x.progress, 0) / projTasks.length)
-    : 0
-  proj.health = deriveRollup(projTasks, TODAY).health
+  proj.progress = calculateProgress(projTasks, proj.progressMethod)
+  proj.health = deriveRollup(projTasks, TODAY, proj.progressMethod).health
   syncOfflineSpent(proj.id)
 }
 
@@ -540,10 +539,11 @@ export async function deleteTemplateEntry(id: string): Promise<void> {
 // ============= 计划基线 =============
 
 /** 离线 mock：按当前运行时数据构建项目计划快照（与后端 _build_snapshot 同构）。 */
-function buildSnapshotFromRuntime(projectId: string): BaselineSnapshot {
+function buildSnapshotFromRuntime(projectId: string): FullPlanSnapshot {
   const proj = projects.find((p) => p.id === projectId)
   const subIds = new Set(subProjects.filter((s) => s.projectId === projectId).map((s) => s.id))
   const projTasks = tasks.filter((t) => subIds.has(t.subProjectId))
+  const taskIds = new Set(projTasks.map(t => t.id))
   const fin = projectFinances.find((f) => f.projectId === projectId)
   const milestones = projTasks
     .filter((t) => t.isMilestone)
@@ -555,13 +555,22 @@ function buildSnapshotFromRuntime(projectId: string): BaselineSnapshot {
     .sort((a, b) => a.plannedEnd.localeCompare(b.plannedEnd))
   const span = proj ? getProjectSpan(proj) : null  // 与后端一致：按任务实时派生
   return {
+    schemaVersion: 3,
     projectPlannedStart: span?.start ?? '',
     projectPlannedEnd: span?.end ?? '',
     progress: proj?.progress ?? 0,
+    progressMethod: proj?.progressMethod ?? 'equal',
     totalBudget: fin?.totalBudget ?? 0,
     taskCount: projTasks.length,
     milestoneCount: milestones.length,
     milestones,
+    tasks: projTasks.map(t => ({ id: t.id, code: t.code, name: t.name, subProjectId: t.subProjectId,
+      plannedStart: t.plannedStart, plannedEnd: t.plannedEnd, ownerId: t.ownerId,
+      collaboratorIds: [...t.collaboratorIds ?? []], estimatedEffort: t.estimatedEffort,
+      costBudget: t.costBudget, progressWeight: t.progressWeight ?? null,
+      isMilestone: t.isMilestone, isCriticalPath: t.isCriticalPath })),
+    dependencies: taskDependencies.filter(d => taskIds.has(d.predecessorId) && taskIds.has(d.successorId)).map(d => ({ ...d })),
+    calendar: structuredClone(getWorkingCalendar(projectId)),
   }
 }
 

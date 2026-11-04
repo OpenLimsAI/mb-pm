@@ -59,6 +59,7 @@ export interface Project {
   plannedEnd: string
   templateId: string | null       // 空白项目不关联模板
   templateVersion: string | null
+  progressMethod?: 'equal' | 'effort' | 'custom'
   description?: string
   progress: number
 }
@@ -76,6 +77,7 @@ export interface SubProject {
 }
 
 export interface Task {
+  progressWeight?: number | null
   revision?: number
   id: string
   code: string

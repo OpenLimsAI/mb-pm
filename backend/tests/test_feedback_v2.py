@@ -531,7 +531,8 @@ def test_workflow_schema_upgrade_numbers_old_rows_without_changing_old_values(
 
     old = load("2026_11_04_0100-021_feedback_activities.py")
     app = load("2026_11_04_0200-022_feedback_application.py")
-    new = load("2026_11_04_0300-023_feedback_workflow.py")
+    new = load("2026_11_04_0600-026_feedback_workflow.py")
+    assert new.revision == "026" and new.down_revision == "025"
     engine = upgrade_engine
     with engine.begin() as connection:
         for migration in (old, app):

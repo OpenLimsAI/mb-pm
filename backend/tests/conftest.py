@@ -26,6 +26,7 @@ else:
     os.environ["DATABASE_URL"] = f"sqlite:///{_tmp.name}"
 os.environ["AUTO_SEED"] = "false"  # 测试自备最小数据，不灌完整种子
 os.environ["ASSISTANT_REQUEST_WORKER_ENABLED"] = "false"  # Tests dispatch explicitly.
+os.environ["PROJECT_AI_WORKER_ENABLED"] = "false"
 
 from datetime import date, datetime, timezone  # noqa: E402
 from uuid import uuid4  # noqa: E402

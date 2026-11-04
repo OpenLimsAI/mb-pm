@@ -399,6 +399,12 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
         }
         if task.id is not None:
             obj = task_by_id[task.id]
+            if project.progress_method != "equal" and (
+                obj.estimated_effort != values["estimated_effort"]
+                or obj.is_milestone != values["is_milestone"]
+            ):
+                # Effort and the milestone default affect weighted progress; execution data stays intact.
+                touched_subs.update((obj.sub_project_id, values["sub_project_id"]))
             if obj.sub_project_id != values["sub_project_id"]:
                 touched_subs.update((obj.sub_project_id, values["sub_project_id"]))
             changed = any(getattr(obj, k) != v for k, v in values.items())
@@ -471,7 +477,7 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
         )
     db.flush()
 
-    # 汇总：只重算任务有增减 / 移动的子项目及项目（没有任务的子项目归零）；
+    # 汇总：重算任务有增减 / 移动或加权输入变化的子项目及项目（没有任务的子项目归零）；
     # 原样保存或只改名称、日期等时不动已有进度
     if touched_subs:
         for sub in db.query(SubProject).filter(SubProject.id.in_(touched_subs)).all():

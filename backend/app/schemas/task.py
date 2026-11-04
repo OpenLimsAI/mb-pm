@@ -132,6 +132,7 @@ class TaskOut(TaskBase):
     model_config = ConfigDict(from_attributes=True)
     id: str
     revision: int = 1
+    progress_weight: Decimal | None = None
 
 
 # ============= TaskDependency =============
