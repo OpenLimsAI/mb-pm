@@ -30,6 +30,7 @@ from app.models.template_upgrade import ProjectTemplateState
 from app.schemas.structure import StructureSubIn, StructureTaskIn
 from app.services.planning import calendar_dict, is_workday, move_workdays
 from app.services.rollup import recompute_project, recompute_subproject
+from app.services.scope import is_full_access
 from app.services.structure import _load, delete_block_reason
 from app.services.team import team_ids
 
@@ -45,6 +46,10 @@ FIELDS = {
     "sub_project_id": "所属子项目",
     "dependencies": "前置依赖",
 }
+
+
+def can_manage(project, actor):
+    return is_full_access(actor) or (actor.role == "project_lead" and project.owner_id == actor.id)
 
 
 def invalid(message):
@@ -522,6 +527,8 @@ def preview(db, project, request):
 
 def apply(db, project, request, actor):
     db.query(Project).filter_by(id=project.id).with_for_update().populate_existing().one()
+    if not can_manage(project, actor):
+        raise HTTPException(403, "仅当前项目负责人或管理员可升级项目模板")
     task_ids = [t.id for t in _load(db, project.id)[1]]
     db.query(Task).filter(Task.id.in_(task_ids)).order_by(
         Task.id

@@ -10,7 +10,7 @@ from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models import Project, User
 from app.services import template_upgrade as service
-from app.services.scope import is_full_access, visible_project_ids_for, visible_task_ids_for
+from app.services.scope import visible_project_ids_for, visible_task_ids_for
 
 router = APIRouter(prefix="/projects", tags=["template-upgrade"])
 Db = Annotated[Session, Depends(get_db)]
@@ -54,7 +54,7 @@ def project_for(db, user, project_id, write=False):
     project = db.get(Project, project_id)
     if not project or project_id not in visible_project_ids_for(user, db):
         raise HTTPException(404, "项目不存在或不可访问")
-    if write and not (is_full_access(user) or project.owner_id == user.id):
+    if write and not service.can_manage(project, user):
         raise HTTPException(403, "仅项目负责人或管理员可升级项目模板")
     return project
 
@@ -65,7 +65,7 @@ def catalog(project_id: str, db: Db, user: Current):
     result = service.catalog(db, project)
     # Members can inspect template versions, but don't gain visibility of tasks
     # outside their normal scope through the legacy binding selector.
-    editable = is_full_access(user) or project.owner_id == user.id
+    editable = service.can_manage(project, user)
     if not editable:
         allowed = visible_task_ids_for(user, db)
         result["tasks"] = [t for t in result["tasks"] if t["id"] in allowed]

@@ -249,7 +249,7 @@ def test_duplicate_binding_and_owner_outside_team_rejected(
     duplicate["mappings"][1]["task_id"] = duplicate["mappings"][0]["task_id"]
     response = client.post(url(pid, "preview"), json=duplicate, headers=auth_headers)
     assert response.status_code == 422
-    outside = iam_user("upgrade-owner-outside", "rd")
+    outside = iam_user("up-owner-outside", "rd")
     response = client.post(
         url(pid, "preview"),
         json={**body, "owner_overrides": [{"node_id": "n1", "owner_id": outside}]},
@@ -269,3 +269,48 @@ def test_matching_target_can_advance_version_without_fabricating_changes(
     assert response.json()["template_version"] == "V2"
     with SessionLocal() as db:
         assert db.get(Task, f"{pid}-t1").name == "测试任务 1"
+
+
+def test_executor_who_is_project_owner_remains_read_only(
+    client, auth_headers, project_factory, iam_user, bearer
+):
+    owner = iam_user("upgrade-rd-owner", "rd")
+    pid, body = setup_project(project_factory, owner=owner)
+    headers = bearer(owner, "rd")
+    catalog = client.get(url(pid), headers=headers)
+    assert catalog.status_code == 200 and catalog.json()["editable"] is False
+    assert client.post(url(pid, "preview"), json=body, headers=headers).status_code == 403
+    snap = preview(client, auth_headers, pid, body)
+    assert apply(client, headers, pid, body, snap).status_code == 403
+    with SessionLocal() as db:
+        assert db.get(Task, f"{pid}-t1").name == "测试任务 1"
+        assert db.get(ProjectTemplateState, pid) is None
+
+
+def test_owner_transferred_between_api_check_and_locked_apply_is_rejected(
+    client, auth_headers, project_factory, iam_user, bearer, monkeypatch
+):
+    from app.services import template_upgrade as service
+
+    owner = iam_user("up-transfer-owner", "project_lead")
+    pid, body = setup_project(project_factory, owner=owner)
+    headers = bearer(owner, "project_lead")
+    snap = preview(client, headers, pid, body)
+    original = service.apply
+
+    def transfer_before_lock(db, project, request, actor):
+        # Simulates another admin's committed transfer while this request waits
+        # for the project's row lock. The Session initially holds the old owner.
+        assert project.owner_id == owner
+        with SessionLocal() as other:
+            other.get(Project, pid).owner_id = "t-admin"
+            other.commit()
+        return original(db, project, request, actor)
+
+    monkeypatch.setattr(service, "apply", transfer_before_lock)
+    response = apply(client, headers, pid, body, snap)
+    assert response.status_code == 403, response.text
+    with SessionLocal() as db:
+        assert db.get(Project, pid).owner_id == "t-admin"
+        assert db.get(Task, f"{pid}-t1").name == "测试任务 1"
+        assert db.get(ProjectTemplateState, pid) is None

@@ -34,11 +34,47 @@ beforeEach(() => {
 })
 afterEach(() => {
   vi.resetAllMocks()
+  vi.unstubAllGlobals()
   useAuth.setState({ currentUser: null, status: 'loading' })
   useDataStore.setState({ mode: 'loading', ready: false })
 })
 
 describe('项目 AI 后台与历史工作流', () => {
+  it('正文、对比与导出隐藏行动JSON和截断块，建议卡仍然可见', async () => {
+    const closed = report('closed', '完整建议报告', '可读分析结论。\n\n```pm-actions\n[{"title":"machine-only-closed"}]\n```')
+    const truncated = report('truncated', '截断建议报告', '另一份可读结论。\n\n```pm-actions\n[{"title":"machine-only-truncated')
+    vi.mocked(searchProjectAnalyses).mockResolvedValue({ items: [closed, truncated], total: 2, page: 1 })
+    vi.mocked(getReportActions).mockResolvedValue({ proposals: [{ actionKey: 'suggestion-0', kind: 'risk', title: '核对试验资源' }], applied: [] })
+    renderWorkbench()
+    expect(await screen.findByText('可读分析结论。')).toBeInTheDocument()
+    expect(await screen.findByText('核对试验资源')).toBeInTheDocument()
+    expect(screen.queryByText(/machine-only/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '加入对比' }))
+    fireEvent.click(screen.getByRole('button', { name: /截断建议报告/ }))
+    const comparison = screen.getByRole('region', { name: '分析报告对比' })
+    expect(within(comparison).getByText('可读分析结论。')).toBeInTheDocument()
+    expect(within(comparison).getByText('另一份可读结论。')).toBeInTheDocument()
+    expect(screen.queryByText(/machine-only/)).not.toBeInTheDocument()
+    let exported: Blob | null = null
+    const revoke = vi.fn()
+    vi.stubGlobal('URL', class extends URL {
+      static createObjectURL(value: Blob | MediaSource) { if (value instanceof Blob) exported = value; return 'blob:project-analysis' }
+      static revokeObjectURL = revoke
+    })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    fireEvent.click(screen.getByRole('button', { name: '导出' }))
+    expect(exported).not.toBeNull()
+    const markdown = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result))
+      reader.onerror = reject
+      reader.readAsText(exported!)
+    })
+    expect(markdown).toContain('另一份可读结论。')
+    expect(markdown).not.toMatch(/pm-actions|machine-only/)
+    await waitFor(() => expect(revoke).toHaveBeenCalledWith('blob:project-analysis'), { timeout: 2000 })
+  })
+
   it('离开页面不取消后台任务，返回后从服务端恢复状态与结果', async () => {
     vi.mocked(listAnalysisJobs).mockResolvedValue([job])
     const view = renderWorkbench()
