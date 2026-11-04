@@ -95,12 +95,18 @@ try {
 } finally {
   for (const request of pending.values()) clearTimeout(request.timeout)
   socket?.close()
-  if (browser && browser.exitCode === null) {
+  if (browser?.pid && browser.exitCode === null && browser.signalCode === null) {
+    const exited = new Promise(resolve => browser.once('exit', resolve))
     browser.kill('SIGTERM')
-    await Promise.race([new Promise(resolve => browser.once('exit', resolve)), delay(3000)])
-    if (browser.exitCode === null) browser.kill('SIGKILL')
+    await Promise.race([exited, delay(3000)])
+    if (browser.exitCode === null && browser.signalCode === null) {
+      browser.kill('SIGKILL')
+      await exited
+    }
   }
   chromeStartup?.dispose()
   if (server.listening) await new Promise(resolve => server.close(resolve))
-  rmSync(profile, { recursive: true, force: true })
+  // Chromium helpers may finish profile writes just after the parent exits.
+  // Retry transient filesystem cleanup races only within this private test profile.
+  rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 }

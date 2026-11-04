@@ -5,10 +5,17 @@ from datetime import UTC, datetime, timedelta
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 from pydantic import ValidationError
-from sqlalchemy import select, update
+from sqlalchemy import literal, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
-from app.models.solution import SolutionAnswer, SolutionTemplate, SolutionTopic, SolutionVersion
+from app.models.solution import (
+    KnowledgeSolution,
+    SolutionAnswer,
+    SolutionEvent,
+    SolutionTemplate,
+    SolutionTopic,
+    SolutionVersion,
+)
 from app.schemas.solution import SolutionInput
 from app.services import solutions as core
 
@@ -112,32 +119,124 @@ def restore_section(db, row, version_id, payload, claims):
     return core.solution_out(row, claims)
 
 
+def template_sharing(db, template_id, claims):
+    return db.scalar(
+        select(SolutionEvent)
+        .join(KnowledgeSolution, KnowledgeSolution.id == SolutionEvent.solution_id)
+        .where(
+            SolutionEvent.id == "template-share-" + template_id,
+            SolutionEvent.action == "template_shared",
+            KnowledgeSolution.issuer == claims["iss"],
+            KnowledgeSolution.deleted_at.is_(None),
+            SolutionEvent.actor_id == KnowledgeSolution.owner_id,
+        )
+    )
+
+
+def template_out(db, row, claims, sharing=None):
+    sharing = sharing or template_sharing(db, row.id, claims)
+    return jsonable_encoder(
+        {
+            **{key: getattr(row, key) for key in ("id", "name", "sections", "created_at")},
+            "shared": bool(sharing and sharing.details.get("shared")),
+            "source_solution_id": sharing.solution_id if sharing else None,
+            "can_delete": row.owner_id == claims["sub"],
+        }
+    )
+
+
 def templates(db, claims):
-    return [
-        jsonable_encoder(
-            {key: getattr(row, key) for key in ("id", "name", "sections", "created_at")}
+    result = []
+    visible_share = (
+        select(SolutionEvent.id)
+        .join(KnowledgeSolution, KnowledgeSolution.id == SolutionEvent.solution_id)
+        .where(
+            SolutionEvent.id == literal("template-share-") + SolutionTemplate.id,
+            SolutionEvent.action == "template_shared",
+            SolutionEvent.actor_id == SolutionTemplate.owner_id,
+            SolutionEvent.details["shared"].as_boolean().is_(True),
+            KnowledgeSolution.owner_id == SolutionTemplate.owner_id,
+            KnowledgeSolution.issuer == claims["iss"],
+            KnowledgeSolution.deleted_at.is_(None),
         )
-        for row in db.scalars(
-            select(SolutionTemplate)
-            .where(
-                SolutionTemplate.issuer == claims["iss"], SolutionTemplate.owner_id == claims["sub"]
+        .exists()
+    )
+    for row in db.scalars(
+        select(SolutionTemplate)
+        .where(
+            SolutionTemplate.issuer == claims["iss"],
+            or_(SolutionTemplate.owner_id == claims["sub"], visible_share),
+        )
+        .order_by(SolutionTemplate.created_at.desc())
+    ):
+        sharing = template_sharing(db, row.id, claims)
+        if row.owner_id == claims["sub"] or (
+            sharing and sharing.actor_id == row.owner_id and sharing.details.get("shared") is True
+        ):
+            result.append(template_out(db, row, claims, sharing))
+    return result
+
+
+def set_template_sharing(db, row, payload, claims):
+    existing = db.get(SolutionEvent, "template-share-" + row.id)
+    source_id = payload.source_solution_id or (existing.solution_id if existing else None)
+    if payload.shared and not source_id:
+        raise HTTPException(422, "请选择作者自己的来源报告后共享模板")
+    if source_id:
+        source = core.get_solution(db, source_id, claims, owner=True)
+        details = {"template_id": row.id, "shared": payload.shared}
+        if existing:
+            existing.solution_id = source.id
+            existing.details = details
+        else:
+            db.add(
+                SolutionEvent(
+                    id="template-share-" + row.id,
+                    solution_id=source.id,
+                    actor_id=claims["sub"],
+                    action="template_shared",
+                    revision=source.revision,
+                    version=source.version,
+                    details=details,
+                )
             )
-            .order_by(SolutionTemplate.created_at.desc())
-        )
-    ]
 
 
 def create_template(db, payload, claims):
-    if len(templates(db, claims)) >= 100:
+    own = list(
+        db.scalars(
+            select(SolutionTemplate).where(
+                SolutionTemplate.issuer == claims["iss"], SolutionTemplate.owner_id == claims["sub"]
+            )
+        )
+    )
+    if len(own) >= 100:
         raise HTTPException(422, "最多保存100份模板，请先删除不再使用的模板")
     row = SolutionTemplate(
-        id=core.uid(), issuer=claims["iss"], owner_id=claims["sub"], **payload.model_dump()
+        id=core.uid(),
+        issuer=claims["iss"],
+        owner_id=claims["sub"],
+        **payload.model_dump(exclude={"shared", "source_solution_id"}),
     )
+    set_template_sharing(db, row, payload, claims)
     db.add(row)
     db.commit()
-    return jsonable_encoder(
-        {key: getattr(row, key) for key in ("id", "name", "sections", "created_at")}
+    return template_out(db, row, claims)
+
+
+def share_template(db, ident, payload, claims):
+    row = db.scalar(
+        select(SolutionTemplate).where(
+            SolutionTemplate.id == ident,
+            SolutionTemplate.issuer == claims["iss"],
+            SolutionTemplate.owner_id == claims["sub"],
+        )
     )
+    if not row:
+        raise HTTPException(404, "模板不存在或不是模板作者")
+    set_template_sharing(db, row, payload, claims)
+    db.commit()
+    return template_out(db, row, claims)
 
 
 def delete_template(db, ident, claims):

@@ -351,3 +351,36 @@ def test_generic_patch_cannot_override_a_weighted_aggregate(client, auth_headers
     )
     with SessionLocal() as db:
         assert db.get(Project, pid).progress == db.get(SubProject, f"{pid}-sp").progress == 90
+
+
+def test_stored_progress_is_explained_without_rewriting_legacy_rounding(
+    client, auth_headers, project_factory
+):
+    pid = project_factory("t-admin")
+    with SessionLocal() as db:
+        db.get(Project, pid).progress = 22
+        db.get(Task, f"{pid}-t1").progress = 45
+        db.get(Task, f"{pid}-t2").progress = 0
+        db.commit()
+    response = client.get(path(pid), headers=auth_headers)
+    assert response.status_code == 200, response.text
+    assert response.json()["stored_progress"] == 22
+    assert response.json()["progress"] == 23 and response.json()["exact_progress"] == 22.5
+    with SessionLocal() as db:
+        assert db.get(Project, pid).progress == 22
+        assert db.query(AuditLog).filter_by(target_id=pid, action="修改进度计算规则").count() == 0
+    preview = client.post(path(pid) + "/preview", headers=auth_headers, json={"method": "custom"})
+    assert preview.status_code == 200, preview.text
+    assert preview.json()["stored_progress"] == 22 and preview.json()["progress"] == 23
+    result = client.put(
+        path(pid),
+        headers=auth_headers,
+        json={
+            "method": "custom",
+            "fingerprint": preview.json()["fingerprint"],
+            "reason": "核对后采用自定义规则",
+        },
+    )
+    assert result.status_code == 200, result.text
+    latest = client.get(path(pid), headers=auth_headers).json()
+    assert latest["stored_progress"] == latest["progress"] == 23

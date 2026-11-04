@@ -35,10 +35,18 @@ export function downloadBlob(blob: Blob, filename: string) {
 }
 
 export const solutionApi: SolutionClient = {
+  collaboration: async id => (await http.get(`/${encodeURIComponent(id)}/collaboration`)).data,
+  saveMember: async (id, subject, role) => { await http.put(`/${encodeURIComponent(id)}/collaboration/members/${encodeURIComponent(subject)}`, { role }) },
+  comment: async (id, input) => { await http.post(`/${encodeURIComponent(id)}/collaboration/comments`, input) },
+  resolveComment: async (id, commentId, revision, resolved) => { await http.put(`/${encodeURIComponent(id)}/collaboration/comments/${encodeURIComponent(commentId)}`, { revision, resolved }) },
+  presence: async (id, sectionId) => (await http.put(`/${encodeURIComponent(id)}/collaboration/presence`, { sectionId })).data,
+  noteLinks: async id => (await http.get(`/${encodeURIComponent(id)}/note-links`)).data,
+  linkNote: async (id, noteId, sectionId, expectedRevision) => (await http.post(`/${encodeURIComponent(id)}/note-links`, { noteId, sectionId, expectedRevision })).data,
   snapshot: async (id, revision, name) => (await http.post(`/${encodeURIComponent(id)}/versions`, { revision, name })).data,
   restoreSection: async (id, versionId, revision, sectionId) => (await http.post(`/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}/restore-section`, { revision, sectionId })).data,
   templates: async () => (await http.get('/templates')).data,
-  createTemplate: async (name, sections) => (await http.post('/templates', { name, sections })).data,
+  createTemplate: async (name, sections, sharing) => (await http.post('/templates', { name, sections, ...sharing })).data,
+  shareTemplate: async (id, sharing) => (await http.put(`/templates/${encodeURIComponent(id)}/sharing`, sharing)).data,
   deleteTemplate: async id => { await http.delete(`/templates/${encodeURIComponent(id)}`) },
   topics: async id => (await http.get(`/${encodeURIComponent(id)}/topics`)).data,
   saveTopic: async (id, topic) => (await http.put(`/${encodeURIComponent(id)}/topics/${encodeURIComponent(topic.id)}`, { title: topic.title, archived: topic.archived, revision: topic.revision })).data,

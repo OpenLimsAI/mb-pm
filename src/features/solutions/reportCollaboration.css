@@ -1,0 +1,20 @@
+.ks-collaboration { display: grid; gap: 18px; max-height: 75vh; overflow: auto; padding: 4px; }
+.ks-collaboration section { border: 1px solid #dce7ef; border-radius: 10px; padding: 16px; background: #fff; }
+.ks-collaboration h3 { margin: 0 0 12px; color: #24476c; }
+.ks-collab-members { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.ks-collab-members > span { background: #edf5fc; border-radius: 8px; padding: 6px 10px; font-size: 13px; }
+.ks-collaboration form { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 12px 0; }
+.ks-collaboration form label { display: flex; gap: 8px; align-items: center; }
+.ks-collaboration select, .ks-collaboration textarea { border: 1px solid #c7d9e7; border-radius: 7px; padding: 8px; background: white; color: #2c4558; }
+.ks-collaboration textarea, .ks-collaboration form blockquote, .ks-collaboration form > p { width: 100%; }
+.ks-collaboration blockquote { margin: 0; white-space: pre-wrap; border-left: 3px solid #68a0c8; padding: 8px 12px; background: #f0f7fc; max-height: 120px; overflow: auto; }
+.ks-collab-comment { border-top: 1px solid #dce7ef; padding: 14px 0; }
+.ks-collab-comment header, .ks-collab-section { display: flex; justify-content: space-between; gap: 12px; }
+.ks-collab-comment p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.ks-collab-comment small { color: #708699; }
+.ks-collab-quote { width: 100%; text-align: left; margin-top: 8px; border: 0; border-left: 3px solid #6b9bb9; padding: 8px 12px; color: #426177; background: #eef6fb; white-space: pre-wrap; max-height: 130px; overflow: auto; cursor: pointer; }
+.ks-collab-reply { margin: 8px 0 0 18px; border-left: 2px solid #d5e6f3; padding: 8px 12px; background: #f7fafc; }
+.ks-collab-conflict { background: #fff4dc; border: 1px solid #eed7a6; padding: 12px; border-radius: 7px; }
+.ks-report-note-links { border-top: 1px solid #dce7ef; margin-top: 20px; padding-top: 12px; }
+.ks-report-note-links article { padding: 10px 0; font-size: 13px; }
+.ks-report-note-links article > span { color: #71899c; margin: 0 12px; }

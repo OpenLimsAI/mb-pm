@@ -127,6 +127,7 @@ def describe(project, subs, tasks, payload=None):
         "project_id": project.id,
         "method": method,
         "current_method": project.progress_method,
+        "stored_progress": project.progress,
         "before_progress": before["progress"],
         **result,
         "fingerprint": fingerprint,
