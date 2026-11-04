@@ -653,12 +653,16 @@ def test_kb_native_tool_roundtrip_is_saved_only_after_final_reply(assistant_clie
     monkeypatch.setattr(solution_knowledge, "check_access", lambda claims: None)
     monkeypatch.setattr(solution_knowledge, "paper_count", lambda claims: 63)
     monkeypatch.setattr(solution_knowledge, "check_access", lambda claims: None)
-    seen = []
+    seen, core_calls = [], []
+    question_text = "解释知识库中的 CMC 限制"
 
     def request(provider, cfg, path, body, **kwargs):
         assert not f.db.in_transaction()
         seen.append(body)
         if len(seen) == 1:
+            prefetched = json.loads(body["messages"][-1]["content"])["prechecked_knowledge"]
+            assert [item["tool"] for item in prefetched] == ["retrieve_knowledge", "read_page"]
+            assert "CMC verified local evidence" in prefetched[-1]["result"]["body"]
             return {
                 "message": {
                     "tool_calls": [
@@ -675,9 +679,35 @@ def test_kb_native_tool_roundtrip_is_saved_only_after_final_reply(assistant_clie
         return {"message": {"content": "依据 knowledge/cmc.md 的资料给出回答。"}}
 
     def core(method, path, **kwargs):
+        core_calls.append((method, path))
+        if method == "POST" and path == "/v1/retrieve":
+            assert kwargs["payload"]["q"] == question_text
+            return json.dumps(
+                {
+                    "type": "final",
+                    "status": "succeeded",
+                    "result": {
+                        "chunks": [
+                            {
+                                "path": "knowledge/cmc.md",
+                                "layer": "knowledge",
+                                "title": "CMC",
+                                "text": "CMC verified local evidence",
+                            }
+                        ],
+                        "page_refs": [
+                            {"path": "knowledge/cmc.md", "layer": "knowledge", "title": "CMC"}
+                        ],
+                    },
+                }
+            ).encode()
         assert method == "GET" and path == "/v1/base/pages/knowledge/cmc.md"
         return json.dumps(
-            {"path": "knowledge/cmc.md", "layer": "knowledge", "body": "verified local evidence"}
+            {
+                "path": "knowledge/cmc.md",
+                "layer": "knowledge",
+                "body": "CMC verified local evidence",
+            }
         ).encode()
 
     monkeypatch.setenv("SOLUTION_KB_CORE_URL", "http://core.test")
@@ -687,11 +717,30 @@ def test_kb_native_tool_roundtrip_is_saved_only_after_final_reply(assistant_clie
     monkeypatch.setattr(solution_knowledge, "_request", core)
     task = create(f)
     request_id = str(uuid4())
-    result = question(f, task, data_sources=["knowledge"], request_id=request_id)
+    result = question(
+        f, task, question=question_text, data_sources=["knowledge"], request_id=request_id
+    )
     assert result.status_code == 200, result.text
     assert len(seen) == 2 and result.json()["message_count"] == 2
-    assert "server-only-token" not in result.text and "verified local evidence" not in result.text
+    assert core_calls == [
+        ("POST", "/v1/retrieve"),
+        ("GET", "/v1/base/pages/knowledge/cmc.md"),
+        ("GET", "/v1/base/pages/knowledge/cmc.md"),
+    ]
+    answer = result.json()["messages"][-1]
     assert (
-        question(f, task, data_sources=["knowledge"], request_id=request_id).json() == result.json()
+        "server-only-token" not in result.text
+        and "verified local evidence" not in answer["content"]
     )
-    assert len(seen) == 2
+    assert answer["knowledge_references"][0]["cited"]
+    assert any(
+        "verified local evidence" in excerpt["text"]
+        for excerpt in answer["knowledge_references"][0]["excerpts"]
+    )
+    assert (
+        question(
+            f, task, question=question_text, data_sources=["knowledge"], request_id=request_id
+        ).json()
+        == result.json()
+    )
+    assert len(seen) == 2 and len(core_calls) == 3

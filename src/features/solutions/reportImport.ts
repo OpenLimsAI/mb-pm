@@ -6,7 +6,7 @@ const MAX_TEXT = 200_000
 const MAX_SECTION = 50_000
 const IMAGE_PATTERN = /!\[[^\]]*\]\(data:image\/(?:png|jpeg);base64,[A-Za-z0-9+/=]+\)/g
 export type ReportFileKind = 'word' | 'pdf' | 'markdown'
-export interface ImportedReport { fileName: string; kind: ReportFileKind; characters: number; input: SolutionInput }
+export interface ImportedReport { fileName: string; kind: ReportFileKind; characters: number; extractedText: string; input: SolutionInput }
 
 export function reportFileKind(name: string): ReportFileKind {
   if (/\.docx$/i.test(name)) return 'word'
@@ -58,7 +58,7 @@ export function reportFromText(fileName: string, text: string, kind: ReportFileK
     if (item.level) parents.push({ level: item.level, id: firstId })
   }
   const title = fileName.replace(/\.(docx|pdf|md|markdown)$/i, '').trim().slice(0, 200) || '导入的研究报告'
-  return { fileName, kind, characters: content.length, input: { title, projectName: '', productName: '', sections, formula: [], references: [] } }
+  return { fileName, kind, characters: content.length, extractedText: content, input: { title, projectName: '', productName: '', sections, formula: [], references: [] } }
 }
 
 export async function parseReportFile(file: File, signal?: AbortSignal): Promise<ImportedReport> {

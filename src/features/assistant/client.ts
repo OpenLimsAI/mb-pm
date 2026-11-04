@@ -8,12 +8,12 @@ import { API_BASE, camelize, snakeize } from '../../api/client'
 
 export interface TaskInput { title: string; instructions: string; memory?: string; pinned?: boolean; finalArtifactId?: string | null }
 export interface TaskSummary extends TaskInput { id: string; revision: number; createdAt: string; updatedAt: string; deletedAt: string | null; messageCount: number; excerpt?: string }
-export interface KnowledgeReference { title: string; path: string; url?: string; kind: 'catalogued' | 'retrieved' | 'read'; cited: boolean }
-export interface AssistantMessage extends AnswerProvenance { knowledgeReferences?: KnowledgeReference[]; sourceSummary?: { materialCount?: number; cataloguedCount?: number; truncated?: boolean; countBasis?: string; retrievedCount?: number; readCount?: number; citedCount?: number };  id: string; role: 'user' | 'assistant'; content: string; context: string; model: string; mode: 'ai' | 'preview'; requestId: string; createdAt: string; dataSources?: ApplicationDataSource[]; usedSources?: ApplicationDataSource[] }
-export interface AssistantArtifact { id: string; title: string; content: string; model: string; createdAt: string }
+export interface KnowledgeReference { title: string; path: string; url?: string; kind: 'catalogued' | 'retrieved' | 'read'; cited: boolean; citationStatus?: 'path_matched' | 'not_cited'; excerpts?: { text: string; offset: number | null; length: number; kind: 'read' | 'retrieved' }[] }
+export interface AssistantMessage extends AnswerProvenance { knowledgeReferences?: KnowledgeReference[]; sourceSummary?: { materialCount?: number; cataloguedCount?: number; truncated?: boolean; countBasis?: string; retrievedCount?: number; readCount?: number; citedCount?: number };  id: string; role: 'user' | 'assistant'; content: string; context: string; model: string; mode: 'ai' | 'preview'; requestId: string; createdAt: string; dataSources?: ApplicationDataSource[]; usedSources?: ApplicationDataSource[]; baseArtifactId?: string | null }
+export interface AssistantArtifact { id: string; title: string; content: string; model: string; createdAt: string; baseArtifactId?: string | null }
 export interface AssistantTask extends TaskSummary { messages: AssistantMessage[]; artifacts: AssistantArtifact[] }
 export interface TaskQuery { search?: string; trashed?: boolean; offset?: number }
-export interface TaskQuestion { requestId: string; question: string; context: string; modelProfileId?: string; data_sources?: string[]; answerMode?: AnswerMode; continueFromRequest?: string }
+export interface TaskQuestion { requestId: string; question: string; context: string; modelProfileId?: string; data_sources?: string[]; answerMode?: AnswerMode; continueFromRequest?: string; baseArtifactId?: string }
 export interface AssistantRequest {
   requestId: string
   taskId: string
@@ -24,6 +24,7 @@ export interface AssistantRequest {
   requestedMode?: AnswerMode
   dataSources?: ApplicationDataSource[]
   modelProfileId?: string | null
+  baseArtifactId?: string | null
   partialContent: string
   error: string
   errorCode?: string
@@ -38,7 +39,7 @@ export interface AssistantRequest {
 export interface AssistantPreflight { ready: boolean; checks: { key: string; status: 'ready' | 'warning' | 'blocked'; message: string }[]; message?: string }
 export interface AssistantClient {
   getSource?(taskId: string, path: string, offset?: number): Promise<{ title: string; path: string; body: string; offset: number; totalChars: number; nextOffset: number | null }>
-  preflight?(input: { modelProfileId?: string; answerMode: AnswerMode; dataSources: ApplicationDataSource[]; question?: string; taskId?: string; referenceMaterialAvailable?: boolean }): Promise<AssistantPreflight>
+  preflight?(input: { modelProfileId?: string; answerMode: AnswerMode; dataSources: ApplicationDataSource[]; question?: string; taskId?: string; referenceMaterialAvailable?: boolean; baseArtifactId?: string }): Promise<AssistantPreflight>
   cancelRequest?(taskId: string, requestId: string): Promise<AssistantRequest>
   capabilities?(modelProfileId?: string): Promise<AnswerCapabilities>
   submitRequest?(task: TaskSummary, input: TaskQuestion): Promise<AssistantRequest>
@@ -55,6 +56,7 @@ export interface AssistantClient {
 const problem = (text: string, status = 0) => Object.assign(new Error(text), { status })
 export function validateTask(input: TaskInput) {
   if (!input.title.trim() || input.title.length > 200 || input.instructions.length > 4000) throw problem('请填写任务名称（最多 200 字），任务指引最多 4,000 字。')
+  if (input.memory !== undefined && input.memory.length > 6000) throw problem('任务记忆最多 6,000 字，请编辑后保存。', 422)
 }
 const http = axios.create({ baseURL: `${API_BASE}/assistant/tasks`, withCredentials: true, timeout: 150000 })
 http.interceptors.request.use(config => { if (config.data) config.data = snakeize(config.data); if (config.params) config.params = snakeize(config.params); return config })
@@ -159,19 +161,27 @@ export function createPreviewAssistantClient(namespace: string, storage: Storage
       const current = find(read(), task.id)
       const replay = current.messages.find(m => m.role === 'user' && m.requestId === input.requestId)
       if (replay) {
-        if (replay.content === input.question && replay.context === input.context && replay.model === (input.modelProfileId || 'enterprise') && replay.requestedMode === input.answerMode && JSON.stringify(normalizeDataSources(replay.dataSources || [])) === JSON.stringify(dataSources)) return publicTask(current)
+        if (replay.content === input.question && replay.context === input.context && (replay.baseArtifactId || undefined) === input.baseArtifactId && replay.model === (input.modelProfileId || 'enterprise') && replay.requestedMode === input.answerMode && JSON.stringify(normalizeDataSources(replay.dataSources || [])) === JSON.stringify(dataSources)) return publicTask(current)
         throw problem('同一次请求的内容已经改变，请重新发送。', 409)
       }
       check(current, task)
       if (current.messages.length >= 200) throw problem('此任务已达到 100 轮对话，请新建任务继续。', 422)
-      const provenance = input.answerMode || dataSources.includes('projects') ? previewPersonalProvenance(input.question, input.answerMode || 'auto', dataSources, current.messages.filter(message => message.role === 'assistant').at(-1), !!input.context.trim()) : undefined
+      const base = input.baseArtifactId ? current.artifacts.find(artifact => artifact.id === input.baseArtifactId) : undefined
+      const baseAnswer = base && current.messages.find(message => message.id === base.id && message.role === 'assistant')
+      if (input.baseArtifactId && (!base || !baseAnswer)) throw problem('基稿不属于当前任务的已完成回答，请重新选择。', 422)
+      const baseSources = baseAnswer?.usedSources || (baseAnswer?.answerMode === 'knowledge' ? ['knowledge'] as const : [])
+      if (baseSources.some(source => !dataSources.includes(source))) throw problem('修改此稿需要启用原稿使用的应用数据源，请检查数据设置。', 422)
+      if (baseSources.length && input.answerMode && input.answerMode !== 'auto' && input.answerMode !== (baseAnswer?.answerMode === 'knowledge' ? 'knowledge' : 'auto')) throw problem('请使用自动判断或与原稿一致的范围继续修改。', 422)
+      const planned = input.answerMode || dataSources.includes('projects') || baseAnswer ? previewPersonalProvenance(input.question, input.answerMode || 'auto', dataSources, baseAnswer || current.messages.filter(message => message.role === 'assistant').at(-1), !!input.context.trim()) : undefined
+      const provenance = baseAnswer && (!input.answerMode || input.answerMode === 'auto') && baseAnswer.answerMode ? { ...planned, answerMode: baseAnswer.answerMode, usedSources: [...baseSources], requestedMode: input.answerMode || 'auto', modeReason: '基于所选原稿继续修改，沿用原稿的数据范围；以下仅为界面演示。' } : planned
       if (provenance?.answerMode === 'knowledge' && !input.data_sources?.includes('knowledge')) throw problem('请先在数据设置中启用知识库，再使用仅知识库回答。', 422)
-      const now = new Date().toISOString(), id = crypto.randomUUID(), content = provenance?.answerMode === 'web' ? previewWebAnswer(input.question) : provenance?.answerMode === 'application' ? previewApplicationAnswer(input.question, provenance.usedSources) : previewAnswer(input.question, input.context, current.instructions)
+      const now = new Date().toISOString(), id = crypto.randomUUID(), answer = provenance?.answerMode === 'web' ? previewWebAnswer(input.question) : provenance?.answerMode === 'application' ? previewApplicationAnswer(input.question, provenance.usedSources) : previewAnswer(input.question, input.context, current.instructions)
+      const content = base ? `## 基于原稿修改\n\n基稿：${base.title}\n\n${base.content}\n\n---\n\n${answer}` : answer
       const messages: AssistantMessage[] = [...current.messages,
-        { id: crypto.randomUUID(), role: 'user', content: input.question, context: input.context, model: input.modelProfileId || 'enterprise', mode: 'preview', requestId: input.requestId, requestedMode: input.answerMode, dataSources, createdAt: now },
-        { id, role: 'assistant', content, context: '', model: '界面演示', mode: 'preview', requestId: input.requestId, createdAt: now, ...provenance },
+        { id: crypto.randomUUID(), role: 'user', content: input.question, context: input.context, model: input.modelProfileId || 'enterprise', mode: 'preview', requestId: input.requestId, requestedMode: input.answerMode, dataSources, createdAt: now, ...(base ? { baseArtifactId: base.id } : {}) },
+        { id, role: 'assistant', content, context: '', model: '界面演示', mode: 'preview', requestId: input.requestId, createdAt: now, ...provenance, ...(base ? { baseArtifactId: base.id } : {}) },
       ]
-      return change(task, { messages, messageCount: messages.length, artifacts: [...current.artifacts, { id, title: input.question.slice(0, 80), content, model: '界面演示', createdAt: now }] })
+      return change(task, { messages, messageCount: messages.length, artifacts: [...current.artifacts, { id, title: input.question.slice(0, 80), content, model: '界面演示', createdAt: now, ...(base ? { baseArtifactId: base.id } : {}) }] })
     },
   }
 }

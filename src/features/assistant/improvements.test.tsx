@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AssistantApp from './AssistantApp'
 import RequestProgressView from './RequestProgressView'
@@ -59,24 +59,26 @@ describe('assistant recovery and curation', () => {
     await act(async () => finish())
     expect(send).not.toHaveBeenCalled(); expect(composer()).toHaveValue('')
   })
-  it('curates a final artifact explicitly and prepares an editable summary without auto-saving', async () => {
+  it('curates a final artifact and saves only an explicitly edited and confirmed memory', async () => {
     const { client, task, props } = await setup()
     const row = await client.send(task, { requestId: crypto.randomUUID(), question: '整理研究目标', context: '' })
     render(<AssistantApp {...props} />); await opened(task)
-    const pane = screen.getByRole('complementary', { name: '任务结果区' })
-    expect(within(pane).getByRole('tab', { name: /概览/ })).toHaveAttribute('aria-selected', 'true')
     fireEvent.click(screen.getByRole('button', { name: '查看产物' }))
     fireEvent.click(screen.getByRole('button', { name: '设为最终成果' }))
     await waitFor(async () => expect((await client.get(task.id)).finalArtifactId).toBe(row.artifacts[0].id))
-    fireEvent.click(screen.getByRole('button', { name: '任务设置' }))
-    fireEvent.click(screen.getByRole('button', { name: '从已有提问整理摘要' }))
-    expect((screen.getByLabelText('任务摘要') as HTMLTextAreaElement).value).toContain('整理研究目标')
+    fireEvent.click(screen.getByRole('button', { name: '记入任务记忆' }))
+    expect(screen.getByRole('dialog')).toHaveTextContent('第 1 轮回答')
+    fireEvent.change(screen.getByLabelText('记忆类型'), { target: { value: '目标' } })
+    fireEvent.change(screen.getByLabelText('记忆内容'), { target: { value: '聚焦已确认的研究目标' } })
     expect((await client.get(task.id)).memory || '').toBe('')
-    expect(screen.getByRole('button', { name: '从已有提问整理摘要' })).toBeDisabled()
-    fireEvent.click(screen.getByLabelText('置顶此任务'))
-    fireEvent.click(screen.getByRole('button', { name: '保存任务' }))
-    await waitFor(async () => expect((await client.get(task.id)).pinned).toBe(true))
-    expect((await client.get(task.id)).memory).toContain('不代表已验证的事实')
+    fireEvent.click(screen.getByRole('button', { name: '确认并保存记忆' }))
+    await waitFor(async () => expect((await client.get(task.id)).memory).toContain('【目标 · 来源：第 1 轮回答'))
+    const saved = await client.get(task.id)
+    expect(saved.memory).toContain('聚焦已确认的研究目标')
+    expect(saved.finalArtifactId).toBe(row.artifacts[0].id)
+    fireEvent.click(screen.getByRole('button', { name: '任务设置' }))
+    expect(screen.queryByRole('button', { name: '从已有提问整理摘要' })).not.toBeInTheDocument()
+    expect(screen.getByLabelText('任务摘要')).toHaveValue(saved.memory)
   })
   it('presents cancel, draft continuation and safe diagnostic copy separately from final answers', async () => {
     const job: AssistantRequest = { requestId: 'job', taskId: 'task', status: 'running', stage: 'generating', question: '私人问题', context: '私人材料', error: '', diagnosticId: 'a'.repeat(32), createdAt: new Date(Date.now() - 65000).toISOString(), updatedAt: new Date().toISOString(), partialContent: '未完成正文' }

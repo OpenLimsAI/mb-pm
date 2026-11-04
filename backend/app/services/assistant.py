@@ -134,6 +134,7 @@ def detail(db, task, claims):
                 "web_references": row.web_references,
                 "knowledge_references": row.knowledge_references,
                 "source_summary": row.source_summary,
+                "base_artifact_id": (row.application_scope or {}).get("base_artifact_id"),
                 **(
                     {"used_sources": row.application_scope["used_sources"]}
                     if isinstance(row.application_scope, dict)
@@ -154,6 +155,7 @@ def detail(db, task, claims):
                 "title": questions.get(row.request_id, task.title)[:80],
                 "content": row.content,
                 "model": row.model,
+                "base_artifact_id": (row.application_scope or {}).get("base_artifact_id"),
                 "created_at": timestamp(row.created_at),
             }
         )
@@ -386,6 +388,7 @@ def completed_request(db, task, payload, claims):
         or prior.profile_id != payload.model_profile_id
         or prior.data_sources != json.dumps(payload.data_sources)
         or prior.requested_mode != (payload.answer_mode or "")
+        or (prior.application_scope or {}).get("base_artifact_id") != payload.base_artifact_id
     ):
         raise HTTPException(409, "该请求已使用不同内容，请刷新后重新发送")
     return detail(db, task, claims)
@@ -403,7 +406,7 @@ def application_data(db, claims, payload):
 
 
 def question(db, claims, task, payload):
-    from app.services import assistant_generation, assistant_requests
+    from app.services import assistant_artifacts, assistant_generation, assistant_requests
 
     active(task)
     replay = completed_request(db, task, payload, claims)
@@ -418,6 +421,7 @@ def question(db, claims, task, payload):
         claims,
         db.scalars(select(AssistantMessage).where(AssistantMessage.task_id == task.id)).all(),
     )
+    base_artifact = assistant_artifacts.selected(db, claims, task, payload)
     count = db.scalar(
         select(func.count())
         .select_from(AssistantMessage)
@@ -456,6 +460,14 @@ def question(db, claims, task, payload):
         )
     )
     previous = next((message for message in reversed(history) if message.role == "assistant"), None)
+    previous_question = next(
+        (
+            message.content
+            for message in reversed(history)
+            if message.role == "user" and previous and message.request_id == previous.request_id
+        ),
+        "",
+    )
     previous_web_question = next(
         (
             message.content
@@ -488,6 +500,18 @@ def question(db, claims, task, payload):
         previous_web_question=previous_web_question,
         reference_material_available=bool(payload.context.strip()),
     )
+    plan = assistant_artifacts.inherit_plan(plan, base_artifact, payload.question)
+    if base_artifact:
+        assistant_artifacts.selected(db, claims, task, payload, actual_sources=plan.sources)
+    knowledge_query = plan.query
+    if base_artifact:
+        knowledge_query = (
+            assistant_artifacts.original_question(db, base_artifact)[:600]
+            + "\n修改要求："
+            + payload.question[:380]
+        )
+    elif previous_question and answer_modes.followup(payload.question):
+        knowledge_query = previous_question[:600] + "\n追问：" + payload.question[:380]
     use_knowledge = "knowledge" in plan.sources
     use_projects = "projects" in plan.sources
     diagnostics.stage("application_data")
@@ -503,6 +527,8 @@ def question(db, claims, task, payload):
             db, claims, prior_project_access
         )
     application_scope = {"version": 1, "used_sources": list(plan.sources)}
+    if base_artifact:
+        application_scope["base_artifact_id"] = base_artifact.id
     if use_projects:
         application_scope.update(
             project_ids=project_ids, visible_count=evidence["projects"]["total"]
@@ -576,6 +602,19 @@ def question(db, claims, task, payload):
                     ),
                 }
             )
+        elif plan.mode == "web" and message.answer_mode == "web":
+            messages.append(
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {
+                            "unverified_previous_answer": message.content[:6000],
+                            "rule": "仅用于理解追问中的指代、格式和先前讨论，不是本轮已核验的事实依据。",
+                        },
+                        ensure_ascii=False,
+                    ),
+                }
+            )
         elif not use_knowledge and (
             (payload.answer_mode is not None and message.answer_mode == "general")
             or (
@@ -586,6 +625,8 @@ def question(db, claims, task, payload):
         ):
             messages.append({"role": "assistant", "content": message.content[:3000]})
     model_input = {"question": payload.question}
+    if base_artifact:
+        model_input["base_artifact"] = assistant_artifacts.prompt(base_artifact)
     continuation = assistant_requests.continuation_context(
         db, claims, task, payload, actual_sources=plan.sources
     )
@@ -599,6 +640,18 @@ def question(db, claims, task, payload):
     if evidence:
         model_input["application_data"] = evidence
     messages.append({"role": "user", "content": json.dumps(model_input, ensure_ascii=False)})
+    # Snapshot ORM-backed routing state before rollback expires loaded rows.
+    # External search/model I/O must not lazily reopen a read transaction.
+    public_query = plan.query
+    if (
+        plan.mode == "web"
+        and previous_question
+        and previous
+        and previous.answer_mode == "web"
+        and answer_modes.followup(payload.question)
+        and public_query == payload.question
+    ):
+        public_query = previous_question[:1200] + "\n追问：" + payload.question
     task_id = task.id
     # Release the read transaction before waiting on any external model service.
     db.rollback()
@@ -608,8 +661,22 @@ def question(db, claims, task, payload):
     knowledge_references, source_summary = [], {}
     try:
         if plan.mode == "web":
+            synthesis_context = messages[1:-1]
+            private_material = {
+                key: value for key, value in model_input.items() if key != "question"
+            }
+            if private_material:
+                synthesis_context = [
+                    *synthesis_context,
+                    {"role": "user", "content": json.dumps(private_material, ensure_ascii=False)},
+                ]
             content, web_references = web_search.answer(
-                plan.query, selected=selected, provider=provider, cfg=cfg
+                payload.question,
+                selected=selected,
+                provider=provider,
+                cfg=cfg,
+                search_query=public_query,
+                context_messages=synthesis_context,
             )
         elif use_knowledge:
             with assistant_sources.collect() as sources:
@@ -618,6 +685,8 @@ def question(db, claims, task, payload):
                     cfg,
                     messages,
                     claims,
+                    question=payload.question,
+                    search_query=knowledge_query,
                     request_fn=solution_ai.pinned_request
                     if selected["kind"] == "private"
                     else None,

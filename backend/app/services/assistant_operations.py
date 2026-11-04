@@ -38,6 +38,7 @@ class Preflight(BaseModel):
     question: str = Field(default="", max_length=12000)
     task_id: str | None = Field(default=None, max_length=64)
     reference_material_available: bool = False
+    base_artifact_id: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 def queue_lock(db):
@@ -214,14 +215,18 @@ def preflight(db, claims, payload):
     check("model", model)
     try:
         previous = None
+        base_artifact = None
+        if payload.base_artifact_id and not payload.task_id:
+            raise HTTPException(422, "请选择当前任务中的基稿")
         if payload.task_id:
-            from app.services import assistant
+            from app.services import assistant, assistant_artifacts
 
             task = assistant.get_task(db, payload.task_id, claims)
             history = db.scalars(
                 select(AssistantMessage).where(AssistantMessage.task_id == task.id)
             ).all()
             assistant.check_history_access(db, claims, history)
+            base_artifact = assistant_artifacts.selected(db, claims, task, payload)
             previous = db.scalar(
                 select(AssistantMessage)
                 .where(AssistantMessage.task_id == task.id, AssistantMessage.role == "assistant")
@@ -238,6 +243,8 @@ def preflight(db, claims, payload):
             else [],
             reference_material_available=payload.reference_material_available,
         )
+        if base_artifact:
+            plan = assistant_artifacts.inherit_plan(plan, base_artifact, payload.question)
     except HTTPException as exc:
         checks.append({"key": "scope", "status": "blocked", "message": str(exc.detail)})
         plan = None
