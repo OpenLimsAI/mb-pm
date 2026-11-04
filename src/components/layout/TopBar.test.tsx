@@ -8,7 +8,7 @@ vi.mock('../../lib/site', () => ({ feedbackUrl: 'https://www.openlims.ai/feedbac
 
 it('opens the portal feedback composer in a separate tab from every project page', () => {
   render(<MemoryRouter><TopBar /></MemoryRouter>)
-  const entry = screen.getByRole('link', { name: '问题反馈（新标签页打开）' })
+  const entry = screen.getByRole('link', { name: '回音壁（新标签页打开）' })
   expect(entry).toHaveAttribute('href', 'https://www.openlims.ai/feedback?compose=1')
   expect(entry).toHaveAttribute('target', '_blank')
   expect(entry).toHaveAttribute('rel', 'noopener noreferrer')

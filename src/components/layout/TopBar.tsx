@@ -40,8 +40,8 @@ export function TopBar() {
         rel="noopener noreferrer"
         className="app-feedback-link flex shrink-0 items-center gap-1.5 rounded-md border border-ink-200 px-2.5 py-1.5 text-sm text-ink-600 hover:bg-ink-100 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
         title="在新标签页打开回音壁，原页面保留"
-        aria-label="问题反馈（新标签页打开）"
-      ><MessageSquareText className="w-4 h-4" aria-hidden="true" /><span>问题反馈</span></a>
+        aria-label="回音壁（新标签页打开）"
+      ><MessageSquareText className="w-4 h-4" aria-hidden="true" /><span>回音壁</span></a>
 
       {/* 当前登录身份（角色取自 IAM）；点击进入工作台「我的设置」 */}
       {user && (
