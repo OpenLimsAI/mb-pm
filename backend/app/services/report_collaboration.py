@@ -231,17 +231,26 @@ def link_note(db, row, payload, claims):
         raise HTTPException(409, "仅草稿可更新笔记关联")
     check_edit(db, row, claims)
     note = db.scalar(
-        select(PersonalNote).where(
+        select(PersonalNote)
+        .where(
             PersonalNote.id == payload.note_id,
             PersonalNote.issuer == claims["iss"],
             PersonalNote.owner_id == claims["sub"],
             PersonalNote.deleted_at.is_(None),
         )
+        .with_for_update()
     )
     if not note:
         raise HTTPException(404, "笔记不存在或无权访问")
-    if payload.section_id not in {s["id"] for s in row.sections}:
+    if payload.expected_revision is not None and note.revision != payload.expected_revision:
+        raise HTTPException(409, "笔记已在其他页面更新，请重新比较后重试")
+    section = next((s for s in row.sections if s["id"] == payload.section_id), None)
+    if not section:
         raise HTTPException(422, "章节不存在")
+    if note.content not in section["content"] and core.visible_source_text(
+        note.content
+    ) not in core.visible_source_text(section["content"]):
+        raise HTTPException(409, "请先将笔记内容成功保存到报告，再更新来源关联")
     subject = f"{claims['sub']}|{payload.section_id}|{note.id}"
     ident = state_id(row.id, "report_note_link", subject)
     existing = db.get(SolutionEvent, ident)

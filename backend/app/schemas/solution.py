@@ -256,12 +256,19 @@ class TemplateSection(Section):
     parent_id: str | None = Field(default=None, min_length=1, max_length=80)
 
 
-class TemplateInput(Input):
+class TemplateShareInput(Input):
+    shared: bool = False
+    source_solution_id: str | None = Field(default=None, min_length=1, max_length=64)
+
+
+class TemplateInput(TemplateShareInput):
     name: str = Field(min_length=1, max_length=120)
     sections: list[TemplateSection] = Field(min_length=1, max_length=60)
 
     @model_validator(mode="after")
     def integrity(self):
+        if self.shared and not self.source_solution_id:
+            raise ValueError("共享模板必须关联作者的来源报告")
         self.name = self.name.strip()
         if not self.name or any(not s.title.strip() for s in self.sections):
             raise ValueError("模板和章节名称不能为空")

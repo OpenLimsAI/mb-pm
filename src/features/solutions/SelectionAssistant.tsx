@@ -20,6 +20,7 @@ export interface EditorSelection {
   host: HTMLElement
   input: HTMLElement
   rich?: { from: number; to: number }
+  containsCitation?: boolean
 }
 type Action = 'ask' | 'polish'
 interface Props {
@@ -81,12 +82,13 @@ export default function SelectionAssistant({ reportId, selection, modelLabel, pr
     return () => { document.removeEventListener('keydown', keyboard); if (previous?.isConnected) previous.focus({ preventScroll: true }) }
   }, [session])
   function open(action: Action, selected: EditorSelection) {
+    if (action === 'polish' && selected.containsCitation) return
     generation.current += 1
     setSession({ action, selection: selected }); setAnswer(null); setPolish(null); setSuggestion(''); setProposed(''); setRejected(new Set()); setError(''); setBusy(false)
     onDismiss()
   }
   async function generate() {
-    if (!session || busy || session.selection.text.length > 5000 || (session.action === 'ask' && !question.trim())) return
+    if (!session || busy || session.action === 'polish' && session.selection.containsCitation || session.selection.text.length > 5000 || (session.action === 'ask' && !question.trim())) return
     const current = ++generation.current
     setBusy(true); setError(''); setAnswer(null); setPolish(null); setSuggestion('')
     try {
@@ -106,7 +108,7 @@ export default function SelectionAssistant({ reportId, selection, modelLabel, pr
     {selection && !session && <div className="ks-selection-menu" role="toolbar" aria-label="选中文字操作" style={{ left: selection.left, top: selection.top }}>
       <button type="button" onMouseDown={event => event.preventDefault()} onClick={() => open('ask', selection)}><MessageSquare size={15} />询问 AI</button>
       <span />
-      <button type="button" onMouseDown={event => event.preventDefault()} onClick={() => open('polish', selection)}><WandSparkles size={15} />Polish 文字</button>
+      <button type="button" onMouseDown={event => event.preventDefault()} disabled={selection.containsCitation} title={selection.containsCitation ? '选区包含参考引用，请缩小选区后润色以保留引用' : undefined} onClick={() => open('polish', selection)}><WandSparkles size={15} />Polish 文字</button>
       {onSaveNote && <><span /><button type="button" onMouseDown={event => event.preventDefault()} onClick={() => { onSaveNote(selection.text); onDismiss() }}><NotebookPen size={15} />存入我的笔记</button></>}
     </div>}
     {session && <div className="ks-overlay ks-selection-overlay" onMouseDown={event => { if (event.currentTarget === event.target) close() }}>
@@ -114,9 +116,9 @@ export default function SelectionAssistant({ reportId, selection, modelLabel, pr
         <header><div><Sparkles size={18} /><h2>{session.action === 'ask' ? '询问 AI' : 'Polish 文字'}</h2><span>围绕选中的 {session.selection.text.length.toLocaleString()} 字</span></div><button type="button" className="ks-button" aria-label="关闭选中文字助手" onClick={close}><X size={18} /></button></header>
         <div className="ks-selection-tabs" role="group" aria-label="文字助手功能">
           <button type="button" aria-pressed={session.action === 'ask'} disabled={busy} onClick={() => open('ask', session.selection)}><MessageSquare size={15} />询问 AI</button>
-          <button type="button" aria-pressed={session.action === 'polish'} disabled={busy} onClick={() => open('polish', session.selection)}><WandSparkles size={15} />Polish 文字</button>
+          <button type="button" aria-pressed={session.action === 'polish'} disabled={busy || session.selection.containsCitation} onClick={() => open('polish', session.selection)}><WandSparkles size={15} />Polish 文字</button>
         </div>
-        <div className="ks-selection-original"><span>选中原文</span><blockquote>{session.selection.text}</blockquote></div>
+        {session.selection.containsCitation && <p className="ks-muted">选区包含参考引用，可围绕选段提问；文字润色请缩小选区，保留原有引用。</p>}<div className="ks-selection-original"><span>选中原文</span><blockquote>{session.selection.text}</blockquote></div>
         <div className="ks-selection-model"><Sparkles size={13} />{preview ? '本地演示' : modelLabel || '企业默认模型'}<span>{session.action === 'ask' ? `资料范围：${scope}` : '仅润色选中文字，保留事实、数值与限定条件'}</span></div>
         {preview && <p className="ks-selection-preview-note">{session.action === 'ask' ? '预览仅演示回答方式和来源展示，不调用外部模型或联网搜索。' : '预览仅演示空格与标点整理，不调用外部模型；可编辑建议，体验替换与撤销。'}</p>}
         {session.action === 'polish' && <label className="ks-field">修改方式<select aria-label="AI 修改方式" disabled={busy} value={operation} onChange={event => setOperation(event.target.value)}><option value="">润色表达</option><option value="扩写论述，保留原有事实，不补充未经证实的数据">扩写论述</option><option value="缩写内容，保留关键事实和限定条件">精简内容</option><option value="改写为正式研究报告语气，保留事实和数值">正式表达</option></select></label>}

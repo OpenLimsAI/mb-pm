@@ -31,6 +31,15 @@ function openPolish(body: HTMLTextAreaElement) {
 beforeEach(() => { localStorage.setItem('ks-editor-mode', 'markdown') })
 
 describe('selected report text assistant', () => {
+  it('keeps reference-bearing selections available for questions while preventing destructive polish', () => {
+    const { body, polish } = mount('结论[[cite:stable-ref]]及条件')
+    select(body, 0, body.value.length)
+    expect(screen.getByRole('button', { name: 'Polish 文字' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '询问 AI' })).toBeEnabled()
+    expect(polish).not.toHaveBeenCalled()
+    expect(body.value).toContain('[[cite:stable-ref]]')
+  })
+
   it('offers two actions after selecting text, without sending requests or editing', () => {
     const { body, ask, polish, edit } = mount()
     select(body)

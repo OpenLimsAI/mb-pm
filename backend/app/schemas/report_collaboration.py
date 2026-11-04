@@ -36,3 +36,4 @@ class PresenceInput(Input):
 
 class NoteLinkInput(PresenceInput):
     note_id: str = Field(min_length=1, max_length=64)
+    expected_revision: int | None = Field(default=None, ge=1)

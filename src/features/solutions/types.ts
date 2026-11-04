@@ -45,7 +45,7 @@ export interface ReviewAction {
 }
 export interface Reviewer { id: string; name: string }
 export interface TrashedSolution { id: string; title: string; revision: number; deletedAt: string }
-export interface ReportTemplate { id: string; name: string; sections: (Omit<Section, 'content'> & { content?: string })[]; createdAt: string }
+export interface ReportTemplate { shared?: boolean; canDelete?: boolean; sourceSolutionId?: string | null; id: string; name: string; sections: (Omit<Section, 'content'> & { content?: string })[]; createdAt: string }
 export interface TopicMetadata { id: string; title: string; archived: boolean; revision: number }
 export interface SolutionClient {
   collaboration?(id: string): Promise<ReportCollaboration>
@@ -54,11 +54,12 @@ export interface SolutionClient {
   resolveComment?(id: string, commentId: string, revision: number, resolved: boolean): Promise<void>
   presence?(id: string, sectionId: string): Promise<ReportCollaboration>
   noteLinks?(id: string): Promise<ReportNoteLink[]>
-  linkNote?(id: string, noteId: string, sectionId: string): Promise<ReportNoteLink>
+  linkNote?(id: string, noteId: string, sectionId: string, expectedRevision?: number): Promise<ReportNoteLink>
   snapshot?(id: string, revision: number, name: string): Promise<Version>
   restoreSection?(id: string, versionId: string, revision: number, sectionId: string): Promise<Solution>
   templates?(): Promise<ReportTemplate[]>
-  createTemplate?(name: string, sections: (Omit<Section, 'content'> & { content?: string })[]): Promise<ReportTemplate>
+  createTemplate?(name: string, sections: (Omit<Section, 'content'> & { content?: string })[], sharing?: { shared: boolean; sourceSolutionId?: string }): Promise<ReportTemplate>
+  shareTemplate?(id: string, sharing: { shared: boolean; sourceSolutionId?: string }): Promise<ReportTemplate>
   deleteTemplate?(id: string): Promise<void>
   topics?(id: string): Promise<TopicMetadata[]>
   saveTopic?(id: string, topic: TopicMetadata): Promise<TopicMetadata>

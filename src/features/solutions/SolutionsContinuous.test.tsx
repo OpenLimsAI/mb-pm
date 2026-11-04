@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import SolutionsApp from './SolutionsApp'
 import { createDemoClient } from './demo'
@@ -37,6 +37,36 @@ describe('continuous research report writing', () => {
     expect(ask.mock.calls[0][1].context).toBe(context.value)
     expect(ask.mock.calls[0][1].context.length).toBeLessThanOrEqual(10000)
   })
+  it('shares an explicitly selected template and lets its author revoke sharing', async () => {
+    const client = await mount()
+    fireEvent.click(screen.getByRole('button', { name: '保存章节模板' }))
+    const dialog = screen.getByRole('dialog', { name: '章节模板' })
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '模板名称' }), { target: { value: '团队实验规范' } })
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: '共享给同组织团队成员' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存模板' }))
+    await screen.findByText('团队模板已共享，同组织成员新建报告时可选择。')
+    expect((await client.templates!())[0]).toMatchObject({ shared: true, sourceSolutionId: 'demo-solution' })
+    fireEvent.click(screen.getByRole('button', { name: '保存章节模板' }))
+    fireEvent.click(screen.getByRole('button', { name: '取消共享' }))
+    await waitFor(async () => expect((await client.templates!())[0].shared).toBe(false))
+  })
+
+  it('announces normal writing position without opening the collaboration panel', async () => {
+    const client = createDemoClient('presence-writing', 'author', '作者'), presence = vi.spyOn(client, 'presence')
+    render(<SolutionsApp client={client} userId="author" userName="作者" preview />)
+    await screen.findByRole('textbox', { name: '章节正文' })
+    await waitFor(() => expect(presence).toHaveBeenCalledWith('demo-solution', 'section-1'))
+    fireEvent.click(screen.getByRole('button', { name: '打开章节：已有知识与实践基础' }))
+    await waitFor(() => expect(presence).toHaveBeenLastCalledWith('demo-solution', 'section-2'))
+    fireEvent.click(screen.getByRole('button', { name: '研究报告主页' }))
+    await screen.findByRole('button', { name: '缓冲体系选择与验证报告' })
+    const count = presence.mock.calls.length
+    vi.useFakeTimers()
+    await act(() => vi.advanceTimersByTimeAsync(21000))
+    expect(presence).toHaveBeenCalledTimes(count)
+    vi.useRealTimers()
+  })
+
   it('creates a scenario template with visible writing requirements', async () => {
     await mount()
     fireEvent.click(screen.getByRole('button', { name: '新建报告' }))

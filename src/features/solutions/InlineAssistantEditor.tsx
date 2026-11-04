@@ -6,7 +6,8 @@ import type { RichHandle, RichRange } from './RichBodySegment'
 import { readReportImage } from './reportMarkup'
 import SafeMarkdown from '../../components/SafeMarkdown'
 import { GripVertical, ArrowUp, ArrowDown, Bold, BookOpen, Check, Heading2, Italic, List, LoaderCircle, Quote, Redo2, Send, Sparkles, Undo2, X, Table, ImagePlus } from 'lucide-react'
-import type { Answer, PolishResult } from './types'
+import type { NumberedReference } from './reportReferences'
+import type { Answer, PolishResult, Reference } from './types'
 import SelectionAssistant from './SelectionAssistant'
 import type { EditorSelection } from './SelectionAssistant'
 import './inlineAssistant.css'
@@ -28,6 +29,8 @@ export interface InlineQuestion extends InlineAnchor {
 interface Props {
   reportId?: string
   allowAI?: boolean
+  references?: NumberedReference[]
+  onCitation?: (reference: Reference) => void
   content: string
   onCursorChange?: (range: { from: number; to: number; text: string; content: string }) => void
   cards: InlineQuestion[]
@@ -204,10 +207,11 @@ export default function InlineAssistantEditor(props: Props) {
     const line = caretLine(input), rect = input.getBoundingClientRect()
     const bottom = Math.min(window.innerHeight, input.closest('.ks-paper-scroll')?.getBoundingClientRect().bottom || window.innerHeight)
     setMenu(null)
-    setSelectedText({ key: input.dataset.segmentKey!, start, end, text, document: content, input, host: input.closest<HTMLElement>('.ks-app') || document.body,
+    setSelectedText({ key: input.dataset.segmentKey!, start, end, text, containsCitation: /\[\[cite:/.test(text), document: content, input, host: input.closest<HTMLElement>('.ks-app') || document.body,
       left: Math.max(8, Math.min(rect.left + line.left, window.innerWidth - (props.onSaveNote ? 400 : 260))), top: Math.max(8, Math.min(rect.top + line.top - input.scrollTop + line.lineHeight + 7, bottom - (props.onSaveNote && window.innerWidth < 440 ? 90 : 48))) })
   }
   function replaceSelectedText(selected: EditorSelection, replacement: string) {
+    if (selected.containsCitation) return false
     if (selected.rich && mode === 'visual') {
       const target = richEditors.current.get(selected.key)
       if (disabled || content !== selected.document || !target || target.editor.isDestroyed) return false
@@ -261,7 +265,7 @@ export default function InlineAssistantEditor(props: Props) {
     props.onCursorChange?.({ from: part.from + range.start, to: part.from + range.end, text: content.slice(part.from + range.start, part.from + range.end), content })
     onSelection(range.text)
     if (!range.text.trim() || disabled) { setSelectedText(null); return }
-    setSelectedText({ key, start: range.start, end: range.end, text: range.text, document: content, rich: { from: range.from, to: range.to }, input: range.input, host: range.input.closest<HTMLElement>('.ks-app') || document.body, left: Math.max(8, Math.min(range.left, window.innerWidth - 400)), top: Math.max(8, Math.min(range.top + 7, window.innerHeight - 100)) })
+    setSelectedText({ key, start: range.start, end: range.end, text: range.text, containsCitation: /\[\[cite:/.test(part.text.slice(range.start, range.end)), document: content, rich: { from: range.from, to: range.to }, input: range.input, host: range.input.closest<HTMLElement>('.ks-app') || document.body, left: Math.max(8, Math.min(range.left, window.innerWidth - 400)), top: Math.max(8, Math.min(range.top + 7, window.innerHeight - 100)) })
   }
   async function insertImage(file?: File) {
     const target = rich.current?.editor
@@ -283,7 +287,7 @@ export default function InlineAssistantEditor(props: Props) {
     {caption && <form className="ks-editor-caption" onSubmit={event => { event.preventDefault(); if (!caption.text.trim() || !rich.current) return; rich.current.editor.chain().focus().insertContent(captionMarkdown(caption.kind, nextCaptionNumber(content, caption.kind), caption.text.trim()), { contentType: 'markdown' }).run(); setCaption(null) }}><select aria-label="图表类型" value={caption.kind} onChange={event => setCaption({ ...caption, kind: event.target.value as '图' | '表' })}><option>图</option><option>表</option></select><input aria-label="图表标题" autoFocus value={caption.text} maxLength={200} onChange={event => setCaption({ ...caption, text: event.target.value })} placeholder="输入图表标题" /><button type="submit" disabled={!caption.text.trim()}>插入标题</button><button type="button" onClick={() => setCaption(null)}>取消</button></form>}
     <input ref={imageInput} type="file" accept="image/png,image/jpeg,image/webp" aria-label="选择正文图片" hidden onChange={event => { void insertImage(event.target.files?.[0]); event.target.value = '' }} />
     {editorError && <p className="ks-editor-error" role="alert">{editorError}</p>}
-    {parts.map((part, index) => part.type === 'text' ? mode === 'visual' ? <RichBodySegment key={part.key} segmented={cards.length > 0} finalSegment={index === parts.length - 1} value={part.text} label={index === 0 ? '章节正文' : `章节正文（续 ${Math.ceil(index / 2)}）`} allowAI={props.allowAI} disabled={disabled} onChange={(value, start, end) => record(part.key, { value, start, end })} onActive={handle => { rich.current = handle; richEditors.current.set(part.key, handle) }} onRange={range => { setTableActive(richEditors.current.get(part.key)?.editor.isActive('table') || false); selectRich(part.key, range) }} onError={setEditorError} onSlash={offset => onCreate(part.from + offset, parts.slice(0, index).filter(p => p.type === 'card').map(p => p.anchor.id))} /> : <BodySegment key={part.key} segmentKey={part.key} value={part.text} segmented={cards.length > 0} finalSegment={index === parts.length - 1}
+    {parts.map((part, index) => part.type === 'text' ? mode === 'visual' ? <RichBodySegment references={props.references} onCitation={props.onCitation} key={part.key} segmented={cards.length > 0} finalSegment={index === parts.length - 1} value={part.text} label={index === 0 ? '章节正文' : `章节正文（续 ${Math.ceil(index / 2)}）`} allowAI={props.allowAI} disabled={disabled} onChange={(value, start, end) => record(part.key, { value, start, end })} onActive={handle => { rich.current = handle; richEditors.current.set(part.key, handle) }} onRange={range => { setTableActive(richEditors.current.get(part.key)?.editor.isActive('table') || false); selectRich(part.key, range) }} onError={setEditorError} onSlash={offset => onCreate(part.from + offset, parts.slice(0, index).filter(p => p.type === 'card').map(p => p.anchor.id))} /> : <BodySegment key={part.key} segmentKey={part.key} value={part.text} segmented={cards.length > 0} finalSegment={index === parts.length - 1}
       label={index === 0 ? '章节正文' : `章节正文（续 ${Math.ceil(index / 2)}）`} disabled={disabled}
       onChange={(value, start, end, inputType) => record(part.key, { value, start, end }, inputType)}
       onActive={input => { activeInput.current = input }} onFormat={format} onHistory={moveHistory}

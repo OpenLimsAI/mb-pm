@@ -17,3 +17,6 @@
 .ks-context-scope select { padding: 3px 6px; color: #24476b; border: 1px solid #cadce9; border-radius: 4px; background: white; }
 .ks-context-scope > span { min-width: 0; overflow-wrap: anywhere; }
 .ks-writing-actions { flex-wrap: wrap; }
+.ks-rich-citation { display: inline; user-select: none; white-space: nowrap; }
+.ks-rich-citation button { display: inline; padding: 0 3px; border: 0; border-radius: 3px; background: #e8f4fb; color: #176c94; font-size: .9em; font-weight: 600; cursor: pointer; }
+.ks-rich-citation button:hover,.ks-rich-citation button:focus-visible { background: #d3eaf7; outline: 1px solid #81b7d4; }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { builtInTemplates, checkReport, outlineFromAnswer, reusableContent, searchReportSections, templateSections } from './reportExperience'
+import { builtInTemplates, checkReport, outlineFromAnswer, reusableContent, searchReportSections, templateSections, terminologyTitle } from './reportExperience'
 import type { Answer, Solution } from './types'
 const doc = { id: 'r1', title: '研究', sections: [], references: [] } as unknown as Solution
 describe('report writing assistance', () => {
@@ -29,6 +29,12 @@ describe('report writing assistance', () => {
     expect(sections.map(section => section.id)).toEqual(['1', '2', '3', '4'])
     expect(sections[0].content).toContain('写作要求：')
     expect(sections[0].content).toContain('- [ ]')
+  })
+  it('flags named measurement value differences and applies report terminology rules outside their definition', () => {
+    const value = { ...doc, sections: [{ id: 'terms', title: terminologyTitle, content: '检测方法=检测法' }, { id: 'a', title: '实验条件', content: '检测法A。\n浓度：10 mg/mL' }, { id: 'b', title: '结果', content: '浓度：20 mg/mL' }] }
+    const issues = checkReport(value)
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({ sectionId: 'a', message: expect.stringContaining('建议使用“检测方法”') }), expect.objectContaining({ sectionId: 'b', message: expect.stringContaining('10 mg/mL 和 20 mg/mL') })]))
+    expect(issues.some(issue => issue.sectionId === 'terms')).toBe(false)
   })
   it('extracts a bounded unique outline and ignores prose or excessively long headings', () => {
     const answer = { content: '# 研究目标\n解释文字\n2. 证据比较\n## 研究目标\n# ' + '字'.repeat(121) } as Answer

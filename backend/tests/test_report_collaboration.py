@@ -179,7 +179,7 @@ def test_personal_note_links_snapshot_and_do_not_leak_between_members(solution_c
     )
     f.db.add(note)
     f.db.commit()
-    row = create(f)
+    row = create(f, sections=[{"id": "goal", "title": "目标", "content": "笔记正文"}])
     grant(f, row, "editor", "editor")
     url = f"{PREFIX}/{row['id']}/note-links"
     result = f.client.post(url, json={"note_id": "note1", "section_id": "goal"})
@@ -193,6 +193,13 @@ def test_personal_note_links_snapshot_and_do_not_leak_between_members(solution_c
     assert f.client.get(url).json() == []
     assert f.client.post(url, json={"note_id": "note1", "section_id": "goal"}).status_code == 404
     f.login()
+    f.client.put(
+        f"{PREFIX}/{row['id']}",
+        json={
+            **body(sections=[{"id": "goal", "title": "目标", "content": "更新正文"}]),
+            "revision": row["revision"],
+        },
+    )
     assert (
         f.client.post(url, json={"note_id": "note1", "section_id": "goal"}).json()["content"]
         == "更新正文"
@@ -219,3 +226,53 @@ def test_template_optional_guidance_and_reference_annotations_persist(solution_c
     )
     assert row["references"][0]["anchor_text"] == "专家判断"
     assert row["references"][0]["applicability"] == "适用于当前研究条件"
+
+
+def test_note_link_revision_race_and_unsaved_report_keep_previous_snapshot(solution_client):
+    f = solution_client
+    note = PersonalNote(
+        id="note-race",
+        issuer=test_solutions.settings.casdoor_issuer,
+        owner_id="author",
+        title="笔记",
+        content="原文 A",
+        source_app="manual",
+        source_title="",
+        source_url="",
+    )
+    f.db.add(note)
+    f.db.commit()
+    row = create(f, sections=[{"id": "goal", "title": "目标", "content": "原文 A"}])
+    url = f"{PREFIX}/{row['id']}/note-links"
+    assert (
+        f.client.post(
+            url, json={"note_id": note.id, "section_id": "goal", "expected_revision": 1}
+        ).status_code
+        == 201
+    )
+    note.content = "新文 B"
+    note.revision = 2
+    f.db.commit()
+    # A failed/stale report save cannot advance the saved source baseline.
+    failed = f.client.post(
+        url, json={"note_id": note.id, "section_id": "goal", "expected_revision": 2}
+    )
+    assert failed.status_code == 409, failed.text
+    assert f.client.get(url).json()[0]["note_revision"] == 1
+    saved = f.client.put(
+        f"{PREFIX}/{row['id']}",
+        json={
+            **body(sections=[{"id": "goal", "title": "目标", "content": "新文 B"}]),
+            "revision": row["revision"],
+        },
+    )
+    assert saved.status_code == 200, saved.text
+    # The author compared B, but another tab changes the note to C before linking.
+    note.content = "新文 C"
+    note.revision = 3
+    f.db.commit()
+    stale = f.client.post(
+        url, json={"note_id": note.id, "section_id": "goal", "expected_revision": 2}
+    )
+    assert stale.status_code == 409, stale.text
+    assert f.client.get(url).json()[0]["content"] == "原文 A"

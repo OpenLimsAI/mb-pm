@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import ReportCollaborationPanel from './ReportCollaborationPanel'
-import ReportNoteLinks, { reportNoteReferences } from './ReportNoteLinks'
+import ReportNoteLinks from './ReportNoteLinks'
+import { reportNoteReferences } from './reportNoteReferences'
 import VersionHistoryPanel from './VersionHistoryPanel'
 import { createDemoClient } from './demo'
 import { createPreviewNotesClient } from '../notes/client'
@@ -32,7 +33,8 @@ describe('report collaboration and private linked notes', () => {
     const note = await notes.create('n1', { title: '实验思考', content: '原笔记正文', sourceApp: 'manual', sourceTitle: '', sourceUrl: '' })
     const doc = (await client.list())[0], sectionId = doc.sections[0].id
     doc.sections[0].content = `原笔记正文\n\n[笔记来源：实验思考](/notes?note=n1)`
-    const replace = vi.fn(() => true)
+    Object.assign(doc, await client.save(doc.id, { ...doc, revision: doc.revision }))
+    const replace = vi.fn(async (target: string, before: string, after: string) => { const current = await client.get(doc.id); await client.save(doc.id, { ...current, sections: current.sections.map(section => section.id === target ? { ...section, content: section.content.replace(before, after) } : section), revision: current.revision }); return true })
     const view = render(<ReportNoteLinks doc={doc} client={client} notesClient={notes} onReplace={replace} />)
     await screen.findByText('与笔记版本一致')
     await notes.save(note, { ...note, content: '更新后的笔记正文' })
@@ -43,6 +45,73 @@ describe('report collaboration and private linked notes', () => {
     fireEvent.click(screen.getByRole('button', { name: '确认更新报告中的笔记内容' }))
     expect(replace).toHaveBeenCalledWith(sectionId, '原笔记正文', '更新后的笔记正文')
     await waitFor(async () => expect((await client.noteLinks!(doc.id))[0].noteRevision).toBe(2))
+  })
+  it('does not advance the note snapshot when saving the report fails', async () => {
+    const client = createDemoClient('note-conflict', 'author', '研究员'), notes = createPreviewNotesClient('note-conflict:author')
+    const note = await notes.create('n1', { title: '笔记', content: '原文 A', sourceApp: 'manual', sourceTitle: '', sourceUrl: '' })
+    const doc = (await client.list())[0], sectionId = doc.sections[0].id
+    doc.sections[0].content = '原文 A\n\n[笔记](/notes?note=n1)'
+    Object.assign(doc, await client.save(doc.id, { ...doc, revision: doc.revision }))
+    await client.linkNote!(doc.id, note.id, sectionId, note.revision)
+    await notes.save(note, { ...note, content: '新文 B' })
+    let finish!: (value: boolean) => void
+    const replace = vi.fn(() => new Promise<boolean>(resolve => { finish = resolve })), link = vi.spyOn(client, 'linkNote')
+    render(<ReportNoteLinks doc={doc} client={client} notesClient={notes} onReplace={replace} />)
+    await screen.findByText('笔记有更新'); fireEvent.click(screen.getByText('查看差异')); fireEvent.click(screen.getByText('确认更新报告中的笔记内容'))
+    expect(link).not.toHaveBeenCalled()
+    await act(async () => finish(false))
+    expect(await screen.findByRole('alert')).toHaveTextContent('原笔记内容已在报告中修改')
+    expect(link).not.toHaveBeenCalled()
+    expect((await client.noteLinks!(doc.id))[0].noteRevision).toBe(1)
+    expect((await client.get(doc.id)).sections[0].content).toContain('原文 A')
+    replace.mockRejectedValueOnce(new Error('报告尚未成功保存，笔记关联版本未更新。'))
+    fireEvent.click(screen.getByText('确认更新报告中的笔记内容'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('报告尚未成功保存')
+    expect(link).not.toHaveBeenCalled()
+    expect((await client.noteLinks!(doc.id))[0].noteRevision).toBe(1)
+  })
+  it('waits for an initial report save before binding the note baseline', async () => {
+    const client = createDemoClient('note-initial-save', 'author', '研究员'), notes = createPreviewNotesClient('note-initial-save:author')
+    await notes.create('n1', { title: '笔记', content: '原文 A', sourceApp: 'manual', sourceTitle: '', sourceUrl: '' })
+    const doc = (await client.list())[0]; doc.sections[0].content = '原文 A\n\n[笔记](/notes?note=n1)'
+    const link = vi.spyOn(client, 'linkNote'), replace = vi.fn(() => true)
+    const view = render(<ReportNoteLinks doc={doc} reportSaved={false} client={client} notesClient={notes} onReplace={replace} />)
+    await screen.findByText(/笔记来源尚未关联/)
+    expect(link).not.toHaveBeenCalled()
+    expect(screen.queryByText('与笔记版本一致')).not.toBeInTheDocument()
+    const saved = await client.save(doc.id, { ...doc, revision: doc.revision })
+    view.rerender(<ReportNoteLinks doc={saved} reportSaved client={client} notesClient={notes} onReplace={replace} />)
+    await screen.findByText('与笔记版本一致')
+    expect(link).toHaveBeenCalledWith(doc.id, 'n1', doc.sections[0].id, 1)
+  })
+  it('retains the old note snapshot when the note changes after comparison', async () => {
+    const client = createDemoClient('note-race', 'author', '研究员'), notes = createPreviewNotesClient('note-race:author')
+    const note = await notes.create('n1', { title: '笔记', content: '原文 A', sourceApp: 'manual', sourceTitle: '', sourceUrl: '' })
+    const doc = (await client.list())[0], sectionId = doc.sections[0].id
+    doc.sections[0].content = '原文 A\n\n[笔记](/notes?note=n1)'; Object.assign(doc, await client.save(doc.id, { ...doc, revision: doc.revision }))
+    await client.linkNote!(doc.id, note.id, sectionId, 1)
+    const b = await notes.save(note, { ...note, content: '新文 B' })
+    const replace = vi.fn(async () => { const current = await client.get(doc.id); await client.save(doc.id, { ...current, sections: current.sections.map(section => ({ ...section, content: section.content.replace('原文 A', '新文 B') })), revision: current.revision }); await notes.save(b, { ...b, content: '新文 C' }); return true })
+    render(<ReportNoteLinks doc={doc} client={client} notesClient={notes} onReplace={replace} />)
+    await screen.findByText('笔记有更新'); fireEvent.click(screen.getByText('查看差异')); fireEvent.click(screen.getByText('确认更新报告中的笔记内容'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('笔记已在其他页面更新')
+    expect((await client.noteLinks!(doc.id))[0]).toMatchObject({ noteRevision: 1, content: '原文 A' })
+    expect((await client.get(doc.id)).sections[0].content).toContain('新文 B')
+  })
+  it('can finish recording a note baseline after its text was saved by a previous interrupted attempt', async () => {
+    const client = createDemoClient('note-retry-lineage', 'author', '研究员'), notes = createPreviewNotesClient('note-retry-lineage:author')
+    const note = await notes.create('n1', { title: '笔记', content: '原文 A', sourceApp: 'manual', sourceTitle: '', sourceUrl: '' })
+    const doc = (await client.list())[0], sectionId = doc.sections[0].id
+    doc.sections[0].content = '原文 A\n\n[笔记](/notes?note=n1)'; Object.assign(doc, await client.save(doc.id, { ...doc, revision: doc.revision }))
+    await client.linkNote!(doc.id, note.id, sectionId, 1)
+    await notes.save(note, { ...note, content: '新文 B' })
+    const saved = await client.save(doc.id, { ...doc, sections: doc.sections.map(section => ({ ...section, content: section.content.replace('原文 A', '新文 B') })), revision: doc.revision })
+    const replace = vi.fn(() => false)
+    render(<ReportNoteLinks doc={saved} client={client} notesClient={notes} onReplace={replace} />)
+    await screen.findByText('笔记有更新'); fireEvent.click(screen.getByText('查看差异')); fireEvent.click(screen.getByText('确认更新报告中的笔记内容'))
+    await screen.findByText('与笔记版本一致')
+    expect(replace).not.toHaveBeenCalled()
+    expect((await client.noteLinks!(doc.id))[0].noteRevision).toBe(2)
   })
   it('ignores malformed note links and never treats an external URL as a personal note', async () => {
     const client = createDemoClient('note-parse', 'author', '研究员'), doc = (await client.list())[0]

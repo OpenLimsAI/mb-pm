@@ -25,10 +25,15 @@ export function templateSections(template: WritingTemplate, id: () => string = (
   return template.sections.map(section => ({ id: id(), title: section.title, content: `写作要求：${section.instruction}\n\n检查项：\n${section.checks.map(check => `- [ ] ${check}`).join('\n')}\n\n` }))
 }
 export interface ReportIssue { id: string; sectionId: string; kind: 'missing' | 'placeholder' | 'duplicate' | 'citation' | 'consistency'; message: string; excerpt: string }
+export const terminologyTitle = '术语与缩写规范'
+export function terminologyRules(doc: Pick<Solution, 'sections'>): string[][] {
+  return (doc.sections.find(section => section.title === terminologyTitle)?.content || '').split('\n').map(line => line.replace(/^[-*]\s+/, '').split('=').map(term => term.trim()).filter(Boolean)).filter(terms => terms.length > 1).slice(0, 100)
+}
 export function checkReport(doc: Solution): ReportIssue[] {
-  const issues: ReportIssue[] = [], seen = new Map<string, string>(), units = new Map<string, { unit: string; sectionId: string }>()
+  const issues: ReportIssue[] = [], seen = new Map<string, string>(), units = new Map<string, { unit: string; value: number; sectionId: string }>(), terms = terminologyRules(doc)
   const add = (section: Section, kind: ReportIssue['kind'], message: string, excerpt = '') => issues.push({ id: `${section.id}-${kind}-${issues.length}`, sectionId: section.id, kind, message, excerpt: excerpt.slice(0, 160) })
   for (const section of doc.sections) {
+    if (section.title === terminologyTitle) continue
     if (!section.content.trim()) add(section, 'missing', '章节正文为空。')
     const markers = section.content.match(/TODO|待补充|待填写|待核实|\[\s*\]|XX(?:X+)?|待验证事项[：:]\s*$/gim)
     if (markers) add(section, 'placeholder', `还有 ${markers.length} 处占位内容或未完成检查项。`, markers.slice(0, 5).join('、'))
@@ -46,10 +51,14 @@ export function checkReport(doc: Solution): ReportIssue[] {
     }
     if (/研究表明|文献表明|证实|显著(?:提高|降低|改善)|优于|证明|结果显示/.test(section.content) && !refs.length) add(section, 'citation', '本章包含结论性表述，尚未关联参考依据。请核查来源。')
     for (const ref of refs) if (!ref.sourceVersion || !ref.locator) add(section, 'citation', `“${ref.title}”缺少${!ref.sourceVersion ? '来源版本' : '原文位置'}。`, ref.excerpt)
+    for (const [preferred, ...alternatives] of terms) for (const term of alternatives) {
+      if (section.content.includes(term)) add(section, 'consistency', `发现“${term}”，报告术语规范建议使用“${preferred}”。请核对是否需要统一。`, term)
+    }
     for (const match of section.content.matchAll(/([\p{L}\p{N}]{2,12})[：:]\s*(\d+(?:\.\d+)?)\s*(mg\/mL|μg\/mL|ug\/mL|g\/L|mg|μg|ug|mL|ml|L|℃|°C|%)/gu)) {
       const key = match[1], unit = match[3].replace('ml', 'mL').replace('ug', 'μg').replace('°C', '℃'), prior = units.get(key)
       if (prior && prior.unit !== unit) add(section, 'consistency', `“${key}”在报告中使用了 ${prior.unit} 和 ${unit}，请核对单位及换算。`, match[0])
-      else units.set(key, { unit, sectionId: section.id })
+      else if (prior && prior.value !== Number(match[2])) add(section, 'consistency', `“${key}”出现 ${prior.value} ${unit} 和 ${match[2]} ${unit}，请核对是否属于同一条件下的指标。`, match[0])
+      else units.set(key, { unit, value: Number(match[2]), sectionId: section.id })
     }
   }
   return issues

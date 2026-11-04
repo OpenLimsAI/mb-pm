@@ -35,6 +35,7 @@ from app.schemas.solution import (
     SolutionSave,
     SourceInput,
     TemplateInput,
+    TemplateShareInput,
     TopicInput,
     TopicRevision,
 )
@@ -300,6 +301,16 @@ def create_template(
     payload: TemplateInput, db: Session = Depends(get_db), claims: dict = Depends(identity)
 ):
     return workbench.create_template(db, payload, claims)
+
+
+@router.put("/templates/{template_id}/sharing")
+def share_template(
+    template_id: str,
+    payload: TemplateShareInput,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    return workbench.share_template(db, template_id, payload, claims)
 
 
 @router.delete("/templates/{template_id}", status_code=204)
