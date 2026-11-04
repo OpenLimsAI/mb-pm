@@ -8,8 +8,11 @@ import { GlobalSearch } from './GlobalSearch'
 import { Avatar } from '../ui/Avatar'
 import { USE_API } from '../../api/client'
 import { feedbackUrl, settingsUrl, workspaceUrl } from '../../lib/site'
+import { buildFeedbackEntry } from '../../features/feedback/source'
+import { useLocation } from 'react-router-dom'
 
 export function TopBar() {
+  const location = useLocation()
   const user = useAuth((s) => s.currentUser)
   const logout = useAuth((s) => s.logout)
   // 离线演示（未连后端）没有登录会话，不显示登出
@@ -35,7 +38,7 @@ export function TopBar() {
       </a>
 
       <a
-        href={import.meta.env.DEV && !USE_API ? '/feedback?preview=1&compose=1' : `${feedbackUrl}?compose=1`}
+        href={buildFeedbackEntry(import.meta.env.DEV && !USE_API ? '/feedback' : feedbackUrl, 'pm', location, import.meta.env.DEV && !USE_API)}
         target="_blank"
         rel="noopener noreferrer"
         className="app-feedback-link flex shrink-0 items-center gap-1.5 rounded-md border border-ink-200 px-2.5 py-1.5 text-sm text-ink-600 hover:bg-ink-100 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
