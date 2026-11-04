@@ -90,7 +90,7 @@ describe('knowledge solution workspace', () => {
     fireEvent.click(within(confirmDialog).getByRole('button', { name: '确认插入并保留引用' }))
     const textarea = screen.getByRole('textbox', { name: '章节正文' }) as HTMLTextAreaElement
     expect(textarea.value).toContain('原文中的研究条件与观察')
-    expect(textarea.value).toContain('[依据：研究资料甲 · 1 · 方法章节]')
+    expect(textarea.value).toMatch(/\[\[cite:[^\]]+\]\]/)
     fireEvent.change(textarea, { target: { value: `${textarea.value}\n人工后续判断` } })
     fireEvent.click(screen.getByRole('button', { name: '撤销插入' }))
     expect(textarea).toHaveValue('原始内容\n人工后续判断')
@@ -287,8 +287,18 @@ describe('knowledge solution workspace', () => {
     expect(screen.getByRole('button', { name: '章节操作：研究目标' })).toBeEnabled()
   })
 
+  it('allows an invited editor to save writing without accessing the author AI history', async () => {
+    const client = mockClient(); await mount(client, 'invited-editor')
+    const body = screen.getByRole('textbox', { name: '章节正文' })
+    expect(body).toBeEnabled(); expect(client.history).not.toHaveBeenCalled()
+    expect(screen.queryByRole('textbox', { name: '向AI提问' })).not.toBeInTheDocument()
+    fireEvent.change(body, { target: { value: '协作者补充的实验条件' } })
+    fireEvent.click(screen.getByRole('button', { name: '有修改 · 将自动保存' }))
+    await waitFor(() => expect(client.save).toHaveBeenCalledWith('one', expect.objectContaining({ sections: expect.arrayContaining([expect.objectContaining({ content: '协作者补充的实验条件' })]) })))
+  })
+
   it('does not allow chapter editing by a non-author or addition beyond sixty chapters', async () => {
-    const initial = seed(); initial.sections = Array.from({ length: 60 }, (_, index) => ({ id: `s${index}`, title: `章节${index}`, content: '' }))
+    const initial = seed(); initial.canEdit = false; initial.sections = Array.from({ length: 60 }, (_, index) => ({ id: `s${index}`, title: `章节${index}`, content: '' }))
     const client = mockClient(initial); await mount(client, 'reader')
     expect(screen.getByRole('button', { name: '章节操作：章节0' })).toBeDisabled()
     expect(screen.getByRole('button', { name: '添加章节' })).toBeDisabled()

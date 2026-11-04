@@ -6,7 +6,14 @@ import re
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 
 class Input(BaseModel):
@@ -67,6 +74,16 @@ class Reference(Input):
     locator: str = Field(default="", max_length=1200)
     source_version: str = Field(min_length=1, max_length=80)
     section_id: str = Field(min_length=1, max_length=80)
+    anchor_text: str | None = Field(default=None, max_length=12000)
+    applicability: str | None = Field(default=None, max_length=4000)
+
+    @model_serializer(mode="wrap")
+    def serialize(self, handler):
+        data = handler(self)
+        for key in ("anchor_text", "applicability"):
+            if data.get(key) is None:
+                data.pop(key, None)
+        return data
 
 
 class SolutionInput(Input):
@@ -233,7 +250,7 @@ class RestoreSectionInput(SolutionRevision):
     section_id: str = Field(min_length=1, max_length=80)
 
 
-class TemplateSection(Input):
+class TemplateSection(Section):
     id: str = Field(min_length=1, max_length=80)
     title: str = Field(min_length=1, max_length=200)
     parent_id: str | None = Field(default=None, min_length=1, max_length=80)
@@ -249,6 +266,11 @@ class TemplateInput(Input):
         if not self.name or any(not s.title.strip() for s in self.sections):
             raise ValueError("模板和章节名称不能为空")
         validate_outline(self.sections)
+        if (
+            sum(len(s.content) for s in self.sections) > 12000000
+            or sum(len(text_without_images(s.content)) for s in self.sections) > 200000
+        ):
+            raise ValueError("模板内容过长，请减少预置内容")
         return self
 
 

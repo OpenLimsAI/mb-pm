@@ -8,7 +8,7 @@ export interface FormulaRow {
 }
 export interface Reference {
   id: string; sourceId: string; title: string; excerpt: string; locator: string
-  sourceVersion: string; sectionId: string
+  sourceVersion: string; sectionId: string; anchorText?: string; applicability?: string
 }
 export interface Solution {
   id: string; title: string; projectName: string; productName: string; pinned?: boolean; tags?: string[]
@@ -45,13 +45,20 @@ export interface ReviewAction {
 }
 export interface Reviewer { id: string; name: string }
 export interface TrashedSolution { id: string; title: string; revision: number; deletedAt: string }
-export interface ReportTemplate { id: string; name: string; sections: Omit<Section, 'content'>[]; createdAt: string }
+export interface ReportTemplate { id: string; name: string; sections: (Omit<Section, 'content'> & { content?: string })[]; createdAt: string }
 export interface TopicMetadata { id: string; title: string; archived: boolean; revision: number }
 export interface SolutionClient {
+  collaboration?(id: string): Promise<ReportCollaboration>
+  saveMember?(id: string, subject: string, role: 'editor' | 'commenter' | 'removed'): Promise<void>
+  comment?(id: string, input: { sectionId: string; quote: string; content: string; parentId?: string }): Promise<void>
+  resolveComment?(id: string, commentId: string, revision: number, resolved: boolean): Promise<void>
+  presence?(id: string, sectionId: string): Promise<ReportCollaboration>
+  noteLinks?(id: string): Promise<ReportNoteLink[]>
+  linkNote?(id: string, noteId: string, sectionId: string): Promise<ReportNoteLink>
   snapshot?(id: string, revision: number, name: string): Promise<Version>
   restoreSection?(id: string, versionId: string, revision: number, sectionId: string): Promise<Solution>
   templates?(): Promise<ReportTemplate[]>
-  createTemplate?(name: string, sections: Omit<Section, 'content'>[]): Promise<ReportTemplate>
+  createTemplate?(name: string, sections: (Omit<Section, 'content'> & { content?: string })[]): Promise<ReportTemplate>
   deleteTemplate?(id: string): Promise<void>
   topics?(id: string): Promise<TopicMetadata[]>
   saveTopic?(id: string, topic: TopicMetadata): Promise<TopicMetadata>
@@ -77,3 +84,9 @@ export interface SolutionClient {
   exportWord(id: string): Promise<void>
   publish(id: string): Promise<KnowledgeSource>
 }
+
+export interface ReportMember { id: string; name: string; role: 'owner' | 'editor' | 'commenter' }
+export interface ReportComment { id: string; actorId: string; actorName: string; sectionId: string; quote: string; content: string; parentId: string | null; resolved: boolean; revision: number; createdAt: string }
+export interface ReportPresence { actorId: string; actorName: string; sectionId: string; seenAt: string }
+export interface ReportCollaboration { revision: number; canManage: boolean; members: ReportMember[]; comments: ReportComment[]; presence: ReportPresence[] }
+export interface ReportNoteLink { id: string; noteId: string; sectionId: string; noteTitle: string; noteRevision: number; content: string }

@@ -1,0 +1,19 @@
+.ks-writing-section { min-width: 0; scroll-margin-top: 12px; }
+.ks-writing-continuous-section + .ks-writing-continuous-section { margin-top: 32px; padding-top: 30px; border-top: 1px solid var(--workbench-line, #d7e4e6); }
+.ks-writing-continuous-section:focus-within .ks-chapter-heading { border-left: 3px solid var(--workbench-brand, #007d9b); padding-left: 12px; }
+.ks-writing-continuous-section .ks-rich-document { min-height: 180px; }
+.ks-writing-actions > button[aria-label='切换连续编辑'], .ks-focus-chapter > button[aria-label='切换连续编辑'] { white-space: nowrap; flex: 0 0 auto; }
+.ks-writing-actions > button[aria-pressed='true'] { color: #087a99; background: #e9f6fb; border-color: #b9dbe9; }
+.ks-editor-contextbar { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 6px 0; border-bottom: 1px solid #dae5ed; color: #5e788c; font-size: 12px; }
+.ks-editor-contextbar button { padding: 4px 7px; border: 1px solid #d5e1e9; border-radius: 4px; background: #f6fafc; color: #24476b; }
+.ks-editor-contextbar button:hover { background: #e8f4fa; }
+.ks-rich-document > [draggable='true'] { cursor: text; }
+.ks-rich-document > [draggable='true']:hover { box-shadow: -3px 0 0 #b4d6e7; }
+.ks-rich-document.is-block-dragging { opacity: .65; }
+.ks-editor-caption { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 10px; border: 1px solid #c7dce9; background: #f3f9fc; border-radius: 6px; }
+.ks-editor-caption input { min-width: 120px; flex: 1; border: 1px solid #c7dce9; border-radius: 4px; padding: 6px; }
+.ks-context-scope { display: flex; gap: 6px 12px; flex-wrap: wrap; align-items: center; padding: 7px 10px; border-bottom: 1px solid #dce6ef; font-size: 11px; color: #617f91; }
+.ks-context-scope label { display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
+.ks-context-scope select { padding: 3px 6px; color: #24476b; border: 1px solid #cadce9; border-radius: 4px; background: white; }
+.ks-context-scope > span { min-width: 0; overflow-wrap: anywhere; }
+.ks-writing-actions { flex-wrap: wrap; }

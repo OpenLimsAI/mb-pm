@@ -1,10 +1,11 @@
 import { AnswerEvidence } from '../answerModes/AnswerTools'
 import { useLayoutEffect, useRef, useState } from 'react'
+import { moveSelectedDocumentBlock, nextCaptionNumber, captionMarkdown, reportFigureLinks } from './editorDocumentTools'
 import { RichBodySegment } from './RichBodySegment'
 import type { RichHandle, RichRange } from './RichBodySegment'
 import { readReportImage } from './reportMarkup'
 import SafeMarkdown from '../../components/SafeMarkdown'
-import { Bold, BookOpen, Check, Heading2, Italic, List, LoaderCircle, Quote, Redo2, Send, Sparkles, Undo2, X, Table, ImagePlus } from 'lucide-react'
+import { GripVertical, ArrowUp, ArrowDown, Bold, BookOpen, Check, Heading2, Italic, List, LoaderCircle, Quote, Redo2, Send, Sparkles, Undo2, X, Table, ImagePlus } from 'lucide-react'
 import type { Answer, PolishResult } from './types'
 import SelectionAssistant from './SelectionAssistant'
 import type { EditorSelection } from './SelectionAssistant'
@@ -26,6 +27,7 @@ export interface InlineQuestion extends InlineAnchor {
 
 interface Props {
   reportId?: string
+  allowAI?: boolean
   content: string
   onCursorChange?: (range: { from: number; to: number; text: string; content: string }) => void
   cards: InlineQuestion[]
@@ -158,6 +160,8 @@ export default function InlineAssistantEditor(props: Props) {
   const richEditors = useRef(new Map<string, RichHandle>())
   const imageInput = useRef<HTMLInputElement>(null)
   const [editorError, setEditorError] = useState('')
+  const [caption, setCaption] = useState<{ kind: '图' | '表'; text: string } | null>(null)
+  const [tableActive, setTableActive] = useState(false)
   const [menu, setMenu] = useState<{ key: string; offset: number } | null>(null)
   const [selectedText, setSelectedText] = useState<EditorSelection | null>(null)
   const editor = useRef<HTMLDivElement>(null), activeInput = useRef<HTMLTextAreaElement | null>(null)
@@ -260,8 +264,9 @@ export default function InlineAssistantEditor(props: Props) {
     setSelectedText({ key, start: range.start, end: range.end, text: range.text, document: content, rich: { from: range.from, to: range.to }, input: range.input, host: range.input.closest<HTMLElement>('.ks-app') || document.body, left: Math.max(8, Math.min(range.left, window.innerWidth - 400)), top: Math.max(8, Math.min(range.top + 7, window.innerHeight - 100)) })
   }
   async function insertImage(file?: File) {
-    if (!file || !rich.current) return
-    try { const src = await readReportImage(file); if (content.length + src.length > 4_000_000) throw new Error('本章节图片与文字合计超过容量，请压缩图片或拆分章节。'); rich.current.editor.chain().focus().setImage({ src, alt: file.name }).run(); setEditorError('') } catch (error) { setEditorError(error instanceof Error ? error.message : '图片读取失败') }
+    const target = rich.current?.editor
+    if (!file || !target) return
+    try { const src = await readReportImage(file); if (target.isDestroyed || !target.isEditable) return; if (content.length + src.length > 4_000_000) throw new Error('本章节图片与文字合计超过容量，请压缩图片或拆分章节。'); target.chain().focus().setImage({ src, alt: file.name }).insertContent(captionMarkdown('图', nextCaptionNumber(content, '图'), file.name.replace(/\.[^.]+$/, '')), { contentType: 'markdown' }).run(); setEditorError('') } catch (error) { setEditorError(error instanceof Error ? error.message : '图片读取失败') }
   }
   return <div className="ks-inline-editor" ref={editor}>
     <div className="ks-editor-formatbar" role="toolbar" aria-label="正文格式">
@@ -269,18 +274,21 @@ export default function InlineAssistantEditor(props: Props) {
       <span className="ks-format-divider" />
       <button type="button" aria-label="撤销正文编辑" title="撤销 · Ctrl/⌘ Z" disabled={disabled || (mode === 'markdown' && !history.past.length)} onMouseDown={event => event.preventDefault()} onClick={() => moveHistory('undo')}><Undo2 size={16} /></button>
       <button type="button" aria-label="重做正文编辑" title="重做 · Ctrl/⌘ Shift Z" disabled={disabled || (mode === 'markdown' && !history.future.length)} onMouseDown={event => event.preventDefault()} onClick={() => moveHistory('redo')}><Redo2 size={16} /></button>
-      {mode === 'visual' && <><button type="button" aria-label="插入表格" title="插入 3 × 3 表格" disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => rich.current?.editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}><Table size={16} /></button><button type="button" aria-label="插入图片" title="插入 PNG / JPEG / WebP 图片，最多 1 MB" disabled={disabled} onClick={() => imageInput.current?.click()}><ImagePlus size={16} /></button></>}
+      {mode === 'visual' && <><button type="button" aria-label="插入表格" title="插入 3 × 3 表格" disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => { rich.current?.editor.chain().focus().insertContent(captionMarkdown('表', nextCaptionNumber(content, '表'), '表格标题'), { contentType: 'markdown' }).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); setTableActive(true) }}><Table size={16} /></button><button type="button" aria-label="插入图片" title="插入 PNG / JPEG / WebP 图片，最多 1 MB" disabled={disabled} onClick={() => imageInput.current?.click()}><ImagePlus size={16} /></button><button type="button" aria-label="上移段落" title="上移当前段落、列表或表格" disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => { if (rich.current) moveSelectedDocumentBlock(rich.current.editor, -1) }}><ArrowUp size={16} /></button><button type="button" aria-label="下移段落" title="下移当前段落、列表或表格" disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => { if (rich.current) moveSelectedDocumentBlock(rich.current.editor, 1) }}><ArrowDown size={16} /></button><button type="button" aria-label="拖动当前段落" title="先把光标放在段落、列表或表格中，再拖动此手柄到目标段落前" draggable={!disabled} disabled={disabled} onDragStart={event => { const instance = rich.current?.editor; if (!instance) { event.preventDefault(); return } const selected = instance.state.selection.$from, from = selected.depth > 0 ? selected.before(1) : selected.pos; event.dataTransfer.setData('application/x-report-block', JSON.stringify({ owner: rich.current?.dragOwner, from })); event.dataTransfer.effectAllowed = 'move' }}><GripVertical size={16} /></button><button type="button" disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => setCaption({ kind: '图', text: '' })}>图表标题</button></>}
       <div className="ks-editor-mode" role="group" aria-label="编辑方式">{(['visual', 'markdown'] as const).map(value => <button type="button" key={value} aria-pressed={mode === value} onClick={() => { setMode(value); setSelectedText(null); setMenu(null); localStorage.setItem('ks-editor-mode', value) }}>{value === 'visual' ? '可视编辑' : 'Markdown'}</button>)}</div>
-      <span className="ks-format-hint"><Sparkles size={13} />输入 <kbd>/</kbd> 插入 AI 问答</span>
+      <span className="ks-format-hint" hidden={props.allowAI === false}><Sparkles size={13} />输入 <kbd>/</kbd> 插入 AI 问答</span>
     </div>
+    {mode === 'visual' && reportFigureLinks(content).length > 0 && <div className="ks-editor-contextbar"><label>引用图表<select aria-label="插入图表引用" value="" disabled={disabled} onChange={event => { const target = event.target.value, figure = reportFigureLinks(content).find(item => item.target === target); if (figure) rich.current?.editor.chain().focus().insertContent(`[${figure.label}](${target})`, { contentType: 'markdown' }).run() }}><option value="">选择已插入的图表</option>{reportFigureLinks(content).map(item => <option key={item.target} value={item.target}>{item.label}</option>)}</select></label></div>}
+    {mode === 'visual' && tableActive && <div className="ks-editor-contextbar" role="toolbar" aria-label="表格操作"><span>表格</span>{([{ label: '增加行', action: 'addRowAfter' }, { label: '增加列', action: 'addColumnAfter' }, { label: '删除行', action: 'deleteRow' }, { label: '删除列', action: 'deleteColumn' }, { label: '合并单元格', action: 'mergeCells' }, { label: '拆分单元格', action: 'splitCell' }, { label: '删除表格', action: 'deleteTable' }] as const).map(item => <button key={item.action} type="button" disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => { const current = rich.current?.editor; current?.chain().focus()[item.action]().run(); setTableActive(current?.isActive('table') || false) }}>{item.label}</button>)}</div>}
+    {caption && <form className="ks-editor-caption" onSubmit={event => { event.preventDefault(); if (!caption.text.trim() || !rich.current) return; rich.current.editor.chain().focus().insertContent(captionMarkdown(caption.kind, nextCaptionNumber(content, caption.kind), caption.text.trim()), { contentType: 'markdown' }).run(); setCaption(null) }}><select aria-label="图表类型" value={caption.kind} onChange={event => setCaption({ ...caption, kind: event.target.value as '图' | '表' })}><option>图</option><option>表</option></select><input aria-label="图表标题" autoFocus value={caption.text} maxLength={200} onChange={event => setCaption({ ...caption, text: event.target.value })} placeholder="输入图表标题" /><button type="submit" disabled={!caption.text.trim()}>插入标题</button><button type="button" onClick={() => setCaption(null)}>取消</button></form>}
     <input ref={imageInput} type="file" accept="image/png,image/jpeg,image/webp" aria-label="选择正文图片" hidden onChange={event => { void insertImage(event.target.files?.[0]); event.target.value = '' }} />
     {editorError && <p className="ks-editor-error" role="alert">{editorError}</p>}
-    {parts.map((part, index) => part.type === 'text' ? mode === 'visual' ? <RichBodySegment key={part.key} segmented={cards.length > 0} finalSegment={index === parts.length - 1} value={part.text} label={index === 0 ? '章节正文' : `章节正文（续 ${Math.ceil(index / 2)}）`} disabled={disabled} onChange={(value, start, end) => record(part.key, { value, start, end })} onActive={handle => { rich.current = handle; richEditors.current.set(part.key, handle) }} onRange={range => selectRich(part.key, range)} onSlash={offset => onCreate(part.from + offset, parts.slice(0, index).filter(p => p.type === 'card').map(p => p.anchor.id))} /> : <BodySegment key={part.key} segmentKey={part.key} value={part.text} segmented={cards.length > 0} finalSegment={index === parts.length - 1}
+    {parts.map((part, index) => part.type === 'text' ? mode === 'visual' ? <RichBodySegment key={part.key} segmented={cards.length > 0} finalSegment={index === parts.length - 1} value={part.text} label={index === 0 ? '章节正文' : `章节正文（续 ${Math.ceil(index / 2)}）`} allowAI={props.allowAI} disabled={disabled} onChange={(value, start, end) => record(part.key, { value, start, end })} onActive={handle => { rich.current = handle; richEditors.current.set(part.key, handle) }} onRange={range => { setTableActive(richEditors.current.get(part.key)?.editor.isActive('table') || false); selectRich(part.key, range) }} onError={setEditorError} onSlash={offset => onCreate(part.from + offset, parts.slice(0, index).filter(p => p.type === 'card').map(p => p.anchor.id))} /> : <BodySegment key={part.key} segmentKey={part.key} value={part.text} segmented={cards.length > 0} finalSegment={index === parts.length - 1}
       label={index === 0 ? '章节正文' : `章节正文（续 ${Math.ceil(index / 2)}）`} disabled={disabled}
       onChange={(value, start, end, inputType) => record(part.key, { value, start, end }, inputType)}
       onActive={input => { activeInput.current = input }} onFormat={format} onHistory={moveHistory}
-      onSelection={onSelection} onSelectionRange={selectText} onMenu={offset => setMenu(offset === null ? null : { key: part.key, offset: part.from + offset })}
-      menuOpen={!disabled && menu?.key === part.key} onChoose={choose} onDismiss={() => setMenu(null)} />
+      onSelection={onSelection} onSelectionRange={selectText} onMenu={offset => setMenu(props.allowAI === false || offset === null ? null : { key: part.key, offset: part.from + offset })}
+      menuOpen={!disabled && props.allowAI !== false && menu?.key === part.key} onChoose={choose} onDismiss={() => setMenu(null)} />
       : <section key={part.key} className="ks-inline-question" aria-label="正文 AI 问答">
         <header><span><Sparkles size={16} /><strong>AI 问答</strong><small>未加入报告</small>{props.modelLabel && <small className="ks-inline-model-label">{props.modelLabel}</small>}</span><button type="button" className="ks-button" aria-label="移除问答卡片" title="移除卡片，已完成回答仍保留在助手历史中" onClick={() => onRemove(part.anchor.id)}><X size={16} /></button></header>
         <form onSubmit={event => { event.preventDefault(); onAsk(part.anchor.id) }}>
@@ -299,6 +307,6 @@ export default function InlineAssistantEditor(props: Props) {
         </div>}
         <footer>卡片仅在本次编辑中保留；已完成回答可在 AI 研究助手中查看。</footer>
       </section>)}
-    {props.onAskSelectedText && props.onPolishSelectedText && props.onAdoptSelectedAnswer && <SelectionAssistant reportId={props.reportId} selection={!disabled && selectedText?.document === content ? selectedText : null} onSaveNote={props.onSaveNote} preview={props.preview} modelLabel={props.modelLabel} scope={scope} onDismiss={() => setSelectedText(null)} onAsk={props.onAskSelectedText} onPolish={props.onPolishSelectedText} onAdopt={props.onAdoptSelectedAnswer} onReplace={replaceSelectedText} onSource={onSource} />}
+    {props.allowAI !== false && props.onAskSelectedText && props.onPolishSelectedText && props.onAdoptSelectedAnswer && <SelectionAssistant reportId={props.reportId} selection={!disabled && selectedText?.document === content ? selectedText : null} onSaveNote={props.onSaveNote} preview={props.preview} modelLabel={props.modelLabel} scope={scope} onDismiss={() => setSelectedText(null)} onAsk={props.onAskSelectedText} onPolish={props.onPolishSelectedText} onAdopt={props.onAdoptSelectedAnswer} onReplace={replaceSelectedText} onSource={onSource} />}
   </div>
 }

@@ -86,7 +86,7 @@ describe('inline questions in the report editor', () => {
     expect(body().startsWith(prefix)).toBe(true)
     expect(body().endsWith(suffix)).toBe(true)
     expect(body()).toContain('专家核对后的结论')
-    expect(body()).toContain('[依据：相关文献 · 2 · 方法章节]')
+    expect(body()).toMatch(/\[\[cite:[^\]]+\]\]/)
     expect(body()).not.toContain('回答：比较研究条件')
     await saveNow(client)
     expect(client.save).toHaveBeenLastCalledWith('one', expect.objectContaining({ references: [expect.objectContaining({ sourceId: source.id, sectionId: 's1', sourceVersion: '2', locator: '方法章节' })] }))

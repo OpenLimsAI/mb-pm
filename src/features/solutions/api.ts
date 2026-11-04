@@ -35,6 +35,13 @@ export function downloadBlob(blob: Blob, filename: string) {
 }
 
 export const solutionApi: SolutionClient = {
+  collaboration: async id => (await http.get(`/${encodeURIComponent(id)}/collaboration`)).data,
+  saveMember: async (id, subject, role) => { await http.put(`/${encodeURIComponent(id)}/collaboration/members/${encodeURIComponent(subject)}`, { role }) },
+  comment: async (id, input) => { await http.post(`/${encodeURIComponent(id)}/collaboration/comments`, input) },
+  resolveComment: async (id, commentId, revision, resolved) => { await http.put(`/${encodeURIComponent(id)}/collaboration/comments/${encodeURIComponent(commentId)}`, { revision, resolved }) },
+  presence: async (id, sectionId) => (await http.put(`/${encodeURIComponent(id)}/collaboration/presence`, { sectionId })).data,
+  noteLinks: async id => (await http.get(`/${encodeURIComponent(id)}/note-links`)).data,
+  linkNote: async (id, noteId, sectionId) => (await http.post(`/${encodeURIComponent(id)}/note-links`, { noteId, sectionId })).data,
   snapshot: async (id, revision, name) => (await http.post(`/${encodeURIComponent(id)}/versions`, { revision, name })).data,
   restoreSection: async (id, versionId, revision, sectionId) => (await http.post(`/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}/restore-section`, { revision, sectionId })).data,
   templates: async () => (await http.get('/templates')).data,

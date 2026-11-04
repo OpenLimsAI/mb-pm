@@ -46,7 +46,7 @@ deploy/    部署配置及历史发布记录
 | 回音壁 | 按应用附图反馈、回复讨论并记录修复说明 |
 | AI 助手 | 后台问答与停止恢复、项目/知识库来源、长期任务摘要和运行诊断 |
 | 知识源 | 组合选择下载、可撤销文件夹整理、版本更新与用量、按需定期检查及研究衔接 |
-| 研究报告 | 富文本与表格图片、原文引用、AI 采纳、章节模板、版本恢复及 Word / PDF / Markdown 导出 |
+| 研究报告 | 连续写作、AI 修改对比、证据引用、协作批注、笔记联动、质量检查与成稿导出 |
 | 我的笔记 | 独立个人记录、跨应用摘录、来源保留、搜索编辑与回收站 |
 | 账号管理 | 平台身份与 PM、知识库负责人 / 用户分区维护，管理员可改、项目负责人只读 |
 | 项目总览 | 统一到期口径、风险直达、个人看板与站内通知 |
@@ -61,7 +61,7 @@ deploy/    部署配置及历史发布记录
 自动问答与搜索配置见[使用说明](docs/assistant-auto-search.md)；DeepSeek 官方搜索可复用当前模型密钥，须由管理员启用。
 项目协同、交付验收、联动排期、全任务基线及台账见[项目执行与协同](docs/pm-execution-improvements.md)。
 Excel 回导、模板升级、进度权重及 AI 行动见[项目计划工具](docs/pm-planning-tools.md)。
-入口与边界见 [功能说明](docs/features.md)、[AI 助手](docs/ai-assistant.md)、[知识源](docs/knowledge-sources.md) 和 [研究报告工作台](docs/research-report-workbench.md)。
+入口与边界见 [功能说明](docs/features.md)、[AI 助手](docs/ai-assistant.md)、[知识源](docs/knowledge-sources.md)、[研究报告工作台](docs/research-report-workbench.md) 和 [研究报告体验升级](docs/research-report-experience.md)。
 工作台 `/model-settings` 是个人模型统一入口，供知识库问答、翻译、摘要和标签复用。配置与授权边界见[知识库统一模型接口](docs/knowledge-ai-integration.md)，环境发布状态见[发布契约](deploy/parallel-test/releases/20261104-knowledge-unified-ai.md)。
 
 ## 配置与权限
