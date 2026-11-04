@@ -1,4 +1,4 @@
-import { LogOut, Grid2X2 } from 'lucide-react'
+import { LogOut, Grid2X2, MessageSquareText } from 'lucide-react'
 import { useAuth } from '../../store/auth'
 import { useDataStore } from '../../store/data'
 import { roleLabels } from '../../lib/permissions'
@@ -34,7 +34,14 @@ export function TopBar() {
         <span className="hidden sm:inline">应用工作台</span>
       </a>
 
-      <a href={import.meta.env.DEV && !USE_API ? '/feedback?preview=1' : feedbackUrl} className="text-sm text-ink-500 hover:text-brand-700 px-2 py-1.5">回音壁</a>
+      <a
+        href={import.meta.env.DEV && !USE_API ? '/feedback?preview=1&compose=1' : `${feedbackUrl}?compose=1`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="app-feedback-link flex shrink-0 items-center gap-1.5 rounded-md border border-ink-200 px-2.5 py-1.5 text-sm text-ink-600 hover:bg-ink-100 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+        title="在新标签页打开回音壁，原页面保留"
+        aria-label="问题反馈（新标签页打开）"
+      ><MessageSquareText className="w-4 h-4" aria-hidden="true" /><span>问题反馈</span></a>
 
       {/* 当前登录身份（角色取自 IAM）；点击进入工作台「我的设置」 */}
       {user && (
@@ -44,7 +51,7 @@ export function TopBar() {
           className="app-account flex items-center gap-2 px-2 py-1 rounded-md hover:bg-ink-100 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
         >
           <Avatar user={user} size="sm" />
-          <div className="text-left">
+          <div className="app-account-copy text-left">
             <div className="text-sm font-medium text-ink-900 leading-tight">{user.displayName}</div>
             <div className="app-account-role text-xs text-ink-500 mt-0.5 leading-tight">
               {roleLabels[user.role]} · {online ? '决策视图' : '离线演示'}
@@ -60,9 +67,10 @@ export function TopBar() {
           onClick={logout}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm text-ink-500 hover:text-brand-700 hover:bg-ink-100 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
           title="登出"
+          aria-label="登出"
         >
           <LogOut className="w-4 h-4" />
-          登出
+          <span className="app-logout-label">登出</span>
         </button>
       )}
     </header>

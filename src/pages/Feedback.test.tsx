@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HttpResponse, http } from 'msw'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -26,9 +26,9 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-function mountFeedback(enabled = true) {
+function mountFeedback(enabled = true, search = '') {
   server.use(http.get('*/api/v1/portal/me', () => HttpResponse.json({ user: viewer, applications: [{ id: 'feedback', enabled }] })))
-  window.history.replaceState({}, '', '/feedback')
+  window.history.replaceState({}, '', '/feedback' + search)
   render(<App />)
 }
 
@@ -38,6 +38,64 @@ async function openComposer() {
   await userEvent.click(button)
   return screen.getByRole('dialog')
 }
+
+it('opens the requested composer after loading, then closes it without reopening on refresh', async () => {
+  server.use(http.get('*/api/v1/feedback', () => HttpResponse.json([existingItem])))
+  mountFeedback(true, '?compose=1&keep=1')
+  const dialog = await screen.findByRole('dialog', { name: '提交反馈' })
+  expect(within(dialog).getByLabelText(/问题或建议/)).toHaveFocus()
+  await userEvent.click(within(dialog).getByRole('button', { name: '取消' }))
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(window.location.search).toBe('?keep=1')
+})
+
+it('waits through a failed load and opens the requested composer after retry', async () => {
+  let requests = 0
+  server.use(http.get('*/api/v1/feedback', () => ++requests === 1
+    ? HttpResponse.json({ detail: '稍后重试' }, { status: 503 })
+    : HttpResponse.json([])))
+  mountFeedback(true, '?compose=1')
+  expect(await screen.findByRole('alert')).toHaveTextContent('稍后重试')
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: '重新加载' }))
+  expect(await screen.findByRole('dialog', { name: '提交反馈' })).toBeInTheDocument()
+})
+
+it('pastes a screenshot into the composer and sends it with the feedback', async () => {
+  let multipart = ''
+  server.use(
+    http.get('*/api/v1/feedback', () => HttpResponse.json([])),
+    http.post('*/api/v1/feedback', async ({ request }) => {
+      multipart = await request.text()
+      return HttpResponse.json(newItem, { status: 201 })
+    }),
+  )
+  mountFeedback(true, '?compose=1')
+  const dialog = await screen.findByRole('dialog', { name: '提交反馈' })
+  const description = within(dialog).getByLabelText(/问题或建议/)
+  const screenshot = new File(['screenshot'], 'screenshot.png', { type: 'image/png' })
+  fireEvent.paste(description, { clipboardData: { items: [{ kind: 'file', type: screenshot.type, getAsFile: () => screenshot }] } })
+  expect(within(dialog).getByRole('img', { name: '已添加图片 screenshot.png' })).toBeInTheDocument()
+  await userEvent.type(description, '截图中的问题')
+  await userEvent.click(within(dialog).getByRole('button', { name: '提交反馈' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(multipart).toContain('name="images"')
+  expect(multipart).toContain('Content-Type: image/png')
+  expect(window.location.search).toBe('')
+})
+
+it('validates pasted images and leaves normal text pasting unchanged', async () => {
+  server.use(http.get('*/api/v1/feedback', () => HttpResponse.json([])))
+  mountFeedback(true, '?compose=1')
+  const dialog = await screen.findByRole('dialog', { name: '提交反馈' })
+  const description = within(dialog).getByLabelText(/问题或建议/)
+  const screenshot = new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'large.png', { type: 'image/png' })
+  fireEvent.paste(description, { clipboardData: { items: [{ kind: 'file', type: screenshot.type, getAsFile: () => screenshot }] } })
+  expect(within(dialog).getByRole('alert')).toHaveTextContent('5 MB')
+  expect(within(dialog).getByRole('button', { name: '提交反馈' })).toBeDisabled()
+  expect(within(dialog).queryByRole('img')).not.toBeInTheDocument()
+  expect(fireEvent.paste(description, { clipboardData: { items: [{ kind: 'string', type: 'text/plain' }] } })).toBe(true)
+})
 
 it('submits a new feature with an image, makes it visible despite previous filters, and updates its status', async () => {
   let multipart = ''
