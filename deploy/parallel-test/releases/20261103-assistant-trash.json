@@ -1,0 +1,290 @@
+{
+  "recorded_at_utc": "2026-11-04T04:35:10.506898+00:00",
+  "code_pr": {
+    "number": 157,
+    "url": "https://github.com/OpenLimsAI/mb-pm/pull/157",
+    "head": "efbfe39a87518e695f35b58fe9219840518c18e8",
+    "merge": {
+      "mergeCommit": {
+        "oid": "eb067ac6899e9c5bf1614da8b46906e28f3c9e6b"
+      },
+      "mergedAt": "2026-11-04T04:28:53Z",
+      "state": "MERGED",
+      "url": "https://github.com/OpenLimsAI/mb-pm/pull/157"
+    },
+    "checks": [
+      {
+        "name": "Lint 报告（软护栏 · 不阻断）",
+        "head_sha": "efbfe39a87518e695f35b58fe9219840518c18e8",
+        "conclusion": "success",
+        "html_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41772497586/job/126385209349"
+      },
+      {
+        "name": "后端 · pytest（PostgreSQL · 硬护栏）",
+        "head_sha": "efbfe39a87518e695f35b58fe9219840518c18e8",
+        "conclusion": "success",
+        "html_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41772497586/job/126385209328"
+      },
+      {
+        "name": "前端 · 类型检查 + 构建（硬护栏）",
+        "head_sha": "efbfe39a87518e695f35b58fe9219840518c18e8",
+        "conclusion": "success",
+        "html_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41772497586/job/126385209306"
+      },
+      {
+        "name": "后端 · ruff 格式检查（硬护栏）",
+        "head_sha": "efbfe39a87518e695f35b58fe9219840518c18e8",
+        "conclusion": "success",
+        "html_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41772497586/job/126385209249"
+      },
+      {
+        "name": "dependencies",
+        "head_sha": "efbfe39a87518e695f35b58fe9219840518c18e8",
+        "conclusion": "success",
+        "html_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41772497568/job/126385209086"
+      },
+      {
+        "name": "Docker · 镜像构建验证（硬护栏）",
+        "head_sha": "efbfe39a87518e695f35b58fe9219840518c18e8",
+        "conclusion": "success",
+        "html_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41772497586/job/126385209029"
+      },
+      {
+        "name": "container",
+        "head_sha": "efbfe39a87518e695f35b58fe9219840518c18e8",
+        "conclusion": "success",
+        "html_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41772497568/job/126385208774"
+      }
+    ]
+  },
+  "source": {
+    "source": "eb067ac6899e9c5bf1614da8b46906e28f3c9e6b",
+    "tree": "8f8175b7c66cf3fc0991d3494a12c91fd02eb728",
+    "blobs_verified": 886,
+    "source_archive_sha256": "d767cdb64622aecf141b45daaedb04f4bc9d3a4eccd68161e77ee88c6fdcb63c"
+  },
+  "deployment": {
+    "deployed": true,
+    "source": "eb067ac6899e9c5bf1614da8b46906e28f3c9e6b",
+    "image": "mb-pm:assistant-trash-eb067ac-20261103",
+    "image_id": "sha256:1217ee1ecf03e551530476a01c342dfaab09804cfbcd8c7ae027e549ae787b8a",
+    "baseline_source": "e0744d047e42c7f19e9740a8665efff44bb4b448",
+    "tables_checked": 53,
+    "other_containers_unchanged": 22,
+    "database_migration": false,
+    "database_restored": false,
+    "model_calls": false,
+    "actual_image_login_smoke_artifact_sha256": "4871ee4d06746e6213d5ec4aeb90e92dc9c6833b547f968ed89aa08bc18334ee",
+    "prior_record_ids_retained": true,
+    "prior_assistant_messages_unchanged": true,
+    "model_settings_preserved": true,
+    "backend_unchanged": true,
+    "compose_only_image_changed": true,
+    "security_settings_preserved": true,
+    "instances": {
+      "mb-pm-v2-app-1": {
+        "health": 200,
+        "anonymous_api": 401,
+        "assistant_entry": 200,
+        "index_sha256": "94b3ac56a08e91e3268115d2d7d847e84246d788b20bac2029542a376355560c",
+        "production_artifact": {
+          "schema": 1,
+          "source": "eb067ac6899e9c5bf1614da8b46906e28f3c9e6b",
+          "production_api": true,
+          "api_base": "/api/v1",
+          "app_mode": "domain",
+          "files_verified": 177,
+          "index_sha256": "94b3ac56a08e91e3268115d2d7d847e84246d788b20bac2029542a376355560c"
+        }
+      },
+      "mb-pm-v2-app-direct-1": {
+        "health": 200,
+        "anonymous_api": 401,
+        "assistant_entry": 200,
+        "index_sha256": "94b3ac56a08e91e3268115d2d7d847e84246d788b20bac2029542a376355560c",
+        "production_artifact": {
+          "schema": 1,
+          "source": "eb067ac6899e9c5bf1614da8b46906e28f3c9e6b",
+          "production_api": true,
+          "api_base": "/api/v1",
+          "app_mode": "domain",
+          "files_verified": 177,
+          "index_sha256": "94b3ac56a08e91e3268115d2d7d847e84246d788b20bac2029542a376355560c"
+        }
+      }
+    }
+  },
+  "artifact": {
+    "api_base": "/api/v1",
+    "app_mode": "domain",
+    "files_verified": 177,
+    "image_static_archive_sha256": "4871ee4d06746e6213d5ec4aeb90e92dc9c6833b547f968ed89aa08bc18334ee",
+    "index_sha256": "94b3ac56a08e91e3268115d2d7d847e84246d788b20bac2029542a376355560c",
+    "production_api": true,
+    "schema": 1,
+    "source": "eb067ac6899e9c5bf1614da8b46906e28f3c9e6b"
+  },
+  "backend_digest": {
+    "identical_to_baseline": true,
+    "files_checked": 167
+  },
+  "prior_six_feature_backend": {
+    "baseline_source": "e0744d047e42c7f19e9740a8665efff44bb4b448",
+    "both_instances_match": true,
+    "files_checked": 5
+  },
+  "public": {
+    "checked_at_utc": "2026-11-04T04:34:03.760638+00:00",
+    "source": "eb067ac6899e9c5bf1614da8b46906e28f3c9e6b",
+    "statuses": {
+      "health": 200,
+      "manifest": 200,
+      "assistant": 200,
+      "anonymous_tasks": 401,
+      "assistant_chunk": 200
+    },
+    "authenticated_customer_session_tested": false,
+    "public_verified": true,
+    "public_manifest_matches_image": true,
+    "public_assistant_bundle_matches_image": true
+  },
+  "live_status": [
+    {
+      "name": "mb-pm-v2-app-1",
+      "image": "mb-pm:assistant-trash-eb067ac-20261103",
+      "image_id": "sha256:1217ee1ecf03e551530476a01c342dfaab09804cfbcd8c7ae027e549ae787b8a",
+      "source": "eb067ac6899e9c5bf1614da8b46906e28f3c9e6b",
+      "health": "healthy",
+      "started_at": "2026-11-04T04:33:05.083325788Z",
+      "compose_files": [
+        "/home/prometheus/mb-pm-v2/compose.yml",
+        "/home/prometheus/mb-pm-v2/compose.production.yml",
+        "/home/prometheus/mb-pm-v2/compose.direct.yml",
+        "/home/prometheus/mb-pm-v2/releases/header-9516977/compose.no-note-sync.yml",
+        "/home/prometheus/mb-pm-v2/releases/assistant-dikw-e294fdc/compose.knowledge.private.yml",
+        "/home/prometheus/mb-pm-v2/releases/knowledge-sources-687bddc-20261101/compose.knowledge-sources.yml",
+        "/home/prometheus/mb-pm-v2/releases/deepseek-search-99ca39d-20261101/compose.deepseek-search.yml",
+        "/home/prometheus/security-hardening-20261102/limits-1.json",
+        "/home/prometheus/security-hardening-20261102/pm-release-cd02021/compose.security.active.yml",
+        "/home/prometheus/mb-pm-v2/releases/report-workbench-e33b48d-20261102/compose.report-workbench.yml",
+        "/home/prometheus/mb-pm-v2/releases/efficient-workspace-c6e4b9f-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/knowledge-sso-20261102/application-switch/group-0.active.json",
+        "/home/prometheus/mb-pm-v2/releases/report-editor-layout-48401af-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/assistant-scope-8147c1d-20261102-r2/compose.assistant-scope.yml",
+        "/home/prometheus/mb-pm-v2/releases/reference-papers-b79f0da-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/assistant-layout-642e187-20261103-r2/compose.assistant-layout.yml",
+        "/home/prometheus/mb-pm-v2/releases/project-actions-c304a1e-20261103-r2/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/gantt-263e10c-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/wbs-workspace-21252b6-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/column-resize-f56ee9b-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/pm-p1-e0744d0-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/assistant-trash-eb067ac-20261103/compose.assistant-trash.yml"
+      ]
+    },
+    {
+      "name": "mb-pm-v2-app-direct-1",
+      "image": "mb-pm:assistant-trash-eb067ac-20261103",
+      "image_id": "sha256:1217ee1ecf03e551530476a01c342dfaab09804cfbcd8c7ae027e549ae787b8a",
+      "source": "eb067ac6899e9c5bf1614da8b46906e28f3c9e6b",
+      "health": "healthy",
+      "started_at": "2026-11-04T04:33:18.490929888Z",
+      "compose_files": [
+        "/home/prometheus/mb-pm-v2/compose.yml",
+        "/home/prometheus/mb-pm-v2/compose.production.yml",
+        "/home/prometheus/mb-pm-v2/compose.direct.yml",
+        "/home/prometheus/mb-pm-v2/releases/header-9516977/compose.no-note-sync.yml",
+        "/home/prometheus/mb-pm-v2/releases/assistant-dikw-e294fdc/compose.knowledge.private.yml",
+        "/home/prometheus/mb-pm-v2/releases/knowledge-sources-687bddc-20261101/compose.knowledge-sources.yml",
+        "/home/prometheus/mb-pm-v2/releases/deepseek-search-99ca39d-20261101/compose.deepseek-search.yml",
+        "/home/prometheus/security-hardening-20261102/limits-1.json",
+        "/home/prometheus/security-hardening-20261102/pm-release-cd02021/compose.security.active.yml",
+        "/home/prometheus/mb-pm-v2/releases/report-workbench-e33b48d-20261102/compose.report-workbench.yml",
+        "/home/prometheus/mb-pm-v2/releases/efficient-workspace-c6e4b9f-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/knowledge-sso-20261102/application-switch/group-0.active.json",
+        "/home/prometheus/mb-pm-v2/releases/report-editor-layout-48401af-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/assistant-scope-8147c1d-20261102-r2/compose.assistant-scope.yml",
+        "/home/prometheus/mb-pm-v2/releases/reference-papers-b79f0da-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/assistant-layout-642e187-20261103-r2/compose.assistant-layout.yml",
+        "/home/prometheus/mb-pm-v2/releases/project-actions-c304a1e-20261103-r2/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/gantt-263e10c-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/wbs-workspace-21252b6-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/column-resize-f56ee9b-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/pm-p1-e0744d0-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/assistant-trash-eb067ac-20261103/compose.assistant-trash.yml"
+      ]
+    }
+  ],
+  "rollback": {
+    "source": "e0744d047e42c7f19e9740a8665efff44bb4b448",
+    "compose_files": [
+      "/home/prometheus/mb-pm-v2/compose.yml",
+      "/home/prometheus/mb-pm-v2/compose.production.yml",
+      "/home/prometheus/mb-pm-v2/compose.direct.yml",
+      "/home/prometheus/mb-pm-v2/releases/header-9516977/compose.no-note-sync.yml",
+      "/home/prometheus/mb-pm-v2/releases/assistant-dikw-e294fdc/compose.knowledge.private.yml",
+      "/home/prometheus/mb-pm-v2/releases/knowledge-sources-687bddc-20261101/compose.knowledge-sources.yml",
+      "/home/prometheus/mb-pm-v2/releases/deepseek-search-99ca39d-20261101/compose.deepseek-search.yml",
+      "/home/prometheus/security-hardening-20261102/limits-1.json",
+      "/home/prometheus/security-hardening-20261102/pm-release-cd02021/compose.security.active.yml",
+      "/home/prometheus/mb-pm-v2/releases/report-workbench-e33b48d-20261102/compose.report-workbench.yml",
+      "/home/prometheus/mb-pm-v2/releases/efficient-workspace-c6e4b9f-20261103/rollout/pm.fixed-images.json",
+      "/home/prometheus/mb-pm-v2/releases/knowledge-sso-20261102/application-switch/group-0.active.json",
+      "/home/prometheus/mb-pm-v2/releases/report-editor-layout-48401af-20261103/rollout/pm.fixed-images.json",
+      "/home/prometheus/mb-pm-v2/releases/assistant-scope-8147c1d-20261102-r2/compose.assistant-scope.yml",
+      "/home/prometheus/mb-pm-v2/releases/reference-papers-b79f0da-20261103/rollout/pm.fixed-images.json",
+      "/home/prometheus/mb-pm-v2/releases/assistant-layout-642e187-20261103-r2/compose.assistant-layout.yml",
+      "/home/prometheus/mb-pm-v2/releases/project-actions-c304a1e-20261103-r2/rollout/pm.fixed-images.json",
+      "/home/prometheus/mb-pm-v2/releases/gantt-263e10c-20261103/rollout/pm.fixed-images.json",
+      "/home/prometheus/mb-pm-v2/releases/wbs-workspace-21252b6-20261103/rollout/pm.fixed-images.json",
+      "/home/prometheus/mb-pm-v2/releases/column-resize-f56ee9b-20261103/rollout/pm.fixed-images.json",
+      "/home/prometheus/mb-pm-v2/releases/pm-p1-e0744d0-20261103/rollout/pm.fixed-images.json"
+    ],
+    "instances": {
+      "app": {
+        "name": "mb-pm-v2-app-1",
+        "image": "sha256:41bad2398ead99750d977fde5e9e9d1e859fe82390b36d0817501fdb2b856655",
+        "image_id": "sha256:41bad2398ead99750d977fde5e9e9d1e859fe82390b36d0817501fdb2b856655"
+      },
+      "app-direct": {
+        "name": "mb-pm-v2-app-direct-1",
+        "image": "sha256:41bad2398ead99750d977fde5e9e9d1e859fe82390b36d0817501fdb2b856655",
+        "image_id": "sha256:41bad2398ead99750d977fde5e9e9d1e859fe82390b36d0817501fdb2b856655"
+      }
+    },
+    "database_restore_performed": false
+  },
+  "release_directory": "/home/prometheus/mb-pm-v2/releases/assistant-trash-eb067ac-20261103",
+  "private_backup_directory": "/home/prometheus/mb-pm-v2/private-config-backups/assistant-trash-eb067ac-20261103",
+  "frontend_tests": {
+    "files": 107,
+    "tests": 960,
+    "new_trash_tests": 14
+  },
+  "browser_checks": {
+    "checked_at_utc": "2026-11-04T04:27:32.867728+00:00",
+    "environment": "http://127.0.0.1:5184/assistant?preview=1",
+    "browser": "Google Chrome, native accessibility and screenshot",
+    "real_api": false,
+    "customer_data_mutated": false,
+    "checks": {
+      "stable_task_and_trash_navigation": true,
+      "central_deleted_task_list": true,
+      "empty_state_is_trash_empty": true,
+      "no_conversation_composer_in_trash": true,
+      "no_normal_welcome_in_trash": true
+    }
+  },
+  "actual_image_login_form": {
+    "method": "Google Chrome native CUA, extracted actual image static artifact with mock anonymous API",
+    "source": "eb067ac6899e9c5bf1614da8b46906e28f3c9e6b",
+    "artifact_sha256": "4871ee4d06746e6213d5ec4aeb90e92dc9c6833b547f968ed89aa08bc18334ee",
+    "username_password_editable": true,
+    "submit_enabled": true,
+    "real_customer_session_tested": false
+  },
+  "authenticated_customer_session_tested": false,
+  "production_model_calls": false,
+  "database_migrated": false,
+  "documentation_only_followup": true,
+  "redeploy_after_docs_merge": false
+}
