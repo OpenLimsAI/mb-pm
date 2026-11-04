@@ -251,8 +251,19 @@ def test_web_followup_includes_task_memory_and_previous_answer_without_search_le
     f = assistant_client
     task = test_assistant.create(f, instructions="用表格回答", memory="已确认目标：比较两种策略")
     observed = []
+    working_session = []
+    get_task = assistant.get_task
+
+    def captured_task(db, *args):
+        working_session[:] = [db]
+        return get_task(db, *args)
+
+    monkeypatch.setattr(assistant, "get_task", captured_task)
 
     def web(question, **kwargs):
+        assert not working_session[
+            0
+        ].in_transaction(), "Web I/O must not keep an ORM read transaction open"
         observed.append((question, kwargs))
         return "第一项甲，第二项乙。[1]", [{"title": "source", "url": "https://example.org/paper"}]
 

@@ -640,6 +640,18 @@ def question(db, claims, task, payload):
     if evidence:
         model_input["application_data"] = evidence
     messages.append({"role": "user", "content": json.dumps(model_input, ensure_ascii=False)})
+    # Snapshot ORM-backed routing state before rollback expires loaded rows.
+    # External search/model I/O must not lazily reopen a read transaction.
+    public_query = plan.query
+    if (
+        plan.mode == "web"
+        and previous_question
+        and previous
+        and previous.answer_mode == "web"
+        and answer_modes.followup(payload.question)
+        and public_query == payload.question
+    ):
+        public_query = previous_question[:1200] + "\n追问：" + payload.question
     task_id = task.id
     # Release the read transaction before waiting on any external model service.
     db.rollback()
@@ -649,15 +661,6 @@ def question(db, claims, task, payload):
     knowledge_references, source_summary = [], {}
     try:
         if plan.mode == "web":
-            public_query = plan.query
-            if (
-                previous_question
-                and previous
-                and previous.answer_mode == "web"
-                and answer_modes.followup(payload.question)
-                and public_query == payload.question
-            ):
-                public_query = previous_question[:1200] + "\n追问：" + payload.question
             synthesis_context = messages[1:-1]
             private_material = {
                 key: value for key, value in model_input.items() if key != "question"
