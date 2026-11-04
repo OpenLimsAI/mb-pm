@@ -13,6 +13,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.services import solution_knowledge as kb
+from app.services.assistant_retrieval import rank_result
 
 
 class Arguments(BaseModel):
@@ -194,14 +195,22 @@ def execute(claims, name, arguments):
                 text = row.get("text") or row.get("snippet") or ""
                 if not isinstance(text, str):
                     malformed()
-                chunks.append({**item, "text": text[:2000], "truncated": len(text) > 2000})
-        return {
-            "page_refs": refs[: data["limit"]],
-            "chunks": chunks,
-            "truncated": len(refs) > data["limit"]
-            or len(final["chunks"]) > data["limit"]
-            or any(x["truncated"] for x in chunks),
-        }
+                chunk = {**item, "text": text[:2000], "truncated": len(text) > 2000}
+                # Offset is a character position only when Core explicitly says so.
+                # Chunk indices, token positions and guessed snippet locations are not offsets.
+                if type(row.get("offset")) is int and 0 <= row["offset"] <= 500000:
+                    chunk["offset"] = row["offset"]
+                chunks.append(chunk)
+        return rank_result(
+            data["q"],
+            {
+                "page_refs": refs[: data["limit"]],
+                "chunks": chunks,
+                "truncated": len(refs) > data["limit"]
+                or len(final["chunks"]) > data["limit"]
+                or any(x["truncated"] for x in chunks),
+            },
+        )
     if name == "read_page":
         record = core_json("/v1/base/pages/" + quote(path, safe="/"))
         item = metadata(record)

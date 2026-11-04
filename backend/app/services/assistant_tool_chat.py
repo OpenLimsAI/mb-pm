@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.services import ai, assistant_sources, solution_knowledge
 from app.services import assistant_diagnostics as diagnostics
 from app.services import assistant_knowledge as knowledge
+from app.services import assistant_retrieval as retrieval
 
 MAX_ROUNDS = 4
 MAX_CALLS = 8
@@ -24,6 +25,8 @@ INSTRUCTIONS = (
     "不能联网、写入或执行终端命令；不得声称使用了未调用的工具。"
     "truncated=true 或 next_offset 非空时说明资料不完整，需要完整内容时继续分页。"
     "没有检索命中就如实说明；工具出错时说明准确原因，不得将失败当作无数据。"
+    "evidence_eligible=false 是词法相关性不足，不能据此回答问题。lexical_score只表示词语匹配，"
+    "不表示语义置信度或事实已核验。引用path只表示来自已读取资料，不保证论断本身正确。"
 )
 
 
@@ -46,7 +49,7 @@ def _message(result, ollama):
     return message
 
 
-def chat(provider, cfg, messages, claims, *, request_fn=None):
+def chat(provider, cfg, messages, claims, *, request_fn=None, question=None, search_query=None):
     from app.services import assistant_generation
 
     request_model = request_fn or ai.request
@@ -69,6 +72,130 @@ def chat(provider, cfg, messages, claims, *, request_fn=None):
     used = 0
     evidence_size = 0
     ids = set()
+    evidence_paths = set()
+    inventory = False
+
+    def run_tool(name, arguments):
+        nonlocal used, evidence_size
+        if time.monotonic() - started >= budget:
+            raise HTTPException(
+                504,
+                "知识库查询超时，请缩小问题范围后重试",
+                headers={diagnostics.ERROR_HEADER: "query_timeout"},
+            )
+        if used >= MAX_CALLS or evidence_size >= MAX_EVIDENCE:
+            value = {"error": "本轮查询容量已用完，请依据已有资料回答并说明缺口", "truncated": True}
+        else:
+            used += 1
+            assistant_generation.guard()
+            with diagnostics.tool_call(name):
+                value = knowledge.execute(claims, name, arguments)
+            assistant_generation.guard()
+            if time.monotonic() - started >= budget:
+                raise HTTPException(
+                    504,
+                    "知识库查询超时，请缩小问题范围后重试",
+                    headers={diagnostics.ERROR_HEADER: "query_timeout"},
+                )
+            if question is not None and name == "retrieve_knowledge":
+                value = retrieval.rank_result(
+                    search_query or question, value, filter_irrelevant=True
+                )
+                # A matching title is a reading candidate, not evidence for the
+                # contents. Only matching snippet text is delivered as evidence.
+                value["chunks"] = [
+                    row
+                    for row in value.get("chunks", [])
+                    if retrieval.relevance(search_query or question, "", row.get("text", ""))[
+                        "evidence_eligible"
+                    ]
+                ]
+            if question is not None and name == "read_page" and not value.get("error"):
+                match = retrieval.relevance(search_query or question, "", value.get("body", ""))
+                value = {**value, **match}
+                if not match["evidence_eligible"]:
+                    value = {
+                        **value,
+                        "body": "",
+                        "warning": "已读取该段原文，但正文与当前主题的词法匹配不足，不能用作回答依据。",
+                    }
+        encoded = knowledge.encoded_result(
+            value, budget=min(24000, max(200, MAX_EVIDENCE - evidence_size))
+        )
+        delivered = json.loads(encoded)
+        assistant_sources.observe(name, delivered)
+        if question is not None and not delivered.get("error"):
+            if name == "retrieve_knowledge":
+                evidence_paths.update(
+                    row["path"] for row in delivered.get("chunks", []) if row.get("text")
+                )
+            if name == "read_page" and delivered.get("body"):
+                evidence_paths.add(delivered["path"])
+        evidence_size += len(encoded)
+        return encoded, delivered
+
+    if question is not None:
+        # The personal assistant must consult current evidence before a model can
+        # answer. Report callers omit question and keep their existing tool loop.
+        query = search_query or question
+        prefetched = []
+        candidates = []
+        inventory = retrieval.catalogue_question(query)
+        if inventory:
+            args = {
+                "layer": "source" if re.search(r"资料|论文|来源", query) else "all",
+                "limit": 30,
+            }
+            _, result = run_tool("list_pages", args)
+            prefetched.append({"tool": "list_pages", "arguments": args, "result": result})
+        else:
+            for variant in retrieval.query_variants(query)[:2]:
+                if used >= MAX_CALLS or evidence_size >= MAX_EVIDENCE:
+                    break
+                args = {"q": variant, "limit": 8}
+                _, result = run_tool("retrieve_knowledge", args)
+                prefetched.append(
+                    {"tool": "retrieve_knowledge", "arguments": args, "result": result}
+                )
+                if result.get("error"):
+                    break
+                candidates = result.get("chunks", []) + result.get("page_refs", [])
+                if candidates:
+                    break
+            read_paths = set()
+            for candidate in candidates:
+                path = candidate.get("path")
+                if path in read_paths or not knowledge.valid_path(path):
+                    continue
+                if used >= MAX_CALLS or evidence_size >= MAX_EVIDENCE or len(read_paths) >= 2:
+                    break
+                read_paths.add(path)
+                offset = candidate.get("offset", 0)
+                args = {"path": path, "offset": offset, "length": 6000}
+                _, result = run_tool("read_page", args)
+                prefetched.append({"tool": "read_page", "arguments": args, "result": result})
+            has_content = any(
+                any(row.get("text") for row in item["result"].get("chunks", []))
+                or bool(item["result"].get("body"))
+                for item in prefetched
+            )
+            if not has_content:
+                solution_knowledge.check_access(claims)
+                if any(item["result"].get("error") for item in prefetched):
+                    return "本轮知识库查询未能提供可用资料，暂时无法依据知识库回答。请缩小问题范围后重试。"
+                return "已查询本轮授权的知识库，但在有限检索范围内未找到与问题足够相关的原文片段，暂时无法依据知识库得出结论。可补充文档标题、专业术语或更具体的问题后再查证。"
+        history.append(
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {
+                        "prechecked_knowledge": prefetched,
+                        "evidence_rule": "这是本轮实际查询的有界工具结果。仅相关原文片段可作依据；目录、词法得分和历史回答不证明事实。需要更多资料时可继续调用工具，引用必须给出实际path。",
+                    },
+                    ensure_ascii=False,
+                ),
+            }
+        )
     for turn in range(MAX_ROUNDS + 1):
         remaining = (budget) - (time.monotonic() - started)
         if remaining <= 0:
@@ -108,6 +235,15 @@ def chat(provider, cfg, messages, claims, *, request_fn=None):
             if not content or len(content) > 80000:
                 raise ai.AIError("模型没有返回有效正文", code="model_empty_response")
             solution_knowledge.check_access(claims)
+            if question is not None and not inventory:
+                paths = set(
+                    re.findall(
+                        r"(?:sources|knowledge|wisdom)/[^\n\r`<>()\[\]{}\"']+?\.md(?![A-Za-z0-9_./-])",
+                        content,
+                    )
+                )
+                if not paths.intersection(evidence_paths) or not paths.issubset(evidence_paths):
+                    return "本轮已查询知识库，但回答未能提供与实际原文片段对应的可核对来源路径，暂时无法给出有据可查的结论。请补充具体文档或缩小问题范围后再查证。"
             return content
         if not can_use_tools:
             raise HTTPException(
@@ -167,30 +303,14 @@ def chat(provider, cfg, messages, claims, *, request_fn=None):
                     headers={diagnostics.ERROR_HEADER: "query_timeout"},
                 )
             function = call["function"]
-            if used >= MAX_CALLS or evidence_size >= MAX_EVIDENCE:
-                value = {
-                    "error": "本轮查询容量已用完，请依据已有资料回答并说明缺口",
-                    "truncated": True,
-                }
-            else:
-                used += 1
-                raw = function["arguments"]
-                try:
-                    if isinstance(raw, str):
-                        arguments = json.loads(raw) if len(raw) <= 8000 else None
-                    else:
-                        arguments = raw
-                    assistant_generation.guard()
-                    with diagnostics.tool_call(function["name"]):
-                        value = knowledge.execute(claims, function["name"], arguments)
-                    assistant_generation.guard()
-                except (ValueError, TypeError):
-                    value = {"error": "工具参数不是有效 JSON 对象，请按定义重试"}
-            encoded = knowledge.encoded_result(
-                value, budget=min(24000, max(200, MAX_EVIDENCE - evidence_size))
-            )
-            assistant_sources.observe(function["name"], json.loads(encoded))
-            evidence_size += len(encoded)
+            raw = function["arguments"]
+            try:
+                arguments = json.loads(raw) if isinstance(raw, str) else raw
+                encoded, _ = run_tool(function["name"], arguments)
+            except (ValueError, TypeError):
+                encoded = json.dumps(
+                    {"error": "工具参数不是有效 JSON 对象，请按定义重试"}, ensure_ascii=False
+                )
             tool_result = {"role": "tool", "content": encoded}
             if ollama:
                 tool_result["tool_name"] = function["name"]

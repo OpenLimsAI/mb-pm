@@ -43,6 +43,7 @@ class TaskQuestion(TaskRevision):
     context: str = Field(default="", max_length=20000)
     model_profile_id: str | None = Field(default=None, min_length=1, max_length=100)
     continue_from_request: UUID | None = None
+    base_artifact_id: str | None = Field(default=None, min_length=1, max_length=64)
     answer_mode: Literal["auto", "general", "knowledge", "web"] | None = None
 
     @field_validator("data_sources", mode="before")

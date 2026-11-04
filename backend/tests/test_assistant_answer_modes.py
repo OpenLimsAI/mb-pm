@@ -509,6 +509,14 @@ def test_personal_web_never_sends_context_preferences_or_knowledge_to_search(
     assistant_client, monkeypatch
 ):
     f = assistant_client
+    monkeypatch.setattr(
+        solution_knowledge, "paper_count", lambda *_: pytest.fail("unneeded private query")
+    )
+    monkeypatch.setattr(
+        solution_knowledge,
+        "_request",
+        lambda *_args, **_kwargs: pytest.fail("web mode must not query KB"),
+    )
     enable_search(monkeypatch)
     calls = provider(monkeypatch, results=[public_result()])
     model_calls = grounded_model(monkeypatch, f)
@@ -527,7 +535,14 @@ def test_personal_web_never_sends_context_preferences_or_knowledge_to_search(
     saved = response.json()
     assert saved["messages"][-1]["answer_mode"] == "web" and saved["messages"][-1]["web_references"]
     assert calls[0]["json"]["query"] == "柿子脱涩最新进展"
-    assert "secret-" not in json.dumps(calls[0]["json"]) + json.dumps(model_calls)
+    assert "secret-" not in json.dumps(calls[0]["json"])
+    synthesis = json.loads(model_calls[0][-1]["content"])
+    context = [json.loads(row["content"]) for row in synthesis["conversation_context"]]
+    assert {"task_preferences": "secret-task-instructions"} in context
+    assert {"reference_material": "secret-report-attachment"} in context
+    assert (
+        "application_data" not in synthesis and saved["messages"][-1]["knowledge_references"] == []
+    )
     replay = test_assistant.question(
         f,
         task,

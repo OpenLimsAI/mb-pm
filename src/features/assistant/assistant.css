@@ -329,3 +329,12 @@
 .aa-knowledge-sources, .aa-reask { margin-top: 12px; font-size: 12px; }
 .aa-knowledge-sources .aa-button, .aa-reask .aa-button { margin: 8px 8px 0 0; white-space: normal; text-align: left; }
 .aa-result-footer { flex-wrap: wrap; }
+.aa-base-draft { padding: 8px 12px 0; }
+.aa-base-draft .aa-attached { margin: 0; }
+.aa-base-draft small { display: block; margin-top: 6px; color: #617d91; line-height: 1.6; }
+.aa-lineage { display: block; padding: 4px 0; border: 0; background: none; color: #247392; font-size: 12px; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+.aa-memory-preview { border: 1px solid #cddfea; border-radius: 8px; padding: 12px; color: #526e82; font-size: 12px; }
+.aa-memory-preview pre { max-height: 240px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; line-height: 1.7; }
+.aa-source-excerpt { margin: 12px 0; padding: 12px; background: #f2f7fb; border-radius: 8px; }
+.aa-source-excerpt p { margin: 0 0 8px; color: #617d91; }
+.aa-source-excerpt blockquote { margin: 0; white-space: pre-wrap; line-height: 1.7; overflow-wrap: anywhere; }

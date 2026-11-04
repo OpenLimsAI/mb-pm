@@ -64,6 +64,8 @@ def fingerprint(payload):
     value = payload.model_dump(mode="json", exclude={"revision"})
     if value.get("continue_from_request") is None:
         value.pop("continue_from_request", None)
+    if value.get("base_artifact_id") is None:
+        value.pop("base_artifact_id", None)
     return hashlib.sha256(
         json.dumps(value, sort_keys=True, ensure_ascii=False).encode()
     ).hexdigest()
@@ -107,6 +109,7 @@ def view(db, claims, task, job):
             "requested_mode": payload.get("answer_mode"),
             "data_sources": payload.get("data_sources", []),
             "model_profile_id": payload.get("model_profile_id"),
+            "base_artifact_id": payload.get("base_artifact_id"),
             "created_at": job.created_at,
             "updated_at": job.updated_at,
         }
@@ -296,9 +299,10 @@ def submit(db, claims, task, payload, *, inline=False):
         raise HTTPException(409, assistant.CONFLICT)
     if not replay and task.active_request_id is not None:
         raise HTTPException(409, BUSY)
-    from app.services import assistant_operations
+    from app.services import assistant_artifacts, assistant_operations
 
     continuation_context(db, claims, task, payload)
+    base_artifact = assistant_artifacts.selected(db, claims, task, payload)
     assistant_operations.queue_lock(db)
     limits = assistant_operations.limits(db)
     count = db.scalar(
@@ -341,6 +345,7 @@ def submit(db, claims, task, payload, *, inline=False):
         request_id=str(payload.request_id),
         payload=payload.model_dump(mode="json"),
         fingerprint=digest,
+        application_scope=(base_artifact.application_scope or {}) if base_artifact else {},
         status="completed" if replay else "running" if inline else "queued",
         stage="completed" if replay else "waiting_model" if inline else "queued",
         worker_token=token,
