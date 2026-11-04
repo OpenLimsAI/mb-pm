@@ -338,3 +338,36 @@
 .aa-source-excerpt { margin: 12px 0; padding: 12px; background: #f2f7fb; border-radius: 8px; }
 .aa-source-excerpt p { margin: 0 0 8px; color: #617d91; }
 .aa-source-excerpt blockquote { margin: 0; white-space: pre-wrap; line-height: 1.7; overflow-wrap: anywhere; }
+
+/* The trash list is a workspace view; deleted task content opens only on request. */
+.aa-trash-sidebar-note { flex: 1; padding: 32px 11px; color: #7b91a0; font-size: 12px; line-height: 1.9; }
+.aa-trash-sidebar-note > svg { margin-bottom: 10px; color: #8aa5b7; }
+.aa-trash-sidebar-note p + p { margin-top: 12px; }
+.aa-trash-view { flex: 1; min-height: 0; overflow: auto; padding: 28px clamp(18px, 4vw, 52px); background: #f6f9fb; }
+.aa-trash-intro { display: flex; align-items: center; justify-content: space-between; gap: 16px; max-width: 1050px; margin: 0 auto 20px; }
+.aa-trash-intro h3 { color: #2e4d64; font-size: 17px; font-weight: 600; }
+.aa-trash-intro p { margin-top: 6px; color: #708b9e; font-size: 13px; }
+.aa-trash-search { max-width: 1050px; margin: 0 auto 20px; padding: 10px 13px; border-color: #cfdfe9; border-radius: 7px; }
+.aa-trash-search input { height: 24px; font-size: 13px; }
+.aa-trash-list { display: grid; gap: 12px; max-width: 1050px; margin: 0 auto; padding: 0; list-style: none; }
+.aa-trash-row { display: flex; align-items: center; gap: 15px; min-width: 0; padding: 20px; border: 1px solid #dce7ef; border-radius: 10px; background: #fff; }
+.aa-trash-row > svg { flex-shrink: 0; color: #7194ad; }
+.aa-trash-row-info { flex: 1; min-width: 0; }
+.aa-trash-row-info h3 { color: #31536d; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.aa-trash-row-info p { margin-top: 6px; color: #7a91a1; font-size: 12px; }
+.aa-trash-row-info small { margin-top: 6px; }
+.aa-trash-row-actions { display: flex; flex-shrink: 0; gap: 8px; }
+.aa-trash-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; min-height: 290px; padding: 35px 18px; color: #7f9aad; text-align: center; }
+.aa-trash-state h3 { color: #34566d; font-size: 18px; font-weight: 600; }
+.aa-trash-state p { max-width: 480px; color: #78909f; font-size: 13px; overflow-wrap: anywhere; }
+.aa-trash-error { border: 1px solid #edcfc7; border-radius: 9px; background: #fffaf7; }
+.aa-trash-error h3 { color: #9c5b4b; }
+.aa-trash-more { display: flex; margin: 22px auto 0; }
+@media (max-width: 720px) {
+  .aa-trash-view { padding: 22px 14px; }
+  .aa-trash-row { flex-wrap: wrap; gap: 10px; padding: 16px; }
+  .aa-trash-row-actions { width: 100%; justify-content: flex-end; }
+  .aa-chat-tools { flex-wrap: wrap; justify-content: flex-end; }
+  .aa-chat-header:has(.aa-chat-tools > .aa-button) { align-items: flex-start; flex-wrap: wrap; }
+  .aa-chat-header:has(.aa-chat-tools > .aa-button) .aa-chat-tools { width: 100%; justify-content: flex-start; }
+}

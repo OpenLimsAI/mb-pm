@@ -20,7 +20,12 @@ const composer = () => screen.getByRole('textbox', { name: '给 AI 助手的任�
 const chat = () => screen.getByLabelText('任务对话')
 async function open(title: string) {
   const sidebar = screen.getByRole('complementary', { name: '任务导航' })
-  fireEvent.click(await within(sidebar).findByRole('button', { name: `打开任务：${title}` }))
+  let target: HTMLElement | null = null
+  await waitFor(() => {
+    target = screen.queryByRole('button', { name: `查看已删除任务：${title}` }) || within(sidebar).queryByRole('button', { name: `打开任务：${title}` })
+    expect(target).toBeInTheDocument()
+  })
+  fireEvent.click(target!)
   await screen.findByRole('heading', { name: title, level: 2 })
 }
 async function create(client: AssistantClient, title: string) { return client.create(input(title)) }
@@ -134,7 +139,7 @@ describe('AI assistant task workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: `恢复任务：${task.title}` }))
     fireEvent.click(within(screen.getByRole('dialog', { name: '恢复任务' })).getByRole('button', { name: '确认恢复' }))
     await waitFor(async () => expect((await client.list({})).items.some(item => item.id === task.id)).toBe(true))
-    fireEvent.click(screen.getByRole('button', { name: '返回任务' }))
+    fireEvent.click(screen.getByRole('button', { name: '返回任务列表' }))
     await open(task.title)
     expect(within(chat()).getAllByText('保留这条对话').length).toBeGreaterThan(0)
     expect((await client.get(task.id)).artifacts).toHaveLength(1)
@@ -148,7 +153,7 @@ describe('AI assistant task workspace', () => {
     const view = render(<AssistantApp client={client} modelClient={models()} userName="研究员" preview />)
     await screen.findByText('无权读取这项任务的历史内容。')
     expect(view.container.querySelector('.aa-app')).toHaveClass('aa-sidebar-visible')
-    expect(screen.getByRole('button', { name: '任务列表' })).toBeInTheDocument()
+    expect(within(screen.getByRole('alert')).getByRole('button', { name: '任务列表' })).toBeInTheDocument()
     const sidebar = screen.getByRole('complementary', { name: '任务导航' })
     expect(sidebar.querySelector('button button')).toBeNull()
     fireEvent.click(within(sidebar).getByRole('button', { name: `删除任务：${target.title}` }))
@@ -265,17 +270,18 @@ describe('AI assistant task workspace', () => {
     expect(composer()).toHaveValue('刷新列表不会丢失的草稿')
   })
 
-  it('restores an unopened summary without clearing another recycled task or loading its history', async () => {
+  it('restores an unopened summary from the bin list without loading protected history', async () => {
     const client = createPreviewAssistantClient('restore-unopened'), target = await create(client, '不打开直接恢复的任务'), current = await create(client, '继续查看的回收站任务')
     await client.trash(target); await client.trash(current)
     await mount(client)
     fireEvent.click(screen.getByRole('button', { name: '回收站' }))
     await open(current.title)
+    fireEvent.click(screen.getByRole('button', { name: '返回回收站列表' }))
     const get = vi.spyOn(client, 'get')
     fireEvent.click(screen.getByRole('button', { name: `恢复任务：${target.title}` }))
     fireEvent.click(within(screen.getByRole('dialog', { name: '恢复任务' })).getByRole('button', { name: '确认恢复' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(screen.getByRole('heading', { name: current.title, level: 2 })).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: '已删除任务列表' })).getByRole('button', { name: `查看已删除任务：${current.title}` })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: `恢复任务：${target.title}` })).not.toBeInTheDocument()
     expect(get).not.toHaveBeenCalled()
     expect((await client.list({ search: target.title })).items[0].id).toBe(target.id)
