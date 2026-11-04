@@ -24,6 +24,8 @@ class RequestLimitsMiddleware:
             limit = 16 * 1024 * 1024
         elif path == "/api/v1/templates/import":
             limit = 11 * 1024 * 1024
+        elif path.startswith("/api/v1/integration/knowledge/ai/"):
+            limit = 1024 * 1024
         lengths = [
             value for name, value in scope.get("headers", []) if name.lower() == b"content-length"
         ]

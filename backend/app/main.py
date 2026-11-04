@@ -23,19 +23,20 @@ from app.api.v1 import (
     feedback,
     finances,
     information,
+    knowledge_ai,
     knowledge_sources,
     mdm_integration,
     notes,
+    planning,
+    pm_management,
+    pm_views,
     portal,
     portal_settings,
     projects,
-    pm_views,
-    planning,
-    pm_management,
-    task_collaboration,
     solutions,
     structure,
     sub_projects,
+    task_collaboration,
     task_dependencies,
     tasks,
     templates,
@@ -45,6 +46,7 @@ from app.core.auth_logging import CallbackQueryFilter, audit_auth_request
 from app.core.config import settings
 from app.db.base import Base
 from app.db.session import SessionLocal, engine
+from app.middleware.notes_embed import notes_frame_ancestors
 from app.middleware.request_limits import RequestLimitsMiddleware
 from app.models import User
 
@@ -298,7 +300,8 @@ async def prevent_auth_response_caching(request, call_next):
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     response.headers["Content-Security-Policy"] = (
-        "object-src 'none'; base-uri 'self'; frame-ancestors 'self' https://www.openlims.ai https://pm.openlims.ai"
+        "object-src 'none'; base-uri 'self'; frame-ancestors "
+        + notes_frame_ancestors(request, response, settings.KNOWLEDGE_NOTES_ORIGIN)
     )
     if request.url.path.startswith("/api/v1/"):
         response.headers["Cache-Control"] = "no-store"
@@ -322,6 +325,7 @@ app.include_router(information.router, prefix=API_PREFIX)
 app.include_router(knowledge_sources.router, prefix=API_PREFIX)
 app.include_router(notes.router, prefix=API_PREFIX)
 app.include_router(assistant.router, prefix=API_PREFIX)
+app.include_router(knowledge_ai.router, prefix=API_PREFIX)
 app.include_router(accounts.router, prefix=API_PREFIX)
 app.include_router(account.router, prefix=API_PREFIX)
 app.include_router(users.router, prefix=API_PREFIX)

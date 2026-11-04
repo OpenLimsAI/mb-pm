@@ -9,6 +9,7 @@
 - 正式模式不读取、导入、覆盖或删除旧浏览器笔记；本次不处理历史 Wisdom 副本。
 - 新摘录直接调用服务端接口，失败时保留当前摘录/回答，重试沿用同一 ID；没有「自动保存到浏览器后稍后迁移」的回退。
 - 知识库嵌入同一笔记界面，以当前知识库身份摘要绑定门户会话。跨域请求仅允许配置的知识库 Origin，且必须与门户会话的 issuer、subject 一致。
+- 嵌入页面读取同账号笔记成功后，向指定知识库 Origin 发送就绪状态；父页同时校验发送窗口和身份摘要。页面被浏览器阻止或连接超时会显示重新加载、在新页面打开入口，不再留下空白框。后续登录失效或账号不匹配会撤下嵌入内容，普通刷新失败保留正在编辑的内容。
 - 两个应用须登录同一账号。退出、账号不匹配或临时密码未修改时拒绝访问，不展示其他账号数据。
 - 开发预览的演示笔记仍独立保存在本机，不能作为正式数据来源。
 
@@ -24,7 +25,7 @@
 
 ## 配置
 
-- `KNOWLEDGE_NOTES_ORIGIN`：允许访问笔记 API 的精确知识库 Origin，生产默认 `https://kb.openlims.ai`。
+- `KNOWLEDGE_NOTES_ORIGIN`：允许访问笔记 API 的精确知识库 Origin，生产默认 `https://kb.openlims.ai`；同时仅允许该 Origin 嵌入 `/notes?embed=knowledge` 的 HTML 页面。不得配置通配符、路径、凭据或多个 Origin，其余门户页面沿用原有 `frame-ancestors` 限制。
 - `NOTES_WISDOM_CORE_URL` / `NOTES_WISDOM_TOKEN`：后台专用 Core 地址和服务令牌，不发给浏览器。
 - `NOTES_WISDOM_WORKER_ENABLED=true`：启用后台同步线程。两实例可以同时启用，共用数据库锁。生产必须使用 PostgreSQL；单进程 SQLite 仅供本地调试。
 
@@ -32,4 +33,4 @@
 
 ## 验证
 
-后端：`python -m pytest tests/test_notes.py tests/test_note_sync.py`；前端：`npm test -- src/features/notes src/pages/Notes.test.tsx`。知识库仓库覆盖服务端摘录、失败重试、账号切换、旧数据保持原样和嵌入界面，完整验证走各仓库 CI。发布与真实验收结果单独记录于部署文档。
+后端：`python -m pytest tests/test_notes.py tests/test_notes_embed.py tests/test_note_sync.py`；前端：`npm test -- src/features/notes src/pages/Notes.test.tsx`。知识库仓库覆盖服务端摘录、失败重试、账号切换、旧数据保持原样和嵌入界面，完整验证走各仓库 CI。嵌入恢复覆盖页面阻断、身份不匹配、超时及重试；环境发布与真实账号验收结果见[本轮发布记录](../deploy/parallel-test/releases/20261104-knowledge-unified-ai.md)。

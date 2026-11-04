@@ -18,7 +18,7 @@ export default function PortalAISettings() {
     return () => window.removeEventListener('solutions:unauthorized', expired)
   }, [refresh])
   return <PortalLayout user={user} logout={logout} preview={preview}>
-    <div className="portal-page-heading"><div className="workspace-section-label">AI SETTINGS</div><h1>AI 设置</h1><p>管理个人研究模型，与 AI 助手、研究报告共用模型配置。</p></div>
+    <div className="portal-page-heading"><div className="workspace-section-label">AI SETTINGS</div><h1>AI 设置</h1><p>统一管理当前账号的 AI 模型，供工作台助手、研究报告和知识库问答、翻译、摘要及标签生成使用。</p></div>
     <section className="portal-panel portal-ai-settings" aria-label="个人 AI 模型设置">
       <Link className="app-workbench-link" to={'/' + suffix}><LayoutGrid size={16} />应用工作台</Link>
       <ModelSettingsPanel client={client} preview={preview} onChange={() => {}} onClose={() => navigate('/' + suffix)} />
