@@ -16,6 +16,7 @@ import type {
 } from '../types'
 import { dmpDrugSubstanceStructure } from './templates-dmp'
 import { projects } from './projects'
+import { calculateProgress } from '../lib/progress'
 
 // 「今日」：取本机当前日期（页面加载时确定），整个应用统一以此判定状态 / 进度 / 逾期 / 负荷 / 今日线
 // （首页、模板实例化、离线演示数据均复用此常量）。以「本地日历日的 UTC 零点」表示：
@@ -223,7 +224,7 @@ function instantiateTemplate(
   subProjects.forEach((sp) => {
     const myTasks = tasks.filter((t) => t.subProjectId === sp.id)
     if (myTasks.length === 0) return
-    const avgProgress = Math.round(myTasks.reduce((s, t) => s + t.progress, 0) / myTasks.length)
+    const avgProgress = calculateProgress(myTasks, projects.find(p => p.id === projectId)?.progressMethod)
     sp.progress = avgProgress
     if (avgProgress >= 100) sp.status = '已完成'
     else if (avgProgress > 0) sp.status = '进行中'

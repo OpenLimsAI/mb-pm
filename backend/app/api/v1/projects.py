@@ -18,8 +18,6 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from app.schemas.business_values import validate_date_patch
-
 from app.api.deps import get_current_user, require_role
 from app.api.v1.mdm_integration import reference_user
 from app.db.session import get_db
@@ -34,6 +32,7 @@ from app.models import (
     TaskDependency,
     User,
 )
+from app.schemas.business_values import validate_date_patch
 from app.schemas.common import Page, PageMeta
 from app.schemas.project import (
     ProjectCopyIn,
@@ -266,7 +265,7 @@ def update_project(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    project = db.query(Project).filter_by(id=project_id).first()
+    project = db.query(Project).filter_by(id=project_id).with_for_update().first()
     if not project:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
 
@@ -275,6 +274,8 @@ def update_project(
         raise HTTPException(status.HTTP_403_FORBIDDEN, "only owner / admin / cmc_lead can edit")
 
     update_dict = payload.model_dump(exclude_unset=True, exclude={"member_ids"})
+    if project.progress_method != "equal" and "progress" in update_dict:
+        raise HTTPException(422, "项目进度按任务加权汇总，请修改任务进度或进度计算规则")
     validate_date_patch(project, update_dict)
     for k, v in update_dict.items():
         setattr(project, k, v)

@@ -133,7 +133,7 @@ def test_calendar_exceptions_and_full_baseline(client, auth_headers, project_fac
     )
     assert response.status_code == 201, response.text
     snapshot = response.json()["snapshot"]
-    assert snapshot["schemaVersion"] == 2
+    assert snapshot["schemaVersion"] == 3
     assert len(snapshot["tasks"]) == 2 and len(snapshot["dependencies"]) == 1
     assert "ownerId" in snapshot["tasks"][0] and "estimatedEffort" in snapshot["tasks"][0]
     assert snapshot["calendar"]["weekdays"] == list(range(1, 8))

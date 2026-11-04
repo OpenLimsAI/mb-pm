@@ -82,6 +82,8 @@ class Task(Base, TimestampMixin):
     __mapper_args__ = {"version_id_col": revision}
 
     progress: Mapped[int] = mapped_column(Integer, default=0)
+    # NULL uses the policy default (ordinary task 1, milestone 0); explicit 0 excludes it.
+    progress_weight: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
     is_milestone: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     is_critical_path: Mapped[bool] = mapped_column(Boolean, default=False)
 
