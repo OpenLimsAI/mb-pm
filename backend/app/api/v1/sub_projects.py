@@ -15,8 +15,9 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_role
 from app.db.session import get_db
-from app.models import SubProject, User
+from app.models import Project, SubProject, User
 from app.schemas.task import SubProjectCreate, SubProjectOut, SubProjectUpdate
+from app.services.rollup import recompute_project
 from app.services.scope import visible_project_ids_for
 
 router = APIRouter(prefix="/sub-projects", tags=["sub-projects"])
@@ -83,12 +84,18 @@ def update_sub_project(
     db: Session = Depends(get_db),
     user: User = Depends(require_role("admin", "cmc_lead", "project_lead")),
 ):
+    project_id = db.query(SubProject.project_id).filter_by(id=sub_id).scalar()
+    project = (
+        db.query(Project).filter_by(id=project_id).with_for_update().first() if project_id else None
+    )
     obj = db.query(SubProject).filter_by(id=sub_id).first()
     if not obj:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "sub-project not found")
     if obj.project_id not in visible_project_ids_for(user, db):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "no access")
 
+    if project and project.progress_method != "equal" and "progress" in payload.model_fields_set:
+        raise HTTPException(422, "子项目进度按任务加权汇总，请修改任务进度或进度计算规则")
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
     db.commit()
@@ -102,10 +109,16 @@ def delete_sub_project(
     db: Session = Depends(get_db),
     user: User = Depends(require_role("admin", "cmc_lead", "project_lead")),
 ):
+    # Serialize with task execution, structure changes and progress-policy saves.
+    project_id = db.query(SubProject.project_id).filter_by(id=sub_id).scalar()
+    if project_id:
+        db.query(Project).filter_by(id=project_id).with_for_update().first()
     obj = db.query(SubProject).filter_by(id=sub_id).first()
     if not obj:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "sub-project not found")
     if obj.project_id not in visible_project_ids_for(user, db):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "no access")
     db.delete(obj)
+    db.flush()
+    recompute_project(db, obj.project_id)
     db.commit()

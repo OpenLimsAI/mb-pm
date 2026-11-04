@@ -211,8 +211,8 @@ def list_models(provider: str, cfg: dict) -> list[str]:
     ][:300]
 
 
-def kimi_parameters(provider: str, cfg: dict, body: dict, *, probe=False, kind="general") -> None:
-    """Kimi fixed sampling and bounded thinking; also used by private profiles/tool turns."""
+def kimi_parameters(provider: str, cfg: dict, body: dict, *, probe=False, kind=None) -> None:
+    """Preserve shared-call defaults; lower effort only for probes/explicit general use."""
     if provider != "kimi" and cfg.get("provider") != "kimi":
         return
     for key in ("temperature", "top_p", "presence_penalty", "frequency_penalty"):
@@ -221,7 +221,7 @@ def kimi_parameters(provider: str, cfg: dict, body: dict, *, probe=False, kind="
     if cfg["model"].startswith("kimi-k3"):
         body.pop("max_tokens", None)
         body["max_completion_tokens"] = limit
-        body["reasoning_effort"] = "high" if kind == "analysis" and not probe else "low"
+        body["reasoning_effort"] = "low" if probe or kind == "general" else "high"
     else:
         body["max_tokens"] = limit
 

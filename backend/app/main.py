@@ -32,6 +32,9 @@ from app.api.v1 import (
     pm_views,
     portal,
     portal_settings,
+    progress_policy,
+    project_ai_work,
+    project_exchange,
     projects,
     solutions,
     structure,
@@ -39,6 +42,7 @@ from app.api.v1 import (
     task_collaboration,
     task_dependencies,
     tasks,
+    template_upgrade,
     templates,
     users,
 )
@@ -86,6 +90,8 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("project_ai_analyses", "prompt", "TEXT NOT NULL DEFAULT ''"),
     ("tasks", "sort_order", "INTEGER"),
     ("tasks", "revision", "INTEGER NOT NULL DEFAULT 1"),
+    ("projects", "progress_method", "VARCHAR(16) NOT NULL DEFAULT 'equal'"),
+    ("tasks", "progress_weight", "NUMERIC(10,4)"),
     ("solution_answers", "conversation_id", "VARCHAR(80)"),
     ("knowledge_solutions", "deleted_at", "TIMESTAMP WITH TIME ZONE"),
     ("knowledge_solutions", "pinned", "BOOLEAN NOT NULL DEFAULT false"),
@@ -212,6 +218,9 @@ async def lifespan(_: FastAPI):
         worker = start_worker()
     notes_worker = None
     assistant_worker = None
+    from app.services.project_ai_jobs import start_worker as start_project_ai_worker
+
+    project_ai_worker = start_project_ai_worker()
     if settings.ASSISTANT_REQUEST_WORKER_ENABLED:
         from app.services.assistant_requests import start_worker as start_assistant_worker
 
@@ -230,6 +239,9 @@ async def lifespan(_: FastAPI):
     try:
         yield
     finally:
+        if project_ai_worker:
+            project_ai_worker[0].set()
+            project_ai_worker[1].join(timeout=5)
         if assistant_worker:
             assistant_worker[0].set()
             assistant_worker[1].join(timeout=5)
@@ -331,6 +343,10 @@ app.include_router(accounts.router, prefix=API_PREFIX)
 app.include_router(account.router, prefix=API_PREFIX)
 app.include_router(users.router, prefix=API_PREFIX)
 app.include_router(projects.router, prefix=API_PREFIX)
+app.include_router(project_exchange.router, prefix=API_PREFIX)
+app.include_router(template_upgrade.router, prefix=API_PREFIX)
+app.include_router(progress_policy.router, prefix=API_PREFIX)
+app.include_router(project_ai_work.router, prefix=API_PREFIX)
 app.include_router(pm_views.router, prefix=API_PREFIX)
 app.include_router(planning.router, prefix=API_PREFIX)
 app.include_router(pm_management.router, prefix=API_PREFIX)

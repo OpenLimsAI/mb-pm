@@ -1,6 +1,7 @@
 """Project schemas — 含 memberIds 团队字段。"""
 
 from datetime import date
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -85,6 +86,7 @@ class ProjectCopyIn(BaseModel):
 class ProjectOut(ProjectBase):
     model_config = ConfigDict(from_attributes=True)
     id: str
+    progress_method: Literal["equal", "effort", "custom"] = "equal"
 
     @classmethod
     def from_orm_with_members(cls, project) -> "ProjectOut":
@@ -101,6 +103,7 @@ class ProjectOut(ProjectBase):
             status=project.status,
             health=project.health,
             progress=project.progress,
+            progress_method=project.progress_method,
             planned_start=project.planned_start,
             planned_end=project.planned_end,
             template_id=project.template_id,

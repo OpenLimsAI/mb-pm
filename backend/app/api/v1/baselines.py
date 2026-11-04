@@ -73,10 +73,11 @@ def _build_snapshot(db: Session, project: Project) -> dict:
 
     start, end = live_span(db, [project])[project.id]  # 与页首一致：按任务实时派生
     return {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "projectPlannedStart": start.isoformat(),
         "projectPlannedEnd": end.isoformat(),
         "progress": project.progress,
+        "progressMethod": project.progress_method,
         "totalBudget": float(fin.total_budget) if fin else 0.0,
         "taskCount": len(tasks),
         "milestoneCount": len(milestones),
@@ -92,6 +93,9 @@ def _build_snapshot(db: Session, project: Project) -> dict:
                 "ownerId": t.owner_id,
                 "collaboratorIds": t.collaborator_ids or [],
                 "estimatedEffort": float(t.estimated_effort or 0),
+                "progressWeight": float(t.progress_weight)
+                if t.progress_weight is not None
+                else None,
                 "costBudget": float(t.cost_budget) if t.cost_budget is not None else None,
                 "isMilestone": t.is_milestone,
                 "isCriticalPath": t.is_critical_path,

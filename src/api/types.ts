@@ -37,6 +37,7 @@ export interface UserDTO {
 // ============= Project =============
 
 export interface ProjectDTO {
+  progressMethod?: 'equal' | 'effort' | 'custom'
   id: string
   code: string
   name: string
@@ -92,6 +93,7 @@ export interface SubProjectDTO {
 // ============= Task =============
 
 export interface TaskDTO {
+  progressWeight?: number | null
   revision?: number
   id: string
   code: string

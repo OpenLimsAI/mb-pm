@@ -27,6 +27,10 @@ class Project(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     health: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
     progress: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Equal preserves legacy projects; alternatives are changed only by reviewed policy saves.
+    progress_method: Mapped[str] = mapped_column(
+        String(12), default="equal", server_default="equal", nullable=False
+    )
 
     planned_start: Mapped[date] = mapped_column(Date, nullable=False)
     planned_end: Mapped[date] = mapped_column(Date, nullable=False)

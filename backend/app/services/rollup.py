@@ -1,13 +1,13 @@
 """进度汇总 —— 任务进度变更后，自动汇总到子项目和项目。
 
-三级 WBS 派生（与前端 lib/instantiate.ts 一致）：
-    子项目进度 = 其下任务进度的平均值
-    项目进度   = 全部任务进度的平均值
+三级 WBS 派生（与前端 lib/progress.ts 一致）：
+    项目/子项目进度 = Σ(任务进度 × 有效权重) / Σ有效权重
     状态       = 100→已完成 / >0→进行中 / 0→未开始
     项目 health = 由任务/里程碑的逾期与临期情况派生（红/黄/绿）
 """
 
 from datetime import date
+from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -15,6 +15,40 @@ from sqlalchemy.orm import Session
 from app.models import Project, SubProject, Task
 
 _DONE = ("已完成", "已验证")
+
+
+def effective_weight(
+    task: Task, method: str, override: Decimal | None = None, *, overridden=False
+) -> Decimal:
+    if method == "equal":
+        return Decimal(1)
+    if method == "effort":
+        return Decimal(0) if task.is_milestone else Decimal(str(task.estimated_effort or 0))
+    weight = override if overridden else task.progress_weight
+    if weight is not None:
+        return Decimal(str(weight))
+    return Decimal(0 if task.is_milestone else 1)
+
+
+def weighted_progress(
+    tasks: list[Task], method: str = "equal", overrides: dict | None = None
+) -> dict:
+    overrides = overrides or {}
+    weights = [
+        effective_weight(t, method, overrides.get(t.id), overridden=t.id in overrides)
+        for t in tasks
+    ]
+    denominator = sum(weights, Decimal(0))
+    numerator = sum(
+        (Decimal(t.progress) * w for t, w in zip(tasks, weights, strict=False)), Decimal(0)
+    )
+    exact = numerator / denominator if denominator else Decimal(0)
+    return {
+        "progress": int(exact.quantize(Decimal(1), rounding=ROUND_HALF_UP)),
+        "exact_progress": float(exact),
+        "numerator": float(numerator),
+        "denominator": float(denominator),
+    }
 
 
 def _status_for(progress: int) -> str:
@@ -94,9 +128,10 @@ def recompute_subproject(db: Session, sub_id: str) -> None:
     if not sub:
         return
     tasks = db.query(Task).filter_by(sub_project_id=sub_id).all()
-    if not tasks:
-        return
-    sub.progress = round(sum(t.progress for t in tasks) / len(tasks))
+    project = db.get(Project, sub.project_id)
+    sub.progress = weighted_progress(tasks, project.progress_method if project else "equal")[
+        "progress"
+    ]
     sub.status = _status_for(sub.progress)
 
 
@@ -105,12 +140,8 @@ def recompute_project(db: Session, project_id: str) -> None:
     if not proj:
         return
     sub_ids = [s.id for s in db.query(SubProject).filter_by(project_id=project_id).all()]
-    if not sub_ids:
-        return
     tasks = db.query(Task).filter(Task.sub_project_id.in_(sub_ids)).all()
-    if not tasks:
-        return
-    proj.progress = round(sum(t.progress for t in tasks) / len(tasks))
+    proj.progress = weighted_progress(tasks, proj.progress_method)["progress"]
     proj.health = _derive_health(tasks)
 
 

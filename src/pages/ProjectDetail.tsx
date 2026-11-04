@@ -20,6 +20,10 @@ import { BaselinePanel } from '../components/project/BaselinePanel'
 import { PMManagement } from '../components/management/PMManagement'
 import { DelayImpact } from '../components/project/DelayImpact'
 import { ProjectAIAnalysis } from '../components/project/ProjectAIAnalysis'
+import { ProjectExchange } from '../components/project/ProjectExchange'
+import { TemplateUpgrade } from '../components/project/TemplateUpgrade'
+import { ProgressPolicy } from '../components/project/ProgressPolicy'
+import { refreshAllData } from '../data/bootstrap'
 import { TeamPanel } from '../components/project/TeamPanel'
 import { ProjectStructureEditor } from '../components/project/ProjectStructureEditor'
 import { TaskDrawer } from '../components/task/TaskDrawer'
@@ -29,7 +33,7 @@ import { recordProjectVisit } from '../lib/projectNavigation'
 import { getProjectMDMLaunchUrl } from '../api/projects'
 
 // Tab 顺序：概览 → 里程碑 → WBS → 延迟推演 → 基线 → 团队 → AI 分析（仅管理者）
-type Tab = 'overview' | 'milestones' | 'wbs' | 'delay' | 'baseline' | 'team' | 'ai' | 'management'
+type Tab = 'overview' | 'milestones' | 'wbs' | 'delay' | 'baseline' | 'team' | 'ai' | 'management' | 'tools'
 // WBS 子视图：表格（行内编辑，主工作面）/ 树形 / 甘特图
 
 export default function ProjectDetail() {
@@ -45,7 +49,8 @@ export default function ProjectDetail() {
   const online = useDataStore((s) => s.mode) === 'api'
   const project = findProject(id || '')
   const requestedTab = params.get('tab')
-  const tab: Tab = ['overview', 'milestones', 'wbs', 'delay', 'baseline', 'team', 'ai', 'management'].includes(requestedTab || '') ? requestedTab as Tab : 'overview'
+  const tab: Tab = ['overview', 'milestones', 'wbs', 'delay', 'baseline', 'team', 'ai', 'management', 'tools'].includes(requestedTab || '') ? requestedTab as Tab : 'overview'
+  const [toolMode, setToolMode] = useState<'template' | 'progress'>('template')
   const setTab = (value: Tab) => { const next = new URLSearchParams(params); next.set('tab', value); setParams(next) }
   const [wbsView, setWbsView] = useState<WbsView>('table')
   const [selectedTaskId, setSelectedTaskId] = useState<string>()
@@ -112,9 +117,12 @@ export default function ProjectDetail() {
         editDisabledReason={online ? undefined : '离线演示模式不支持修改项目'}
       />
 
+      <div className="flex flex-wrap gap-2 items-center">
+      <ProjectExchange key={project.id} projectId={project.id} canManage={online && (role === 'admin' || role === 'cmc_lead' || (role === 'project_lead' && userId === project.ownerId))} onApplied={refreshAllData} />
       <button type="button" className="px-3 py-2 rounded-lg border text-sm" disabled={!online} onClick={() => {
         void getProjectMDMLaunchUrl(project.id).then((url) => window.location.assign(url)).catch(() => setNotice('无法打开 MDM：请确认入口配置、登录及项目权限。'))
       }}>打开 MDM 登记项目</button>
+      </div>
 
       {notice && (
         <div role="status" className="p-3 rounded-lg bg-emerald-50 text-emerald-800 text-sm flex items-center gap-2">
@@ -135,6 +143,7 @@ export default function ProjectDetail() {
         <TabBtn current={tab} v="baseline"    icon={<Flag className="w-4 h-4" />}              label="基线" onClick={setTab} />
         <TabBtn current={tab} v="team"        icon={<Users className="w-4 h-4" />}             label="团队" onClick={setTab} />
         <TabBtn current={tab} v="management" icon={<CheckCircle2 className="w-4 h-4" />} label="项目跟进" onClick={setTab} />
+        <TabBtn current={tab} v="tools" icon={<Flag className="w-4 h-4" />} label="计划工具" onClick={setTab} />
         {canAnalyze && (
           <TabBtn current={tab} v="ai"        icon={<Sparkles className="w-4 h-4" />}          label="AI 分析" onClick={setTab} />
         )}
@@ -176,6 +185,13 @@ export default function ProjectDetail() {
       {tab === 'management' && <PMManagement project={project} />}
 
       {tab === 'team' && <TeamPanel project={project} />}
+      {tab === 'tools' && <div className="space-y-4">
+        <div className="flex flex-wrap gap-2" aria-label="计划工具">
+          <button className={cn('px-4 py-2 rounded border text-sm', toolMode === 'template' && 'bg-brand-50 text-brand-800 border-brand-300')} onClick={() => setToolMode('template')}>模板版本升级</button>
+          <button className={cn('px-4 py-2 rounded border text-sm', toolMode === 'progress' && 'bg-brand-50 text-brand-800 border-brand-300')} onClick={() => setToolMode('progress')}>进度计算规则</button>
+        </div>
+        {toolMode === 'template' ? <TemplateUpgrade key={project.id} project={project} /> : <ProgressPolicy key={project.id} project={project} />}
+      </div>}
 
       {tab === 'ai' && canAnalyze && (
         <ProjectAIAnalysis key={project.id} projectId={project.id} projectName={project.name} />
