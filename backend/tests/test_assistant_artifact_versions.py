@@ -230,6 +230,21 @@ def test_optional_base_field_keeps_legacy_request_fingerprint():
     )
 
 
+@pytest.mark.parametrize(
+    "question,body",
+    [
+        ("细胞培养中抗体片段如何降低", "Cell culture conditions affect antibody fragmentation."),
+        ("蛋白酶导致的片段", "Proteolysis can produce fragments."),
+        ("柿子脱涩有什么方法", "Persimmon deastringency methods."),
+    ],
+)
+def test_domain_queries_keep_relevant_english_evidence(question, body):
+    from app.services.assistant_retrieval import relevance, query_variants
+
+    assert relevance(question, "", body)["evidence_eligible"]
+    assert len(query_variants(question)) <= 2
+
+
 def test_web_followup_includes_task_memory_and_previous_answer_without_search_leak(
     assistant_client, monkeypatch
 ):

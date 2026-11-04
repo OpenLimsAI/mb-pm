@@ -10,6 +10,12 @@ import unicodedata
 # Deliberately small terminology map. Expansion is only used when that term
 # occurs in the question, and is capped at one supplementary query.
 ALIASES = (
+    ("细胞培养", "cell culture"),
+    ("抗体片段", "antibody fragment", "antibody fragments", "antibody fragmentation"),
+    ("上游培养", "upstream cell culture", "upstream processing"),
+    ("蛋白酶", "protease", "proteolysis"),
+    ("补料培养", "fed-batch", "fed batch"),
+    ("柿子脱涩", "persimmon deastringency", "persimmon astringency removal"),
     ("大语言模型", "large language model", "llm"),
     ("检索增强生成", "retrieval augmented generation", "rag"),
     ("抗体药物偶联物", "antibody drug conjugate", "adc"),
