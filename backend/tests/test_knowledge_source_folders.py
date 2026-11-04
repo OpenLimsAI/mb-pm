@@ -172,3 +172,23 @@ def test_source_destination_must_be_reassigned_before_folder_deletion(store):
             store, ACTOR, F1, {"action": "delete", "revision": 0}, catalogue=state, connect=connect
         )
     assert state["revision"] == 0
+
+
+def test_pending_original_classification_and_undo_send_actual_kb_receipt(store):
+    store, _ = store
+    state, original_connect, _ = setup(store)
+    store.put("document", {"id": "local-doc", "folderIds": [F1]})
+    store.put("version", {"id": "local-version", "documentId": "local-doc", "kbDocumentId": "kb-doc", "sha256": "a" * 64, "kbPath": P1})
+    paper = {"id": "archive:local-version", "versionId": "local-version", "documentId": "local-doc", "kbPath": P1, "folderIds": [F1]}
+    receipts = []
+
+    def connect(operation, subject, *, mutation, imports=None):
+        receipts.append(imports)
+        return original_connect(operation, subject, mutation=mutation)
+
+    saved = organize_papers(store, ACTOR, {"paperIds": [paper["id"]], "folderIds": [F2], "mode": "move", "fromFolderId": F1, "revision": 0}, catalogue=state, connect=connect, papers=[paper])
+    paper["folderIds"] = [F2]
+    undo_organization(store, ACTOR, {"token": saved["undoToken"], "revision": 1}, catalogue=state, connect=connect, papers=[paper])
+    assert receipts == [[{"documentId": "kb-doc", "sha256": "a" * 64}]] * 2
+    assert state["memberships"][P1] == [F1]
+    assert store.get("ks_classification", store.key("ks_classification", "local-doc"))["folderIds"] == [F1]
