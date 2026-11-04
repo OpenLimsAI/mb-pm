@@ -12,7 +12,7 @@ import httpx
 from fastapi import HTTPException
 
 from app.core.config import settings
-from app.services import ai, solution_ai
+from app.services import ai, answer_modes, solution_ai
 from app.services import assistant_diagnostics as diagnostics
 
 TAVILY_ENDPOINT = "https://api.tavily.com/search"
@@ -420,6 +420,7 @@ def answer(question, *, selected, provider, cfg, search_query=None, context_mess
             cfg,
             messages,
             request_fn=solution_ai.pinned_request if selected["kind"] == "private" else None,
+            kind="analysis" if answer_modes.deep_analysis(question) else "general",
         )
         if assistant_generation.active()
         else (

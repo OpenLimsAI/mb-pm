@@ -339,8 +339,9 @@ def test_removed_providers_rejected_and_legacy_settings_fall_back(client, auth_h
 
 def test_startup_adds_prompt_column_to_existing_table(tmp_path, monkeypatch):
     """已建过 project_ai_analyses 的老库：启动时补上 prompt 列，旧记录为空串。"""
-    import app.main as main
     from sqlalchemy import create_engine, inspect, text
+
+    import app.main as main
 
     engine = create_engine(f"sqlite:///{tmp_path / 'old.db'}")
     with engine.begin() as conn:
@@ -466,16 +467,19 @@ def test_revoked_project_lead_cannot_use_ai_with_old_token(client, iam_user, bea
         assert client.get(endpoint, headers=bearer(user, "cmc_lead")).status_code == 403
 
 
-@pytest.mark.parametrize("provider,profile_provider", [("kimi", None), ("", "kimi")])
+@pytest.mark.parametrize(
+    "provider,profile_provider", [("kimi", None), ("", "kimi"), ("custom", "kimi")]
+)
+@pytest.mark.parametrize("base_url", ["https://api.moonshot.cn/v1", "https://proxy.example/v1"])
 @pytest.mark.parametrize("probe,limit,effort", [(True, 4096, "low"), (False, 16384, "high")])
-def test_kimi_bounded_thinking_request(provider, profile_provider, probe, limit, effort):
+def test_kimi_bounded_thinking_request(provider, profile_provider, base_url, probe, limit, effort):
     seen = []
 
     def request(provider, cfg, path, body, **kwargs):
         seen.append(body)
         return {"choices": [{"message": {"content": "连接成功"}, "finish_reason": "stop"}]}
 
-    cfg = {"model": "kimi-k3.1-pro", "base_url": "https://api.moonshot.cn/v1", "api_key": "test"}
+    cfg = {"model": "kimi-k3.1-pro", "base_url": base_url, "api_key": "test"}
     if profile_provider:
         cfg["provider"] = profile_provider
     assert (
@@ -487,6 +491,41 @@ def test_kimi_bounded_thinking_request(provider, profile_provider, probe, limit,
     assert seen[0]["max_completion_tokens"] == limit
     assert seen[0]["reasoning_effort"] == effort
     assert "temperature" not in seen[0] and "max_tokens" not in seen[0]
+
+
+@pytest.mark.parametrize("kind,effort", [(None, "high"), ("general", "low"), ("analysis", "high")])
+@pytest.mark.parametrize("probe", [False, True])
+def test_kimi_effort_requires_explicit_general_intent(kind, effort, probe):
+    cfg = {"provider": "kimi", "model": "kimi-k3.1-pro"}
+    body = {"temperature": 0.3, "max_tokens": 4096}
+    ai.kimi_parameters("custom", cfg, body, kind=kind, probe=probe)
+    assert body == {
+        "max_completion_tokens": 4096 if probe else 16384,
+        "reasoning_effort": "low" if probe else effort,
+    }
+
+
+@pytest.mark.parametrize(
+    "base_url,effort",
+    [
+        ("https://api.moonshot.cn/v1", "low"),
+        ("https://api.moonshot.ai/v1", "low"),
+        ("https://proxy.example/v1", "high"),
+    ],
+)
+def test_only_native_assistant_policy_overrides_shared_kimi_high_default(base_url, effort):
+    from app.services import assistant_generation_policy as policy
+
+    cfg = {"provider": "kimi", "model": "kimi-k3.1-pro", "base_url": base_url}
+    body = {"model": cfg["model"], "stream": False}
+    # Report/PM callers retain the existing shared-call setting. Personal KB
+    # tool turns explicitly apply native assistant policy after this helper.
+    ai.kimi_parameters("custom", cfg, body)
+    assert body["reasoning_effort"] == "high"
+    policy.tune("custom", cfg, body, kind="general")
+    assert body["reasoning_effort"] == effort
+    assert body["max_completion_tokens"] == 16384
+    assert body["stream"] is False and "thinking" not in body
 
 
 def test_old_settings_keep_existing_provider_and_add_kimi_defaults():
