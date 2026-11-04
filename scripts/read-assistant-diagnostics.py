@@ -38,6 +38,7 @@ EVENTS = {
     "model_first_content",
     "model_completed",
     "model_failed",
+    "output_recovery_started",
     "tool_started",
     "tool_completed",
     "tool_failed",

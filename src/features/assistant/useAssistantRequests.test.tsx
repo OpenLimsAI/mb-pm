@@ -108,7 +108,7 @@ describe('durable assistant requests', () => {
     act(() => result.current.resume(task.id)); await flush()
     expect(result.current.pending[task.id]).toBe(false)
     expect(result.current.progress[task.id].job?.partialContent).toBe('未完成内容')
-    expect(callbacks.fail).toHaveBeenCalledWith(task.id, expect.stringContaining('诊断编号：' + 'a'.repeat(32)), failed)
+    expect(callbacks.fail).toHaveBeenCalledWith(task.id, expect.stringContaining('诊断编号：' + 'a'.repeat(32)), failed, { requestId: id, displayedInProgress: true })
     expect(localStorage.getItem(`assistant-request:user:live:${task.id}`)).toBe(id)
     expect(client.submitRequest).not.toHaveBeenCalled()
   })
@@ -180,9 +180,10 @@ describe('durable assistant requests', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(1200) })
     expect(result.current.pending[task.id]).toBe(false)
     expect(result.current.progress[task.id].job).toBeUndefined()
+    expect(result.current.progress[task.id]).toMatchObject({ requestId: id, message: 'no access' })
     await act(async () => { await vi.advanceTimersByTimeAsync(10000) })
     expect(client.getRequest).toHaveBeenCalledTimes(1)
-    expect(callbacks.fail).toHaveBeenCalledWith(task.id, 'no access', undefined)
+    expect(callbacks.fail).toHaveBeenCalledWith(task.id, 'no access', undefined, { requestId: id, displayedInProgress: true })
   })
 
   it('does not clear a newer request pointer from another page when an older answer completes', async () => {

@@ -7,8 +7,9 @@ import time
 from fastapi import HTTPException
 
 from app.core.config import settings
-from app.services import ai, assistant_sources, solution_knowledge
+from app.services import ai, answer_modes, assistant_sources, solution_knowledge
 from app.services import assistant_diagnostics as diagnostics
+from app.services import assistant_generation_policy as policy
 from app.services import assistant_knowledge as knowledge
 from app.services import assistant_retrieval as retrieval
 
@@ -30,18 +31,18 @@ INSTRUCTIONS = (
 )
 
 
-def _message(result, ollama):
+def _message(result, ollama, *, allow_length=False):
     if not isinstance(result, dict):
         raise ai.AIError("模型工具响应格式异常", code="model_invalid_response")
     if ollama:
-        if result.get("done_reason") == "length":
+        if result.get("done_reason") == "length" and not allow_length:
             raise ai.AIError("模型输出被截断", code="output_limit")
         message = result.get("message")
     else:
         choices = result.get("choices")
         if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
             raise ai.AIError("模型没有返回有效回答", code="model_invalid_response")
-        if choices[0].get("finish_reason") == "length":
+        if choices[0].get("finish_reason") == "length" and not allow_length:
             raise ai.AIError("模型输出被截断", code="output_limit")
         message = choices[0].get("message")
     if not isinstance(message, dict):
@@ -49,10 +50,19 @@ def _message(result, ollama):
     return message
 
 
+def _limited(result, ollama):
+    return (
+        result.get("done_reason") == "length"
+        if ollama
+        else result["choices"][0].get("finish_reason") == "length"
+    )
+
+
 def chat(provider, cfg, messages, claims, *, request_fn=None, question=None, search_query=None):
     from app.services import assistant_generation
 
     request_model = request_fn or ai.request
+    personal = question is not None or assistant_generation.active()
     if assistant_generation.active():
         original = request_fn
 
@@ -74,6 +84,49 @@ def chat(provider, cfg, messages, claims, *, request_fn=None, question=None, sea
     ids = set()
     evidence_paths = set()
     inventory = False
+    recovery_used = False
+    kind = "analysis" if answer_modes.deep_analysis(question or "") else "general"
+
+    def cited_evidence(content):
+        if question is None or inventory:
+            return True
+        paths = set(
+            re.findall(
+                r"(?:sources|knowledge|wisdom)/[^\n\r`<>()\[\]{}\"']+?\.md(?![A-Za-z0-9_./-])",
+                content,
+            )
+        )
+        return bool(paths.intersection(evidence_paths)) and paths.issubset(evidence_paths)
+
+    def complete_references(content):
+        # A partial path/link at the cutoff is not a verified reference. Do not
+        # publish it just because an earlier paragraph had a valid citation.
+        starts = {m.start() for m in re.finditer(r"(?:sources|knowledge|wisdom)/", content)}
+        complete = {
+            m.start()
+            for m in re.finditer(
+                r"(?:sources|knowledge|wisdom)/[^\n\r`<>()\[\]{}\"']+?\.md(?![A-Za-z0-9_./-])",
+                content,
+            )
+        }
+        if not starts.issubset(complete):
+            return False
+        return content.count("[") == content.count("]")
+
+    def safe_partial(message, prefix=""):
+        # Tool-turn prose/arguments are not an answer, especially when truncated.
+        if message.get("tool_calls") or question is None:
+            return ""
+        content = policy.append(prefix, policy.visible(message.get("content")))
+        if len(content) > 80000:
+            raise ai.AIError("模型正文超过接收容量", code="response_too_large")
+        if not content or not cited_evidence(content) or not complete_references(content):
+            return ""
+        assistant_generation.guard()
+        solution_knowledge.check_access(claims)
+        assistant_generation.guard()
+        assistant_generation.progress(final_partial=True, partial_content=content)
+        return content
 
     def run_tool(name, arguments):
         nonlocal used, evidence_size
@@ -215,6 +268,8 @@ def chat(provider, cfg, messages, claims, *, request_fn=None, question=None, sea
             if provider == "minimax":
                 body["temperature"] = 1.0
             ai.kimi_parameters(provider, cfg, body)
+            if personal:
+                policy.tune(provider, cfg, body, kind=kind)
         result = diagnostics.model_call(
             request_model,
             provider,
@@ -223,7 +278,59 @@ def chat(provider, cfg, messages, claims, *, request_fn=None, question=None, sea
             body,
             timeout=min(120 if assistant_generation.active() else 60, remaining),
         )
-        message = _message(result, ollama)
+        message = _message(result, ollama, allow_length=True)
+        draft = ""
+        if _limited(result, ollama):
+            draft = safe_partial(message)
+            remaining = budget - (time.monotonic() - started)
+            allowed = False
+            if (
+                personal
+                and policy.applies(provider, cfg)
+                and not recovery_used
+                and used
+                and remaining >= 15
+            ):
+                allowed = (
+                    assistant_generation.claim_output_recovery(provider, cfg)
+                    if assistant_generation.active()
+                    else True
+                )
+            if not allowed:
+                raise ai.AIError("模型输出被截断", code="output_limit")
+            recovery_used = True
+            assistant_generation.guard()
+            solution_knowledge.check_access(claims)
+            assistant_generation.checkpoint()
+            remaining = budget - (time.monotonic() - started)
+            if remaining <= 0:
+                raise ai.AIError("模型生成达到本轮等待上限", code="model_timeout")
+            # Only previously executed, authorized evidence is reused. The limited
+            # response is never appended as a tool call or executed.
+            retry = {
+                "model": cfg["model"],
+                "messages": policy.recovery_messages(history, draft),
+                "stream": False,
+            }
+            policy.tune(provider, cfg, retry, kind=kind, recovering=True)
+            result = diagnostics.model_call(
+                request_model,
+                provider,
+                cfg,
+                "/chat/completions",
+                retry,
+                timeout=min(120 if assistant_generation.active() else 60, remaining),
+            )
+            message = _message(result, False, allow_length=True)
+            if _limited(result, False):
+                safe_partial(message, draft)
+                raise ai.AIError("模型输出被截断", code="output_limit")
+            if message.get("tool_calls"):
+                raise ai.AIError("恢复回答不允许额外工具调用", code="model_invalid_response")
+            suffix = policy.visible(message.get("content"))
+            if not suffix:
+                raise ai.AIError("模型没有返回正文", code="model_empty_response")
+            message = {"content": policy.append(draft, suffix)}
         calls = message.get("tool_calls") or []
         if not isinstance(calls, list) or len(calls) > MAX_CALLS:
             raise ai.AIError("模型工具调用格式异常", code="model_invalid_response")
@@ -231,19 +338,18 @@ def chat(provider, cfg, messages, claims, *, request_fn=None, question=None, sea
             content = message.get("content")
             if not isinstance(content, str):
                 raise ai.AIError("模型没有返回正文", code="model_empty_response")
-            content = re.sub(r"<think>.*?</think>", "", content, flags=re.S).strip()
-            if not content or len(content) > 80000:
+            content = policy.visible(content)
+            if len(content) > 80000:
+                raise ai.AIError("模型正文超过接收容量", code="response_too_large")
+            if not content:
                 raise ai.AIError("模型没有返回有效正文", code="model_empty_response")
             solution_knowledge.check_access(claims)
-            if question is not None and not inventory:
-                paths = set(
-                    re.findall(
-                        r"(?:sources|knowledge|wisdom)/[^\n\r`<>()\[\]{}\"']+?\.md(?![A-Za-z0-9_./-])",
-                        content,
-                    )
-                )
-                if not paths.intersection(evidence_paths) or not paths.issubset(evidence_paths):
-                    return "本轮已查询知识库，但回答未能提供与实际原文片段对应的可核对来源路径，暂时无法给出有据可查的结论。请补充具体文档或缩小问题范围后再查证。"
+            if recovery_used and not complete_references(content):
+                raise ai.AIError("恢复回答的来源未通过核对", code="model_invalid_response")
+            if not cited_evidence(content):
+                if recovery_used:
+                    raise ai.AIError("恢复回答的来源未通过核对", code="model_invalid_response")
+                return "本轮已查询知识库，但回答未能提供与实际原文片段对应的可核对来源路径，暂时无法给出有据可查的结论。请补充具体文档或缩小问题范围后再查证。"
             return content
         if not can_use_tools:
             raise HTTPException(

@@ -10,7 +10,6 @@ import http.client
 import json
 import math
 import queue
-import re
 import socket
 import threading
 import time
@@ -23,6 +22,7 @@ from urllib.parse import urlsplit
 from app.schemas.model_network import enterprise_url, internal_approved
 from app.services import ai, solution_ai
 from app.services import assistant_diagnostics as diagnostics
+from app.services import assistant_generation_policy as policy
 
 CONNECT_SECONDS = 15
 IDLE_SECONDS = 120
@@ -36,6 +36,7 @@ CURRENT = ContextVar("assistant_generation", default=None)
 class Generation:
     callback: object
     deadline: float
+    output_recoveries: int = 0
 
 
 @contextmanager
@@ -69,6 +70,14 @@ def guard():
         _remaining(state)
 
 
+def checkpoint():
+    """Force a fresh job fence check before another chargeable model request."""
+    state = CURRENT.get()
+    if state is not None:
+        state.callback({"checkpoint": True})
+        _remaining(state)
+
+
 def _remaining(state):
     remaining = state.deadline - time.monotonic()
     if remaining <= 0:
@@ -76,23 +85,22 @@ def _remaining(state):
     return remaining
 
 
-def official_deepseek(cfg):
-    """Vendor tuning/streaming never changes the selected endpoint or borrows a key."""
-    try:
-        parts = urlsplit(cfg.get("base_url", ""))
-        return (
-            parts.scheme == "https"
-            and parts.hostname == "api.deepseek.com"
-            and parts.port in (None, 443)
-            and parts.username is None
-            and parts.password is None
-            and parts.path.rstrip("/") in ("", "/v1")
-            and not parts.query
-            and not parts.fragment
-            and cfg.get("model") in ("deepseek-v4-pro", "deepseek-flash")
-        )
-    except (ValueError, TypeError):
+official_deepseek = policy.official_deepseek
+
+
+def claim_output_recovery(provider, cfg):
+    """One recovery for the whole durable run, within its original deadline."""
+    if not policy.applies(provider, cfg):
         return False
+    checkpoint()
+    state = CURRENT.get()
+    if state is None or state.output_recoveries or _remaining(state) < 15:
+        return False
+    state.output_recoveries += 1
+    trace = diagnostics.CURRENT.get()
+    if trace is not None:
+        trace.emit("output_recovery_started")
+    return True
 
 
 class _StoppedError(Exception):
@@ -156,16 +164,10 @@ def _response_socket(response):
 
 
 def _visible(content):
-    # Match ai.chat's existing handling; an unfinished think block is never shown.
-    value = re.sub(r"<think>.*?(?:</think>|$)", "", content, flags=re.S)
-    for size in range(1, len("<think>")):
-        if value.endswith("<think>"[:size]):
-            value = value[:-size]
-            break
-    return value.strip()
+    return policy.visible(content)
 
 
-def _monitor(work, *, content=False):
+def _monitor(work, *, content=False, prefix=""):
     state = CURRENT.get()
     if state is None:
         raise RuntimeError("Generation context is required")
@@ -183,7 +185,9 @@ def _monitor(work, *, content=False):
                     pass
 
     thread = threading.Thread(target=lambda: context.run(target), daemon=True)
-    stage, text, first = "waiting_model", "", False
+    stage = "recovering" if state.output_recoveries else "waiting_model"
+    text, first = "", bool(prefix)
+    last_safe_visible = prefix if len(prefix) <= MAX_CONTENT else ""
     started = time.monotonic()
     progress(stage=stage)
     thread.start()
@@ -199,7 +203,10 @@ def _monitor(work, *, content=False):
                 text += value
                 if len(text) > MAX_CONTENT:
                     raise ai.AIError("模型正文超过接收容量", code="response_too_large")
-                visible = _visible(text)
+                visible = policy.append(prefix, _visible(text))
+                if len(visible) > MAX_CONTENT:
+                    raise ai.AIError("模型正文超过接收容量", code="response_too_large")
+                last_safe_visible = visible
                 if visible:
                     stage = "generating"
                     if not first:
@@ -222,7 +229,7 @@ def _monitor(work, *, content=False):
         # Incremental writes are throttled. Persist the last safe visible chunk
         # on a timeout/length error without extending the model wait budget.
         # The request callback still fences cancelled/expired worker tokens.
-        visible = _visible(text)
+        visible = last_safe_visible
         if visible and len(visible) <= MAX_CONTENT:
             try:
                 progress(final_partial=True, partial_content=visible)
@@ -466,8 +473,9 @@ def call(provider, cfg, messages, request_fn=None, kind="general"):
     state = CURRENT.get()
     if state is None:
         return ai.chat(provider, cfg, messages, timeout=60, request_fn=request_fn)
-    streaming = official_deepseek(cfg) and provider in ("deepseek", "custom")
+    streaming = policy.applies(provider, cfg)
     private = request_fn is not None
+    original_messages, draft, recovering = messages, "", False
 
     def work(wire):
         timeout = min(IDLE_SECONDS, _remaining(state))
@@ -477,9 +485,8 @@ def call(provider, cfg, messages, request_fn=None, kind="general"):
                 "messages": messages,
                 "stream": True,
                 "stream_options": {"include_usage": True},
-                "reasoning_effort": "high" if kind == "analysis" else "low",
-                "max_tokens": 16384 if kind == "analysis" else 8192,
             }
+            policy.tune(provider, cfg, body, kind=kind, recovering=recovering)
             result = diagnostics.model_call(
                 lambda p, c, path, body, timeout: _stream_request(p, c, path, body, wire, kind),
                 provider,
@@ -489,12 +496,17 @@ def call(provider, cfg, messages, request_fn=None, kind="general"):
                 timeout=timeout,
             )
             choice = result["choices"][0]
+            suffix = _visible(choice["message"]["content"])
+            answer = policy.append(draft, suffix)
+            if len(answer) > MAX_CONTENT:
+                raise ai.AIError("模型正文超过接收容量", code="response_too_large")
             if choice["finish_reason"] == "length":
-                raise ai.AIError("模型输出达到本轮容量上限", code="output_limit")
-            content = _visible(choice["message"]["content"])
-            if not content:
+                error = ai.AIError("模型输出达到本轮容量上限", code="output_limit")
+                error.visible_content = answer
+                raise error
+            if not suffix:
                 raise ai.AIError("模型没有返回回答正文", code="model_empty_response")
-            return content, result["usage"]
+            return answer, result["usage"]
 
         def transport(p, c, path, body=None, timeout=120):
             del timeout
@@ -502,7 +514,22 @@ def call(provider, cfg, messages, request_fn=None, kind="general"):
 
         return ai.chat(provider, cfg, messages, timeout=timeout, request_fn=transport)
 
-    return _monitor(work, content=streaming)
+    while True:
+        try:
+            if recovering:
+                checkpoint()
+            return _monitor(work, content=streaming, prefix=draft)
+        except ai.AIError as exc:
+            if (
+                not streaming
+                or recovering
+                or exc.code != "output_limit"
+                or not claim_output_recovery(provider, cfg)
+            ):
+                raise
+            draft = getattr(exc, "visible_content", "")
+            messages = policy.recovery_messages(original_messages, draft)
+            recovering = True
 
 
 def request(provider, cfg, path, body=None, timeout=120, request_fn=None):

@@ -226,6 +226,7 @@ def test_private_unofficial_endpoint_still_uses_validated_pinned_transport(monke
 def test_incomplete_or_limited_stream_is_never_returned_as_a_completed_answer(
     monkeypatch, chunks, code
 ):
+    monkeypatch.setattr(generation, "claim_output_recovery", lambda *_: False)
     response, _, _ = stream(monkeypatch, chunks)
     updates = []
     with generation.run_context(updates.append), pytest.raises(ai.AIError) as error:
@@ -424,6 +425,7 @@ def test_invalid_total_budget_never_starts_a_transport(budget):
 
 
 def test_output_limit_flushes_last_visible_fragment_and_never_reasoning(monkeypatch):
+    monkeypatch.setattr(generation, "claim_output_recovery", lambda *_: False)
     stream(
         monkeypatch,
         [
@@ -441,6 +443,7 @@ def test_output_limit_flushes_last_visible_fragment_and_never_reasoning(monkeypa
 
 
 def test_partial_flush_failure_never_hides_original_model_error(monkeypatch):
+    monkeypatch.setattr(generation, "claim_output_recovery", lambda *_: False)
     stream(monkeypatch, [event("可见内容", finish="length"), b"data: [DONE]\n\n"])
 
     def update(fields):
