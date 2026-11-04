@@ -15,6 +15,8 @@
 import type {
   Health, Stage, SubProject, Task, TaskDependency, TaskStatus, TemplateNode,
 } from '../types'
+import { calculateProgress } from './progress'
+import type { ProgressMethod } from '../api/progressPolicy'
 
 const DAY_MS = 86400000
 const formatDate = (d: Date): string => d.toISOString().slice(0, 10)
@@ -222,7 +224,7 @@ export function instantiateTemplate(
   subProjects.forEach((sp) => {
     const myTasks = tasks.filter((t) => t.subProjectId === sp.id)
     if (myTasks.length === 0) return
-    const avgProgress = Math.round(myTasks.reduce((s, t) => s + t.progress, 0) / myTasks.length)
+    const avgProgress = calculateProgress(myTasks)
     sp.progress = avgProgress
     if (avgProgress >= 100) sp.status = '已完成'
     else if (avgProgress > 0) sp.status = '进行中'
@@ -241,12 +243,12 @@ export interface ProjectRollup {
 
 /**
  * 由实例化结果派生项目级 progress / health。
- *   progress = 全部任务平均进度
+ *   progress = 按项目规则对任务进度加权汇总（缺省等权）
  *   health   = 有逾期里程碑 → red；有逾期任务或临近(≤14d)里程碑 → yellow；否则 green
  */
-export function deriveRollup(tasks: Task[], today: Date = new Date()): ProjectRollup {
+export function deriveRollup(tasks: Task[], today: Date = new Date(), method: ProgressMethod = 'equal'): ProjectRollup {
   if (tasks.length === 0) return { progress: 0, health: 'green' }
-  const progress = Math.round(tasks.reduce((s, t) => s + t.progress, 0) / tasks.length)
+  const progress = calculateProgress(tasks, method)
   const nowUTC = floorUTCDate(today)
 
   const isDone = (t: Task) => t.status === '已完成' || t.status === '已验证'
