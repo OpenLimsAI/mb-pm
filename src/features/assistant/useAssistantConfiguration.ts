@@ -19,5 +19,9 @@ export default function useAssistantConfiguration(initial: () => Configuration) 
   const setAnswerMode = useCallback((answerMode: AnswerMode) => update(previous => ({ ...previous, answerMode })), [update])
   const setDataSources = useCallback((sources: ApplicationDataSource[]) => update(previous => ({ ...previous, dataSources: normalizeDataSources(sources) })), [update])
   const getSnapshot = useCallback(() => current.current, [])
-  return { ...snapshot.value, revision: snapshot.revision, setModel, setAnswerMode, setDataSources, getSnapshot }
+  const invalidate = useCallback(() => {
+    current.current = { ...current.current, revision: current.current.revision + 1 }
+    setSnapshot(current.current)
+  }, [])
+  return { ...snapshot.value, revision: snapshot.revision, setModel, setAnswerMode, setDataSources, getSnapshot, invalidate }
 }

@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AssistantApp from './AssistantApp'
+import { writePreferences } from './localDrafts'
 import { createPreviewAssistantClient } from './client'
 import type { AssistantClient, AssistantRequest, AssistantTask, TaskSummary } from './client'
 import type { ModelSettings, ModelSettingsClient } from '../solutions/modelSettings'
@@ -32,31 +33,32 @@ async function create(client: AssistantClient, title: string) { return client.cr
 beforeEach(() => localStorage.clear())
 
 describe('AI assistant task workspace', () => {
-  it('checks search readiness for the chosen model and refreshes on focus without changing the selection', async () => {
+  it('follows the chosen search provider and keeps networking outside application data settings', async () => {
     const client = createPreviewAssistantClient('search-readiness')
-    const capabilities = vi.fn(async (profileId?: string): Promise<AnswerCapabilities> => ({ webSearch: { configured: profileId === 'official', provider: profileId === 'official' ? 'deepseek' as const : null, message: profileId === 'official' ? '复用当前模型密钥' : '当前模型不是 DeepSeek 官方服务，请切换模型。' }, modes: ['auto', 'general', 'knowledge', 'web'] }))
+    const capabilities = vi.fn(async (profileId?: string): Promise<AnswerCapabilities> => ({ webSearch: { configured: true, provider: profileId === 'kimi' ? 'kimi' : 'deepseek', message: '使用当前模型的官方搜索' }, modes: ['auto', 'general', 'knowledge', 'web'] }))
     client.capabilities = capabilities
     const modelClient: ModelSettingsClient = { get: vi.fn(async (): Promise<ModelSettings> => ({ revision: 1, defaultProfileId: 'official', profiles: [
       { id: 'official', name: '官方模型', provider: 'deepseek', model: 'deepseek-v4-pro', baseUrl: 'https://api.deepseek.com', keySet: true },
-      { id: 'proxy', name: '代理模型', provider: 'deepseek', model: 'deepseek-v4-pro', baseUrl: 'https://proxy.example/v1', keySet: true },
+      { id: 'kimi', name: 'Kimi 模型', provider: 'kimi', model: 'kimi-k3.1-pro', baseUrl: 'https://api.moonshot.cn/v1', keySet: true },
     ] })), save: vi.fn(), test: vi.fn() }
     render(<AssistantApp client={client} modelClient={modelClient} userName="研究员" preview={false} />)
     const select = await screen.findByRole('combobox', { name: '助手回答模型' })
     await waitFor(() => expect(select).toHaveValue('official'))
+    await waitFor(() => expect(screen.getByLabelText('当前联网搜索服务')).toHaveTextContent('DeepSeek 官方搜索'))
+    fireEvent.change(select, { target: { value: 'kimi' } })
+    expect(screen.queryByText('DeepSeek 官方搜索')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByLabelText('当前联网搜索服务')).toHaveTextContent('Kimi 官方搜索'))
+    expect(capabilities).toHaveBeenLastCalledWith('kimi')
     fireEvent.click(screen.getByRole('button', { name: /数据设置/ }))
-    await screen.findByText('DeepSeek 官方搜索已就绪')
-    expect(capabilities).toHaveBeenLastCalledWith('official')
-    fireEvent.click(within(screen.getByRole('dialog', { name: '数据设置' })).getByRole('button', { name: '取消' }))
-    fireEvent.change(select, { target: { value: 'proxy' } })
-    fireEvent.click(screen.getByRole('button', { name: /数据设置/ }))
-    await screen.findByText('当前模型不是 DeepSeek 官方服务，请切换模型。')
-    expect(screen.queryByText('DeepSeek 官方搜索已就绪')).not.toBeInTheDocument()
-    expect(capabilities).toHaveBeenLastCalledWith('proxy')
+    const dialog = screen.getByRole('dialog', { name: '数据设置' })
+    expect(within(dialog).getAllByRole('checkbox')).toHaveLength(2)
+    expect(dialog).not.toHaveTextContent(/联网|DeepSeek|Kimi/)
+    fireEvent.click(within(dialog).getByRole('button', { name: '取消' }))
     const calls = capabilities.mock.calls.length
     fireEvent.focus(window)
     await waitFor(() => expect(capabilities.mock.calls.length).toBeGreaterThan(calls))
-    expect(capabilities).toHaveBeenLastCalledWith('proxy')
-    expect(select).toHaveValue('proxy')
+    expect(capabilities).toHaveBeenLastCalledWith('kimi')
+    expect(select).toHaveValue('kimi')
   })
 
   it('defaults to automatic routing and shows a clearly labelled web preview with source cards', async () => {
@@ -308,7 +310,7 @@ describe('AI assistant task workspace', () => {
     const stored = await client.get(task.id)
     expect(stored.messages[0].context).toBe('原始观察：待补充验证条件，未形成确定结论。')
     expect(stored.artifacts).toHaveLength(1)
-    expect(within(result).getByRole('combobox', { name: '选择任务产物' })).toHaveValue(stored.artifacts[0].id)
+    expect(within(result).getByRole('button', { name: `查看产物：${stored.artifacts[0].title}（第 1 轮）` })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('sends on Enter while preserving Shift+Enter and IME composition', async () => {
@@ -333,7 +335,7 @@ describe('AI assistant task workspace', () => {
     const result = screen.getByRole('complementary', { name: '任务结果区' })
     fireEvent.click(within(result).getByRole('tab', { name: /产物/ }))
     expect(within(result).getByRole('group', { name: '本轮回答来源' })).toHaveTextContent('联网检索流程演示')
-    fireEvent.change(within(result).getByRole('combobox', { name: '选择任务产物' }), { target: { value: general.artifacts[0].id } })
+    fireEvent.click(within(result).getByRole('button', { name: `查看产物：${general.artifacts[0].title}（第 1 轮）` }))
     const scope = within(result).getByRole('group', { name: '本轮回答来源' })
     expect(within(scope).getByText('通用回答')).toBeInTheDocument()
     expect(within(scope).getByText('未查询知识库')).toBeInTheDocument()
@@ -359,7 +361,7 @@ describe('AI assistant task workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: /数据设置/ }))
     const dialog = screen.getByRole('dialog', { name: '数据设置' })
     expect(within(dialog).getByRole('status', { name: '应用数据使用说明' })).toHaveTextContent('未启用应用数据 · 仍可正常提问')
-    expect(within(dialog).getByRole('region', { name: '独立的联网搜索设置' })).toHaveTextContent('不勾选应用数据，不代表禁止联网')
+    expect(within(dialog).queryByRole('region', { name: '独立的联网搜索设置' })).not.toBeInTheDocument()
     expect(within(dialog).getByRole('checkbox', { name: /项目管理/ })).not.toBeChecked()
     fireEvent.click(within(dialog).getByRole('checkbox', { name: /知识库/ }))
     expect(within(dialog).getByRole('status', { name: '应用数据使用说明' })).toHaveTextContent('已允许查询：知识库')
@@ -502,6 +504,21 @@ describe('AI assistant task workspace', () => {
     await open(second.title)
     expect(composer()).toHaveValue('任务 B 未发送的草稿')
     expect((await client.get(second.id)).messageCount).toBe(0)
+  })
+
+  it('preserves the task enterprise choice when the first model-settings response arrives late', async () => {
+    const client = createPreviewAssistantClient('slow-model-settings'), task = await create(client, '任务指定企业模型')
+    writePreferences('研究员:preview', 'default', { model: 'private-model', answerMode: 'auto' })
+    writePreferences('研究员:preview', task.id, { model: 'enterprise', answerMode: 'auto' })
+    let finish!: (settings: ModelSettings) => void
+    const modelClient = models('private-model')
+    const settings = await modelClient.get()
+    modelClient.get = vi.fn(() => new Promise<ModelSettings>(resolve => { finish = resolve }))
+    render(<AssistantApp client={client} modelClient={modelClient} userName="研究员" preview />)
+    await screen.findByRole('heading', { name: task.title, level: 2 })
+    expect(screen.getByRole('combobox', { name: '助手回答模型' })).toHaveValue('enterprise')
+    await act(async () => finish(settings))
+    expect(screen.getByRole('combobox', { name: '助手回答模型' })).toHaveValue('enterprise')
   })
 
   it('preserves an explicit enterprise-model selection when model settings reload on focus', async () => {
