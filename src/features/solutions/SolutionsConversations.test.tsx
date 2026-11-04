@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import SolutionsApp from './SolutionsApp'
 import { createDemoClient } from './demo'
+import { reportReferences, resolveCitations } from './reportReferences'
 
 beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-editor-mode', 'markdown'); sessionStorage.clear() })
 async function mount() {
@@ -83,7 +84,7 @@ describe('separate report research conversations', () => {
   })
 
   it('confirms each answer before inserting it, retains source records, and can undo', async () => {
-    await mount()
+    const { client } = await mount()
     fireEvent.change(screen.getByRole('combobox', { name: '回答方式' }), { target: { value: 'knowledge' } })
     const body = screen.getByRole('textbox', { name: '章节正文' }) as HTMLTextAreaElement
     const original = body.value
@@ -93,7 +94,13 @@ describe('separate report research conversations', () => {
     expect(body).toHaveValue(original)
     const content = (within(dialog).getByRole('textbox', { name: '确认或改写内容' }) as HTMLTextAreaElement).value
     fireEvent.click(within(dialog).getByRole('button', { name: '确认插入并保留引用' }))
-    expect(body.value).toContain(content)
+    const insertedTokens = [...body.value.matchAll(/\[\[cite:([^\]]+)\]\]/g)].map(match => decodeURIComponent(match[1]))
+    expect(insertedTokens.length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByRole('button', { name: '有修改 · 将自动保存' }))
+    await waitFor(async () => expect((await client.get('demo-solution')).references.length).toBeGreaterThan(0))
+    const saved = await client.get('demo-solution')
+    expect(insertedTokens.every(id => saved.references.some(ref => ref.id === id))).toBe(true)
+    expect(resolveCitations(saved.sections[0].content, reportReferences(saved))).toContain(content)
     expect(screen.getByRole('button', { name: /本章节参考依据/ })).toHaveTextContent(/[1-4]/)
     fireEvent.click(screen.getByRole('button', { name: '撤销插入' }))
     expect(body).toHaveValue(original)

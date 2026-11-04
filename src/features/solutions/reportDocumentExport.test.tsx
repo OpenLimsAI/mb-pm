@@ -5,6 +5,7 @@ import { exportPdf, reportMarkdown } from './reportDocumentExport'
 import { downloadBlob } from './api'
 import { docxBlob } from './export'
 import { readWordText } from './reportImportWord'
+import { defaultExportOptions } from './reportExportOptions'
 import type { Solution } from './types'
 
 vi.mock('mammoth', async importOriginal => {
@@ -42,6 +43,24 @@ describe('report document export', () => {
     const markdown = await readWordText(buffer)
     expect(markdown).toContain('# 证据'); expect(markdown).toContain('**证据内容**'); expect(markdown).toContain('| **条件** | **结果** |')
   })
+  it('writes a real cover break, A4 geometry, Word fields and one deduplicated bibliography entry', async () => {
+    const blob = docxBlob({ ...report, formula: [], status: 'draft', references: [...report.references, { ...report.references[0], id: 'copy' }] }, { ...defaultExportOptions, organization: '企业&研究' })
+    const buffer = await new Promise<ArrayBuffer>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(reader.result as ArrayBuffer); reader.readAsArrayBuffer(blob) })
+    const bytes = new Uint8Array(buffer), view = new DataView(buffer), files = new Map<string, string>(); let offset = 0
+    while (view.getUint32(offset, true) === 0x04034b50) {
+      const length = view.getUint32(offset + 18, true), nameLength = view.getUint16(offset + 26, true), extraLength = view.getUint16(offset + 28, true)
+      const name = new TextDecoder().decode(bytes.slice(offset + 30, offset + 30 + nameLength)), start = offset + 30 + nameLength + extraLength
+      files.set(name, new TextDecoder().decode(bytes.slice(start, start + length))); offset = start + length
+    }
+    for (const [name, value] of files) if (name.endsWith('.xml')) expect(new DOMParser().parseFromString(value, 'application/xml').querySelector('parsererror'), name).toBeNull()
+    const document = files.get('word/document.xml')!
+    expect(document).toContain('w:type="page"')
+    expect(document).toContain('w:w="11906" w:h="16838"')
+    expect(document).toContain('企业&amp;研究')
+    expect(document.match(/\[1\] 论文/g)).toHaveLength(1)
+    expect(files.get('word/footer1.xml')).toContain('NUMPAGES')
+    expect(files.get('word/settings.xml')).toContain('updateFields')
+  })
   it('keeps print hierarchy, list markers and paragraph spacing under an application CSS reset', async () => {
     const reset = document.createElement('style'); reset.id = 'test-print-reset'; reset.textContent = 'h1,h2,h3,p,ul,ol{font-size:inherit;font-weight:inherit;margin:0;padding:0}ol,ul{list-style:none}'; document.head.append(reset)
     let checked = false
@@ -56,7 +75,7 @@ describe('report document export', () => {
       checked = true
       return { width: 794, height: 1123, toDataURL: () => png } as HTMLCanvasElement
     })
-    await exportPdf({ ...report, sections: [{ id: 's', title: '研究方法', content: '正文段落。\n\n1. 步骤一\n2. 步骤二\n\n- 条件甲\n- 条件乙\n\n> 来源引文。' }] })
+    await exportPdf({ ...report, sections: [{ id: 's', title: '研究方法', content: '正文段落。\n\n1. 步骤一\n2. 步骤二\n\n- 条件甲\n- 条件乙\n\n> 来源引文。' }] }, { ...defaultExportOptions, cover: false })
     expect(checked).toBe(true)
   })
   it('creates actual PDF bytes with more than one page for a long Chinese report', async () => {

@@ -32,7 +32,7 @@ it('captures selected writing as a private note with origin, without changing th
   fireEvent.click(within(dialog).getByRole('button', { name: '保存笔记' }))
   await waitFor(() => expect(screen.queryByRole('dialog', { name: '存入我的笔记' })).not.toBeInTheDocument())
   const saved = (await createPreviewNotesClient('owner').list()).items[0]
-  expect(saved).toMatchObject({ content: excerpt, sourceApp: 'solutions', sourceUrl: '/solutions?preview=1' })
+  expect(saved).toMatchObject({ content: excerpt, sourceApp: 'solutions', sourceUrl: '/solutions?report=demo-solution&section=section-1&preview=1' })
   expect(body).toHaveValue(original)
   expect(ask).not.toHaveBeenCalled()
   expect(polish).not.toHaveBeenCalled()
