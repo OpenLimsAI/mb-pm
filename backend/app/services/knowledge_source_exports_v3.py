@@ -117,12 +117,12 @@ def export_selection(store, actor, ids, format, connect):
         return output.getvalue(), "application/zip"
     entries = [
         {
+            **doc.get("metadata", {}),
             "title": doc["title"],
             "url": doc.get("url")
             or f'/api/v1/knowledge-sources/documents/{doc["id"]}/versions/{version["id"]}/original',
             "version": version["id"],
             "sha256": version["sha256"],
-            **doc.get("metadata", {}),
         }
         for doc, version in archives
     ]
@@ -146,23 +146,62 @@ def export_selection(store, actor, ids, format, connect):
         return output.getvalue().encode("utf-8-sig"), "text/csv; charset=utf-8"
     additions = []
     for i, row in enumerate(entries):
-        title = str(row["title"]).replace("\r", " ").replace("\n", " ")
-        url = str(row["url"]).replace("\r", "").replace("\n", "")
+
+        def line(value):
+            return str(value or "").replace("\r", " ").replace("\n", " ").strip()
+
+        authors = row.get("authors", [])
+        authors = [authors] if isinstance(authors, str) else authors
+        authors = (
+            [line(author) for author in authors if line(author)]
+            if isinstance(authors, list)
+            else []
+        )
         if format == "ris":
+            fields = [
+                ("TY", "JOUR" if row.get("journal") else "GEN"),
+                ("TI", row["title"]),
+                *(("AU", author) for author in authors),
+                ("PY", row.get("year")),
+                ("DO", row.get("doi")),
+                ("JO", row.get("journal")),
+                ("AB", row.get("abstract")),
+                ("UR", row["url"]),
+                ("N1", "Version: " + row["version"]),
+            ]
             additions.append(
-                f'TY  - GEN\nTI  - {title}\nUR  - {url}\nN1  - Version: {row["version"]}\nER  -\n'
+                "\n".join(f"{key}  - {line(value)}" for key, value in fields if line(value))
+                + "\nER  -\n"
             )
         else:
 
             def escape(value):
-                return (
-                    str(value)
-                    .replace("\\", "\\textbackslash{} ")
-                    .replace("{", "\\{")
-                    .replace("}", "\\}")
+                special = {
+                    "\\": "\\textbackslash{}",
+                    "~": "\\textasciitilde{}",
+                    "^": "\\textasciicircum{}",
+                }
+                return re.sub(
+                    r"[\\{}%&_#$~^]",
+                    lambda match: special.get(match[0], "\\" + match[0]),
+                    line(value),
                 )
 
-            additions.append(
-                f'@misc{{archive{i}_{str(row["sha256"])[:12]},\n  title = {{{escape(title)}}},\n  url = {{{escape(url)}}},\n  note = {{Version {row["version"]}}}\n}}\n'
+            fields = [
+                ("title", row["title"]),
+                ("author", " and ".join(authors)),
+                ("year", row.get("year")),
+                ("doi", row.get("doi")),
+                ("journal", row.get("journal")),
+                ("abstract", row.get("abstract")),
+                ("url", row["url"]),
+                ("note", "Version " + row["version"]),
+            ]
+            kind = "article" if row.get("journal") else "misc"
+            body = ",\n".join(
+                f"  {key} = {{{escape(value)}}}" for key, value in fields if line(value)
             )
-    return binary + "\n".join(additions).encode(), "text/plain; charset=utf-8"
+            additions.append(f'@{kind}{{archive{i}_{str(row["sha256"])[:12]},\n{body}\n}}\n')
+    return binary + (b"\n" if binary else b"") + "\n".join(
+        additions
+    ).encode(), "text/plain; charset=utf-8"

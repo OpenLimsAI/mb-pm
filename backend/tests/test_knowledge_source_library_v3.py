@@ -453,3 +453,36 @@ def test_zip_exports_same_original_once_with_both_version_records(library_v3):
         manifest = json.loads(archive.read("archive-manifest.json"))
         assert len(manifest["documents"]) == 2
         assert {item["status"] for item in manifest["documents"]} == {"saved", "shared_original"}
+
+
+@pytest.mark.parametrize("format", ["bibtex", "ris"])
+def test_pending_citation_exports_keep_available_authors_year_and_doi(library_v3, format):
+    client, db, session, _, _, _, _, _ = library_v3
+    store, _, document, version = saved_document(db)
+    document["metadata"] = {
+        "authors": ["Alice Researcher", "Bob Scientist"],
+        "year": "2026",
+        "doi": "10.1234/paper",
+        "journal": "Quality Journal",
+        "abstract": "Actual source abstract.",
+        "version": "untrusted replacement",
+    }
+    store.put("document", document)
+    db.commit()
+    response = client.post(
+        "/api/v1/knowledge-sources/v3/library/export",
+        headers=headers(session),
+        json={"paperIds": ["archive:" + version["id"]], "format": format},
+    )
+    assert response.status_code == 200
+    for value in (
+        "Alice Researcher",
+        "Bob Scientist",
+        "2026",
+        "10.1234/paper",
+        "Quality Journal",
+        "Actual source abstract.",
+        version["id"],
+    ):
+        assert value in response.text
+    assert "untrusted replacement" not in response.text
