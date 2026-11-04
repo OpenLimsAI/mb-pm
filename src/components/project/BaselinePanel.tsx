@@ -16,6 +16,7 @@ import { useDataStore } from '../../store/data'
 import { createProjectBaseline, deleteProjectBaseline } from '../../data/bootstrap'
 import { compareBaseline, type MilestoneDrift } from '../../lib/baseline'
 import { cn } from '../../lib/cn'
+import { BaselineTaskChanges } from './BaselineTaskChanges'
 
 const MANAGER_ROLES = ['admin', 'cmc_lead', 'project_lead']
 const fmtBudget = (v: number) => `¥${v.toLocaleString('zh-CN')}万`
@@ -66,7 +67,7 @@ export function BaselinePanel({ project }: { project: Project }) {
       <Card>
         <CardHeader
           title={<span className="flex items-center gap-2"><Flag className="w-4 h-4 text-brand-600" />计划基线与版本对标</span>}
-          subtitle="冻结当前计划为基线，对标后续计划的进度顺延与成本变化"
+          subtitle="冻结全部任务、依赖和工作日历，对标计划、负责人、工时及预算变化"
           action={canManage && !creating && (
             <Button size="sm" variant="primary" icon={<Plus className="w-3.5 h-3.5" />} onClick={() => setCreating(true)}>
               设立基线
@@ -178,6 +179,8 @@ export function BaselinePanel({ project }: { project: Project }) {
               <Tag tone={cmp.removedCount > 0 ? 'yellow' : 'gray'}>移除 {cmp.removedCount}</Tag>
               {cmp.maxSlipDays > 0 && <span className="text-ink-500">最大单点顺延 <b className="text-red-600">{cmp.maxSlipDays}</b> 天</span>}
             </div>
+
+            <BaselineTaskChanges snapshot={selected.snapshot} currentTasks={currentTasks} projectId={project.id} />
 
             {/* 里程碑漂移表 */}
             <div className="border border-ink-300/50 rounded-md overflow-hidden">

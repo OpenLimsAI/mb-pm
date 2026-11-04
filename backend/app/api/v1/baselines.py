@@ -6,7 +6,7 @@
     DELETE /api/v1/baselines/{id}
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -14,10 +14,25 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_role
 from app.db.session import get_db
-from app.models import Project, ProjectBaseline, ProjectFinance, SubProject, Task, User
+from app.models import (
+    Project,
+    ProjectBaseline,
+    ProjectFinance,
+    SubProject,
+    Task,
+    TaskDependency,
+    User,
+)
+from app.models.planning import ProjectCalendar
 from app.schemas.baseline import BaselineCreate, BaselineOut
+from app.services.planning import calendar_dict
 from app.services.rollup import live_span
-from app.services.scope import is_full_access, visible_project_ids_for
+from app.services.scope import (
+    is_full_access,
+    is_own_task_only,
+    visible_project_ids_for,
+    visible_task_ids_for,
+)
 
 router = APIRouter(prefix="/baselines", tags=["baselines"])
 
@@ -31,7 +46,15 @@ def _ensure_project_visible(user: User, db: Session, project_id: str) -> None:
 def _build_snapshot(db: Session, project: Project) -> dict:
     """按当前 DB 状态构建项目计划快照（键统一 camelCase，便于前端直接消费）。"""
     sub_ids = [s.id for s in db.query(SubProject).filter_by(project_id=project.id).all()]
-    tasks = db.query(Task).filter(Task.sub_project_id.in_(sub_ids)).all() if sub_ids else []
+    tasks = (
+        db.query(Task)
+        .filter(Task.sub_project_id.in_(sub_ids))
+        .order_by(Task.id)
+        .with_for_update()
+        .all()
+        if sub_ids
+        else []
+    )
     fin = db.query(ProjectFinance).filter_by(project_id=project.id).first()
 
     milestones = [
@@ -50,6 +73,7 @@ def _build_snapshot(db: Session, project: Project) -> dict:
 
     start, end = live_span(db, [project])[project.id]  # 与页首一致：按任务实时派生
     return {
+        "schemaVersion": 2,
         "projectPlannedStart": start.isoformat(),
         "projectPlannedEnd": end.isoformat(),
         "progress": project.progress,
@@ -57,6 +81,39 @@ def _build_snapshot(db: Session, project: Project) -> dict:
         "taskCount": len(tasks),
         "milestoneCount": len(milestones),
         "milestones": milestones,
+        "tasks": [
+            {
+                "id": t.id,
+                "code": t.code,
+                "name": t.name,
+                "subProjectId": t.sub_project_id,
+                "plannedStart": t.planned_start.isoformat(),
+                "plannedEnd": t.planned_end.isoformat(),
+                "ownerId": t.owner_id,
+                "collaboratorIds": t.collaborator_ids or [],
+                "estimatedEffort": float(t.estimated_effort or 0),
+                "costBudget": float(t.cost_budget) if t.cost_budget is not None else None,
+                "isMilestone": t.is_milestone,
+                "isCriticalPath": t.is_critical_path,
+            }
+            for t in sorted(tasks, key=lambda task: task.id)
+        ],
+        "dependencies": [
+            {
+                "id": d.id,
+                "predecessorId": d.predecessor_id,
+                "successorId": d.successor_id,
+                "type": d.type,
+                "lagDays": d.lag_days,
+            }
+            for d in db.query(TaskDependency)
+            .filter(
+                TaskDependency.predecessor_id.in_([t.id for t in tasks]),
+                TaskDependency.successor_id.in_([t.id for t in tasks]),
+            )
+            .order_by(TaskDependency.id)
+        ],
+        "calendar": calendar_dict(db.get(ProjectCalendar, project.id)),
     }
 
 
@@ -69,7 +126,22 @@ def list_baselines(
     if not is_full_access(user):
         q = q.filter(ProjectBaseline.project_id.in_(visible_project_ids_for(user, db)))
     rows = q.order_by(ProjectBaseline.created_at.desc()).all()
-    return [BaselineOut.model_validate(b) for b in rows]
+    output = [BaselineOut.model_validate(b) for b in rows]
+    if is_own_task_only(user):
+        visible = visible_task_ids_for(user, db)
+        for item in output:
+            snapshot = dict(item.snapshot)
+            for key in ("tasks", "milestones"):
+                if key in snapshot:
+                    snapshot[key] = [task for task in snapshot[key] if task["id"] in visible]
+            if "dependencies" in snapshot:
+                snapshot["dependencies"] = [
+                    edge
+                    for edge in snapshot["dependencies"]
+                    if edge["predecessorId"] in visible and edge["successorId"] in visible
+                ]
+            item.snapshot = snapshot
+    return output
 
 
 @router.post("", response_model=BaselineOut, status_code=status.HTTP_201_CREATED)
@@ -78,7 +150,7 @@ def create_baseline(
     db: Session = Depends(get_db),
     user: User = Depends(require_role("admin", "cmc_lead", "project_lead")),
 ):
-    project = db.query(Project).filter_by(id=payload.project_id).first()
+    project = db.query(Project).filter_by(id=payload.project_id).with_for_update().first()
     if not project:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
     _ensure_project_visible(user, db, project.id)
@@ -90,7 +162,7 @@ def create_baseline(
         reason=payload.reason,
         snapshot=_build_snapshot(db, project),
         created_by=user.id,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     db.add(obj)
     db.commit()

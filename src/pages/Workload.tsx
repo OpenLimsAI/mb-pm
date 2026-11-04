@@ -10,6 +10,7 @@ import { specialtyGroups } from '../mock/dictionaries'
 import { findSubProject, findProject, findTask, TODAY } from '../mock'
 import { TaskDrawer } from '../components/task/TaskDrawer'
 import { RecommendModal } from '../components/workload/RecommendModal'
+import { CapacityEditor } from '../components/workload/CapacityEditor'
 import type { SpecialtyGroup, Task, User } from '../types'
 import { useAuth } from '../store/auth'
 import { useDataStore } from '../store/data'
@@ -18,6 +19,8 @@ import { getScope, scopeLabel } from '../lib/scope'
 import { cn } from '../lib/cn'
 import { ColumnResizer } from '../components/ui/ColumnResizer'
 import { useColumnWidth } from '../lib/useColumnWidth'
+
+const rateText = (value: number, compact = false) => Number.isFinite(value) ? `${value}%` : compact ? '无容量' : '无可用容量'
 
 type Filters = {
   group: SpecialtyGroup | 'all'
@@ -80,7 +83,7 @@ export default function Workload() {
             人员负荷全景图
           </h1>
           <p className="text-sm text-ink-500 mt-1">
-            按周统计每位成员负荷率（已分配工时 / 可用工时）· 颜色编码：
+            按剩余工时统计未来负荷；负责人和协作者均分，排除已发生工时并使用项目工作日历。颜色：
             <span className="inline-flex items-center gap-1 mx-1"><span className="w-2 h-2 rounded-full bg-emerald-500" />≤70% 正常</span>
             <span className="inline-flex items-center gap-1 mx-1"><span className="w-2 h-2 rounded-full bg-amber-500" />70-90% 接近</span>
             <span className="inline-flex items-center gap-1 mx-1"><span className="w-2 h-2 rounded-full bg-red-500" />&gt;90% 过载</span>
@@ -110,7 +113,7 @@ export default function Workload() {
       {/* 概览 KPI */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <Kpi label="可见人数" value={totalUsers} icon={<Users className="w-5 h-5" />} tone="blue" />
-        <Kpi label="平均负荷率" value={`${avgRate}%`} icon={<ListChecks className="w-5 h-5" />} tone={avgRate > 80 ? 'amber' : 'green'} />
+        <Kpi label="平均负荷率" value={rateText(avgRate)} icon={<ListChecks className="w-5 h-5" />} tone={avgRate > 80 ? 'amber' : 'green'} />
         <Kpi label="存在过载" value={totalHigh} icon={<AlertTriangle className="w-5 h-5" />} tone={totalHigh > 0 ? 'red' : 'gray'} />
         <Kpi label="未来 4 周过载预警" value={overloadAlerts.length} icon={<AlertTriangle className="w-5 h-5" />} tone={overloadAlerts.length > 0 ? 'amber' : 'gray'} />
       </div>
@@ -136,10 +139,10 @@ export default function Workload() {
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm text-ink-900">{a.user.displayName}</span>
                       {a.user.specialtyGroup && <Tag tone="gray">{a.user.specialtyGroup}</Tag>}
-                      <Tag tone="red">峰值 {a.peakRate}%</Tag>
+                      <Tag tone="red">峰值 {rateText(a.peakRate)}</Tag>
                     </div>
                     <div className="text-[11px] text-ink-500 mt-0.5">
-                      过载周：{a.weeks.map((w) => `${w.weekLabel}（${w.rate}%）`).join('、')}
+                      过载周：{a.weeks.map((w) => `${w.weekLabel}（${rateText(w.rate)}）`).join('、')}
                     </div>
                   </div>
                   <Button variant="secondary" size="sm" onClick={() => openOverloadWeek(a.user, a.weeks[0].weekKey)}>
@@ -240,11 +243,11 @@ export default function Workload() {
                   <td className={cn(
                     'px-3 py-2 text-right font-mono text-sm',
                     h.avgRate > 90 ? 'text-red-600' : h.avgRate > 70 ? 'text-amber-600' : 'text-emerald-600'
-                  )}>{h.avgRate}%</td>
+                  )}>{rateText(h.avgRate, true)}</td>
                   <td className={cn(
                     'px-3 py-2 text-right font-mono text-sm',
                     h.peakRate > 90 ? 'text-red-600 font-medium' : h.peakRate > 70 ? 'text-amber-600' : 'text-ink-700'
-                  )}>{h.peakRate}%</td>
+                  )}>{rateText(h.peakRate, true)}</td>
                   {h.cells.map((c) => (
                     <td key={c.weekKey} className="p-0.5 align-middle">
                       <button
@@ -261,7 +264,7 @@ export default function Workload() {
                         )}
                         title={`${h.user.displayName} · ${c.weekLabel} · ${c.allocatedHours}/${c.availableHours}h`}
                       >
-                        {c.rate > 0 ? `${c.rate}%` : '—'}
+                        {c.rate > 0 ? rateText(c.rate, true) : '—'}
                       </button>
                     </td>
                   ))}
@@ -288,6 +291,7 @@ export default function Workload() {
           onClose={() => setDrillCell(null)}
           onOpenTask={(id) => { setDrawerTaskId(id); setDrillCell(null) }}
           onRecommend={(id) => { openRecommend(id); setDrillCell(null) }}
+          onCapacitySaved={() => { setDrillCell(null); setNotice('本周可用工时和请假已保存，负荷与推荐已更新。') }}
         />
       )}
 
@@ -307,14 +311,17 @@ export default function Workload() {
   )
 }
 
-function DrillModal({ user, cell, version, onClose, onOpenTask, onRecommend }: {
+function DrillModal({ user, cell, version, onClose, onOpenTask, onRecommend, onCapacitySaved }: {
   user: User
   cell: WeekCell
   version: number
   onClose: () => void
   onOpenTask: (id: string) => void
   onRecommend: (id: string) => void
+  onCapacitySaved: () => void
 }) {
+  const role = useAuth(s => s.currentUser?.role)
+  const online = useDataStore(s => s.mode) === 'api'
   const tasks: Task[] = useMemo(
     () => getUserWeekTasks(user.id, cell.weekStart),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -335,7 +342,7 @@ function DrillModal({ user, cell, version, onClose, onOpenTask, onRecommend }: {
                 'ml-1 font-medium',
                 cell.level === 'high' ? 'text-red-600' : cell.level === 'mid' ? 'text-amber-600' : 'text-emerald-600'
               )}>
-                {cell.rate}%
+                {rateText(cell.rate)}
               </span>
             </div>
           </div>
@@ -345,6 +352,7 @@ function DrillModal({ user, cell, version, onClose, onOpenTask, onRecommend }: {
         </div>
 
         <div className="flex-1 overflow-y-auto">
+          {online && ['admin', 'cmc_lead', 'project_lead'].includes(role ?? '') && <CapacityEditor user={user} weekKey={cell.weekKey} onSaved={onCapacitySaved} />}
           <div className="px-5 py-3 border-b border-ink-300/40 text-sm font-medium text-ink-900">
             该周任务（{tasks.length}）<span className="ml-2 text-xs font-normal text-ink-500">点任务录入进展；「推荐改派」为其换负责人</span>
           </div>

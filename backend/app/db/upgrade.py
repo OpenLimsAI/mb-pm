@@ -6,7 +6,7 @@ from app.db.business_constraints import apply_postgres, violations
 from app.main import Base, _backfill_task_order, _backfill_team_members, _ensure_schema, engine
 
 
-def main():
+def main(*, schema_only: bool = False):
     # Session-level advisory lock serializes concurrent deploy commands, not app workers.
     with engine.connect() as guard:
         postgres = engine.dialect.name == "postgresql"
@@ -20,8 +20,9 @@ def main():
             guard.commit()
             Base.metadata.create_all(bind=engine)
             _ensure_schema()
-            _backfill_task_order()
-            _backfill_team_members()
+            if not schema_only:
+                _backfill_task_order()
+                _backfill_team_members()
             if postgres:
                 with engine.begin() as conn:
                     apply_postgres(conn)
@@ -33,4 +34,12 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--schema-only",
+        action="store_true",
+        help="Only add schema/constraints; preserve existing task order and project membership.",
+    )
+    main(schema_only=parser.parse_args().schema_only)

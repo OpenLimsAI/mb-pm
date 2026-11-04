@@ -76,6 +76,7 @@ export interface SubProject {
 }
 
 export interface Task {
+  revision?: number
   id: string
   code: string
   name: string

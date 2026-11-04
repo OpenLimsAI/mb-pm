@@ -112,7 +112,7 @@ test('header search updates the same route and member role does not gain managem
   expect(screen.queryByRole('button', { name: '创建项目' })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: '复制项目' })).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: '工作台' }))
-  fireEvent.change(screen.getByRole('textbox', { name: '搜索项目' }), { target: { value: '第二' } })
+  fireEvent.change(screen.getByRole('textbox', { name: '搜索项目、任务、里程碑或负责人' }), { target: { value: '第二' } })
   fireEvent.submit(screen.getByRole('search'))
   expect(screen.getByRole('searchbox')).toHaveValue('第二')
   expect(screen.getByRole('link', { name: '进入项目：第二项目' })).toBeInTheDocument()

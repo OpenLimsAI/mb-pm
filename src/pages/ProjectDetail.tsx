@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import {
   LayoutGrid, Diamond, FolderTree, Users, Flag, Zap, Sparkles,
   CheckCircle2, X,
 } from 'lucide-react'
-import { findProject, findTask } from '../mock'
+import { findProject, findTask, subProjects } from '../mock'
 import { useDataStore } from '../store/data'
 import { useAuth } from '../store/auth'
 import { can } from '../lib/permissions'
@@ -17,6 +17,7 @@ import { MilestonePanel } from '../components/project/MilestonePanel'
 import { MilestoneTimeline } from '../components/project/MilestoneTimeline'
 import { ProjectBudgetCard } from '../components/project/ProjectBudgetCard'
 import { BaselinePanel } from '../components/project/BaselinePanel'
+import { PMManagement } from '../components/management/PMManagement'
 import { DelayImpact } from '../components/project/DelayImpact'
 import { ProjectAIAnalysis } from '../components/project/ProjectAIAnalysis'
 import { TeamPanel } from '../components/project/TeamPanel'
@@ -28,10 +29,11 @@ import { recordProjectVisit } from '../lib/projectNavigation'
 import { getProjectMDMLaunchUrl } from '../api/projects'
 
 // Tab 顺序：概览 → 里程碑 → WBS → 延迟推演 → 基线 → 团队 → AI 分析（仅管理者）
-type Tab = 'overview' | 'milestones' | 'wbs' | 'delay' | 'baseline' | 'team' | 'ai'
+type Tab = 'overview' | 'milestones' | 'wbs' | 'delay' | 'baseline' | 'team' | 'ai' | 'management'
 // WBS 子视图：表格（行内编辑，主工作面）/ 树形 / 甘特图
 
 export default function ProjectDetail() {
+  const [params, setParams] = useSearchParams()
   const { id } = useParams<{ id: string }>()
   const role = useAuth((s) => s.currentUser?.role)
   const userId = useAuth((s) => s.currentUser?.id) ?? 'offline'
@@ -42,10 +44,14 @@ export default function ProjectDetail() {
   useDataStore((s) => s.version)
   const online = useDataStore((s) => s.mode) === 'api'
   const project = findProject(id || '')
-  const [tab, setTab] = useState<Tab>('overview')
+  const requestedTab = params.get('tab')
+  const tab: Tab = ['overview', 'milestones', 'wbs', 'delay', 'baseline', 'team', 'ai', 'management'].includes(requestedTab || '') ? requestedTab as Tab : 'overview'
+  const setTab = (value: Tab) => { const next = new URLSearchParams(params); next.set('tab', value); setParams(next) }
   const [wbsView, setWbsView] = useState<WbsView>('table')
   const [selectedTaskId, setSelectedTaskId] = useState<string>()
-  const [drawerTaskId, setDrawerTaskId] = useState<string | null>(null)
+  const requestedTask = params.get('task')
+  const drawerTaskId = requestedTask && findTask(requestedTask)?.subProjectId && project && subProjects.some(s => s.id === findTask(requestedTask)?.subProjectId && s.projectId === project.id) ? requestedTask : null
+  const setDrawerTaskId = (value: string | null) => { const next = new URLSearchParams(params); if (value) next.set('task', value); else next.delete('task'); setParams(next, { replace: true }) }
   const [editing, setEditing] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
 
@@ -121,13 +127,14 @@ export default function ProjectDetail() {
       )}
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-ink-300/60 -mb-px">
+      <div className="flex items-center flex-wrap gap-1 border-b border-ink-300/60 -mb-px">
         <TabBtn current={tab} v="overview"   icon={<LayoutGrid className="w-4 h-4" />}        label="概览" onClick={setTab} />
         <TabBtn current={tab} v="milestones" icon={<Diamond className="w-4 h-4" />}           label="里程碑" onClick={setTab} />
         <TabBtn current={tab} v="wbs"         icon={<FolderTree className="w-4 h-4" />}        label="WBS" onClick={setTab} />
         <TabBtn current={tab} v="delay"       icon={<Zap className="w-4 h-4" />}               label="延迟推演" onClick={setTab} />
         <TabBtn current={tab} v="baseline"    icon={<Flag className="w-4 h-4" />}              label="基线" onClick={setTab} />
         <TabBtn current={tab} v="team"        icon={<Users className="w-4 h-4" />}             label="团队" onClick={setTab} />
+        <TabBtn current={tab} v="management" icon={<CheckCircle2 className="w-4 h-4" />} label="项目跟进" onClick={setTab} />
         {canAnalyze && (
           <TabBtn current={tab} v="ai"        icon={<Sparkles className="w-4 h-4" />}          label="AI 分析" onClick={setTab} />
         )}
@@ -165,6 +172,8 @@ export default function ProjectDetail() {
       {tab === 'delay' && <DelayImpact project={project} />}
 
       {tab === 'baseline' && <BaselinePanel project={project} />}
+
+      {tab === 'management' && <PMManagement project={project} />}
 
       {tab === 'team' && <TeamPanel project={project} />}
 

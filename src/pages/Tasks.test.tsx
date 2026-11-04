@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import Tasks from './Tasks'
+import { Link, MemoryRouter } from 'react-router-dom'
 import { projects, subProjects, tasks, users } from '../mock'
 import { useAuth } from '../store/auth'
 import { useDataStore } from '../store/data'
@@ -49,12 +50,12 @@ function taskNames() {
 const firstProjectTasks = ['召开项目启动会', '启动资料准备', '供应商考察选定', '合同签订']
 
 test('全局任务连续展示每个项目的完整 WBS 顺序', () => {
-  render(<Tasks />)
+  render(<MemoryRouter><Tasks /></MemoryRouter>)
   expect(taskNames()).toEqual([...firstProjectTasks, '第二项目任务'])
 })
 
 test('筛选项目或搜索时保持 WBS 相对顺序，清空后恢复完整顺序', () => {
-  render(<Tasks />)
+  render(<MemoryRouter><Tasks /></MemoryRouter>)
   fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: 'project-z' } })
   expect(taskNames()).toEqual(firstProjectTasks)
   fireEvent.change(screen.getByPlaceholderText('搜索任务编号、名称…'), { target: { value: '启动' } })
@@ -65,15 +66,25 @@ test('筛选项目或搜索时保持 WBS 相对顺序，清空后恢复完整顺
 
 test('项目成员仍只看到本人任务，排序不会增加可见范围', () => {
   useAuth.setState({ currentUser: users.find((u) => u.id === 'u6')! })
-  render(<Tasks />)
+  render(<MemoryRouter><Tasks /></MemoryRouter>)
   expect(taskNames()).toEqual(['召开项目启动会', '供应商考察选定'])
 })
 
 test('保存子项目排序并同步数据后，任务列表随数据版本更新', () => {
-  render(<Tasks />)
+  render(<MemoryRouter><Tasks /></MemoryRouter>)
   act(() => {
     subProjects.find((s) => s.id === 'kickoff')!.sortOrder = 3
     useDataStore.getState().bump()
   })
   expect(taskNames()).toEqual(['供应商考察选定', '合同签订', '召开项目启动会', '启动资料准备', '第二项目任务'])
+})
+
+
+test('同页全局搜索链接应用新关键词并清除旧筛选', () => {
+  render(<MemoryRouter initialEntries={['/tasks?q=启动']}><Link to="/tasks?q=供应商">新的搜索</Link><Tasks /></MemoryRouter>)
+  expect(screen.getByPlaceholderText('搜索任务编号、名称…')).toHaveValue('启动')
+  fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: 'project-a' } })
+  fireEvent.click(screen.getByRole('link', { name: '新的搜索' }))
+  expect(screen.getByPlaceholderText('搜索任务编号、名称…')).toHaveValue('供应商')
+  expect(taskNames()).toEqual(['供应商考察选定'])
 })

@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { LayoutGrid, Rows3, GitBranch, Plus, FileText, Copy, PanelsTopLeft, FolderOpen } from 'lucide-react'
 import { useAuth } from '../store/auth'
 import { can } from '../lib/permissions'
-import { findUser, projects, subProjects, tasks } from '../mock'
+import { findUser, projects, subProjects, tasks, TODAY } from '../mock'
 import { useDataStore } from '../store/data'
 import { Button, EmptyState } from '../components/ui'
 import { ProjectFilters } from '../components/projects/ProjectFilters'
@@ -17,6 +17,7 @@ import { TaskDrawer } from '../components/task/TaskDrawer'
 import { projectItems } from '../lib/projectWorkbench'
 import { projectStorageKey, readProjectNavigation, saveProjectNavigation, type ProjectNavigation, type ProjectScope, type ProjectView } from '../lib/projectNavigation'
 import './projects.css'
+import { SavedViews } from '../components/ui/SavedViews'
 
 export default function Projects() {
   const userId = useAuth((s) => s.currentUser?.id) ?? 'offline'
@@ -35,7 +36,7 @@ function ProjectsContent({ userId }: { userId: string }) {
   })
   const [copying, setCopying] = useState(false)
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
-  const [today, setToday] = useState(() => new Date())
+  const [today, setToday] = useState(() => new Date(TODAY))
   const root = useRef<HTMLDivElement>(null)
   useDataStore((s) => s.version)
   const mode = useDataStore((s) => s.mode)
@@ -48,7 +49,7 @@ function ProjectsContent({ userId }: { userId: string }) {
     saveProjectNavigation(userId, query === null ? navigation : { ...navigation, page: 'projects', filters: { ...navigation.filters, keyword: query } })
   }, [userId, navigation, query])
   useEffect(() => {
-    const refresh = () => setToday(new Date())
+    const refresh = () => setToday(new Date(TODAY))
     const timer = window.setInterval(refresh, 60_000)
     document.addEventListener('visibilitychange', refresh)
     return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', refresh) }
@@ -97,6 +98,7 @@ function ProjectsContent({ userId }: { userId: string }) {
     </div></div>
     <nav className="project-page-tabs" aria-label="项目管理导航">{([{ id: 'projects', label: '全部项目', icon: FolderOpen }, { id: 'workbench', label: '工作台', icon: PanelsTopLeft }] as const).map((tab) => <button type="button" key={tab.id} aria-pressed={page === tab.id} onClick={() => change({ page: tab.id })}><tab.icon size={16} />{tab.label}{tab.id === 'projects' && <span>{projects.length}</span>}</button>)}</nav>
     {page === 'projects' ? <section aria-label="全部项目">
+      <SavedViews kind="projects" state={{ ...navigation, page, filters }} onApply={change} />
       <ProjectFilters filters={filters} onChange={changeFilters} onReset={() => change({ filters: initialFilters, scope: 'all' })} viewControl={<ViewSwitcher view={view} onChange={(next) => change({ view: next })} />} />
       <div className="project-scope-row"><div role="group" aria-label="项目范围">{([{ id: 'all', label: '全部项目' }, { id: 'mine', label: '我负责的' }, { id: 'attention', label: `需关注 ${filtered.filter(needsAttention).length}` }] as { id: ProjectScope; label: string }[]).map((option) => <button type="button" key={option.id} aria-pressed={scope === option.id} onClick={() => change({ scope: option.id })}>{option.label}</button>)}</div><span aria-live="polite">{scoped.length} / {projects.length} 个项目</span></div>
       {!scoped.length ? <EmptyState title="没有匹配的项目" description="试试调整搜索、项目范围或筛选条件" action={<Button onClick={() => change({ filters: initialFilters, scope: 'all' })}>重置筛选</Button>} /> : view === 'cards' ? <div className="project-card-grid">{scoped.map((p) => <ProjectCard key={p.id} project={p} items={allItems.filter((item) => item.project.id === p.id)} />)}</div> : view === 'table' ? <ProjectTable projects={scoped} /> : <PortfolioMatrix projects={scoped} />}

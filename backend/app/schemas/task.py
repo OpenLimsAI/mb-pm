@@ -88,6 +88,8 @@ class TaskCreate(TaskBase):
 class TaskUpdate(DatedInput):
     """部分更新 — 全部字段可选。"""
 
+    expected_revision: int | None = Field(default=None, ge=1)
+    progress_note: str | None = Field(default=None, max_length=5000)
     name: str | None = None
     owner_id: str | None = None
     collaborator_ids: list[str] | None = None
@@ -129,6 +131,7 @@ class TaskUpdate(DatedInput):
 class TaskOut(TaskBase):
     model_config = ConfigDict(from_attributes=True)
     id: str
+    revision: int = 1
 
 
 # ============= TaskDependency =============

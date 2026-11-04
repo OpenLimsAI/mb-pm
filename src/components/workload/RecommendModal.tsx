@@ -71,11 +71,11 @@ export function RecommendModal({ initialTaskId, onClose, onAssigned }: Props) {
   const invalid = !pStart || !pEnd || pEnd < pStart
 
   const candidates = useMemo(
-    () => (invalid ? [] : recommendForTask({ module: pModule, estimatedEffort: pEffort, plannedStart: pStart, plannedEnd: pEnd })),
+    () => (invalid ? [] : recommendForTask({ module: pModule, estimatedEffort: pEffort, plannedStart: pStart, plannedEnd: pEnd, task })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [pModule, pEffort, pStart, pEnd, invalid, version],
   )
-  const eligible = candidates.filter((c) => c.currentLevel !== 'high' && c.matchesGroup && !outsideTeam(c.user.id))
+  const eligible = candidates.filter((c) => c.predictedLevel !== 'high' && c.matchesGroup && !outsideTeam(c.user.id))
   const overload = candidates.filter((c) => c.predictedLevel === 'high')
 
   const [picked, setPicked] = useState<string | null>(null)
@@ -174,7 +174,7 @@ export function RecommendModal({ initialTaskId, onClose, onAssigned }: Props) {
               {overload.length} 位接手后将过载
             </Tag>
             <span className="ml-auto text-[11px] text-ink-500">
-              符合条件：当前负荷 ≤ 90% 且专业组匹配{team ? '、在项目团队中' : ''}；按负荷率升序
+              符合条件：接手后负荷 ≤ 90% 且专业组匹配{team ? '、在项目团队中' : ''}；按负荷率升序
             </span>
           </div>
 
@@ -282,7 +282,7 @@ function RateBlock({ label, rate, level, highlighted }: { label: string; rate: n
   }
   return (
     <div className={cn('text-center px-2.5 py-1 rounded', highlighted ? colorMap[level] : 'bg-ink-100 text-ink-700')}>
-      <div className={cn('text-base font-semibold leading-none font-mono', highlighted ? '' : 'text-ink-900')}>{rate}%</div>
+      <div className={cn('text-base font-semibold leading-none font-mono', highlighted ? '' : 'text-ink-900')}>{Number.isFinite(rate) ? `${rate}%` : '无可用容量'}</div>
       <div className="text-[10px] mt-0.5">{label}</div>
     </div>
   )
