@@ -15,6 +15,7 @@ export interface ProgressPolicyRow {
 export interface ProgressPolicyResult {
   projectId: string; method: ProgressMethod; currentMethod: ProgressMethod
   beforeProgress: number; progress: number; exactProgress: number; numerator: number; denominator: number
+  storedProgress?: number
   fingerprint: string; changed: boolean; editable?: boolean; hiddenTaskCount?: number
   rows: ProgressPolicyRow[]
   subprojects: { id: string; name: string; progress: number; numerator: number; denominator: number }[]
