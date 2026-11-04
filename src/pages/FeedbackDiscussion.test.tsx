@@ -7,7 +7,7 @@ import { server } from '../test/setup'
 import { usePortal } from '../store/portal'
 
 vi.mock('../api/client', async (original) => ({ ...await original<typeof import('../api/client')>(), USE_API: true }))
-const item = { id: 'issue', category: 'bug', description: '切换页面后内容没有更新', status: 'open', author_name: '提交人', created_at: '2026-11-01T12:00:00Z', images: [], can_delete: true, is_mine: true, reply_count: 0, last_activity_at: '2026-11-01T12:00:00Z' }
+const item = { application: null as string | null, id: 'issue', category: 'bug', description: '切换页面后内容没有更新', status: 'open', author_name: '提交人', created_at: '2026-11-01T12:00:00Z', images: [], can_delete: true, is_mine: true, reply_count: 0, last_activity_at: '2026-11-01T12:00:00Z' }
 const responseActivity = { id: 'reply-1', kind: 'comment', body: '已定位缓存问题，正在处理。', author_name: '修复同事', created_at: '2026-11-04T12:00:00Z', from_status: null, to_status: null }
 function mount(items = [item]) {
   server.use(
@@ -178,4 +178,19 @@ it('filters by server ownership and reply count, sorts activity, and counts proc
   await userEvent.click(screen.getByRole('button', { name: '未回复' }))
   expect(screen.queryByText(own.description)).not.toBeInTheDocument()
   expect(screen.getByText(other.description)).toBeInTheDocument()
+})
+
+
+it('filters feedback by application and keeps historical unclassified entries distinct', async () => {
+  const kb = { ...item, id: 'kb', application: 'kb', description: '知识库问答异常' }
+  const legacy = { ...item, id: 'legacy', description: '历史未填写应用的反馈' }
+  mount([kb, legacy])
+  expect(await screen.findByText(kb.description)).toBeInTheDocument()
+  await userEvent.selectOptions(screen.getByLabelText('应用筛选'), 'kb')
+  expect(screen.getByText(kb.description)).toBeInTheDocument()
+  expect(screen.queryByText(legacy.description)).not.toBeInTheDocument()
+  await userEvent.selectOptions(screen.getByLabelText('应用筛选'), 'unclassified')
+  expect(screen.queryByText(kb.description)).not.toBeInTheDocument()
+  const row = screen.getByText(legacy.description).closest('article')!
+  expect(within(row).getByText('未分类')).toBeInTheDocument()
 })

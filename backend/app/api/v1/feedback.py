@@ -24,6 +24,23 @@ from app.services.iam_admin import IAMError
 
 router = APIRouter(prefix="/feedback", tags=["feedback"])
 MAX_IMAGE = 5 * 1024 * 1024
+APPLICATIONS = frozenset(
+    {
+        "platform",
+        "pm",
+        "kb",
+        "knowledge-sources",
+        "solutions",
+        "assistant",
+        "notes",
+        "models",
+        "settings",
+        "mdm",
+        "accounts",
+        "feedback",
+        "other",
+    }
+)
 
 
 def can_delete(row: Feedback, claims: dict) -> bool:
@@ -55,6 +72,7 @@ def output(row, claims, summary=None):
     return {
         "id": row.id,
         "category": row.category,
+        "application": row.application,
         "description": row.description,
         "status": row.status,
         "author_name": row.author_name,
@@ -157,12 +175,17 @@ async def create(
     claims: dict = Depends(identity),
 ):
     # Parse only after identity has passed. Never declare File/Form dependencies here.
-    async with upload_form(request, max_files=3, max_fields=2, max_part_size=20_000) as form:
+    async with upload_form(request, max_files=3, max_fields=3, max_part_size=20_000) as form:
         category = form.get("category")
+        application = form.get("application")
         description = form.get("description")
         images = form.getlist("images")
         if category not in ("bug", "feature"):
             raise HTTPException(422, "请选择反馈类型")
+        if application is not None and (
+            not isinstance(application, str) or application not in APPLICATIONS
+        ):
+            raise HTTPException(422, "请选择有效的所属应用")
         if (
             not isinstance(description, str)
             or not 1 <= len(description.strip()) <= 5000
@@ -190,6 +213,7 @@ async def create(
         author_id=claims["sub"],
         author_name=str(name)[:255],
         category=category,
+        application=application,
         description=description,
         images=attachments,
     )

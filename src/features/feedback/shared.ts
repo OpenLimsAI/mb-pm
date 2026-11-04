@@ -1,11 +1,23 @@
 import axios from 'axios'
 import { API_BASE } from '../../api/client'
 
+export const applicationLabels = {
+  platform: '平台与登录', pm: '项目管理', kb: '知识库', 'knowledge-sources': '知识源',
+  solutions: '研究报告', assistant: 'AI助手', notes: '我的笔记', models: 'AI设置',
+  settings: '我的设置', mdm: '主数据管理', accounts: '账号管理', feedback: '回音壁', other: '其他',
+} as const
+export type FeedbackApplication = keyof typeof applicationLabels
+export function applicationLabel(value?: string | null): string {
+  if (!value) return '未分类'
+  return Object.hasOwn(applicationLabels, value) ? applicationLabels[value as FeedbackApplication] : '其他应用'
+}
+
 export type Category = 'bug' | 'feature'
 export type FeedbackStatus = 'open' | 'in_progress' | 'fixed'
 export type FeedbackItem = {
   id: string
   category: Category
+  application?: string | null
   description: string
   status: FeedbackStatus
   author_name: string

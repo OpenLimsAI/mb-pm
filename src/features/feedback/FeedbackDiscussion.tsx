@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { AlertCircle, ArrowUpRight, CheckCircle2, MessageSquareText, RefreshCw, Send, X } from 'lucide-react'
-import { feedbackClient, formatDate, imageUrl, mergeActivities, statusLabels, type ActivityPage, type FeedbackActivity, type FeedbackItem, type FeedbackStatus } from './shared'
+import { applicationLabel, feedbackClient, formatDate, imageUrl, mergeActivities, statusLabels, type ActivityPage, type FeedbackActivity, type FeedbackItem, type FeedbackStatus } from './shared'
 
 type Props = {
   item: FeedbackItem
@@ -162,7 +162,7 @@ export default function FeedbackDiscussion({ item, initialStatus, preview, userN
         <header className="feedback-dialog-header"><div><div className="feedback-dialog-kicker">FEEDBACK & PROGRESS</div><h2 ref={title} tabIndex={-1} id="feedback-detail-title">反馈详情</h2><p>补充信息、交流进展，也让处理结果有据可查。</p></div><button type="button" className="feedback-icon-button" aria-label="关闭详情" disabled={pending} onClick={requestClose}><X size={20} /></button></header>
         <div className="feedback-discussion-content">
           <section className="feedback-original" aria-label="原始反馈">
-            <div className="feedback-item-top"><div className="feedback-item-tags"><span className={`feedback-category feedback-category--${item.category}`}>{item.category === 'bug' ? 'Bug 问题' : '新功能建议'}</span><span className={`feedback-status feedback-status--${item.status}`}><i className={`feedback-dot feedback-dot--${item.status}`} />{statusLabels[item.status]}</span>{item.is_mine && <span className="feedback-mine-tag">我的反馈</span>}</div><time dateTime={item.created_at}>{formatDate(item.created_at)}</time></div>
+            <div className="feedback-item-top"><div className="feedback-item-tags"><span className="feedback-application-tag">{applicationLabel(item.application)}</span><span className={`feedback-category feedback-category--${item.category}`}>{item.category === 'bug' ? 'Bug 问题' : '新功能建议'}</span><span className={`feedback-status feedback-status--${item.status}`}><i className={`feedback-dot feedback-dot--${item.status}`} />{statusLabels[item.status]}</span>{item.is_mine && <span className="feedback-mine-tag">我的反馈</span>}</div><time dateTime={item.created_at}>{formatDate(item.created_at)}</time></div>
             <p className="feedback-description">{item.description}</p>
             {!!item.images.length && <div className="feedback-images">{item.images.map((id, index) => <a key={id} href={imageUrl(id)} target="_blank" rel="noopener noreferrer" aria-label={`查看原图 ${index + 1}（新标签页打开）`}><img src={imageUrl(id)} alt={`反馈图片 ${index + 1}`} loading="lazy" /><span><ArrowUpRight size={14} /></span></a>)}</div>}
             <div className="feedback-author"><span className="feedback-author-avatar" aria-hidden="true">{Array.from(item.author_name || '同')[0]}</span>{item.author_name}<span>提交于 {formatDate(item.created_at)}</span></div>

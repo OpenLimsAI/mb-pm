@@ -152,16 +152,18 @@ def test_real_app_persists_feedback_with_or_without_attachment(client, token_fac
         assert result.status_code == 201, result.text
         ids.append(result.json()["id"])
         assert result.json()["images"] == []
+        assert result.json()["application"] is None
         picture = b"\xff\xd8\xff" + b"test-image"
         result = client.post(
             "/api/v1/feedback",
-            data={"category": "bug", "description": "with photo"},
+            data={"category": "bug", "description": "with photo", "application": "kb"},
             files={"images": ("photo.jpg", picture, "image/jpeg")},
             headers=headers,
             cookies=cookies,
         )
         assert result.status_code == 201, result.text
         ids.append(result.json()["id"])
+        assert result.json()["application"] == "kb"
         image_id = result.json()["images"][0]
         assert client.get("/api/v1/feedback/images/" + image_id, cookies=cookies).content == picture
         assert (
@@ -175,6 +177,7 @@ def test_real_app_persists_feedback_with_or_without_attachment(client, token_fac
         )
         db.expire_all()
         assert db.get(Feedback, ids[-1]).status == "fixed"
+        assert db.get(Feedback, ids[-1]).application == "kb"
         reply_url = "/api/v1/feedback/" + ids[-1] + "/replies"
         payload = {"body": "修复说明，等待确认", "request_id": "integration-reply"}
         discussion = client.post(reply_url, json=payload, headers=headers, cookies=cookies)
@@ -183,9 +186,11 @@ def test_real_app_persists_feedback_with_or_without_attachment(client, token_fac
         retry = client.post(reply_url, json=payload, headers=headers, cookies=cookies)
         assert retry.json()["activity"]["id"] == activity_id
         assert retry.json()["feedback"]["reply_count"] == 1
+        assert retry.json()["feedback"]["application"] == "kb"
         history = client.get("/api/v1/feedback/" + ids[-1] + "/activities", cookies=cookies).json()
         assert len(history["items"]) == 2
         assert history["feedback"]["status"] == "fixed"
+        assert history["feedback"]["application"] == "kb"
         assert (
             client.delete(
                 "/api/v1/feedback/" + ids[-1], headers=headers, cookies=cookies
@@ -662,3 +667,108 @@ def test_postgres_parallel_reply_retries_are_serialized(client, monkeypatch):
             if row is not None:
                 db.delete(row)
                 db.commit()
+
+
+def test_feedback_application_validation_and_image_form_compatibility(wall):
+    client, login, db = wall
+    login("author")
+    url = "/api/v1/feedback"
+    legacy = client.post(url, data={"category": "bug", "description": "old client"}).json()
+    assert legacy["application"] is None
+    for application in feedback.APPLICATIONS:
+        response = client.post(
+            url,
+            data={"category": "feature", "description": "按应用反馈", "application": application},
+        )
+        assert response.status_code == 201, response.text
+        item = response.json()
+        assert item["application"] == application
+        assert db.get(Feedback, item["id"]).application == application
+    for application in ("", "unknown", "platform ", "x" * 100, "invalid\x00value"):
+        assert (
+            client.post(
+                url, data={"category": "bug", "description": "invalid", "application": application}
+            ).status_code
+            == 422
+        )
+    picture = b"\x89PNG\r\n\x1a\nimage"
+    response = client.post(
+        url,
+        data={"category": "bug", "description": "三个字段和截图", "application": "pm"},
+        files={"images": ("screenshot.png", picture, "image/png")},
+    )
+    assert response.status_code == 201, response.text
+    item = response.json()
+    assert item["application"] == "pm" and len(item["images"]) == 1
+    assert client.get(url + "/images/" + item["images"][0]).content == picture
+    assert (
+        client.patch(url + "/" + item["id"], json={"status": "in_progress"}).json()["application"]
+        == "pm"
+    )
+    assert (
+        next(row for row in client.get(url).json() if row["id"] == legacy["id"])["application"]
+        is None
+    )
+    assert db.query(Feedback).filter_by(description="invalid").count() == 0
+
+
+def test_feedback_application_schema_upgrade_preserves_unclassified_history(monkeypatch):
+    import importlib.util
+    from pathlib import Path
+
+    from sqlalchemy import inspect, text
+
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+    from app import main
+
+    def migration(name):
+        path = Path(__file__).parents[1] / "alembic/versions" / name
+        spec = importlib.util.spec_from_file_location(name, path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    activity_migration = migration("2026_11_04_0100-021_feedback_activities.py")
+    application_migration = migration("2026_11_04_0200-022_feedback_application.py")
+    engine = create_engine("sqlite://")
+    with engine.begin() as connection:
+        activity_migration.op = Operations(MigrationContext.configure(connection))
+        activity_migration.upgrade()
+        assert "application" not in {
+            column["name"] for column in inspect(connection).get_columns("feedback")
+        }
+        connection.execute(
+            text(
+                "INSERT INTO feedback (id,issuer,author_id,author_name,category,description,status,created_at) VALUES ('legacy','tenant','person','Person','bug','original','fixed',CURRENT_TIMESTAMP)"
+            )
+        )
+        application_migration.op = Operations(MigrationContext.configure(connection))
+        application_migration.upgrade()
+        application_migration.upgrade()
+        assert connection.execute(
+            text("SELECT application,status,description FROM feedback WHERE id='legacy'")
+        ).one() == (None, "fixed", "original")
+        connection.execute(text("UPDATE feedback SET application='kb' WHERE id='legacy'"))
+        application_migration.downgrade()
+        assert connection.scalar(text("SELECT application FROM feedback WHERE id='legacy'")) == "kb"
+    engine.dispose()
+
+    # The explicit schema-owner upgrade path must also add this nullable column
+    # to an existing table without requiring Alembic or touching historical rows.
+    engine = create_engine("sqlite://")
+    with engine.begin() as connection:
+        connection.execute(
+            text("CREATE TABLE feedback (id VARCHAR(32) PRIMARY KEY, description TEXT NOT NULL)")
+        )
+        connection.execute(
+            text("INSERT INTO feedback (id,description) VALUES ('legacy','untouched')")
+        )
+    monkeypatch.setattr(main, "engine", engine)
+    main._ensure_schema()
+    main._ensure_schema()
+    with engine.connect() as connection:
+        assert connection.execute(
+            text("SELECT application,description FROM feedback WHERE id='legacy'")
+        ).one() == (None, "untouched")
+    engine.dispose()

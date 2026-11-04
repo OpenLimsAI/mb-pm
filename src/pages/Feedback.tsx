@@ -5,7 +5,7 @@ import { AlertCircle, ArrowUpRight, Bug, Check, CheckCircle2, ChevronRight, Circ
 import { Link, useSearchParams } from 'react-router-dom'
 import { usePortalContext } from '../components/portal/context'
 import FeedbackDiscussion from '../features/feedback/FeedbackDiscussion'
-import { activityTime, feedbackClient as client, formatDate, imageUrl, statusLabels, type Category, type FeedbackActivity, type FeedbackItem, type FeedbackStatus } from '../features/feedback/shared'
+import { activityTime, applicationLabel, applicationLabels, feedbackClient as client, formatDate, imageUrl, statusLabels, type Category, type FeedbackActivity, type FeedbackItem, type FeedbackStatus } from '../features/feedback/shared'
 import '../features/information/information.css'
 import '../styles/feedback.css'
 
@@ -35,6 +35,7 @@ export default function Feedback() {
   const [notice, setNotice] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [applicationFilter, setApplicationFilter] = useState('all')
   const [query, setQuery] = useState('')
   const [scopeFilter, setScopeFilter] = useState('all')
   const [sortBy, setSortBy] = useState('newest')
@@ -53,6 +54,7 @@ export default function Feedback() {
   }
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [category, setCategory] = useState<Category>('bug')
+  const [application, setApplication] = useState('')
   const [description, setDescription] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [formError, setFormError] = useState('')
@@ -65,6 +67,7 @@ export default function Feedback() {
   const dialogRef = useRef<HTMLDivElement>(null)
   const openButtonRef = useRef<HTMLButtonElement>(null)
   const descriptionRef = useRef<HTMLTextAreaElement>(null)
+  const applicationRef = useRef<HTMLSelectElement>(null)
   const continueEditingRef = useRef<HTMLButtonElement>(null)
   const deleteDialogRef = useRef<HTMLDivElement>(null)
   const deleteCancelRef = useRef<HTMLButtonElement>(null)
@@ -110,11 +113,11 @@ export default function Feedback() {
   }, [composerOpen, confirmDiscard])
   const resetForm = (preserveImages = false) => {
     if (!preserveImages) attachments.forEach((attachment) => revoke(attachment.url))
-    setCategory('bug'); setDescription(''); setAttachments([]); setFormError(''); setAttachmentError(''); setConfirmDiscard(false)
+    setCategory('bug'); setApplication(''); setDescription(''); setAttachments([]); setFormError(''); setAttachmentError(''); setConfirmDiscard(false)
   }
   const closeComposer = () => {
     if (submitting) return
-    if (description.trim() || attachments.length || category !== 'bug') { setConfirmDiscard(true); return }
+    if (description.trim() || attachments.length || category !== 'bug' || application) { setConfirmDiscard(true); return }
     resetForm(); setComposerOpen(false); openButtonRef.current?.focus()
   }
   const discardComposer = () => { resetForm(); setComposerOpen(false); openButtonRef.current?.focus() }
@@ -131,7 +134,7 @@ export default function Feedback() {
     return () => document.removeEventListener('keydown', handleEscape)
     // The handler should reflect the current draft and submission state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [composerOpen, confirmDiscard, description, attachments, category, submitting])
+  }, [composerOpen, confirmDiscard, description, attachments, category, application, submitting])
   useEffect(() => {
     if (!deleteTarget) return
     if (!deleting) deleteCancelRef.current?.focus()
@@ -176,18 +179,19 @@ export default function Feedback() {
     })
     setAttachments((current) => [...current, ...added]); setAttachmentError('')
   }
-  const clearFilters = () => { setStatusFilter('all'); setCategoryFilter('all'); setScopeFilter('all'); setQuery('') }
+  const clearFilters = () => { setStatusFilter('all'); setCategoryFilter('all'); setApplicationFilter('all'); setScopeFilter('all'); setQuery('') }
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setFormError(''); setNotice(''); setActionError('')
+    if (!Object.hasOwn(applicationLabels, application)) { setFormError('请选择所属应用。'); applicationRef.current?.focus(); return }
     if (!description.trim()) { setFormError('请填写问题或建议。'); descriptionRef.current?.focus(); return }
     if (attachmentError) return
     setSubmitting(true)
     try {
       let item: FeedbackItem
       if (preview) {
-        item = { id: `demo-${Date.now()}`, category, description: description.trim(), status: 'open', author_name: name, created_at: new Date().toISOString(), images: attachments.map((attachment) => attachment.url), can_delete: true, is_mine: true, reply_count: 0 }
+        item = { id: `demo-${Date.now()}`, category, application, description: description.trim(), status: 'open', author_name: name, created_at: new Date().toISOString(), images: attachments.map((attachment) => attachment.url), can_delete: true, is_mine: true, reply_count: 0 }
       } else {
-        const data = new FormData(); data.append('category', category); data.append('description', description.trim())
+        const data = new FormData(); data.append('application', application); data.append('category', category); data.append('description', description.trim())
         attachments.forEach((attachment) => data.append('images', attachment.file, attachment.file.name))
         item = (await client.post<FeedbackItem>('', data)).data
       }
@@ -215,9 +219,9 @@ export default function Feedback() {
 
   if (!allowed) return <main className="portal-panel"><h1>回音壁暂时不可用</h1><p>请返回工作台刷新登录身份。</p><Link to="/">返回应用工作台</Link></main>
   const search = query.trim().toLocaleLowerCase()
-  const visible = items.filter((item) => (statusFilter === 'all' || item.status === statusFilter) && (categoryFilter === 'all' || item.category === categoryFilter) && (scopeFilter !== 'mine' || item.is_mine === true) && (scopeFilter !== 'unanswered' || (item.reply_count ?? 0) === 0) && (!search || `${item.description} ${item.author_name}`.toLocaleLowerCase().includes(search)))
+  const visible = items.filter((item) => (statusFilter === 'all' || item.status === statusFilter) && (categoryFilter === 'all' || item.category === categoryFilter) && (applicationFilter === 'all' || (applicationFilter === 'unclassified' ? !item.application : item.application === applicationFilter)) && (scopeFilter !== 'mine' || item.is_mine === true) && (scopeFilter !== 'unanswered' || (item.reply_count ?? 0) === 0) && (!search || `${item.description} ${item.author_name}`.toLocaleLowerCase().includes(search)))
     .sort((a, b) => activityTime(sortBy === 'active' ? b.last_activity_at || b.created_at : b.created_at) - activityTime(sortBy === 'active' ? a.last_activity_at || a.created_at : a.created_at) || b.id.localeCompare(a.id))
-  const filtersActive = statusFilter !== 'all' || categoryFilter !== 'all' || scopeFilter !== 'all' || !!query.trim()
+  const filtersActive = statusFilter !== 'all' || categoryFilter !== 'all' || applicationFilter !== 'all' || scopeFilter !== 'all' || !!query.trim()
   const openCount = items.filter((item) => item.status === 'open').length
   const inProgressCount = items.filter((item) => item.status === 'in_progress').length
   const fixedCount = items.filter((item) => item.status === 'fixed').length
@@ -241,9 +245,9 @@ export default function Feedback() {
       <section id="feedback-list" className="feedback-board" aria-labelledby="feedback-list-title">
         <div className="feedback-board-heading"><div><div className="feedback-board-eyebrow">FEEDBACK BOARD</div><h2 id="feedback-list-title">反馈列表 <span>{loading || loadError ? '' : items.length}</span></h2><p>查看团队反馈，关注每一个问题的进展。</p></div><span className="feedback-sharing"><ShieldCheck size={14} />组织内可见</span></div>
         <div className="feedback-list-controls"><div className="feedback-scopes" role="group" aria-label="反馈范围"><button type="button" aria-pressed={scopeFilter === 'all'} onClick={() => setScopeFilter('all')}>全部反馈</button><button type="button" aria-pressed={scopeFilter === 'mine'} onClick={() => setScopeFilter('mine')}>我的反馈</button><button type="button" aria-pressed={scopeFilter === 'unanswered'} onClick={() => setScopeFilter('unanswered')}>未回复</button></div><label className="feedback-sort"><span>排序</span><select aria-label="反馈排序" value={sortBy} onChange={event => setSortBy(event.target.value)}><option value="newest">最近提交</option><option value="active">最近活跃</option></select></label></div>
-        <div className="feedback-toolbar"><div className="feedback-search"><Search size={17} aria-hidden="true" /><input aria-label="搜索反馈" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索反馈内容或提交人" />{query && <button type="button" onClick={() => setQuery('')} aria-label="清除搜索"><X size={15} /></button>}</div><div className="feedback-filters"><label><span>状态</span><select aria-label="状态" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">全部状态</option><option value="open">待处理</option><option value="in_progress">处理中</option><option value="fixed">已修复</option></select></label><label><span>分类</span><select aria-label="分类" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}><option value="all">全部分类</option><option value="bug">Bug 问题</option><option value="feature">新功能建议</option></select></label></div></div>
+        <div className="feedback-toolbar"><div className="feedback-search"><Search size={17} aria-hidden="true" /><input aria-label="搜索反馈" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索反馈内容或提交人" />{query && <button type="button" onClick={() => setQuery('')} aria-label="清除搜索"><X size={15} /></button>}</div><div className="feedback-filters"><label><span>应用</span><select aria-label="应用筛选" value={applicationFilter} onChange={event => setApplicationFilter(event.target.value)}><option value="all">全部应用</option><option value="unclassified">未分类</option>{Object.entries(applicationLabels).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label><label><span>状态</span><select aria-label="状态" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">全部状态</option><option value="open">待处理</option><option value="in_progress">处理中</option><option value="fixed">已修复</option></select></label><label><span>分类</span><select aria-label="分类" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}><option value="all">全部分类</option><option value="bug">Bug 问题</option><option value="feature">新功能建议</option></select></label></div></div>
         {loading ? <div className="feedback-empty"><RefreshCw size={24} className="feedback-spin" /><strong>正在加载反馈</strong><p>请稍候，正在获取团队反馈。</p></div> : loadError ? <div className="feedback-empty feedback-load-error" role="alert"><AlertCircle size={26} /><strong>暂时无法加载反馈</strong><p>{loadError}</p><button type="button" className="feedback-outline-button" onClick={() => { void load() }}><RefreshCw size={15} />重新加载</button></div> : isEmpty ? <div className="feedback-empty"><span className="feedback-empty-icon"><MessageSquareText size={25} /></span><strong>还没有反馈</strong><p>遇到问题或有新的想法，欢迎提交第一条反馈。</p><button type="button" className="feedback-outline-button" onClick={() => setComposerOpen(true)}><Plus size={15} />提交反馈</button></div> : visible.length === 0 ? <div className="feedback-empty"><span className="feedback-empty-icon"><Search size={24} /></span><strong>没有找到匹配的反馈</strong><p>试试其他关键词或筛选条件。</p>{filtersActive && <button type="button" className="feedback-outline-button" onClick={clearFilters}>清除筛选</button>}</div> : <div className="feedback-items">{visible.map((item) => <article className="feedback-item" key={item.id}>
-          <div className="feedback-item-top"><div className="feedback-item-tags"><span className={`feedback-category feedback-category--${item.category}`}>{item.category === 'bug' ? <Bug size={13} /> : <Lightbulb size={13} />}{item.category === 'bug' ? 'Bug 问题' : '新功能建议'}</span><span className={`feedback-status feedback-status--${item.status}`}><i className={`feedback-dot feedback-dot--${item.status}`} />{statusLabels[item.status]}</span>{item.is_mine && <span className="feedback-mine-tag">我的反馈</span>}</div><time dateTime={item.created_at}>{formatDate(item.created_at)}</time></div>
+          <div className="feedback-item-top"><div className="feedback-item-tags"><span className="feedback-application-tag">{applicationLabel(item.application)}</span><span className={`feedback-category feedback-category--${item.category}`}>{item.category === 'bug' ? <Bug size={13} /> : <Lightbulb size={13} />}{item.category === 'bug' ? 'Bug 问题' : '新功能建议'}</span><span className={`feedback-status feedback-status--${item.status}`}><i className={`feedback-dot feedback-dot--${item.status}`} />{statusLabels[item.status]}</span>{item.is_mine && <span className="feedback-mine-tag">我的反馈</span>}</div><time dateTime={item.created_at}>{formatDate(item.created_at)}</time></div>
           <p className={`feedback-description${item.description.length > 300 ? ' feedback-description--clamped' : ''}`}>{item.description}</p>{item.description.length > 300 && <button type="button" className="feedback-read-more" onClick={event => openDiscussion(item, event.currentTarget)}>查看完整反馈</button>}
           {item.images.length > 0 && <div className="feedback-images">{item.images.map((id, index) => <a key={id} href={imageUrl(id)} target="_blank" rel="noopener noreferrer" aria-label={`查看图片 ${index + 1}（新窗口打开）`}><img src={imageUrl(id)} alt={`反馈图片 ${index + 1}`} loading="lazy" /><span><ArrowUpRight size={14} /></span></a>)}</div>}
           <div className="feedback-item-bottom"><div className="feedback-author"><span className="feedback-author-avatar" aria-hidden="true">{Array.from(item.author_name || '同')[0]}</span><span>{item.author_name}</span></div><div className="feedback-item-actions">{item.can_delete && <button type="button" className="feedback-delete-button" onClick={(event) => { deleteTriggerRef.current = event.currentTarget; setDeleteError(''); setDeleteTarget(item) }}><Trash2 size={15} />删除反馈</button>}<button type="button" className="feedback-status-button feedback-replies-button" onClick={event => openDiscussion(item, event.currentTarget)}><MessageSquareText size={15} />回复与进展 <span>{item.reply_count ?? 0}</span></button><button type="button" className="feedback-status-button" onClick={event => openDiscussion(item, event.currentTarget, item.status === 'fixed' ? 'open' : 'fixed')}>{item.status === 'fixed' ? <><CircleDot size={15} />重新打开</> : <><Check size={15} />标记为已修复</>}</button></div></div>
@@ -265,7 +269,7 @@ export default function Feedback() {
         if (!images.length) return
         event.preventDefault()
         if (!submitting) addImages(images)
-      }} className="feedback-dialog-form"><fieldset className="feedback-category-picker"><legend>反馈分类</legend><button type="button" aria-pressed={category === 'bug'} className={category === 'bug' ? 'is-selected' : ''} onClick={() => setCategory('bug')}><span><Bug size={18} /></span><div><strong>Bug 问题</strong><small>遇到故障或异常</small></div>{category === 'bug' && <CheckCircle2 size={17} />}</button><button type="button" aria-pressed={category === 'feature'} className={category === 'feature' ? 'is-selected' : ''} onClick={() => setCategory('feature')}><span><Lightbulb size={18} /></span><div><strong>新功能建议</strong><small>分享需求或想法</small></div>{category === 'feature' && <CheckCircle2 size={17} />}</button></fieldset>
+      }} className="feedback-dialog-form"><div className="feedback-application-field"><div className="feedback-field-heading"><label htmlFor="feedback-application">所属应用</label><span>必选</span></div><select ref={applicationRef} id="feedback-application" required value={application} disabled={submitting} onChange={event => { setApplication(event.target.value); setFormError('') }}><option value="">请选择所属应用</option>{Object.entries(applicationLabels).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select><p className="feedback-field-help">选择问题或建议所在的应用，便于定位和跟进。</p></div><fieldset className="feedback-category-picker"><legend>反馈分类</legend><button type="button" aria-pressed={category === 'bug'} className={category === 'bug' ? 'is-selected' : ''} onClick={() => setCategory('bug')}><span><Bug size={18} /></span><div><strong>Bug 问题</strong><small>遇到故障或异常</small></div>{category === 'bug' && <CheckCircle2 size={17} />}</button><button type="button" aria-pressed={category === 'feature'} className={category === 'feature' ? 'is-selected' : ''} onClick={() => setCategory('feature')}><span><Lightbulb size={18} /></span><div><strong>新功能建议</strong><small>分享需求或想法</small></div>{category === 'feature' && <CheckCircle2 size={17} />}</button></fieldset>
         <div className="feedback-field"><div className="feedback-field-heading"><label htmlFor="feedback-description">问题或建议 <span>必填</span></label><span>{description.length} / 5000</span></div><textarea ref={descriptionRef} id="feedback-description" required maxLength={5000} rows={6} value={description} onChange={(event) => setDescription(event.target.value)} placeholder={category === 'bug' ? '请描述遇到的问题，例如发生在哪里、操作步骤和实际结果。' : '请描述你的想法，以及它希望解决什么问题。'} /></div>
         <div className="feedback-field"><div className="feedback-field-heading"><span className="feedback-field-label">图片说明 <span>选填</span></span><span>{attachments.length} / 3</span></div><div className="feedback-attachment-grid">{attachments.map((attachment) => <div className="feedback-attachment" key={attachment.id}><img src={attachment.url} alt={`已添加图片 ${attachment.file.name}`} /><button type="button" aria-label={`移除图片 ${attachment.file.name}`} onClick={() => { revoke(attachment.url); setAttachments((current) => current.filter((entry) => entry.id !== attachment.id)); setAttachmentError('') }}><X size={15} /></button></div>)}{attachments.length < 3 && <label className="feedback-upload"><ImagePlus size={20} /><span>添加图片</span><input aria-label="添加图片" type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => { addImages(Array.from(event.target.files || [])); event.target.value = '' }} /></label>}</div><p className="feedback-field-help">截图后可在此按 Ctrl / Cmd + V 粘贴，也可点击添加图片。支持 PNG、JPEG、WebP，最多 3 张，每张不超过 5 MB。</p>{attachmentError && <div className="feedback-form-error" role="alert"><AlertCircle size={15} /><span>{attachmentError}</span><button type="button" onClick={() => setAttachmentError('')}>忽略未添加的图片</button></div>}</div>
         {formError && <div className="feedback-form-error" role="alert"><AlertCircle size={15} />{formError}</div>}

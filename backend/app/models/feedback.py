@@ -15,6 +15,7 @@ class Feedback(Base):
     author_id: Mapped[str] = mapped_column(String(255), nullable=False)
     author_name: Mapped[str] = mapped_column(String(255), nullable=False)
     category: Mapped[str] = mapped_column(String(20), nullable=False)
+    application: Mapped[str | None] = mapped_column(String(32), nullable=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="open", nullable=False)
     created_at: Mapped[datetime] = mapped_column(

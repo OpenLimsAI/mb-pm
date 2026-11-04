@@ -178,3 +178,8 @@
   .feedback-metrics { width: 100%; }.feedback-metrics > div { flex: 1; margin-left: 0; }
   .feedback-metrics > div:first-child { padding-left: 0; border-left: 0; }
 }
+.feedback-application-tag { display: inline-flex; align-items: center; padding: 4px 8px; border: 1px solid var(--fb-border); border-radius: 5px; color: var(--fb-blue); background: var(--if-panel); font-size: 11px; font-weight: 550; line-height: 1.4; }
+.feedback-application-field { margin-bottom: 22px; }
+.feedback-application-field > select { display: block; width: 100%; min-height: 40px; padding: 9px 11px; border: 1px solid var(--fb-border); border-radius: 7px; background: var(--if-panel); color: var(--if-ink); font-size: 13px; outline-color: #53aab3; }
+.feedback-filters { flex-wrap: wrap; }
+@media (min-width: 621px) and (max-width: 1180px) { .feedback-toolbar { flex-wrap: wrap; }.feedback-filters { margin-left: auto; } }
