@@ -410,5 +410,14 @@
     "require_current_image_and_release_backup_lock_check": true,
     "retain_new_schema_and_data": true,
     "keep_affected_tasks_quiesced_and_reload_clients_before_resuming_new_version": true
+  },
+  "subsequent_release_verification": {
+    "source": "eb067ac6899e9c5bf1614da8b46906e28f3c9e6b",
+    "parent": "e0744d047e42c7f19e9740a8665efff44bb4b448",
+    "image": "sha256:1217ee1ecf03e551530476a01c342dfaab09804cfbcd8c7ae027e549ae787b8a",
+    "backend_files_unchanged": 167,
+    "p1_routes_tables_and_ui_markers_preserved": true,
+    "healthy_instances": 2,
+    "checked_at_utc": "2026-11-04T04:36:46.041250+00:00"
   }
 }
