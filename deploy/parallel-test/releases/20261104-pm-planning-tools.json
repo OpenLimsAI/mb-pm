@@ -1,0 +1,1310 @@
+{
+  "release": "pm-planning-tools-20261104",
+  "status": "deployed_and_verified_via_subsequent_08",
+  "feature_prs": [
+    "https://github.com/OpenLimsAI/mb-pm/pull/171",
+    "https://github.com/OpenLimsAI/mb-pm/pull/174"
+  ],
+  "final_source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a",
+  "final_image": "sha256:e2d649a9299ecc4f43e2bb5f42d215311849936f829947d36af2aa222c5f7987",
+  "entrypoints": [
+    {
+      "feature": "actual_project_excel_roundtrip",
+      "entry": "项目详情页首 → Excel 导入导出",
+      "boundary": "仅管理员、CMC负责人或本人负责项目的project_lead；仅本应用项目工作簿，已有任务白名单更新，预览后原子应用，不增删任务；10MiB/10000任务"
+    },
+    {
+      "feature": "selective_template_upgrade",
+      "entry": "项目详情 → 计划工具 → 模板版本升级",
+      "boundary": "先确认节点映射，再字段级选择；未采纳差异可继续；保留执行、费用、讨论与交付历史，保护有业务记录任务"
+    },
+    {
+      "feature": "explainable_weighted_progress",
+      "entry": "项目详情 → 计划工具 → 进度计算规则",
+      "boundary": "等权/预计工时/自定义；预览贡献与分母后确认；基线schemaVersion3保存规则与权重；历史值不在升级时重算"
+    },
+    {
+      "feature": "project_ai_jobs_history_actions",
+      "entry": "项目详情 → AI 分析",
+      "boundary": "后台状态恢复、检索/分页/对比、Markdown导出；建议经人工编辑/预览/确认后转任务、风险或联动计划；幂等及来源记录；组合财务仍同步"
+    }
+  ],
+  "initial_release": {
+    "feature_pr": "https://github.com/OpenLimsAI/mb-pm/pull/171",
+    "source": "fd442332f20f8cf3c9bb7704bea2c6f13d409535",
+    "image": "sha256:c1a950ffb462cc173cb84cf8bcfdf67a7b24959dab78074aad2b24ea3bfea77f",
+    "deployed_at_utc": "2026-11-04T19:35:18.796778+00:00",
+    "deployed_at_america_new_york": "2026-11-04 14:35:18 EST",
+    "status": "deployed_and_verified_with_followup_compatibility_findings",
+    "feature_ci": {
+      "baseRefOid": "659503375d2ecf1d88cbf9aab68b6f757a3e19db",
+      "headRefOid": "c7155a2f65743dd457712335c44b1fc35b551e39",
+      "mergeStateStatus": "CLEAN",
+      "number": 171,
+      "statusCheckRollup": [
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-04T19:17:53Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41894276004/job/126799494530",
+          "name": "前端 · 类型检查 + 构建（硬护栏）",
+          "startedAt": "2026-11-04T19:09:59Z",
+          "status": "COMPLETED",
+          "workflowName": "CI"
+        },
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-04T19:11:32Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41894275895/job/126799493759",
+          "name": "dependencies",
+          "startedAt": "2026-11-04T19:09:59Z",
+          "status": "COMPLETED",
+          "workflowName": "Security"
+        },
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-04T19:10:10Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41894276004/job/126799493992",
+          "name": "后端 · ruff 格式检查（硬护栏）",
+          "startedAt": "2026-11-04T19:09:59Z",
+          "status": "COMPLETED",
+          "workflowName": "CI"
+        },
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-04T19:12:05Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41894275895/job/126799493369",
+          "name": "container",
+          "startedAt": "2026-11-04T19:09:59Z",
+          "status": "COMPLETED",
+          "workflowName": "Security"
+        },
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-04T19:14:25Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41894276004/job/126799494240",
+          "name": "后端 · pytest（PostgreSQL · 硬护栏）",
+          "startedAt": "2026-11-04T19:09:59Z",
+          "status": "COMPLETED",
+          "workflowName": "CI"
+        },
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-04T19:11:40Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41894276004/job/126799494560",
+          "name": "Docker · 镜像构建验证（硬护栏）",
+          "startedAt": "2026-11-04T19:09:59Z",
+          "status": "COMPLETED",
+          "workflowName": "CI"
+        },
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-04T19:11:02Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41894276004/job/126799494043",
+          "name": "Lint 报告（软护栏 · 不阻断）",
+          "startedAt": "2026-11-04T19:09:59Z",
+          "status": "COMPLETED",
+          "workflowName": "CI"
+        }
+      ],
+      "url": "https://github.com/OpenLimsAI/mb-pm/pull/171"
+    },
+    "merge": {
+      "headRefOid": "c7155a2f65743dd457712335c44b1fc35b551e39",
+      "mergeCommit": {
+        "oid": "fd442332f20f8cf3c9bb7704bea2c6f13d409535"
+      },
+      "mergedAt": "2026-11-04T19:20:16Z",
+      "state": "MERGED",
+      "url": "https://github.com/OpenLimsAI/mb-pm/pull/171"
+    },
+    "artifacts": {
+      "source": "fd442332f20f8cf3c9bb7704bea2c6f13d409535",
+      "previous_image": "sha256:8509ec97db0ac1e03cb41f0120549ec233fc839764e25ec38b1fc1591119af60",
+      "source_sha256": "739aca36c49974d60ce5e713a8ecb875b1eb99004f10709e049c64e60b6f01fb",
+      "built_sha256": "a51e0600fdbcb47c3c84c2e001e707cd2595d4eea0890459a24e60e86503aa6b"
+    },
+    "prepared": {
+      "source": "fd442332f20f8cf3c9bb7704bea2c6f13d409535",
+      "image": "sha256:c1a950ffb462cc173cb84cf8bcfdf67a7b24959dab78074aad2b24ea3bfea77f",
+      "previous_image": "sha256:8509ec97db0ac1e03cb41f0120549ec233fc839764e25ec38b1fc1591119af60",
+      "backend_files_from_main": 188,
+      "project_p2_bundle": {
+        "wbs_bundle_markers": 10,
+        "wbs_css_contracts": 10,
+        "column_resize_markers": 4,
+        "project_p2_markers": 7
+      },
+      "static_sha256": "e25bdff6781ebf85defc04a94a1ccb25930a820887dbac824a51de14a7d1f5cf",
+      "release_directory": "/home/prometheus/mb-pm-v2/releases/pm-p2-fd44233-20261104",
+      "source_sha256": "739aca36c49974d60ce5e713a8ecb875b1eb99004f10709e049c64e60b6f01fb",
+      "built_sha256": "a51e0600fdbcb47c3c84c2e001e707cd2595d4eea0890459a24e60e86503aa6b"
+    },
+    "backend_files_match": 188,
+    "static_files_match": 177,
+    "server": {
+      "source": "fd442332f20f8cf3c9bb7704bea2c6f13d409535",
+      "image": "sha256:c1a950ffb462cc173cb84cf8bcfdf67a7b24959dab78074aad2b24ea3bfea77f",
+      "previous_image": "sha256:8509ec97db0ac1e03cb41f0120549ec233fc839764e25ec38b1fc1591119af60",
+      "instances": 2,
+      "preserved_files": [
+        "/home/prometheus/mb-pm-v2/compose.yml",
+        "/home/prometheus/mb-pm-v2/compose.production.yml",
+        "/home/prometheus/mb-pm-v2/compose.direct.yml",
+        "/home/prometheus/mb-pm-v2/releases/header-9516977/compose.no-note-sync.yml",
+        "/home/prometheus/mb-pm-v2/releases/assistant-dikw-e294fdc/compose.knowledge.private.yml",
+        "/home/prometheus/mb-pm-v2/releases/knowledge-sources-687bddc-20261101/compose.knowledge-sources.yml",
+        "/home/prometheus/mb-pm-v2/releases/deepseek-search-99ca39d-20261101/compose.deepseek-search.yml",
+        "/home/prometheus/security-hardening-20261102/limits-1.json",
+        "/home/prometheus/security-hardening-20261102/pm-release-cd02021/compose.security.active.yml",
+        "/home/prometheus/mb-pm-v2/releases/report-workbench-e33b48d-20261102/compose.report-workbench.yml",
+        "/home/prometheus/mb-pm-v2/releases/efficient-workspace-c6e4b9f-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/knowledge-sso-20261102/application-switch/group-0.active.json",
+        "/home/prometheus/mb-pm-v2/releases/report-editor-layout-48401af-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/assistant-scope-8147c1d-20261102-r2/compose.assistant-scope.yml",
+        "/home/prometheus/mb-pm-v2/releases/reference-papers-b79f0da-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/assistant-layout-642e187-20261103-r2/compose.assistant-layout.yml",
+        "/home/prometheus/mb-pm-v2/releases/project-actions-c304a1e-20261103-r2/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/gantt-263e10c-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/wbs-workspace-21252b6-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/column-resize-f56ee9b-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/pm-p1-e0744d0-20261103/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/assistant-trash-eb067ac-20261103/compose.assistant-trash.yml",
+        "/home/prometheus/mb-pm-v2/releases/assistant-recovery-9d3e7f8-20261104/compose.assistant-recovery.yml",
+        "/home/prometheus/mb-pm-v2/releases/feedback-entry-b492388-20261104/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/feedback-entry-70e5593-20261104/rollout/pm.fixed-images.json",
+        "/home/prometheus/mb-pm-v2/releases/assistant-experience-2ec58ec-20261104/compose.assistant-experience.yml"
+      ],
+      "verification": [
+        {
+          "nonroot_uid": 10001,
+          "runtime_role": "maibo_pm_runtime",
+          "elevated_db_flags": false,
+          "business_constraints": {
+            "projects": 4,
+            "sub_projects": 2,
+            "tasks": 7,
+            "project_finances": 1
+          },
+          "core_connection": "verified_readonly",
+          "source_count": 331,
+          "production_api_build": true,
+          "source": "fd442332f20f8cf3c9bb7704bea2c6f13d409535",
+          "csp": true,
+          "anonymous_api": 401,
+          "persistent_data_readable": true,
+          "project_p2_schema_verified": true,
+          "project_p2_route_paths": 15
+        },
+        {
+          "nonroot_uid": 10001,
+          "runtime_role": "maibo_pm_runtime",
+          "elevated_db_flags": false,
+          "business_constraints": {
+            "projects": 4,
+            "sub_projects": 2,
+            "tasks": 7,
+            "project_finances": 1
+          },
+          "core_connection": "verified_readonly",
+          "source_count": 331,
+          "production_api_build": true,
+          "source": "fd442332f20f8cf3c9bb7704bea2c6f13d409535",
+          "csp": true,
+          "anonymous_api": 401,
+          "persistent_data_readable": true,
+          "project_p2_schema_verified": true,
+          "project_p2_route_paths": 15
+        }
+      ],
+      "migrations": "additive-feedback-021-022-and-pm-p2-023-025",
+      "tables_checked": 57,
+      "pm_business_values_preserved": true,
+      "prior_record_ids_preserved": true,
+      "prior_assistant_messages_preserved": true,
+      "model_settings_preserved": true,
+      "backend_files_changed": [
+        "alembic/versions/2026_11_04_0100-021_feedback_activities.py",
+        "alembic/versions/2026_11_04_0200-022_feedback_application.py",
+        "alembic/versions/2026_11_04_0300-023_progress_policy.py",
+        "alembic/versions/2026_11_04_0400-024_template_upgrade.py",
+        "alembic/versions/2026_11_04_0500-025_project_ai_work.py",
+        "app/api/v1/baselines.py",
+        "app/api/v1/feedback.py",
+        "app/api/v1/progress_policy.py",
+        "app/api/v1/project_ai_work.py",
+        "app/api/v1/project_exchange.py",
+        "app/api/v1/projects.py",
+        "app/api/v1/sub_projects.py",
+        "app/api/v1/template_upgrade.py",
+        "app/main.py",
+        "app/middleware/request_limits.py",
+        "app/models/__init__.py",
+        "app/models/feedback.py",
+        "app/models/project.py",
+        "app/models/project_ai_work.py",
+        "app/models/task.py",
+        "app/models/template_upgrade.py",
+        "app/schemas/project.py",
+        "app/schemas/task.py",
+        "app/services/project_ai_actions.py",
+        "app/services/project_ai_jobs.py",
+        "app/services/project_copy.py",
+        "app/services/project_exchange.py",
+        "app/services/rollup.py",
+        "app/services/structure.py",
+        "app/services/template_upgrade.py"
+      ],
+      "restore_proof": {
+        "isolated_restore": true,
+        "tables_restored": 53,
+        "network": "none",
+        "ports_published": false,
+        "temporary_database_removed": true
+      }
+    },
+    "public": {
+      "checked_at_utc": "2026-11-04T19:36:25.721642+00:00",
+      "source": "fd442332f20f8cf3c9bb7704bea2c6f13d409535",
+      "checks": [
+        {
+          "url": "https://pm.openlims.ai/health",
+          "expected_status": 200,
+          "status": 200,
+          "passed": true
+        },
+        {
+          "url": "https://pm.openlims.ai/build-info.json",
+          "expected_status": 200,
+          "status": 200,
+          "source": "fd442332f20f8cf3c9bb7704bea2c6f13d409535",
+          "passed": true
+        },
+        {
+          "url": "https://pm.openlims.ai/gantt",
+          "expected_status": 200,
+          "status": 200,
+          "index_sha256": "b1de5377cfce4a9388b7b60591f1014d3e9a2a80d4553a950500e60b41ce5960",
+          "cloudflare_analytics_scripts_removed": 1,
+          "normalized_index_sha256": "14020c7fd81fd02f3cb960f32223864383d4371abcda9520427e441a31617619",
+          "index_matches_image_after_known_edge_injection": true,
+          "passed": true
+        },
+        {
+          "url": "https://pm.openlims.ai/api/v1/projects",
+          "expected_status": 401,
+          "status": 401,
+          "passed": true
+        },
+        {
+          "url": "https://www.openlims.ai/health",
+          "expected_status": 200,
+          "status": 200,
+          "passed": true
+        },
+        {
+          "url": "https://www.openlims.ai/build-info.json",
+          "expected_status": 200,
+          "status": 200,
+          "source": "fd442332f20f8cf3c9bb7704bea2c6f13d409535",
+          "passed": true
+        },
+        {
+          "url": "https://www.openlims.ai/login",
+          "expected_status": 200,
+          "status": 200,
+          "index_sha256": "b1de5377cfce4a9388b7b60591f1014d3e9a2a80d4553a950500e60b41ce5960",
+          "cloudflare_analytics_scripts_removed": 1,
+          "normalized_index_sha256": "14020c7fd81fd02f3cb960f32223864383d4371abcda9520427e441a31617619",
+          "index_matches_image_after_known_edge_injection": true,
+          "passed": true
+        },
+        {
+          "url": "https://www.openlims.ai/api/v1/projects",
+          "expected_status": 401,
+          "status": 401,
+          "passed": true
+        }
+      ],
+      "all_passed": true
+    },
+    "security_scan": {
+      "source": "fd442332f20f8cf3c9bb7704bea2c6f13d409535",
+      "image": "sha256:c1a950ffb462cc173cb84cf8bcfdf67a7b24959dab78074aad2b24ea3bfea77f",
+      "image_id": "sha256:c1a950ffb462cc173cb84cf8bcfdf67a7b24959dab78074aad2b24ea3bfea77f",
+      "image_index_digest": "sha256:c1a950ffb462cc173cb84cf8bcfdf67a7b24959dab78074aad2b24ea3bfea77f",
+      "image_config_sha256": "sha256:2a1312a48692bb4522179af1d15035949cfd3ac605b22efcf4fc54fa9b71661d",
+      "archive_identity": {
+        "format": "oci-index",
+        "image_id": "sha256:c1a950ffb462cc173cb84cf8bcfdf67a7b24959dab78074aad2b24ea3bfea77f",
+        "index_digest": "sha256:c1a950ffb462cc173cb84cf8bcfdf67a7b24959dab78074aad2b24ea3bfea77f",
+        "selected_manifest_digest": "sha256:022c9df1519f292c34e2c5725e59abb5590bb176b5aa6a230ed410690a2da1cb",
+        "config_digest": "sha256:2a1312a48692bb4522179af1d15035949cfd3ac605b22efcf4fc54fa9b71661d",
+        "docker_manifest_digest": "sha256:bb3814b9b5056cd6b5b63534378fcb0abab843ec311e64bef82c39e956e9a14d",
+        "verified_oci_descriptors": 23,
+        "verified_rootfs_layers": 17,
+        "source": "fd442332f20f8cf3c9bb7704bea2c6f13d409535",
+        "platform": {
+          "os": "linux",
+          "architecture": "amd64"
+        },
+        "archive_sha256": "sha256:52dca80e5d198218309a878f774628b89335eee74a6e0a03862e6ddfdc8f83d6"
+      },
+      "high_critical_fixable_vulnerabilities": 0,
+      "scanner": "aquasec/trivy@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c",
+      "database": {
+        "Version": 2,
+        "NextUpdate": "2026-11-05T19:02:00.490076829Z",
+        "UpdatedAt": "2026-11-04T19:02:00.490077333Z",
+        "DownloadedAt": "0001-01-01T00:00:00Z"
+      },
+      "database_sha256": "sha256:4c0450f3668e84216edda03ad6f667d047b753c11f16749cbc4e7817a09bd8a7"
+    },
+    "candidate_synthetic_postgres": {
+      "isolated": true,
+      "ports_exposed": false,
+      "production_database_access": false,
+      "result": {
+        "old_to_new_upgrade_twice": true,
+        "legacy_progress_preserved_before_user_action": true,
+        "default_equal_and_null_weights": true,
+        "project_excel_roundtrip": true,
+        "selective_template_apply_preserved_execution": true,
+        "weighted_progress_recomputed": true,
+        "project_ai_queue_cancel": true,
+        "project_ai_action_idempotency": true,
+        "external_model_calls": false
+      }
+    },
+    "actual_image_login_smoke": {
+      "passed": true,
+      "anonymous_me": 401,
+      "username_password_editable": true,
+      "submit_enabled": true
+    },
+    "backup": {
+      "encrypted_bytes": 4762030,
+      "encrypted_sha256": "e4a36686aaa8f790dabb0ee2d7863ac398febab74e3fee3ac16ed1ab18011fdd",
+      "restore_proof": {
+        "isolated_restore": true,
+        "tables_restored": 53,
+        "network": "none",
+        "ports_published": false,
+        "temporary_database_removed": true
+      },
+      "phase": "initial_release_only"
+    },
+    "history_preservation": {
+      "pm_business_tables": 7,
+      "all_original_field_hashes_unchanged": true,
+      "all_legacy_projects_equal": true,
+      "all_legacy_task_weights_null": true,
+      "historical_progress_recomputed": false,
+      "ids_messages_reports_notes_and_model_settings_preserved": true
+    },
+    "production_identity_readonly": {
+      "method": "native Chrome accessibility via CUA, existing production administrator session",
+      "scope": "read-only; first deployment acceptance",
+      "checks": [
+        "project cards directly open an existing project",
+        "Excel dialog, upload preview and export entry load",
+        "progress rules load equal policy, per-task contributions and formula",
+        "configured model and an existing AI analysis load",
+        "history search, comparison, export and manual action entries are visible"
+      ],
+      "findings": [
+        "normal historical snake_case template fields are incorrectly rejected; corrected separately in PR 174",
+        "historical stored progress 22 differs from current half-up calculation 23; explicit explanation added separately in PR 174"
+      ],
+      "production_business_writes": 0,
+      "real_model_calls": 0,
+      "created_tab_closed_and_original_tab_restored": true
+    },
+    "template_readonly_diagnostic": {
+      "checked_at": "2026-11-04T19:44:58.392297+00:00",
+      "mode": "production read-only transaction; aggregate structure metadata only; no records modified",
+      "project_id": "pu-mvixlog0-fcfnm",
+      "template_id": "t-9accf7b7cb",
+      "source_version": "V1.1",
+      "conclusion": "normal historical browser-saved snake_case template rejected by new camelCase-only reader",
+      "versions": [
+        {
+          "number": "V1.1",
+          "sub_count": 1,
+          "node_count": 1,
+          "id_missing": 0,
+          "id_duplicates": 0,
+          "camel_task_code_missing": 1,
+          "snake_task_code_present": 1,
+          "code_duplicates": 0,
+          "node_keys": [
+            "default_duration",
+            "default_effort",
+            "id",
+            "is_milestone",
+            "module",
+            "name",
+            "stage",
+            "task_code"
+          ],
+          "is_milestone": false
+        },
+        {
+          "number": "V1.0",
+          "sub_count": 0,
+          "node_count": 0,
+          "id_missing": 0,
+          "id_duplicates": 0,
+          "camel_task_code_missing": 0,
+          "snake_task_code_present": 0,
+          "code_duplicates": 0
+        }
+      ]
+    }
+  },
+  "synthetic_browser": {
+    "environment": "loopback synthetic identities, isolated SQLite, fake model (no real billing)",
+    "checks": [
+      "actual_project_excel_download_edit_preview_confirm_zero_values",
+      "template_explicit_binding_partial_then_resume_preserves_execution_and_custom_task",
+      "effort_progress_preview_contributions_and_server_save",
+      "background_job_survives_navigation_fake_model_no_billing_return_report",
+      "stored_ai_history_search_and_two_report_compare",
+      "ai_risk_task_and_dependency_schedule_review_confirm_lineage",
+      "synthetic_member_read_only_and_backend_write_denied",
+      "independent_synthetic_admin_can_manage"
+    ],
+    "errors": [],
+    "at": "2026-11-04T19:01:02.779Z",
+    "jobId": "56506c8c529a418189dbd280f2d71037"
+  },
+  "baseline_and_layout": {
+    "checks": [
+      "baseline_schema3_preserves_method_weights_dependencies_calendar",
+      "custom_weights_save_and_baseline_method_and_task_weight_diffs",
+      "new_ai_history_drag_and_keyboard_resize",
+      "new_ai_page_no_document_horizontal_overflow_at_1100_and_860",
+      "progress_tool_table_scroll_contained_at_1100"
+    ],
+    "errors": [],
+    "baselineId": "bl-3b01baa181",
+    "resize": {
+      "before": 240,
+      "after": 335.5
+    }
+  },
+  "ai_readable_report": {
+    "checks": [
+      "clean_report_body_keeps_three_applied_actions",
+      "markdown_export_hides_machine_block_preserves_analysis",
+      "comparison_hides_machine_block_in_both_reports"
+    ],
+    "errors": [],
+    "at": "2026-11-04T19:08:41.671Z",
+    "model": "fake only, no new inference in this verification"
+  },
+  "acceptance_scope": {
+    "business_write_acceptance": "loopback synthetic identities, fake IAM, isolated SQLite/PostgreSQL",
+    "production_real_identity": "existing system administrator read-only checks completed on actual 08; both compatibility fixes observed; no business writes or real model calls",
+    "production_business_writes": 0,
+    "real_model_calls": 0,
+    "synthetic_fake_model_calls": 1
+  },
+  "migration_history": {
+    "initial": "schema-only additive 021/022 feedback plus 023 progress policy, 024 template mapping, 025 AI work; 53 -> 57 tables",
+    "final": "no migration; preserve B36 feedback 026 and all existing P2 data and schema"
+  },
+  "rollback_to_pre_P2_boundary": {
+    "retain_new_schema_and_post_release_data": true,
+    "never_restore_old_backup_over_current_business_data": true,
+    "check_live_source_and_images_under_release_and_backup_locks": true,
+    "refuse_previous_image_when_non_equal_progress_method_or_any_explicit_weight_including_zero": true,
+    "refuse_previous_image_when_project_ai_queued_or_running": true,
+    "unknown_boundary_keeps_both_instances_stopped": true,
+    "forward_fix_after_new_progress_policy_is_adopted": true
+  },
+  "verified_unpublished_2e_candidate": {
+    "feature_pr": "https://github.com/OpenLimsAI/mb-pm/pull/174",
+    "source": "2e1f422654d6ad5df2dab370549a4a794e4f8484",
+    "image": "sha256:ea07273f3b51c6622c5e17e2bd5c3f8c8b940a2a7795bef54b8c021b3ca31965",
+    "deployed_at_utc": null,
+    "deployed_at_america_new_york": null,
+    "status": "verified_candidate_not_deployed_cas_rejected",
+    "merge": {
+      "headRefOid": "adeaa842dcec45cafaab8abfda374c0cff0fd1ec",
+      "mergeCommit": {
+        "oid": "2e1f422654d6ad5df2dab370549a4a794e4f8484"
+      },
+      "mergedAt": "2026-11-04T20:04:56Z",
+      "state": "MERGED",
+      "url": "https://github.com/OpenLimsAI/mb-pm/pull/174"
+    },
+    "feature_ci": {
+      "baseRefOid": "b36c278e4bf0411fc40fb8edf73e6e423b972b7f",
+      "headRefOid": "adeaa842dcec45cafaab8abfda374c0cff0fd1ec",
+      "statusCheckRollup": [
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-04T20:03:32Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41901369574/job/126824368621",
+          "name": "前端 · 类型检查 + 构建（硬护栏）",
+          "startedAt": "2026-11-04T19:53:57Z",
+          "status": "COMPLETED",
+          "workflowName": "CI"
+        },
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-04T19:54:44Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41901369544/job/126824368159",
+          "name": "dependencies",
+          "startedAt": "2026-11-04T19:53:57Z",
+          "status": "COMPLETED",
+          "workflowName": "Security"
+        },
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-04T19:54:05Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41901369574/job/126824368607",
+          "name": "后端 · ruff 格式检查（硬护栏）",
+          "startedAt": "2026-11-04T19:53:57Z",
+          "status": "COMPLETED",
+          "workflowName": "CI"
+        },
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-04T19:55:59Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41901369544/job/126824368557",
+          "name": "container",
+          "startedAt": "2026-11-04T19:53:57Z",
+          "status": "COMPLETED",
+          "workflowName": "Security"
+        },
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-04T19:57:17Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41901369574/job/126824368512",
+          "name": "后端 · pytest（PostgreSQL · 硬护栏）",
+          "startedAt": "2026-11-04T19:53:57Z",
+          "status": "COMPLETED",
+          "workflowName": "CI"
+        },
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-04T19:55:44Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41901369574/job/126824368488",
+          "name": "Docker · 镜像构建验证（硬护栏）",
+          "startedAt": "2026-11-04T19:53:57Z",
+          "status": "COMPLETED",
+          "workflowName": "CI"
+        },
+        {
+          "__typename": "CheckRun",
+          "completedAt": "2026-11-04T19:54:50Z",
+          "conclusion": "SUCCESS",
+          "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41901369574/job/126824367981",
+          "name": "Lint 报告（软护栏 · 不阻断）",
+          "startedAt": "2026-11-04T19:53:57Z",
+          "status": "COMPLETED",
+          "workflowName": "CI"
+        }
+      ]
+    },
+    "fixed_main_ci": {
+      "checks": [
+        {
+          "conclusion": "success",
+          "details_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41903146260/job/126831324191",
+          "name": "dependencies",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "details_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41903146260/job/126831324128",
+          "name": "container",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "details_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41903146227/job/126830989749",
+          "name": "后端 · ruff 格式检查（硬护栏）",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "details_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41903146227/job/126830989332",
+          "name": "后端 · pytest（PostgreSQL · 硬护栏）",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "details_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41903146227/job/126830989280",
+          "name": "Docker · 镜像构建验证（硬护栏）",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "details_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41903146227/job/126830989217",
+          "name": "前端 · 类型检查 + 构建（硬护栏）",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "details_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41903146227/job/126830988863",
+          "name": "Lint 报告（软护栏 · 不阻断）",
+          "status": "completed"
+        }
+      ],
+      "sha": "2e1f422654d6ad5df2dab370549a4a794e4f8484"
+    },
+    "previous_baseline": {
+      "source": "b36c278e4bf0411fc40fb8edf73e6e423b972b7f",
+      "image": "sha256:87a420ec95319cf03e57869e3dc36fc7ee2b634ed52deefdcb3969223ff56c0a",
+      "manifest_sha256": "6ab0922a9af982836e7c8fbd77dd4149747bfac02b8c10962c9aa061c7a1258b",
+      "candidate_source": "2e1f422654d6ad5df2dab370549a4a794e4f8484",
+      "release_path": "two-stage-b36-via-7a",
+      "live_identity_must_be_reverified_by_prepare_and_rollout": true
+    },
+    "preserved_parallel_features": {
+      "feedback_source": "b36c278e4bf0411fc40fb8edf73e6e423b972b7f",
+      "feedback_image": "sha256:87a420ec95319cf03e57869e3dc36fc7ee2b634ed52deefdcb3969223ff56c0a",
+      "report_source": "7a8ac77e5152b696f51e1c6eb40669f0ff34c2d5",
+      "report_ci": {
+        "headRefOid": "f1ab68588d8bcaf13cda46c7a1eda676e417a20a",
+        "mergeCommit": {
+          "oid": "7a8ac77e5152b696f51e1c6eb40669f0ff34c2d5"
+        },
+        "state": "MERGED",
+        "statusCheckRollup": [
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-11-04T20:03:59Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41901414188/job/126824523925",
+            "name": "前端 · 类型检查 + 构建（硬护栏）",
+            "startedAt": "2026-11-04T19:54:14Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-11-04T19:55:01Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41901414367/job/126824524709",
+            "name": "dependencies",
+            "startedAt": "2026-11-04T19:54:15Z",
+            "status": "COMPLETED",
+            "workflowName": "Security"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-11-04T19:54:26Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41901414188/job/126824523833",
+            "name": "后端 · ruff 格式检查（硬护栏）",
+            "startedAt": "2026-11-04T19:54:14Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-11-04T19:56:26Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41901414367/job/126824524708",
+            "name": "container",
+            "startedAt": "2026-11-04T19:54:14Z",
+            "status": "COMPLETED",
+            "workflowName": "Security"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-11-04T19:57:43Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41901414188/job/126824524091",
+            "name": "后端 · pytest（PostgreSQL · 硬护栏）",
+            "startedAt": "2026-11-04T19:54:14Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-11-04T19:55:58Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41901414188/job/126824523493",
+            "name": "Docker · 镜像构建验证（硬护栏）",
+            "startedAt": "2026-11-04T19:54:14Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-11-04T19:55:16Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41901414188/job/126824524011",
+            "name": "Lint 报告（软护栏 · 不阻断）",
+            "startedAt": "2026-11-04T19:54:14Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          }
+        ]
+      },
+      "backend_chain": "B36 -> official 7a report changes -> fixed 2e compatibility changes; actual baseline rechecked before rollout"
+    },
+    "changes": [
+      "read_only_template_snake_camel_alias_normalization_preserves_original_json_and_ids",
+      "conflicting_aliases_or_malformed_structure_still_rejected",
+      "stored_progress_separate_from_current_computation_22_to_23_explained_without_read_writeback"
+    ],
+    "no_migration_contract": {
+      "migration_required": false,
+      "schema_artifacts_unchanged": true,
+      "protected_backend_files": 62,
+      "allowed_backend_changes": [
+        "app/api/v1/progress_policy.py",
+        "app/services/template_upgrade.py"
+      ],
+      "baseline_source": "7a8ac77e5152b696f51e1c6eb40669f0ff34c2d5",
+      "target_source": "2e1f422654d6ad5df2dab370549a4a794e4f8484",
+      "baseline_backend_files": 192,
+      "target_backend_files": 192,
+      "production_image_not_yet_fixed": true
+    },
+    "synthetic_local_candidate": {
+      "exit_code": 0,
+      "stdout": "existing P2 schema with custom weights and legacy snake templates created\n{\"migration_performed\": false, \"schema_and_all_rows_unchanged\": true, \"existing_custom_weights_preserved\": true, \"stored22_computed23_exposed\": true, \"legacy_snake_template_catalog_and_preview\": true, \"external_model_calls\": false}\n",
+      "stderr": "/private/tmp/maibo-hardening-python/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n  from starlette.testclient import TestClient as TestClient  # noqa\nINFO:httpx:HTTP Request: GET http://testserver/api/v1/projects/smoke-project/progress-policy \"HTTP/1.1 200 OK\"\nINFO:httpx:HTTP Request: POST http://testserver/api/v1/projects/smoke-project/progress-policy/preview \"HTTP/1.1 200 OK\"\nINFO:httpx:HTTP Request: GET http://testserver/api/v1/projects/smoke-project/template-upgrade \"HTTP/1.1 200 OK\"\nINFO:httpx:HTTP Request: POST http://testserver/api/v1/projects/smoke-project/template-upgrade/preview \"HTTP/1.1 200 OK\"\n"
+    },
+    "candidate_synthetic_postgres": {
+      "isolated": true,
+      "ports_exposed": false,
+      "production_database_access": false,
+      "result": {
+        "migration_performed": false,
+        "schema_and_all_rows_unchanged": true,
+        "existing_custom_weights_preserved": true,
+        "stored22_computed23_exposed": true,
+        "legacy_snake_template_catalog_and_preview": true,
+        "external_model_calls": false
+      }
+    },
+    "final_backup_integrity_and_toc": {
+      "status": "prepared_only_not_executed",
+      "method": "GPG full-stream integrity and pg_restore --list with no database connection",
+      "restored_production_data": false,
+      "created_production_copy_database": false,
+      "plaintext_archive_written": false,
+      "true_restore_verified": false,
+      "limitation": "archive integrity/TOC validation does not prove actual database recovery semantics or startability",
+      "production_backup_created_by_this_attempt": false,
+      "gpg_full_stream_or_toc_production_verification_performed": false
+    },
+    "production_data_contract": {
+      "no_ddl": true,
+      "no_grant": true,
+      "no_migration_or_backfill": true,
+      "no_policy_reset": true,
+      "compare_20_pm_tables_all_fields_including_weights_revisions_cost_dates": true,
+      "compare_whole_database_schema_fingerprint": true,
+      "copy_private_env_or_compose_into_evidence": false,
+      "execution_status": "prepared_only_not_executed"
+    },
+    "prepared": {
+      "source": "2e1f422654d6ad5df2dab370549a4a794e4f8484",
+      "image": "sha256:ea07273f3b51c6622c5e17e2bd5c3f8c8b940a2a7795bef54b8c021b3ca31965",
+      "previous_image": "sha256:87a420ec95319cf03e57869e3dc36fc7ee2b634ed52deefdcb3969223ff56c0a",
+      "backend_files_from_main": 192,
+      "project_p2_bundle": {
+        "wbs_bundle_markers": 10,
+        "wbs_css_contracts": 10,
+        "column_resize_markers": 4,
+        "project_p2_markers": 7,
+        "compatibility_explanation_markers": 3
+      },
+      "compatibility": {
+        "migration_required": false,
+        "schema_artifacts_unchanged": true,
+        "protected_backend_files": 62,
+        "previous_source": "b36c278e4bf0411fc40fb8edf73e6e423b972b7f",
+        "approved_intermediate_source": "7a8ac77e5152b696f51e1c6eb40669f0ff34c2d5",
+        "release_path": "two-stage-b36-via-7a",
+        "candidate_source": "2e1f422654d6ad5df2dab370549a4a794e4f8484",
+        "approved_manifest_sha256": "2df3e0a554a4c6513536204149db9356ae24fe41e9fa3bcb1c0c309a60b4f3f6",
+        "approved_previous_manifest_sha256": "6ab0922a9af982836e7c8fbd77dd4149747bfac02b8c10962c9aa061c7a1258b",
+        "approved_report_changes": [
+          "app/api/v1/solutions.py",
+          "app/schemas/report_collaboration.py",
+          "app/schemas/solution.py",
+          "app/services/report_collaboration.py",
+          "app/services/solution_workbench.py",
+          "app/services/solutions.py"
+        ],
+        "allowed_backend_changes": [
+          "app/api/v1/progress_policy.py",
+          "app/services/template_upgrade.py"
+        ],
+        "report_changes_to_apply": [
+          "app/api/v1/solutions.py",
+          "app/schemas/report_collaboration.py",
+          "app/schemas/solution.py",
+          "app/services/report_collaboration.py",
+          "app/services/solution_workbench.py",
+          "app/services/solutions.py"
+        ],
+        "ci_evidence": {
+          "report_pr_final_head_checks": 7,
+          "fixed_merged_main_checks": 7,
+          "report_ci_sha256": "1c5a1f0d1709cbba016f519434024a07271cf8bfa8aad3af39d488051a4991f6",
+          "merged_main_ci_sha256": "a5db125a2ec9701aac2011d7ffcc19df46c5feedebca39e584bb9f670db5dcab"
+        }
+      },
+      "static_sha256": "48bdae8e43816ddbc824495c0bce3d36265e9341b56dd773528f6f0f30b44c8f",
+      "release_directory": "/home/prometheus/mb-pm-v2/releases/pm-p2-compat-2e1f422-20261104",
+      "source_sha256": "35e1ef87863a3639cda726c0e0cdae355593e371cdd76532613cc6055dfd58f2",
+      "built_sha256": "07e67b0afb63c78d0afd2e73f8d69dae6fe0159382de9cca197b2f7f05320b09"
+    },
+    "server": null,
+    "public": null,
+    "security_scan": {
+      "source": "2e1f422654d6ad5df2dab370549a4a794e4f8484",
+      "image": "sha256:ea07273f3b51c6622c5e17e2bd5c3f8c8b940a2a7795bef54b8c021b3ca31965",
+      "image_id": "sha256:ea07273f3b51c6622c5e17e2bd5c3f8c8b940a2a7795bef54b8c021b3ca31965",
+      "image_index_digest": "sha256:ea07273f3b51c6622c5e17e2bd5c3f8c8b940a2a7795bef54b8c021b3ca31965",
+      "image_config_sha256": "sha256:df4d53c0fb81cf211ddbacb7ada612f3c881e32ecf783a621da4d9370069e4c0",
+      "archive_identity": {
+        "format": "oci-index",
+        "image_id": "sha256:ea07273f3b51c6622c5e17e2bd5c3f8c8b940a2a7795bef54b8c021b3ca31965",
+        "index_digest": "sha256:ea07273f3b51c6622c5e17e2bd5c3f8c8b940a2a7795bef54b8c021b3ca31965",
+        "selected_manifest_digest": "sha256:7e3e73760f0b48b993adc9e36f953592285c96d6df76f3cd1cedec66e0daee7d",
+        "config_digest": "sha256:df4d53c0fb81cf211ddbacb7ada612f3c881e32ecf783a621da4d9370069e4c0",
+        "docker_manifest_digest": "sha256:cdb7b942c0312fdf2c25bcb006265320c4dcc2f22261fc5386c8a82065544c9a",
+        "verified_oci_descriptors": 33,
+        "verified_rootfs_layers": 27,
+        "source": "2e1f422654d6ad5df2dab370549a4a794e4f8484",
+        "platform": {
+          "os": "linux",
+          "architecture": "amd64"
+        },
+        "archive_sha256": "sha256:4362a9689cff30066f65caa38b1690931b5f129bf20704b8f53d1e8925ad8966"
+      },
+      "high_critical_fixable_vulnerabilities": 0,
+      "scanner": "aquasec/trivy@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c",
+      "database": {
+        "Version": 2,
+        "NextUpdate": "2026-11-05T19:02:00.490076829Z",
+        "UpdatedAt": "2026-11-04T19:02:00.490077333Z",
+        "DownloadedAt": "0001-01-01T00:00:00Z"
+      },
+      "database_sha256": "sha256:4c0450f3668e84216edda03ad6f667d047b753c11f16749cbc4e7817a09bd8a7"
+    },
+    "actual_image_login_smoke": {
+      "passed": true,
+      "anonymous_me": 401,
+      "username_password_editable": true,
+      "submit_enabled": true,
+      "real_identity_used": false,
+      "real_model_calls": 0
+    },
+    "production_identity_readonly": null,
+    "rollback": {
+      "target": "exact_live_compatible_P2_baseline_image_checked_before_final_rollout",
+      "preserve_new_data_and_current_weights": true,
+      "reuse_original_compose_paths_after_hash_recheck": true,
+      "no_database_snapshot_restore": true
+    },
+    "artifacts": {
+      "source": "2e1f422654d6ad5df2dab370549a4a794e4f8484",
+      "previous_image": "sha256:87a420ec95319cf03e57869e3dc36fc7ee2b634ed52deefdcb3969223ff56c0a",
+      "source_sha256": "35e1ef87863a3639cda726c0e0cdae355593e371cdd76532613cc6055dfd58f2",
+      "built_sha256": "07e67b0afb63c78d0afd2e73f8d69dae6fe0159382de9cca197b2f7f05320b09"
+    },
+    "source_files": 700,
+    "backend_files_match": 192,
+    "static_files_match": 180,
+    "actual_static_manifest_verified": true,
+    "deployment_attempt": {
+      "expected_source": "b36c278e4bf0411fc40fb8edf73e6e423b972b7f",
+      "observed_source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a",
+      "result": "dry_run_compare_and_swap_rejected",
+      "apply_executed": false,
+      "production_write_stop_performed": false,
+      "final_backup_created": false,
+      "production_data_or_schema_written": false
+    }
+  },
+  "effective_subsequent_deployment": {
+    "source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a",
+    "image": "sha256:e2d649a9299ecc4f43e2bb5f42d215311849936f829947d36af2aa222c5f7987",
+    "publication_owner": "parallel_authorized_release",
+    "direct_parent": "2e1f422654d6ad5df2dab370549a4a794e4f8484",
+    "parent_verified_from_local_git_object": true,
+    "deployed_main_ci": {
+      "checks": [
+        {
+          "conclusion": "success",
+          "details_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41905055883/job/126837367629",
+          "name": "后端 · pytest（PostgreSQL · 硬护栏）",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "details_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41905055883/job/126837367299",
+          "name": "Lint 报告（软护栏 · 不阻断）",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "details_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41905055883/job/126837367167",
+          "name": "后端 · ruff 格式检查（硬护栏）",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "details_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41905055883/job/126837367101",
+          "name": "前端 · 类型检查 + 构建（硬护栏）",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "details_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41905055883/job/126837366922",
+          "name": "Docker · 镜像构建验证（硬护栏）",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "details_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41905055858/job/126837365940",
+          "name": "dependencies",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "details_url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41905055858/job/126837365468",
+          "name": "container",
+          "status": "completed"
+        }
+      ],
+      "sha": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a"
+    },
+    "all_7_ci_passed": true,
+    "contains_feature_prs": [
+      171,
+      174
+    ],
+    "preserves_feedback_b36_and_report_7a": true,
+    "instances": [
+      {
+        "name": "/mb-pm-v2-app-1",
+        "image": "sha256:e2d649a9299ecc4f43e2bb5f42d215311849936f829947d36af2aa222c5f7987",
+        "source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a",
+        "health": "healthy",
+        "started_at": "2026-11-04T20:34:55.038966358Z",
+        "user": "10001:10001",
+        "readonly_rootfs": true,
+        "compose_files": 29
+      },
+      {
+        "name": "/mb-pm-v2-app-direct-1",
+        "image": "sha256:e2d649a9299ecc4f43e2bb5f42d215311849936f829947d36af2aa222c5f7987",
+        "source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a",
+        "health": "healthy",
+        "started_at": "2026-11-04T20:35:08.292782739Z",
+        "user": "10001:10001",
+        "readonly_rootfs": true,
+        "compose_files": 29
+      }
+    ],
+    "started_at_america_new_york": [
+      "2026-11-04 15:34:55 EST",
+      "2026-11-04 15:35:08 EST"
+    ],
+    "compose_file_count": 29,
+    "uid": 10001,
+    "read_only_root_filesystem": true,
+    "verification_status": "deployed_all_final_readonly_checks_passed",
+    "backend_manifest": {
+      "status": "independently_verified",
+      "backend_files_exact_git08_per_instance": 192,
+      "compatibility_fixes_exact_2e": true,
+      "checked_at_utc": "2026-11-04T20:46:44.501004+00:00"
+    },
+    "static_manifest": {
+      "source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a",
+      "image": "sha256:e2d649a9299ecc4f43e2bb5f42d215311849936f829947d36af2aa222c5f7987",
+      "static_files": 180,
+      "actual_image_static_manifest_verified": true,
+      "static_archive_sha256": "25e88886f23760326ce9e296d3561d5ce812d3cffde53f67a0644006c98cfeba"
+    },
+    "public": {
+      "checked_at_utc": "2026-11-04T20:39:32.678710+00:00",
+      "source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a",
+      "checks": [
+        {
+          "url": "https://pm.openlims.ai/health",
+          "expected_status": 200,
+          "status": 200,
+          "passed": true
+        },
+        {
+          "url": "https://pm.openlims.ai/build-info.json",
+          "expected_status": 200,
+          "status": 200,
+          "source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a",
+          "passed": true
+        },
+        {
+          "url": "https://pm.openlims.ai/gantt",
+          "expected_status": 200,
+          "status": 200,
+          "index_sha256": "297bb4eff5994f9f7cbed7cd85948aa87f610e65e65d32c084278bcc8685f880",
+          "cloudflare_analytics_scripts_removed": 1,
+          "normalized_index_sha256": "0f96b5b834e96eefb3bea5d009d1c0335b25dd06cf1f78e36bd7a8b672140d0f",
+          "index_matches_image_after_known_edge_injection": true,
+          "passed": true
+        },
+        {
+          "url": "https://pm.openlims.ai/api/v1/projects",
+          "expected_status": 401,
+          "status": 401,
+          "passed": true
+        },
+        {
+          "url": "https://www.openlims.ai/health",
+          "expected_status": 200,
+          "status": 200,
+          "passed": true
+        },
+        {
+          "url": "https://www.openlims.ai/build-info.json",
+          "expected_status": 200,
+          "status": 200,
+          "source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a",
+          "passed": true
+        },
+        {
+          "url": "https://www.openlims.ai/login",
+          "expected_status": 200,
+          "status": 200,
+          "index_sha256": "297bb4eff5994f9f7cbed7cd85948aa87f610e65e65d32c084278bcc8685f880",
+          "cloudflare_analytics_scripts_removed": 1,
+          "normalized_index_sha256": "0f96b5b834e96eefb3bea5d009d1c0335b25dd06cf1f78e36bd7a8b672140d0f",
+          "index_matches_image_after_known_edge_injection": true,
+          "passed": true
+        },
+        {
+          "url": "https://www.openlims.ai/api/v1/projects",
+          "expected_status": 401,
+          "status": 401,
+          "passed": true
+        }
+      ],
+      "all_passed": true
+    },
+    "production_identity_readonly": {
+      "checked_at_utc": "2026-11-04T20:41:16.989984+00:00",
+      "source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a",
+      "environment": "production existing Chrome session",
+      "identity": "existing system administrator",
+      "readonly": true,
+      "business_writes_submitted": false,
+      "real_model_calls": 0,
+      "observed": {
+        "sso_entered_existing_project": true,
+        "excel_import_export_entry_visible": true,
+        "planning_tools_entries_visible": true,
+        "ai_analysis_entry_visible": true,
+        "legacy_template_catalog_loaded_without_error": true,
+        "template_source_and_target_version": "V1.1",
+        "saved_project_progress": 22,
+        "current_calculated_progress": 23,
+        "exact_calculated_progress": 22.5,
+        "saved_and_calculated_difference_explained": true,
+        "task_contributions_table_visible": true,
+        "own_tab_closed_original_tab_restored": true
+      },
+      "limits": [
+        "No production apply/save/import/action conversion performed",
+        "No paid model generation",
+        "No browser console inspection in native CUA"
+      ]
+    },
+    "existing_release_backup_evidence": {
+      "status": "existing_restricted_archive_metadata_and_digest_checked_readonly",
+      "evidence": {
+        "path": "/home/prometheus/mb-pm-v2/private-config-backups/assistant-kimi-stream-08caf7d-20261104/database-switch-before.dump",
+        "bytes": 4883217,
+        "sha256": "8812a3cd6e4117fb3643585bbf44f1a7c01901fe7a8f0c1131d6579f91a2ca6a",
+        "mode": "0o600",
+        "directory_mode": "0o700",
+        "format": "PostgreSQL custom archive; existing restricted server backup",
+        "new_backup_or_restore_by_this_task": false
+      },
+      "format": "PostgreSQL custom archive; restricted existing backup, not claimed GPG encrypted",
+      "gpg_integrity_validation_claimed": false,
+      "toc_validation_claimed": false,
+      "new_backup_created_by_this_task": false,
+      "database_copy_created_by_this_task": false,
+      "database_restore_by_this_task": false
+    },
+    "rollback": {
+      "evidence_origin": "root read-only verification of existing 08 rollback.json",
+      "source": "b36c278e4bf0411fc40fb8edf73e6e423b972b7f",
+      "image": "sha256:87a420ec95319cf03e57869e3dc36fc7ee2b634ed52deefdcb3969223ff56c0a",
+      "prior_healthy": true,
+      "database_downgrade": false,
+      "database_restored": false,
+      "compatible_workers_retained": true,
+      "executed_by_this_task": false,
+      "current_version_recheck_required_before_any_future_rollback": true
+    },
+    "actual_image_login_smoke": {
+      "passed": true,
+      "anonymous_me": 401,
+      "username_password_editable": true,
+      "submit_enabled": true,
+      "real_identity_used": false
+    },
+    "existing_release_evidence": {
+      "observed_at_utc": "2026-11-04T20:42:40.031359+00:00",
+      "evidence_origin": "read-only existing subsequent release metadata; not executed by this task",
+      "verification": {
+        "source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a",
+        "image_id": "sha256:e2d649a9299ecc4f43e2bb5f42d215311849936f829947d36af2aa222c5f7987",
+        "backend_verified_against_source": true,
+        "baseline_source": "b36c278e4bf0411fc40fb8edf73e6e423b972b7f",
+        "compose_only_image_changed": true,
+        "database_migration": false,
+        "database_restored": false,
+        "model_calls": false,
+        "model_settings_preserved": true,
+        "other_containers_unchanged": 22,
+        "prior_assistant_messages_unchanged": true,
+        "prior_record_ids_retained": true,
+        "schema_sha256": "f3c93a4e9ff1dbe19323345a9c0bd4149c226ca641db3f11b69f742116ac9b22",
+        "schema_unchanged": true,
+        "security_settings_preserved": true,
+        "tables_checked": 63,
+        "worker_configuration_expected": {
+          "mb-pm-v2-app-1": {
+            "assistant_request_worker_enabled": true,
+            "project_ai_worker_enabled": true
+          },
+          "mb-pm-v2-app-direct-1": {
+            "assistant_request_worker_enabled": true,
+            "project_ai_worker_enabled": true
+          }
+        },
+        "prior_healthy_rollback": true,
+        "worker_config_correction_sha256": "ed7b52d37fc93de7f2d00cb9ca69c56da6e6c0f81dd227712d2d0e80540e6fc8"
+      },
+      "instances": [
+        {
+          "name": "/mb-pm-v2-app-1",
+          "image": "sha256:e2d649a9299ecc4f43e2bb5f42d215311849936f829947d36af2aa222c5f7987",
+          "source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a",
+          "health": "healthy",
+          "started_at": "2026-11-04T20:34:55.038966358Z",
+          "user": "10001:10001",
+          "readonly_rootfs": true,
+          "compose_files": 29
+        },
+        {
+          "name": "/mb-pm-v2-app-direct-1",
+          "image": "sha256:e2d649a9299ecc4f43e2bb5f42d215311849936f829947d36af2aa222c5f7987",
+          "source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a",
+          "health": "healthy",
+          "started_at": "2026-11-04T20:35:08.292782739Z",
+          "user": "10001:10001",
+          "readonly_rootfs": true,
+          "compose_files": 29
+        }
+      ],
+      "existing_database_backup": {
+        "path": "/home/prometheus/mb-pm-v2/private-config-backups/assistant-kimi-stream-08caf7d-20261104/database-switch-before.dump",
+        "bytes": 4883217,
+        "sha256": "8812a3cd6e4117fb3643585bbf44f1a7c01901fe7a8f0c1131d6579f91a2ca6a",
+        "mode": "0o600",
+        "directory_mode": "0o700",
+        "format": "PostgreSQL custom archive; existing restricted server backup",
+        "new_backup_or_restore_by_this_task": false
+      },
+      "task_2e_apply_performed": false,
+      "task_2e_dryrun_refused_newer_release": true
+    },
+    "independent_backend_runtime_proof": {
+      "passed": true,
+      "checked_at_utc": "2026-11-04T20:46:44.501004+00:00",
+      "source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a",
+      "immutable_image": "sha256:e2d649a9299ecc4f43e2bb5f42d215311849936f829947d36af2aa222c5f7987",
+      "instances": [
+        {
+          "backend_files_exact_git08": 192,
+          "two_fixes_exact_2e": true,
+          "runtime_uid": 10001,
+          "runtime_role": "maibo_pm_runtime",
+          "elevated_runtime_flags": false,
+          "auto_schema_and_seed": false,
+          "p2_route_paths": 15,
+          "schema_progress_fields_present": true,
+          "database_table_count": 63,
+          "project_ai_worker_enabled": true,
+          "assistant_worker_enabled": true,
+          "project_method_counts": {
+            "equal": 4
+          },
+          "task_count": 79,
+          "task_revision_min": 1,
+          "task_revision_max": 1,
+          "tasks_with_custom_weights": 0,
+          "model_settings_readable": true,
+          "model_settings_sha256": "7662f8ebec41a26749a0e4c09dc43adee7be8c13cb82be81af0b38214fcd9453",
+          "model_settings_body_copied": false,
+          "read_only_database_transaction": true,
+          "model_requests_sent": false,
+          "mutations_performed": false
+        },
+        {
+          "backend_files_exact_git08": 192,
+          "two_fixes_exact_2e": true,
+          "runtime_uid": 10001,
+          "runtime_role": "maibo_pm_runtime",
+          "elevated_runtime_flags": false,
+          "auto_schema_and_seed": false,
+          "p2_route_paths": 15,
+          "schema_progress_fields_present": true,
+          "database_table_count": 63,
+          "project_ai_worker_enabled": true,
+          "assistant_worker_enabled": true,
+          "project_method_counts": {
+            "equal": 4
+          },
+          "task_count": 79,
+          "task_revision_min": 1,
+          "task_revision_max": 1,
+          "tasks_with_custom_weights": 0,
+          "model_settings_readable": true,
+          "model_settings_sha256": "7662f8ebec41a26749a0e4c09dc43adee7be8c13cb82be81af0b38214fcd9453",
+          "model_settings_body_copied": false,
+          "read_only_database_transaction": true,
+          "model_requests_sent": false,
+          "mutations_performed": false
+        }
+      ],
+      "immutable_image_proof": "read-only-rootfs-with-no-code-overlay-and-full-Git08-backend-match",
+      "container_ids_stable": true,
+      "production_writes_performed": false,
+      "production_data_restored": false,
+      "credentials_copied": false,
+      "reference_sha256": "5d60cf5497e45b762103b10979a6dfab408d75b09a497fe552e09c93a33e4949"
+    }
+  }
+}
