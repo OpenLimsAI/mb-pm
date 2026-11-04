@@ -1,7 +1,9 @@
 // CPM（关键路径方法）算法
 // 处理 FS / SS / FF / SF 四种依赖 + 延迟天数（lagDays）
 
-import { differenceInCalendarDays, parseISO, addDays, format } from 'date-fns'
+import { parseISO, format } from 'date-fns'
+import type { WorkingCalendar } from '../api/planning'
+import { calendarForTask, defaultCalendar, isWorkingDate, moveWorkingDays, workingDayDifference, workingDates } from './workingCalendar'
 import type { Task, TaskDependency, DependencyType } from '../types'
 
 export interface CPMTask extends Task {
@@ -28,14 +30,14 @@ export interface CPMResult {
   criticalPathIds: Set<string>
 }
 
-const taskDuration = (t: Task): number => {
+const taskDuration = (t: Task, calendar: WorkingCalendar): number => {
   if (t.isMilestone) return 0
   const start = parseISO(t.plannedStart)
   const end = parseISO(t.plannedEnd)
-  return Math.max(0, differenceInCalendarDays(end, start))
+  return Math.max(0, workingDates(start, end, calendar).length - 1)
 }
 
-export function computeCPM(tasks: Task[], deps: TaskDependency[]): CPMResult {
+export function computeCPM(tasks: Task[], deps: TaskDependency[], calendar: WorkingCalendar = tasks[0] ? calendarForTask(tasks[0]) : defaultCalendar): CPMResult {
   if (tasks.length === 0) {
     return {
       tasks: [],
@@ -50,7 +52,7 @@ export function computeCPM(tasks: Task[], deps: TaskDependency[]): CPMResult {
   // 项目最早起点
   const allStarts = tasks.map((t) => parseISO(t.plannedStart).getTime())
   const projectStart = new Date(Math.min(...allStarts))
-  const startDay = (iso: string) => differenceInCalendarDays(parseISO(iso), projectStart)
+  const startDay = (iso: string) => workingDayDifference(parseISO(iso), projectStart, calendar)
 
   // 邻接表
   const taskMap = new Map<string, Task>(tasks.map((t) => [t.id, t]))
@@ -88,11 +90,12 @@ export function computeCPM(tasks: Task[], deps: TaskDependency[]): CPMResult {
   // Forward pass
   const es = new Map<string, number>()
   const ef = new Map<string, number>()
-  const dur = (id: string) => taskDuration(taskMap.get(id)!)
+  const dur = (id: string) => taskDuration(taskMap.get(id)!, calendar)
 
   for (const id of order) {
     const t = taskMap.get(id)!
     let earliestStart = startDay(t.plannedStart)
+    if (!isWorkingDate(parseISO(t.plannedStart), calendar)) earliestStart = workingDayDifference(moveWorkingDays(parseISO(t.plannedStart), 1, calendar), projectStart, calendar)
     for (const p of inEdges.get(id)!) {
       const pES = es.get(p.id) ?? 0
       const pEF = ef.get(p.id) ?? 0
@@ -150,17 +153,17 @@ export function computeCPM(tasks: Task[], deps: TaskDependency[]): CPMResult {
     const slack = Math.max(0, tLs - tEs)
     return {
       ...t,
-      durationDays: taskDuration(t),
+      durationDays: taskDuration(t, calendar),
       esDay: tEs,
       efDay: tEf,
       lsDay: tLs,
       lfDay: tLf,
       slackDays: slack,
       isOnCriticalPath: slack === 0,
-      earliestStart: format(addDays(projectStart, tEs), 'yyyy-MM-dd'),
-      earliestFinish: format(addDays(projectStart, tEf), 'yyyy-MM-dd'),
-      latestStart: format(addDays(projectStart, tLs), 'yyyy-MM-dd'),
-      latestFinish: format(addDays(projectStart, tLf), 'yyyy-MM-dd'),
+      earliestStart: format(moveWorkingDays(projectStart, tEs, calendar), 'yyyy-MM-dd'),
+      earliestFinish: format(moveWorkingDays(projectStart, tEf, calendar), 'yyyy-MM-dd'),
+      latestStart: format(moveWorkingDays(projectStart, tLs, calendar), 'yyyy-MM-dd'),
+      latestFinish: format(moveWorkingDays(projectStart, tLf, calendar), 'yyyy-MM-dd'),
     }
   })
 
@@ -170,7 +173,7 @@ export function computeCPM(tasks: Task[], deps: TaskDependency[]): CPMResult {
     tasks: enriched,
     byId,
     projectStart,
-    projectEnd: addDays(projectStart, projectEndDay),
+    projectEnd: moveWorkingDays(projectStart, projectEndDay, calendar),
     totalDays: projectEndDay,
     criticalPathIds,
   }
@@ -223,7 +226,7 @@ export function simulateDelay(
         shiftDays: f.shift,
         affectsCritical: t.isOnCriticalPath,
         affectsMilestone: t.isMilestone,
-        newPlannedEnd: format(addDays(parseISO(t.plannedEnd), f.shift), 'yyyy-MM-dd'),
+        newPlannedEnd: format(moveWorkingDays(parseISO(t.plannedEnd), f.shift, calendarForTask(t)), 'yyyy-MM-dd'),
         hops: f.hops,
       })
     }

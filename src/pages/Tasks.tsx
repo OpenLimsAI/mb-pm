@@ -1,6 +1,7 @@
 // 全局任务（FR-TK-003）：跨项目筛选（关键路径 / 里程碑 / 已逾期）+ 批量改状态 / 改负责人（写入后端）。
 // 数据范围按角色自动收窄：执行者（rd / production / qa_qc）只看、只改自己的任务。
 
+import { format } from 'date-fns'
 import { useMemo, useState } from 'react'
 import { Search, X, CheckSquare, Square, Diamond, Flame, UserCog, RefreshCw, Eye, Loader2, ListChecks } from 'lucide-react'
 import {
@@ -17,6 +18,8 @@ import { isTaskDone } from '../lib/schedule'
 import { sortTasksByProjectWbsOrder } from '../lib/taskOrder'
 import { Button, Card, Tag, StatusTag, PriorityTag, Avatar, EmptyState } from '../components/ui'
 import { TaskDrawer } from '../components/task/TaskDrawer'
+import { useSearchParams } from 'react-router-dom'
+import { SavedViews } from '../components/ui/SavedViews'
 import { cn } from '../lib/cn'
 
 interface Filters {
@@ -37,10 +40,10 @@ const initialFilters: Filters = {
   scope: 'all',
 }
 
-const todayStr = TODAY.toISOString().slice(0, 10)
-const isOverdue = (t: Task) => !isTaskDone(t) && t.plannedEnd < todayStr
+const isOverdue = (t: Task) => !isTaskDone(t) && t.plannedEnd < format(TODAY, 'yyyy-MM-dd')
 
 export default function Tasks() {
+  const [params] = useSearchParams()
   const me = useAuth((s) => s.currentUser)
   const version = useDataStore((s) => s.version)
 
@@ -59,7 +62,11 @@ export default function Tasks() {
     return users.filter((u) => ids.has(u.id)).sort((a, b) => a.displayName.localeCompare(b.displayName, 'zh'))
   }, [visibleTasks])
 
-  const [filters, setFilters] = useState<Filters>(() => ({ ...initialFilters, ownerId: isOwnTaskOnly ? 'me' : 'all' }))
+  const query = params.get('q') || ''
+  const defaults = (): Filters => ({ ...initialFilters, keyword: query, ownerId: query ? 'all' : isOwnTaskOnly ? 'me' : 'all' })
+  const [filterState, setFilterState] = useState(() => ({ query, value: defaults() }))
+  const filters = filterState.query === query ? filterState.value : defaults()
+  const setFilters = (value: Filters) => setFilterState({ query, value })
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
   const [notice, setNotice] = useState<Notice | null>(null)
@@ -67,7 +74,7 @@ export default function Tasks() {
   const filtered = useMemo(() => {
     const k = filters.keyword.trim().toLowerCase()
     return visibleTasks.filter((t) => {
-      if (k && !`${t.code} ${t.name}`.toLowerCase().includes(k)) return false
+      if (k && !`${t.code} ${t.name} ${findUser(t.ownerId)?.displayName || ''} ${t.notes || ''}`.toLowerCase().includes(k)) return false
       const sub = subProjects.find((s) => s.id === t.subProjectId)
       if (!sub) return false
       if (filters.projectId !== 'all' && sub.projectId !== filters.projectId) return false
@@ -109,6 +116,7 @@ export default function Tasks() {
         </p>
       </div>
 
+      <SavedViews kind="tasks" state={filters} onApply={value => { setFilters({ ...initialFilters, ...value }); setSelected(new Set()) }} />
       {!userScope.isAll && (
         <div className="mb-3 px-3 py-2 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2">
           <Eye className="w-3.5 h-3.5" />
@@ -171,7 +179,7 @@ export default function Tasks() {
             ]}
           />
           <button
-            onClick={() => { setFilters({ ...initialFilters, ownerId: isOwnTaskOnly ? 'me' : 'all' }); setSelected(new Set()) }}
+            onClick={() => { setFilters({ ...initialFilters, keyword: params.get('q') || '', ownerId: isOwnTaskOnly ? 'me' : 'all' }); setSelected(new Set()) }}
             className="ml-auto inline-flex items-center gap-1 text-xs text-ink-700 hover:text-ink-900 px-2 py-1.5 rounded hover:bg-ink-100"
           >
             <RefreshCw className="w-3 h-3" /> 重置

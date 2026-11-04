@@ -13,18 +13,25 @@
 任务只能派给项目团队里的人（新建、改负责人、加协作人），规则见 services/team.py。
 """
 
-from datetime import datetime, timezone
+import json
+from datetime import UTC, date, datetime
+from decimal import Decimal
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.schemas.business_values import validate_date_patch
-
 from app.api.deps import get_current_user, require_role
+from app.api.v1.task_collaboration import (
+    invalidate_acceptance,
+    lock_task_for_update,
+    record_activity,
+)
 from app.db.session import get_db
 from app.models import AuditLog, Project, SubProject, Task, User
+from app.models.task_collaboration import TaskAcceptance
+from app.schemas.business_values import validate_date_patch
 from app.schemas.common import Page, PageMeta
 from app.schemas.task import TaskCreate, TaskOut, TaskUpdate
 from app.services.rollup import recompute_project, recompute_subproject, rollup_for_task
@@ -49,6 +56,14 @@ EXECUTOR_PROTECTED = {
     "planned_end": "计划结束",
     "cost_budget": "任务预算",
 }
+
+
+def _json_value(value):
+    if isinstance(value, date | datetime):
+        return value.isoformat()
+    if isinstance(value, Decimal):
+        return float(value)
+    return value
 
 
 def _can_user_modify_task(user: User, task: Task) -> bool:
@@ -130,6 +145,7 @@ def create_task(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "sub_project not found")
     if sub.project_id not in visible_project_ids_for(user, db):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "sub_project not visible")
+    db.query(Project).filter_by(id=sub.project_id).with_for_update().one()
     ensure_in_team(
         db, db.get(Project, sub.project_id), [payload.owner_id, *(payload.collaborator_ids or [])]
     )
@@ -169,7 +185,7 @@ def update_task(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    task = db.query(Task).filter_by(id=task_id).first()
+    task = lock_task_for_update(db, task_id)
     if not task:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
 
@@ -196,7 +212,22 @@ def update_task(
             )
 
     # 新的负责人 / 协作人须已在项目团队中（沿用原来的不受影响）
-    changes = payload.model_dump(exclude_unset=True)
+    if payload.expected_revision is not None and task.revision != payload.expected_revision:
+        raise HTTPException(
+            409,
+            {
+                "message": "任务已被其他人修改，请比较最新数据后重新应用草稿",
+                "current": TaskOut.model_validate(task).model_dump(mode="json"),
+            },
+        )
+    changes = payload.model_dump(exclude_unset=True, exclude={"expected_revision", "progress_note"})
+    acceptance = db.get(TaskAcceptance, task.id)
+    if (
+        changes.get("status") == "已验证"
+        and acceptance
+        and (acceptance.state != "accepted" or task.status != "已验证")
+    ):
+        raise HTTPException(422, "此里程碑须由指定验收人验收，不能直接标记已验证")
     added = set()
     if changes.get("owner_id") and changes["owner_id"] != task.owner_id:
         added.add(changes["owner_id"])
@@ -208,11 +239,52 @@ def update_task(
 
     validate_date_patch(task, changes)
     old_status = task.status
+    actual_changes = {
+        k: {"before": _json_value(getattr(task, k)), "after": _json_value(v)}
+        for k, v in changes.items()
+        if getattr(task, k) != v
+    }
+    if actual_changes:
+        invalidate_acceptance(db, task, user)
     for k, v in changes.items():
         setattr(task, k, v)
+    # A changed accepted milestone must be submitted again, even when the caller retained its old status.
+    if actual_changes and acceptance and acceptance.state == "draft" and task.status == "已验证":
+        task.status = "已完成"
+    if task.status != old_status:
+        actual_changes["status"] = {"before": old_status, "after": task.status}
+    note = (payload.progress_note or "").strip()
+    if note and not actual_changes:
+        task.revision += 1
+    if actual_changes or note:
+        record_activity(db, task, user, "progress" if note else "change", note, actual_changes)
+    if note:
+        db.add(
+            AuditLog(
+                id=f"log-{uuid4().hex[:12]}",
+                actor_id=user.id,
+                action="任务进展说明",
+                target="任务",
+                target_id=task.id,
+                detail=note,
+                created_at=datetime.now(UTC),
+            )
+        )
+    if actual_changes:
+        db.add(
+            AuditLog(
+                id=f"log-{uuid4().hex[:12]}",
+                actor_id=user.id,
+                action="任务字段变更",
+                target="任务",
+                target_id=task.id,
+                detail=json.dumps(actual_changes, ensure_ascii=False),
+                created_at=datetime.now(UTC),
+            )
+        )
 
     # 状态变更钩子 → 写审计日志
-    if payload.status and payload.status != old_status:
+    if task.status != old_status:
         db.add(
             AuditLog(
                 id=f"log-{uuid4().hex[:12]}",
@@ -220,8 +292,8 @@ def update_task(
                 action="任务状态变更",
                 target="任务",
                 target_id=task.id,
-                detail=f"{old_status} → {payload.status}",
-                created_at=datetime.now(timezone.utc),
+                detail=f"{old_status} → {task.status}",
+                created_at=datetime.now(UTC),
             )
         )
 
@@ -240,7 +312,7 @@ def delete_task(
     db: Session = Depends(get_db),
     user: User = Depends(require_role("admin", "cmc_lead", "project_lead")),
 ):
-    task = db.query(Task).filter_by(id=task_id).first()
+    task = lock_task_for_update(db, task_id)
     if not task:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
     sub = db.query(SubProject).filter_by(id=task.sub_project_id).first()

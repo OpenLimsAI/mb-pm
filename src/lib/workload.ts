@@ -1,6 +1,7 @@
 // 人员负荷计算（多周热力图数据）
 
-import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek } from 'date-fns'
+import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek, startOfDay } from 'date-fns'
+import { calendarForTask, getWeeklyCapacity, moveWorkingDays, workingDates } from './workingCalendar'
 import { tasks, users, TODAY } from '../mock'
 import type { User, Task } from '../types'
 
@@ -33,42 +34,54 @@ function weekRange(weekStart: Date) {
   return { start: weekStart, end: addDays(weekStart, 6) }
 }
 
+export const taskAssignees = (task: Task): string[] => [...new Set([task.ownerId, ...(task.collaboratorIds ?? [])])]
+export function remainingTaskHours(task: Task): number {
+  if (task.isMilestone || task.status === '已完成' || task.status === '已验证') return 0
+  const remainingDays = task.actualEffort !== undefined && task.actualEffort !== null
+    ? Math.max(0, task.estimatedEffort - task.actualEffort)
+    : Math.max(0, task.estimatedEffort * (1 - task.progress / 100))
+  return remainingDays * WORK_HOURS_PER_DAY
+}
+function futureTaskDays(task: Task): Date[] {
+  const calendar = calendarForTask(task)
+  const start = parseISO(task.plannedStart) > startOfDay(TODAY) ? parseISO(task.plannedStart) : startOfDay(TODAY)
+  let end = parseISO(task.plannedEnd) > start ? parseISO(task.plannedEnd) : start
+  let days = workingDates(start, end, calendar)
+  if (!days.length) { end = moveWorkingDays(end, 1, calendar); days = [end] }
+  return days
+}
 function tasksInWeek(userTasks: Task[], weekStart: Date) {
   const { start, end } = weekRange(weekStart)
-  return userTasks.filter((t) => {
-    if (t.isMilestone) return false
-    if (t.status === '已完成' || t.status === '已验证') return false
-    const ts = parseISO(t.plannedStart)
-    const te = parseISO(t.plannedEnd)
-    return !(te < start || ts > end)
-  })
+  return userTasks.filter(task => remainingTaskHours(task) > 0 && futureTaskDays(task).some(day => day >= start && day <= end))
 }
-
-function userWeekHours(userTasks: Task[], weekStart: Date): { hours: number; taskCount: number } {
+/** A task's remaining effort is divided equally between its unique owner and collaborators. */
+export function userWeekHours(userTasks: Task[], weekStart: Date, userId?: string): { hours: number; taskCount: number } {
   const { start, end } = weekRange(weekStart)
   let allocated = 0
   let count = 0
-  for (const t of userTasks) {
-    if (t.isMilestone) continue
-    if (t.status === '已完成' || t.status === '已验证') continue
-    const ts = parseISO(t.plannedStart)
-    const te = parseISO(t.plannedEnd)
-    if (te < start || ts > end) continue
-    const totalDays = Math.max(1, differenceInCalendarDays(te, ts) + 1)
-    const overlapStart = ts > start ? ts : start
-    const overlapEnd = te < end ? te : end
-    const overlapDays = Math.max(0, differenceInCalendarDays(overlapEnd, overlapStart) + 1)
-    // 简化：把工时按区间平均分配，每天 8h
-    allocated += (t.estimatedEffort / totalDays) * overlapDays * WORK_HOURS_PER_DAY
+  for (const task of userTasks) {
+    const remaining = remainingTaskHours(task)
+    if (remaining <= 0) continue
+    const assignees = taskAssignees(task)
+    if (userId && !assignees.includes(userId)) continue
+    const days = futureTaskDays(task)
+    const overlap = days.filter(day => day >= start && day <= end).length
+    if (!overlap) continue
+    allocated += remaining / Math.max(1, assignees.length) * overlap / days.length
     count++
   }
   return { hours: Math.round(allocated * 10) / 10, taskCount: count }
 }
+export function availableWeekHours(user: User, weekStart: Date): number {
+  const override = getWeeklyCapacity(user.id, format(weekStart, 'yyyy-MM-dd'))
+  return override ? Math.max(0, override.availableHours - override.leaveHours) : Math.max(0, user.weeklyAvailableHours ?? 40)
+}
+const rateFor = (hours: number, available: number) => available > 0 ? Math.round(hours / available * 100) : hours > 0 ? Infinity : 0
 
 export interface WorkloadParams {
   weeks?: number
   startWeek?: Date
-  /** 仅计算这些用户 ID（用于按可见范围过滤）；undefined / 空集 = 全员 */
+  /** 仅计算这些用户 ID（用于按可见范围过滤）；undefined = 全员；空集 = 无可见成员 */
   userIds?: Set<string>
 }
 
@@ -77,20 +90,20 @@ export function computeUserHeatmaps({ weeks = 8, startWeek, userIds }: WorkloadP
   const baseWeek = startWeek || startOfWeek(today, { weekStartsOn: 1 })
   // 显示从前 1 周开始的 N 周
   const offset = -1
-  const useFilter = userIds && userIds.size > 0
+  const useFilter = userIds !== undefined
 
   const result: UserHeatmap[] = []
   for (const u of users) {
-    if (!(u.role === 'rd' || u.role === 'project_lead')) continue
+    if (!(u.role === 'rd' || u.role === 'project_lead' || u.role === 'production' || u.role === 'qa_qc') && !tasks.some(task => taskAssignees(task).includes(u.id))) continue
     if (!u.isActive) continue
     if (useFilter && !userIds!.has(u.id)) continue
-    const userTasks = tasks.filter((t) => t.ownerId === u.id)
+    const userTasks = tasks.filter((t) => taskAssignees(t).includes(u.id))
     const cells: WeekCell[] = []
     for (let i = offset; i < offset + weeks; i++) {
       const ws = addDays(baseWeek, i * 7)
-      const { hours, taskCount } = userWeekHours(userTasks, ws)
-      const available = (u.weeklyAvailableHours || 40)
-      const rate = available > 0 ? Math.round((hours / available) * 100) : 0
+      const { hours, taskCount } = userWeekHours(userTasks, ws, u.id)
+      const available = availableWeekHours(u, ws)
+      const rate = rateFor(hours, available)
       cells.push({
         weekStart: ws,
         weekLabel: format(ws, 'MM/dd'),
@@ -102,7 +115,7 @@ export function computeUserHeatmaps({ weeks = 8, startWeek, userIds }: WorkloadP
         taskCount,
       })
     }
-    const avgRate = Math.round(cells.reduce((s, c) => s + c.rate, 0) / cells.length)
+    const avgRate = rateFor(cells.reduce((sum, cell) => sum + cell.allocatedHours, 0), cells.reduce((sum, cell) => sum + cell.availableHours, 0))
     const peakRate = Math.max(...cells.map((c) => c.rate))
     const hasOverload = cells.some((c) => c.level === 'high')
     result.push({ user: u, cells, avgRate, peakRate, hasOverload })
@@ -112,7 +125,7 @@ export function computeUserHeatmaps({ weeks = 8, startWeek, userIds }: WorkloadP
 
 // 获取某人某周的具体任务列表（用于点击单元格弹窗）
 export function getUserWeekTasks(userId: string, weekStart: Date): Task[] {
-  const userTasks = tasks.filter((t) => t.ownerId === userId)
+  const userTasks = tasks.filter((t) => taskAssignees(t).includes(userId))
   return tasksInWeek(userTasks, weekStart)
 }
 
@@ -128,60 +141,32 @@ export interface RecommendationCandidate {
 }
 
 export function recommendForTask(opts: {
-  module?: string
-  estimatedEffort: number
-  plannedStart: string
-  plannedEnd: string
+  module?: string; estimatedEffort: number; plannedStart: string; plannedEnd: string; task?: Task
 }): RecommendationCandidate[] {
-  const { module, estimatedEffort, plannedStart, plannedEnd } = opts
-  const start = parseISO(plannedStart)
-  const end = parseISO(plannedEnd)
-  // 找出与任务区间重叠的所有周
+  const { module, estimatedEffort, plannedStart, plannedEnd, task } = opts
+  const start = parseISO(plannedStart) > TODAY ? parseISO(plannedStart) : TODAY
+  const end = parseISO(plannedEnd) > start ? parseISO(plannedEnd) : start
   const ws = startOfWeek(start, { weekStartsOn: 1 })
   const we = startOfWeek(end, { weekStartsOn: 1 })
   const numWeeks = Math.max(1, Math.round(differenceInCalendarDays(we, ws) / 7) + 1)
-  const totalDays = Math.max(1, differenceInCalendarDays(end, start) + 1)
-
-  return users
-    .filter((u) => u.isActive && u.role === 'rd')
-    .map((u) => {
-      const userTasks = tasks.filter((t) => t.ownerId === u.id)
-      // 计算这些周的平均负荷
-      let sumCurrent = 0, sumPredicted = 0
-      for (let i = 0; i < numWeeks; i++) {
-        const w = addDays(ws, i * 7)
-        const { hours } = userWeekHours(userTasks, w)
-        const available = u.weeklyAvailableHours || 40
-        const currentRate = available > 0 ? (hours / available) * 100 : 0
-        // 本周与任务区间重叠天数，按比例新增工时
-        const wEnd = addDays(w, 6)
-        const oStart = start > w ? start : w
-        const oEnd = end < wEnd ? end : wEnd
-        const overlap = Math.max(0, differenceInCalendarDays(oEnd, oStart) + 1)
-        const additionalHours = (estimatedEffort / totalDays) * overlap * WORK_HOURS_PER_DAY
-        const predicted = available > 0 ? ((hours + additionalHours) / available) * 100 : 0
-        sumCurrent += currentRate
-        sumPredicted += predicted
-      }
-      const currentRate = Math.round(sumCurrent / numWeeks)
-      const predictedRate = Math.round(sumPredicted / numWeeks)
-      const matchesGroup = module ? userMatchesModule(u, module) : true
-      return {
-        user: u,
-        currentRate,
-        currentLevel: levelOf(currentRate),
-        predictedRate,
-        predictedLevel: levelOf(predictedRate),
-        currentTaskCount: userTasks.filter((t) => t.status !== '已完成' && t.status !== '已验证').length,
-        matchesGroup,
-      }
-    })
-    // 按 URS：筛选负荷率 ≤ 70% 的候选人，按负荷率从低到高
-    .sort((a, b) => {
-      // 模块匹配优先
-      if (a.matchesGroup !== b.matchesGroup) return a.matchesGroup ? -1 : 1
-      return a.currentRate - b.currentRate
-    })
+  return users.filter(u => u.isActive && ['rd', 'production', 'qa_qc', 'project_lead'].includes(u.role)).map(u => {
+    const userTasks = tasks.filter(t => taskAssignees(t).includes(u.id))
+    const proposed = task ? { ...task, ownerId: u.id, collaboratorIds: (task.collaboratorIds ?? []).filter(id => id !== u.id) }
+      : { id: 'proposal', code: '', name: '', subProjectId: '', ownerId: u.id, collaboratorIds: [], plannedStart, plannedEnd, estimatedEffort, status: '未开始' as const, priority: '中' as const, progress: 0, isMilestone: false, isCriticalPath: false }
+    let sumCurrent = 0, sumPredicted = 0
+    for (let i = 0; i < numWeeks; i++) {
+      const week = addDays(ws, i * 7)
+      const current = userWeekHours(userTasks, week, u.id).hours
+      const withoutTask = task ? userWeekHours(userTasks.filter(t => t.id !== task.id), week, u.id).hours : current
+      const additional = userWeekHours([proposed], week, u.id).hours
+      const available = availableWeekHours(u, week)
+      sumCurrent += rateFor(current, available)
+      sumPredicted += rateFor(withoutTask + additional, available)
+    }
+    const currentRate = Math.round(sumCurrent / numWeeks), predictedRate = Math.round(sumPredicted / numWeeks)
+    return { user: u, currentRate, currentLevel: levelOf(currentRate), predictedRate, predictedLevel: levelOf(predictedRate),
+      currentTaskCount: userTasks.filter(t => remainingTaskHours(t) > 0).length, matchesGroup: module ? userMatchesModule(u, module) : true }
+  }).sort((a, b) => a.matchesGroup !== b.matchesGroup ? (a.matchesGroup ? -1 : 1) : a.predictedRate - b.predictedRate)
 }
 
 export function userMatchesModule(user: User, module: string): boolean {

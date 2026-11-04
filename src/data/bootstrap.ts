@@ -1,3 +1,5 @@
+import { planningApi } from '../api/planning'
+import { setWorkingCalendars, setWeeklyCapacities } from '../lib/workingCalendar'
 // 应用引导 + 数据同步 —— 连接前端与 FastAPI 后端。
 //
 // 启动：GET /auth/me 确认 IAM 会话（HttpOnly cookie）→ 拉取当前用户可见范围内的全量数据
@@ -6,7 +8,7 @@
 //
 // Mutations（创建项目 / 录入任务进展）：API 模式走后端并重新同步；mock 模式本地更新。
 
-import { USE_API, asAPIError } from '../api/client'
+import { api, USE_API, asAPIError } from '../api/client'
 import * as projectsApi from '../api/projects'
 import * as subProjectsApi from '../api/subProjects'
 import * as tasksApi from '../api/tasks'
@@ -55,26 +57,41 @@ function normalizeApiTask(t: Task): Task {
   }
 }
 
+let refreshGeneration = 0
 export async function refreshAllData(): Promise<void> {
-  const [projPage, subs, taskPage, deps, tmpls, usrs, fins, bls] = await Promise.all([
-    projectsApi.listProjects({ pageSize: 500 }),
-    subProjectsApi.listSubProjects({}),
-    tasksApi.listTasks({ pageSize: 5000 }),
-    taskDependenciesApi.listTaskDependencies({}),
-    templatesApi.listTemplates({}),
-    usersApi.listUsers({}),
-    financesApi.listFinances(),
-    baselinesApi.listBaselines(),
-  ])
-  replaceArray(projects, projPage.items as unknown as Project[])
-  replaceArray(subProjects, subs as unknown as SubProject[])
-  replaceArray(tasks, (taskPage.items as unknown as Task[]).map(normalizeApiTask))
-  replaceArray(taskDependencies, deps as unknown as TaskDependency[])
-  replaceArray(users, usrs as unknown as User[])
-  replaceArray(projectFinances, fins as unknown as ProjectFinance[])
-  replaceArray(projectBaselines, bls as unknown as ProjectBaseline[])
-  useTemplatesStore.setState({ templates: tmpls as unknown as Template[] })
-  useDataStore.getState().bump()
+  const generation = ++refreshGeneration
+  useDataStore.setState({ syncing: true, syncError: null })
+  try {
+    const [projPage, subs, taskPage, deps, tmpls, usrs, fins, bls, calendars, capacities, context] = await Promise.all([
+      projectsApi.listProjects({ pageSize: 500 }),
+      subProjectsApi.listSubProjects({}),
+      tasksApi.listTasks({ pageSize: 5000 }),
+      taskDependenciesApi.listTaskDependencies({}),
+      templatesApi.listTemplates({}),
+      usersApi.listUsers({}),
+      financesApi.listFinances(),
+      baselinesApi.listBaselines(),
+      planningApi.calendars(),
+      ['admin', 'cmc_lead', 'project_lead'].includes(useAuth.getState().currentUser?.role ?? '') ? planningApi.capacities() : Promise.resolve([]),
+      api.get<{ businessDate: string; timezone: string }>('/pm/context').then(r => r.data),
+    ])
+    if (generation !== refreshGeneration) return
+    TODAY.setTime(new Date(`${context.businessDate}T00:00:00`).getTime())
+    useDataStore.setState({ businessDate: context.businessDate, businessTimezone: context.timezone })
+    setWorkingCalendars(calendars)
+    setWeeklyCapacities(capacities)
+    replaceArray(projects, projPage.items as unknown as Project[])
+    replaceArray(subProjects, subs as unknown as SubProject[])
+    replaceArray(tasks, (taskPage.items as unknown as Task[]).map(normalizeApiTask))
+    replaceArray(taskDependencies, deps as unknown as TaskDependency[])
+    replaceArray(users, usrs as unknown as User[])
+    replaceArray(projectFinances, fins as unknown as ProjectFinance[])
+    replaceArray(projectBaselines, bls as unknown as ProjectBaseline[])
+    useTemplatesStore.setState({ templates: tmpls as unknown as Template[] })
+    useDataStore.getState().bump()
+    useDataStore.setState({ lastSyncedAt: new Date().toISOString() })
+  } catch (e) { if (generation === refreshGeneration) useDataStore.setState({ syncError: asAPIError(e).detail }); throw e }
+  finally { if (generation === refreshGeneration) useDataStore.setState({ syncing: false }) }
 }
 
 let _started = false
@@ -145,10 +162,14 @@ export function watchIdentity(): () => void {
     void useAuth.getState().refresh().then(() => {
       const { status, currentUser } = useAuth.getState()
       if (status === 'ready' && identityKey(currentUser) !== _loadedFor) window.location.reload()
+      else if (status === 'ready' && !useDataStore.getState().syncing && !document.hidden) void refreshAllData().catch(() => { /* syncError remains visible */ })
     })
   }
   window.addEventListener('focus', onFocus)
-  return () => window.removeEventListener('focus', onFocus)
+  const timer = window.setInterval(() => {
+    if (!document.hidden && useDataStore.getState().mode === 'api' && !useDataStore.getState().syncing && useAuth.getState().status === 'ready') void refreshAllData().catch(() => {})
+  }, 60_000)
+  return () => { window.removeEventListener('focus', onFocus); window.clearInterval(timer) }
 }
 
 // ============= Mutations =============
@@ -220,6 +241,8 @@ function syncOfflineSpent(projectId?: string): void {
 }
 
 export interface TaskProgressPatch {
+  expectedRevision?: number
+  progressNote?: string
   status?: TaskStatus
   progress?: number
   ownerId?: string
@@ -235,7 +258,7 @@ export interface TaskProgressPatch {
 /** 录入任务进展（API：PATCH + 后端汇总 + 重新同步；mock：本地更新 + 客户端汇总）。 */
 export async function updateTaskProgress(taskId: string, patch: TaskProgressPatch): Promise<void> {
   if (useDataStore.getState().mode === 'api') {
-    await tasksApi.updateTask(taskId, patch as never)
+    await tasksApi.updateTask(taskId, { ...patch, expectedRevision: patch.expectedRevision ?? tasks.find(t => t.id === taskId)?.revision } as never)
     await refreshAllData()
     return
   }
@@ -258,7 +281,7 @@ export async function updateTasksBatch(taskIds: string[], patch: TaskProgressPat
   if (useDataStore.getState().mode === 'api') {
     for (const id of taskIds) {
       try {
-        await tasksApi.updateTask(id, patch as never)
+        await tasksApi.updateTask(id, { ...patch, expectedRevision: tasks.find(t => t.id === id)?.revision } as never)
       } catch (e) {
         failed.push({ taskId: id, detail: asAPIError(e).detail })
       }
@@ -401,7 +424,7 @@ export async function updateMilestoneWithDeps(
 
   if (useDataStore.getState().mode === 'api') {
     if (Object.keys(basicsPatch).length > 0) {
-      await tasksApi.updateTask(milestoneId, basicsPatch as never)
+      await tasksApi.updateTask(milestoneId, { ...basicsPatch, expectedRevision: tasks.find(t => t.id === milestoneId)?.revision } as never)
     }
     for (const depId of removedDepIds) await taskDependenciesApi.deleteTaskDependency(depId)
     for (const predId of addedIds) {

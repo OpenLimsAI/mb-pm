@@ -82,9 +82,14 @@ export interface APIError {
 
 export function asAPIError(err: unknown): APIError {
   if (axios.isAxiosError(err)) {
-    const data = err.response?.data as { detail?: string } | undefined
+    const data = err.response?.data as { detail?: unknown } | undefined
+    const value = data?.detail
+    const detail = typeof value === 'string' ? value
+      : Array.isArray(value) ? value.map(item => typeof item?.msg === 'string' ? item.msg : '输入格式无效').join('；')
+      : value && typeof value === 'object' && 'message' in value && typeof value.message === 'string' ? value.message
+      : undefined
     return {
-      detail: data?.detail || err.message || '网络错误',
+      detail: detail || err.message || '网络错误',
       status: err.response?.status,
     }
   }

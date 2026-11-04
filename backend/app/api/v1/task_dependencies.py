@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_role
 from app.db.session import get_db
-from app.models import SubProject, Task, TaskDependency, User
+from app.models import Project, SubProject, Task, TaskDependency, User
 from app.schemas.task import TaskDependencyCreate, TaskDependencyOut
 from app.services.scope import visible_project_ids_for, visible_task_ids_for
 
@@ -71,6 +71,13 @@ def create_dep(
     if not succ_sub or succ_sub.project_id not in visible:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "successor not visible")
 
+    # Share the same project lock as structure editing, calendar changes and reviewed scheduling.
+    db.query(Project).filter(
+        Project.id.in_(sorted({pred_sub.project_id, succ_sub.project_id}))
+    ).order_by(Project.id).with_for_update().all()
+    if db.query(Task).filter(Task.id.in_([pred.id, succ.id])).count() != 2:
+        raise HTTPException(status.HTTP_409_CONFLICT, "任务已变化，请刷新后重新维护依赖")
+
     if not payload.id:
         payload.id = f"dep-{uuid4().hex[:10]}"
 
@@ -90,5 +97,16 @@ def delete_dep(
     obj = db.query(TaskDependency).filter_by(id=dep_id).first()
     if not obj:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "dependency not found")
+    projects = {
+        row.project_id
+        for row in db.query(SubProject)
+        .join(Task, Task.sub_project_id == SubProject.id)
+        .filter(Task.id.in_([obj.predecessor_id, obj.successor_id]))
+    }
+    if not projects <= visible_project_ids_for(user, db):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "dependency not visible")
+    db.query(Project).filter(Project.id.in_(sorted(projects))).order_by(
+        Project.id
+    ).with_for_update().all()
     db.delete(obj)
     db.commit()

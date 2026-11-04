@@ -1,9 +1,10 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Search, LogOut, Grid2X2 } from 'lucide-react'
+import { LogOut, Grid2X2 } from 'lucide-react'
 import { useAuth } from '../../store/auth'
 import { useDataStore } from '../../store/data'
 import { roleLabels } from '../../lib/permissions'
+import { Notifications } from '../management/Notifications'
+import { SyncStatus } from './SyncStatus'
+import { GlobalSearch } from './GlobalSearch'
 import { Avatar } from '../ui/Avatar'
 import { USE_API } from '../../api/client'
 import { feedbackUrl, settingsUrl, workspaceUrl } from '../../lib/site'
@@ -13,27 +14,15 @@ export function TopBar() {
   const logout = useAuth((s) => s.logout)
   // 离线演示（未连后端）没有登录会话，不显示登出
   const online = useDataStore((s) => s.mode === 'api')
-  const navigate = useNavigate()
-  const [query, setQuery] = useState('')
 
   return (
     <header className="app-topbar">
       <span className="app-workspace-name">项目工作台</span>
-      <form role="search" className="app-search flex-1 max-w-xs relative" onSubmit={(event) => {
-        event.preventDefault()
-        navigate(query.trim() ? `/projects?q=${encodeURIComponent(query.trim())}` : '/projects')
-      }}>
-        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-500 pointer-events-none" />
-        <input
-          className="w-full pl-9 pr-3 py-1.5 rounded-md bg-ink-100 text-ink-900 placeholder:text-ink-500 text-sm border border-ink-300/60 focus:outline-none focus:bg-white focus:border-brand-600 focus:ring-2 focus:ring-brand-500/20"
-          aria-label="搜索项目"
-          placeholder="搜索项目，按回车…"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-      </form>
+      <GlobalSearch />
 
       <div className="flex-1" />
+      <SyncStatus />
+      <Notifications />
 
       <a
         href={import.meta.env.DEV && !USE_API ? '/?preview=1' : workspaceUrl}

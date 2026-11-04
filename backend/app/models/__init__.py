@@ -39,3 +39,14 @@ from app.models.solution_ai import SolutionAISettings  # noqa: F401
 from app.models.task import SubProject, Task, TaskDependency  # noqa: F401
 from app.models.template import Template, TemplateVersion  # noqa: F401
 from app.models.user import User  # noqa: F401
+
+from app.models.pm_view import PMView  # noqa: F401
+
+from app.models.planning import ProjectCalendar, UserWeeklyCapacity  # noqa: F401
+from app.models.pm_management import (
+    PMRegisterEntry,
+    PMCostEntry,
+    PMNotificationState,
+    PMNotificationPreference,
+)  # noqa: F401
+from app.models.task_collaboration import TaskActivity, TaskDeliverable, TaskAcceptance  # noqa: F401

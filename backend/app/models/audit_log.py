@@ -16,7 +16,7 @@ class AuditLog(Base):
     actor_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     action: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
     target: Mapped[str] = mapped_column(String(40), nullable=False)
-    target_id: Mapped[str] = mapped_column(String(40), nullable=False)
+    target_id: Mapped[str] = mapped_column(String(64), nullable=False)
     detail: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, index=True

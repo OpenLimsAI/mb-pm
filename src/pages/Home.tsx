@@ -11,6 +11,7 @@
 // 按角色分流：研发 / 生产 / QA（无管理者看板权限）首页即「我的看板」；
 // 管理者（admin / cmc_lead / project_lead）默认组合总览，可切换到「我的看板」。
 
+import { format } from 'date-fns'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
@@ -34,11 +35,12 @@ import { accountsUrl } from '../lib/site'
 
 // 与 mock 数据共用同一「今日」锚点，保证状态/进度/风险判定确定且自洽。
 const today = TODAY
-const todayStr = today.toISOString().slice(0, 10)
+
 
 const isDone = (t: Task) => t.status === '已完成' || t.status === '已验证'
 
 export default function Home() {
+  const todayStr = format(today, 'yyyy-MM-dd')
   const user = useAuth((s) => s.currentUser)
   // 订阅数据版本号：创建/进展录入后回到首页即反映最新数据
   const version = useDataStore((s) => s.version)
@@ -233,7 +235,8 @@ export default function Home() {
 function RiskFamily({ icon, title, count, items, emptyText }: {
   icon: React.ReactNode; title: string; count: number; items: RiskItem[]; emptyText: string
 }) {
-  const shown = items.slice(0, 8)
+  const [expanded, setExpanded] = useState(false)
+  const shown = expanded ? items : items.slice(0, 8)
   const more = items.length - shown.length
   return (
     <div>
@@ -245,7 +248,7 @@ function RiskFamily({ icon, title, count, items, emptyText }: {
       ) : (
         <ul className="space-y-1.5">
           {shown.map((it) => <RiskRow key={it.id} item={it} />)}
-          {more > 0 && <li className="text-[11px] text-ink-400 pl-2.5">还有 {more} 项…</li>}
+          {more > 0 && <li className="text-[11px] text-ink-400 pl-2.5"><button type="button" className="text-brand-700 underline" onClick={() => setExpanded(true)}>查看其余 {more} 项</button></li>}
         </ul>
       )}
     </div>
@@ -262,7 +265,7 @@ function RiskRow({ item }: { item: RiskItem }) {
   const Icon = item.family === 'quality' ? ShieldAlert : isMilestoneKind ? Diamond : Clock
   return (
     <li>
-      <Link to={`/projects/${item.projectId}`}
+      <Link to={`/projects/${item.projectId}?tab=wbs&task=${encodeURIComponent(item.id)}`}
             className="flex items-center gap-2 px-2.5 py-2 rounded-md hover:bg-ink-100 transition-colors">
         <Icon className={cn('w-3.5 h-3.5 shrink-0', riskSevColor[item.severity])} />
         <span className="text-xs font-mono text-ink-500 shrink-0">{item.projectCode}</span>

@@ -9,6 +9,11 @@ export type DataMode = 'loading' | 'api' | 'mock'
 
 interface DataState {
   /** 数据变更版本号 —— 组件把它放进 useMemo 依赖即可在数据更新后刷新 */
+  businessDate: string | null
+  businessTimezone: string | null
+  lastSyncedAt: string | null
+  syncing: boolean
+  syncError: string | null
   version: number
   /** 当前数据源：api=后端持久化 / mock=离线只读回退 */
   mode: DataMode
@@ -23,6 +28,11 @@ interface DataState {
 }
 
 export const useDataStore = create<DataState>((set) => ({
+  businessDate: null,
+  businessTimezone: null,
+  lastSyncedAt: null,
+  syncing: false,
+  syncError: null,
   version: 0,
   mode: 'loading',
   ready: false,

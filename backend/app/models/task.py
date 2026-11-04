@@ -78,6 +78,9 @@ class Task(Base, TimestampMixin):
     # 实际花费（万元 RMB）—— 任务执行过程中录入，与 cost_budget 对比
     actual_cost: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
 
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    __mapper_args__ = {"version_id_col": revision}
+
     progress: Mapped[int] = mapped_column(Integer, default=0)
     is_milestone: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     is_critical_path: Mapped[bool] = mapped_column(Boolean, default=False)

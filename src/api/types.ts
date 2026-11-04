@@ -92,6 +92,7 @@ export interface SubProjectDTO {
 // ============= Task =============
 
 export interface TaskDTO {
+  revision?: number
   id: string
   code: string
   name: string
@@ -106,6 +107,8 @@ export interface TaskDTO {
   actualEnd: string | null
   estimatedEffort: number
   actualEffort: number | null
+  actualCost?: number | null
+  costBudget?: number | null
   progress: number
   isMilestone: boolean
   isCriticalPath: boolean
@@ -113,7 +116,7 @@ export interface TaskDTO {
   tags: string[] | null
 }
 
-export type TaskUpdateRequest = Partial<Pick<TaskDTO, 'name' | 'ownerId' | 'collaboratorIds' | 'status' | 'priority' | 'plannedStart' | 'plannedEnd' | 'actualStart' | 'actualEnd' | 'estimatedEffort' | 'actualEffort' | 'progress' | 'isMilestone' | 'isCriticalPath' | 'notes' | 'tags'>>
+export type TaskUpdateRequest = Partial<Pick<TaskDTO, 'name' | 'ownerId' | 'collaboratorIds' | 'status' | 'priority' | 'plannedStart' | 'plannedEnd' | 'actualStart' | 'actualEnd' | 'estimatedEffort' | 'actualEffort' | 'progress' | 'isMilestone' | 'isCriticalPath' | 'notes' | 'tags'>> & { actualCost?: number | null; costBudget?: number | null; expectedRevision?: number; progressNote?: string }
 
 // ============= TaskDependency =============
 

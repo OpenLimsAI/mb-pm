@@ -29,6 +29,10 @@ from app.api.v1 import (
     portal,
     portal_settings,
     projects,
+    pm_views,
+    planning,
+    pm_management,
+    task_collaboration,
     solutions,
     structure,
     sub_projects,
@@ -65,6 +69,7 @@ _WIDE_ID_COLUMNS: tuple[tuple[str, str], ...] = (
     ("sub_projects", "project_id"),
     ("tasks", "id"),
     ("tasks", "sub_project_id"),
+    ("audit_logs", "target_id"),
     ("task_dependencies", "id"),
     ("task_dependencies", "predecessor_id"),
     ("task_dependencies", "successor_id"),
@@ -77,6 +82,7 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("tasks", "actual_cost", "NUMERIC(12,2)"),
     ("project_ai_analyses", "prompt", "TEXT NOT NULL DEFAULT ''"),
     ("tasks", "sort_order", "INTEGER"),
+    ("tasks", "revision", "INTEGER NOT NULL DEFAULT 1"),
     ("solution_answers", "conversation_id", "VARCHAR(80)"),
     ("knowledge_solutions", "deleted_at", "TIMESTAMP WITH TIME ZONE"),
     ("knowledge_solutions", "pinned", "BOOLEAN NOT NULL DEFAULT false"),
@@ -320,6 +326,10 @@ app.include_router(accounts.router, prefix=API_PREFIX)
 app.include_router(account.router, prefix=API_PREFIX)
 app.include_router(users.router, prefix=API_PREFIX)
 app.include_router(projects.router, prefix=API_PREFIX)
+app.include_router(pm_views.router, prefix=API_PREFIX)
+app.include_router(planning.router, prefix=API_PREFIX)
+app.include_router(pm_management.router, prefix=API_PREFIX)
+app.include_router(task_collaboration.router, prefix=API_PREFIX)
 app.include_router(mdm_integration.router, prefix=API_PREFIX)
 app.include_router(structure.router, prefix=API_PREFIX)
 app.include_router(sub_projects.router, prefix=API_PREFIX)

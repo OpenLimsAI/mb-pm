@@ -5,6 +5,7 @@ import {
 } from '../mock'
 import type { Project, Task, Health } from '../types'
 import type { Scope } from './scope'
+import { getTaskSchedule, isTaskDone } from './schedule'
 
 // 与全局「今日」（mock/tasks.ts 的 TODAY，本机当前日期）一致：KPI/趋势/延迟/里程碑等派生
 // 统一用它而不是各处各自 new Date()，口径与 risk.ts、schedule.ts、后端 rollup.py 保持一致。
@@ -220,11 +221,11 @@ export interface ProjectSummary {
 export function getProjectSummary(p: Project): ProjectSummary {
   const subIds = subProjects.filter((s) => s.projectId === p.id).map((s) => s.id)
   const myTasks = tasks.filter((t) => subIds.includes(t.subProjectId))
-  const done = myTasks.filter((t) => t.status === '已完成' || t.status === '已验证').length
-  const delayed = myTasks.filter((t) => t.status === '延迟' || t.status === '阻塞').length
+  const done = myTasks.filter(isTaskDone).length
+  const delayed = myTasks.filter((t) => !isTaskDone(t) && (getTaskSchedule(t).state === 'overdue' || t.status === '延迟' || t.status === '阻塞')).length
   const cpCount = myTasks.filter((t) => t.isCriticalPath).length
   const upcoming = myTasks
-    .filter((t) => t.isMilestone && t.status !== '已完成')
+    .filter((t) => t.isMilestone && !isTaskDone(t))
     .map((t) => ({
       name: t.name,
       daysLeft: differenceInCalendarDays(parseISO(t.plannedEnd), today),
@@ -246,9 +247,9 @@ export function getGlobalKpis(scope?: Scope) {
   const visibleP = visibleProjects(scope)
   const visibleT = visibleTasks(scope)
   const active = visibleP.filter((p) => p.status === '活跃').length
-  const milestones = visibleT.filter((t) => t.isMilestone && t.status !== '已完成').length
+  const milestones = visibleT.filter((t) => t.isMilestone && !isTaskDone(t)).length
   const delayed = visibleT.filter(
-    (t) => t.status === '延迟' || t.status === '阻塞'
+    (t) => !isTaskDone(t) && (getTaskSchedule(t).state === 'overdue' || t.status === '延迟' || t.status === '阻塞')
   ).length
   // 预警：admin/cmc_lead 全部；其他角色仅本人项目相关
   let visibleAlerts = alerts

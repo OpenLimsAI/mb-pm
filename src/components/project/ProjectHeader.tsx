@@ -90,7 +90,7 @@ export function ProjectHeader({ project, onEdit, editDisabledReason }: {
           <KpiBlock label="总任务" value={summary.taskCount} tone="blue" />
           <KpiBlock label="已完成" value={summary.doneCount} tone="green" />
           <KpiBlock label="关键路径" value={summary.criticalPathCount} tone="red" />
-          <KpiBlock label="延迟" value={summary.delayedCount} tone={summary.delayedCount > 0 ? 'red' : 'gray'} />
+          <KpiBlock label="需关注" value={summary.delayedCount} tone={summary.delayedCount > 0 ? 'red' : 'gray'} />
         </div>
       </div>
     </Card>
