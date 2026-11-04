@@ -38,3 +38,14 @@ it('offers the personal-assistant reference category for a saved message in its 
   expect(within(screen.getByRole('dialog')).getByText('个人AI助手参考论文')).toBeInTheDocument()
   expect(within(screen.getByRole('dialog')).getByRole('link',{name:'https://example.org/paper'})).toHaveAttribute('href','https://example.org/paper')
 })
+
+
+it('copies the exact question including newlines independently from the answer', () => {
+  const onCopy = vi.fn(), text = '前面这个问题是什么？\n请保留这段原文。'
+  render(<Conversation userName="研究员" messages={[message('q', 'r', 'user', text), message('a', 'r', 'assistant', '回答正文')]} artifacts={[]} onCopy={onCopy} onArtifact={() => {}} />)
+  const question = screen.getByRole('article', { name: '你的提问' })
+  expect(within(question).getByLabelText('提问内容，可选中复制')).toHaveAttribute('tabindex', '0')
+  fireEvent.click(within(question).getByRole('button', { name: '复制提问' }))
+  expect(onCopy).toHaveBeenCalledExactlyOnceWith(text)
+  expect(within(question).getByLabelText('提问内容，可选中复制').textContent).toBe(text)
+})

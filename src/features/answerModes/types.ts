@@ -7,6 +7,6 @@ export interface AnswerProvenance {
   answerMode?: ActualAnswerMode; requestedMode?: AnswerMode; modeReason?: string; webReferences?: WebReference[]; usedSources?: ('projects' | 'knowledge')[]
 }
 export interface AnswerCapabilities {
-  webSearch: { configured: boolean; provider: 'deepseek' | 'tavily' | null; message: string }
+  webSearch: { configured: boolean; provider: 'deepseek' | 'kimi' | 'tavily' | null; message: string }
   modes: AnswerMode[]
 }

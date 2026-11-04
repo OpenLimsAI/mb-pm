@@ -1,4 +1,4 @@
-"""Bounded public search through one fixed provider; no arbitrary URL fetching."""
+"""Bounded public search using the selected model account; no arbitrary URL fetching."""
 
 import ipaddress
 import json
@@ -17,6 +17,10 @@ from app.services import assistant_diagnostics as diagnostics
 
 TAVILY_ENDPOINT = "https://api.tavily.com/search"
 DEEPSEEK_ENDPOINT = "https://api.deepseek.com/v1/tools/search"
+KIMI_ENDPOINTS = {
+    "api.moonshot.cn": "https://api.moonshot.cn/v1/tools/search",
+    "api.moonshot.ai": "https://api.moonshot.ai/v1/tools/search",
+}
 MAX_BYTES = 1_000_000
 MAX_TEXT = 8_000
 MAX_TOTAL_TEXT = 40_000
@@ -34,17 +38,18 @@ def _capability(ready, provider, message):
     }
 
 
-def official_deepseek(provider, cfg):
-    if provider != "deepseek" or not isinstance(cfg, dict):
-        return False
+def official_host(cfg, allowed_hosts):
+    """Only root/v1 official HTTPS addresses may reuse this selected account key."""
+    if not isinstance(cfg, dict):
+        return None
     value = cfg.get("base_url")
     if not isinstance(value, str) or any(ord(char) < 33 for char in value):
-        return False
+        return None
     try:
         parts = urlsplit(value)
-        return (
+        valid = (
             parts.scheme == "https"
-            and parts.hostname == "api.deepseek.com"
+            and parts.hostname in allowed_hosts
             and not parts.username
             and not parts.password
             and parts.port in (None, 443)
@@ -55,8 +60,34 @@ def official_deepseek(provider, cfg):
             and parts.path in ("", "/", "/v1", "/v1/")
             and "\\" not in value
         )
+        return parts.hostname if valid else None
     except ValueError:
-        return False
+        return None
+
+
+def official_deepseek(provider, cfg):
+    return provider == "deepseek" and bool(official_host(cfg, {"api.deepseek.com"}))
+
+
+def search_route(provider, cfg):
+    """Capability checks and transport share the same provider/credential boundary.
+
+    The historical `deepseek` deployment value is a compatibility alias for
+    `model`: an existing deployment can follow Kimi without changing secrets.
+    Only an explicit Tavily deployment opts into the independent search account.
+    """
+    if settings.ASSISTANT_WEB_PROVIDER == "tavily":
+        return "tavily", TAVILY_ENDPOINT
+    if official_deepseek(provider, cfg):
+        return "deepseek", DEEPSEEK_ENDPOINT
+    if provider == "kimi" and (host := official_host(cfg, KIMI_ENDPOINTS)):
+        return "kimi", KIMI_ENDPOINTS[host]
+    return None
+
+
+def query_limit(provider, cfg):
+    route = search_route(provider, cfg)
+    return 128 if route and route[0] == "deepseek" else 2000
 
 
 def capabilities(*, provider=None, cfg=None):
@@ -71,17 +102,22 @@ def capabilities(*, provider=None, cfg=None):
             if ready
             else "联网搜索尚未配置，请联系管理员配置 Tavily 后使用",
         )
-    if not official_deepseek(provider, cfg):
+    route = search_route(provider, cfg)
+    if not route:
         return _capability(
-            False, None, "请选择 DeepSeek 官方模型以使用其联网搜索；第三方模型密钥不会转发"
+            False,
+            None,
+            "当前模型未接入联网搜索，请选择支持联网的官方模型，或联系管理员配置搜索服务",
         )
+    native_provider = route[0]
+    label = "Kimi" if native_provider == "kimi" else "DeepSeek"
     ready = isinstance(cfg.get("api_key"), str) and bool(cfg["api_key"].strip())
     return _capability(
         ready,
-        "deepseek",
-        "可使用当前 DeepSeek 官方模型账户进行联网搜索"
+        native_provider,
+        f"可使用当前 {label} 官方模型账户进行联网搜索"
         if ready
-        else "当前 DeepSeek 官方模型尚未填写密钥，请先完善该模型设置",
+        else f"当前 {label} 官方模型尚未填写密钥，请先完善该模型设置",
     )
 
 
@@ -100,7 +136,7 @@ def capabilities_for_model(db, claims, profile_id):
         )
         return _capability(False, None, message)
     if selected["kind"] == "retrieval":
-        return _capability(False, None, "仅检索资料不使用生成模型；请选择 DeepSeek 官方模型后联网")
+        return _capability(False, None, "仅检索资料不使用生成模型；请选择支持联网的模型后使用")
     if selected["kind"] == "private":
         cfg = selected["config"]
         provider = cfg.get("provider")
@@ -190,11 +226,19 @@ def search(question, *, provider=None, cfg=None):
             503, capability["message"], headers={diagnostics.ERROR_HEADER: "web_not_configured"}
         )
     count = min(8, max(1, settings.ASSISTANT_WEB_MAX_RESULTS))
-    deepseek = settings.ASSISTANT_WEB_PROVIDER == "deepseek"
-    query, _ = prepare_query(question, 128 if deepseek else 2000)
-    if deepseek:
+    search_provider, endpoint = search_route(provider, cfg)
+    query, _ = prepare_query(question, query_limit(provider, cfg))
+    if search_provider == "deepseek":
         endpoint, key = DEEPSEEK_ENDPOINT, cfg["api_key"].strip()
         payload = {"query": query, "count": count, "need_content": True}
+    elif search_provider == "kimi":
+        key = cfg["api_key"].strip()
+        payload = {
+            "text_query": query,
+            "limit": count,
+            "include_content": True,
+            "timeout_seconds": 15,
+        }
     else:
         endpoint, key = TAVILY_ENDPOINT, settings.ASSISTANT_WEB_API_KEY.strip()
         payload = {
@@ -214,7 +258,7 @@ def search(question, *, provider=None, cfg=None):
                 endpoint,
                 headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"},
                 json=payload,
-                timeout=httpx.Timeout(5.0, connect=5.0),
+                timeout=httpx.Timeout(20.0 if search_provider == "kimi" else 5.0, connect=5.0),
                 follow_redirects=False,
                 trust_env=False,
             ) as response:
@@ -245,20 +289,23 @@ def search(question, *, provider=None, cfg=None):
         raise error("web_unavailable") from None
     except (ValueError, TypeError, RecursionError):
         raise error("web_invalid_response") from None
-    if not isinstance(data, dict) or not isinstance(data.get("results"), list):
+    result_field = "search_results" if search_provider == "kimi" else "results"
+    if not isinstance(data, dict) or not isinstance(data.get(result_field), list):
         raise error("web_invalid_response")
     retrieved = datetime.now(UTC).isoformat()
     refs, seen, remaining = [], set(), MAX_TOTAL_TEXT
-    for item in data["results"][:8]:
+    for item in data[result_field][:8]:
         if not isinstance(item, dict) or not safe_url(item.get("url")):
             continue
         url = item["url"]
         raw = next(
             (
                 item.get(field)
-                for field in (
-                    ("content", "summary", "snippet") if deepseek else ("raw_content", "content")
-                )
+                for field in {
+                    "deepseek": ("content", "summary", "snippet"),
+                    "kimi": ("text", "snippet"),
+                    "tavily": ("raw_content", "content"),
+                }[search_provider]
                 if isinstance(item.get(field), str) and item[field].strip()
             ),
             None,
@@ -281,7 +328,8 @@ def search(question, *, provider=None, cfg=None):
                 "title": title.strip()[:300],
                 "url": url,
                 "published_at": published_date(
-                    item.get("date" if deepseek else "published_date"), rfc3339=deepseek
+                    item.get("published_date" if search_provider == "tavily" else "date"),
+                    rfc3339=search_provider == "deepseek",
                 ),
                 "retrieved_at": retrieved,
                 "excerpt": excerpt,
@@ -397,9 +445,7 @@ def answer(question, *, selected, provider, cfg, search_query=None, context_mess
         for target in targets
     ):
         raise ai.AIError("unverified links", code="model_invalid_response")
-    _, shortened = prepare_query(
-        query, 128 if settings.ASSISTANT_WEB_PROVIDER == "deepseek" else 2000
-    )
+    _, shortened = prepare_query(query, query_limit(selected_provider, cfg))
     if shortened:
         content = (
             "> 检索说明：本轮问题较长，已使用开头主题和末尾补充要求组成短检索词；回答仍依据完整提问整理。\n\n"

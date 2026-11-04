@@ -10,7 +10,7 @@ export function AnswerModeControl({ value, onChange, disabled = false }: { value
 }
 export function SearchCapability({ value, preview = false }: { value: AnswerCapabilities | null; preview?: boolean }) {
   const ready = !preview && value?.webSearch.configured
-  const title = preview ? '联网搜索界面演示' : ready ? value.webSearch.provider === 'deepseek' ? 'DeepSeek 官方搜索已就绪' : '联网搜索已就绪' : value ? '联网搜索暂不可用' : '联网搜索状态待确认'
+  const title = preview ? '联网搜索界面演示' : ready ? value.webSearch.provider === 'deepseek' ? 'DeepSeek 官方搜索已就绪' : value.webSearch.provider === 'kimi' ? 'Kimi 官方搜索已就绪' : '联网搜索已就绪' : value ? '联网搜索暂不可用' : '联网搜索状态待确认'
   return <div className={`qa-capability${ready ? ' is-ready' : ''}`}><Globe size={15} /><div><strong>{title}</strong><p>{preview ? '当前可预览自动判断、检索流程和来源展示；演示不会实际联网。' : value?.webSearch.message || '自动模式会按问题选择回答方式；联网可用状态暂未确认。'}</p></div></div>
 }
 function dateLabel(value?: string | null) {
