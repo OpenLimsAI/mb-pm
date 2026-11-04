@@ -13,6 +13,8 @@ function mount(items = [item]) {
   server.use(
     http.get('*/api/v1/portal/me', () => HttpResponse.json({ user: { id: 'person', username: 'reader', display_name: '提交人' }, applications: [{ id: 'feedback', enabled: true }] })),
     http.get('*/api/v1/feedback', () => HttpResponse.json(items)),
+    http.get('*/api/v1/feedback/:id', ({ params }) => HttpResponse.json(items.find(value => value.id === params.id) || item)),
+    http.post('*/api/v1/feedback/:id/read', ({ params }) => HttpResponse.json(items.find(value => value.id === params.id) || item)),
   )
   window.history.replaceState({}, '', '/feedback')
   render(<App />)
@@ -49,23 +51,23 @@ it('sends a plain reply without overwriting a newer status and updates the reply
   expect(within(dialog).getByText('修复同事')).toBeInTheDocument()
 })
 
-it('lets the fixer explain a resolution and change status in the same reply', async () => {
+it('lets the fixer explain investigation and start processing in the same reply', async () => {
   let payload: Record<string, unknown> = {}
-  const activity = { ...responseActivity, kind: 'status', body: '已修复缓存失效逻辑，并验证切换页面正常。', from_status: 'open', to_status: 'fixed' }
+  const activity = { ...responseActivity, kind: 'status', body: '已定位缓存失效逻辑，开始处理。', from_status: 'open', to_status: 'in_progress' }
   server.use(
     http.get('*/api/v1/feedback/issue/activities', () => HttpResponse.json({ items: [], next_cursor: null })),
     http.post('*/api/v1/feedback/issue/replies', async ({ request }) => {
       payload = await request.json() as Record<string, unknown>
-      return HttpResponse.json({ feedback: { ...item, status: 'fixed', reply_count: 1 }, activity }, { status: 201 })
+      return HttpResponse.json({ feedback: { ...item, status: 'in_progress', reply_count: 1 }, activity }, { status: 201 })
     }),
   )
   mount()
   const dialog = await discussion()
   await userEvent.type(within(dialog).getByLabelText('回复内容'), activity.body)
-  await userEvent.selectOptions(within(dialog).getByLabelText('处理状态'), 'fixed')
+  await userEvent.selectOptions(within(dialog).getByLabelText('处理状态'), 'in_progress')
   await userEvent.click(within(dialog).getByRole('button', { name: '发送回复' }))
   expect(await within(dialog).findByText(activity.body)).toBeInTheDocument()
-  expect(payload.status).toBe('fixed')
+  expect(payload.status).toBe('in_progress')
   expect(within(dialog).getByText('修复同事')).toBeInTheDocument()
 })
 
@@ -132,8 +134,8 @@ it('loads earlier activity without losing the recent replies', async () => {
 it('replays the original reply and state payload after refreshing ambiguous network results', async () => {
   const requests: Record<string, unknown>[] = []
   let reads = 0
-  const activity = { ...responseActivity, kind: 'status', from_status: 'open', to_status: 'fixed' }
-  const fixed = { ...item, status: 'fixed', reply_count: 1 }
+  const activity = { ...responseActivity, kind: 'status', from_status: 'open', to_status: 'in_progress' }
+  const fixed = { ...item, status: 'in_progress', reply_count: 1 }
   server.use(
     http.get('*/api/v1/feedback/issue/activities', () => HttpResponse.json(++reads === 1 ? { items: [], next_cursor: null, feedback: item } : { items: [activity], next_cursor: null, feedback: fixed })),
     http.post('*/api/v1/feedback/issue/replies', async ({ request }) => {
@@ -144,7 +146,7 @@ it('replays the original reply and state payload after refreshing ambiguous netw
   mount()
   const dialog = await discussion()
   await userEvent.type(within(dialog).getByLabelText('回复内容'), activity.body)
-  await userEvent.selectOptions(within(dialog).getByLabelText('处理状态'), 'fixed')
+  await userEvent.selectOptions(within(dialog).getByLabelText('处理状态'), 'in_progress')
   await userEvent.click(within(dialog).getByRole('button', { name: '发送回复' }))
   expect(await within(dialog).findByRole('alert')).toHaveTextContent('响应中断')
   await userEvent.click(within(dialog).getByRole('button', { name: '刷新处理记录' }))
@@ -155,7 +157,7 @@ it('replays the original reply and state payload after refreshing ambiguous netw
   await waitFor(() => expect(within(dialog).getByLabelText('回复内容')).toHaveValue(''))
   expect(requests).toHaveLength(2)
   expect(requests[0]).toEqual(requests[1])
-  expect(requests[1].status).toBe('fixed')
+  expect(requests[1].status).toBe('in_progress')
   expect(within(dialog).getAllByText(activity.body)).toHaveLength(1)
 })
 

@@ -80,6 +80,27 @@ _WIDE_ID_COLUMNS: tuple[tuple[str, str], ...] = (
 
 # (表, 列, 类型) —— 后来新增、老库里可能缺失的列（create_all 不会给已存在的表补列）。
 _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
+    ("feedback", "issue_number", "INTEGER"),
+    ("feedback", "client_request_id", "VARCHAR(64)"),
+    ("feedback", "request_hash", "VARCHAR(64)"),
+    ("feedback", "workflow_version", "INTEGER NOT NULL DEFAULT 1"),
+    ("feedback", "revision", "INTEGER NOT NULL DEFAULT 1"),
+    ("feedback", "source_context", "JSON NOT NULL DEFAULT '{}'"),
+    ("feedback", "assignee_id", "VARCHAR(255)"),
+    ("feedback", "assignee_name", "VARCHAR(255)"),
+    ("feedback", "priority", "VARCHAR(8) NOT NULL DEFAULT 'p2'"),
+    ("feedback", "due_at", "TIMESTAMP WITH TIME ZONE"),
+    ("feedback", "resolution", "TEXT NOT NULL DEFAULT ''"),
+    ("feedback", "verification_steps", "TEXT NOT NULL DEFAULT ''"),
+    ("feedback", "release_version", "VARCHAR(100) NOT NULL DEFAULT ''"),
+    ("feedback", "resolved_at", "TIMESTAMP WITH TIME ZONE"),
+    ("feedback", "steps_to_reproduce", "TEXT NOT NULL DEFAULT ''"),
+    ("feedback", "expected_result", "TEXT NOT NULL DEFAULT ''"),
+    ("feedback", "actual_result", "TEXT NOT NULL DEFAULT ''"),
+    ("feedback", "problem_to_solve", "TEXT NOT NULL DEFAULT ''"),
+    ("feedback", "expected_benefit", "TEXT NOT NULL DEFAULT ''"),
+    ("feedback_activities", "details", "JSON NOT NULL DEFAULT '{}'"),
+    ("feedback_images", "archived", "BOOLEAN NOT NULL DEFAULT false"),
     ("feedback", "application", "VARCHAR(32)"),
     ("tasks", "cost_budget", "NUMERIC(12,2)"),
     ("tasks", "actual_cost", "NUMERIC(12,2)"),
@@ -125,6 +146,22 @@ def _ensure_schema() -> None:
                 guard = "IF NOT EXISTS " if engine.dialect.name == "postgresql" else ""
                 conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {guard}{col} {ddl}"))
             logger.info("已为 %s 表补充 %s 列", table, col)
+
+    if {"feedback", "feedback_counters"} <= existing_tables:
+        from app.services.feedback_workflow import ensure_numbers
+
+        ensure_numbers(engine)
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_feedback_issuer_issue_number ON feedback (issuer, issue_number)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_feedback_create_request ON feedback (issuer, author_id, client_request_id)"
+                )
+            )
 
     # Existing tables are skipped by create_all, including their new indexes.
     if "solution_answers" in existing_tables:

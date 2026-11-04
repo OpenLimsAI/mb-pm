@@ -22,9 +22,25 @@ from app.services.iam_admin import IAMError
 
 @pytest.fixture
 def wall(token_factory):
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    import os
+    from uuid import uuid4
+
+    from sqlalchemy import text
+
+    postgres = os.environ.get("TEST_DATABASE_URL", "").startswith("postgresql")
+    schema = "feedback_test_" + uuid4().hex
+    owner = None
+    if postgres:
+        owner = create_engine(os.environ["TEST_DATABASE_URL"])
+        with owner.begin() as connection:
+            connection.execute(text(f'CREATE SCHEMA "{schema}"'))
+        engine = create_engine(
+            os.environ["TEST_DATABASE_URL"], connect_args={"options": f"-csearch_path={schema}"}
+        )
+    else:
+        engine = create_engine(
+            "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+        )
     Base.metadata.create_all(engine)
     db = Session(engine)
     app = FastAPI()
@@ -51,6 +67,10 @@ def wall(token_factory):
         yield client, login, db
     db.close()
     engine.dispose()
+    if owner:
+        with owner.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
+        owner.dispose()
 
 
 def test_feedback_lifecycle_and_access(wall):
@@ -71,6 +91,8 @@ def test_feedback_lifecycle_and_access(wall):
         "open",
         "AUTHOR",
     )
+    db.get(Feedback, item["id"]).workflow_version = 1
+    db.commit()
     db.expire_all()
     login("colleague")
     assert client.get(url).json()[0]["id"] == item["id"]
@@ -165,6 +187,9 @@ def test_real_app_persists_feedback_with_or_without_attachment(client, token_fac
         ids.append(result.json()["id"])
         assert result.json()["application"] == "kb"
         image_id = result.json()["images"][0]
+        db.expire_all()
+        db.get(Feedback, ids[-1]).workflow_version = 1
+        db.commit()
         assert client.get("/api/v1/feedback/images/" + image_id, cookies=cookies).content == picture
         assert (
             client.patch(
@@ -319,6 +344,8 @@ def test_discussion_reply_status_history_and_ownership(wall):
     base = "/api/v1/feedback"
     item = client.post(base, data={"category": "bug", "description": "需要处理的问题"}).json()
     url = base + "/" + item["id"]
+    db.get(Feedback, item["id"]).workflow_version = 1
+    db.commit()
     assert item["reply_count"] == 0 and item["is_mine"] is True
     assert item["last_activity_at"]
     page = client.get(url + "/activities").json()
@@ -454,6 +481,8 @@ def test_discussion_request_id_retries_preserve_current_state(wall):
         "/api/v1/feedback", data={"category": "bug", "description": "重复提交"}
     ).json()
     url = "/api/v1/feedback/" + item["id"]
+    db.get(Feedback, item["id"]).workflow_version = 1
+    db.commit()
     payload = {"body": "已经修复", "status": "fixed", "request_id": "one-logical-submit"}
     original = client.post(url + "/replies", json=payload).json()
     # Another person reopens; a retry of the original reply must not reapply old status.
@@ -631,7 +660,11 @@ def test_postgres_parallel_reply_retries_are_serialized(client, monkeypatch):
     original_commit = Session.commit
 
     def gated_commit(db):
-        if any(isinstance(row, FeedbackActivity) and row.feedback_id == ident for row in db.new):
+        # Notification fanout flushes the activity before commit in v2.
+        if any(
+            isinstance(row, FeedbackActivity) and row.feedback_id == ident
+            for row in list(db.new) + list(db.identity_map.values())
+        ):
             with gate_lock:
                 first = not first_commit.is_set()
                 if first:

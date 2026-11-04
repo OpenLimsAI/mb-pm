@@ -11,10 +11,15 @@ vi.mock('../api/client', async (importOriginal) => ({ ...await importOriginal<ty
 const NativeURL = URL
 const viewer = { id: 'person', username: 'reader', display_name: '李同事' }
 const existingItem = { id: 'old', category: 'bug', description: '列表加载缓慢', status: 'fixed', author_name: '王同事', created_at: '2026-10-26T12:00:00Z', images: [], can_delete: false }
-const newItem = { id: 'abc', category: 'feature', description: '建议增加筛选', status: 'open', author_name: '李同事', created_at: '2026-10-27T12:00:00Z', images: ['img1'], can_delete: true }
+const newItem = { id: 'abc', category: 'feature', description: '建议增加筛选', status: 'open', author_name: '李同事', created_at: '2026-10-27T12:00:00Z', images: ['img1'], can_delete: true, can_manage: true, workflow_version: 2, number: 'FB-0123' }
 
 beforeEach(() => {
-  server.use(http.get('*/api/v1/feedback/:id/activities', () => HttpResponse.json({ items: [], next_cursor: null })))
+  server.use(
+    http.get('*/api/v1/feedback/people', () => HttpResponse.json({ items: [] })),
+    http.get('*/api/v1/feedback/:id/activities', () => HttpResponse.json({ items: [], next_cursor: null })),
+    http.get('*/api/v1/feedback/:id', ({ params }) => HttpResponse.json(params.id === 'abc' ? newItem : existingItem)),
+    http.post('*/api/v1/feedback/:id/read', ({ params }) => HttpResponse.json(params.id === 'abc' ? newItem : existingItem)),
+  )
   let imageNumber = 0
   vi.stubGlobal('URL', class extends NativeURL {
     static createObjectURL() { return `blob:preview-${++imageNumber}` }
@@ -110,10 +115,7 @@ it('submits a new feature with an image, makes it visible despite previous filte
       multipart = await request.text()
       return HttpResponse.json(newItem, { status: 201 })
     }),
-    http.patch('*/api/v1/feedback/abc', async ({ request }) => {
-      const data = await request.json() as { status: string }
-      return HttpResponse.json({ ...newItem, status: data.status })
-    }),
+    http.post('*/api/v1/feedback/abc/claim', () => HttpResponse.json({ ...newItem, status: 'in_progress', assignee_id: 'person', assignee_name: '李同事' })),
   )
   mountFeedback()
   expect(await screen.findByRole('heading', { name: '回音壁', level: 1 })).toBeInTheDocument()
@@ -135,14 +137,14 @@ it('submits a new feature with an image, makes it visible despite previous filte
   expect(multipart).toContain('Content-Type: image/png')
   const row = (await screen.findByText('建议增加筛选')).closest('article')!
   expect(within(row).getByRole('img')).toHaveAttribute('src', '/api/v1/feedback/images/img1')
-  await userEvent.click(within(row).getByRole('button', { name: '标记为已修复' }))
+  await userEvent.click(within(row).getByRole('button', { name: /回复与进展/ }))
   const progress = screen.getByRole('dialog', { name: '反馈详情' })
-  await waitFor(() => expect(within(progress).getByRole('button', { name: '保存状态' })).toBeEnabled())
-  await userEvent.click(within(progress).getByRole('button', { name: '保存状态' }))
+  await userEvent.click(within(progress).getByRole('button', { name: '我来处理' }))
+  expect(await within(progress).findByText('处理信息已保存。')).toBeInTheDocument()
   await waitFor(() => expect(within(progress).getByRole('button', { name: '关闭详情' })).toBeEnabled())
   await userEvent.click(within(progress).getByRole('button', { name: '关闭详情' }))
-  expect(await within(row).findByText('已修复')).toBeInTheDocument()
-  expect(within(row).getByRole('button', { name: '重新打开' })).toBeInTheDocument()
+  expect(await within(row).findByText('处理中')).toBeInTheDocument()
+  expect(within(row).queryByRole('button', { name: '标记为已修复' })).not.toBeInTheDocument()
 })
 
 it('lets a user remove one selected image before submitting', async () => {
@@ -232,18 +234,21 @@ it('shows a load error instead of an empty state and retries successfully', asyn
 })
 
 it('keeps the existing status when the server rejects a change', async () => {
+  const open = { ...existingItem, status: 'open', can_manage: true, workflow_version: 2 }
   server.use(
-    http.get('*/api/v1/feedback', () => HttpResponse.json([{ ...existingItem, status: 'open' }])),
-    http.patch('*/api/v1/feedback/old', () => HttpResponse.json({ detail: '状态更新失败' }, { status: 503 })),
+    http.get('*/api/v1/feedback', () => HttpResponse.json([open])),
+    http.get('*/api/v1/feedback/old', () => HttpResponse.json(open)),
+    http.post('*/api/v1/feedback/old/read', () => HttpResponse.json(open)),
+    http.post('*/api/v1/feedback/old/claim', () => HttpResponse.json({ detail: '状态更新失败' }, { status: 503 })),
   )
   mountFeedback()
   const row = (await screen.findByText('列表加载缓慢')).closest('article')!
-  await userEvent.click(within(row).getByRole('button', { name: '标记为已修复' }))
+  await userEvent.click(within(row).getByRole('button', { name: /回复与进展/ }))
   const progress = screen.getByRole('dialog', { name: '反馈详情' })
-  await waitFor(() => expect(within(progress).getByRole('button', { name: '保存状态' })).toBeEnabled())
-  await userEvent.click(within(progress).getByRole('button', { name: '保存状态' }))
+  await userEvent.click(within(progress).getByRole('button', { name: '我来处理' }))
   expect(await within(progress).findByRole('alert')).toHaveTextContent('状态更新失败')
-  expect(within(row).getByRole('button', { name: '标记为已修复' })).toBeInTheDocument()
+  expect(within(row).getByText('待处理')).toBeInTheDocument()
+  expect(within(progress).getByRole('button', { name: '我来处理' })).toBeEnabled()
 })
 
 it('does not request feedback data when the application is unavailable', async () => {
