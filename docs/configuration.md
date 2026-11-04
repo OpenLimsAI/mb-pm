@@ -195,9 +195,9 @@ Kimi 支持、模型价格显示与静态价格目录的维护规则见[模型�
 
 个人助手恢复项目管理数据源的开发版本还需迁移 `015`，为消息增加内部 `application_scope`，记录实际使用的来源和可验证的项目范围；已有启动补列机制同时覆盖该列。部署前先备份并核对迁移，不只替换前端。没有新增 PM 令牌或浏览器凭据：读取使用当前门户身份，实时核对 IAM、已有有效 PM 账号及项目行级范围，不因勾选自动创建成员或扩大权限。无有效 PM 绑定时先进入项目管理完成正常关联，再重试；仅选项目管理不要求知识库配置。此版本尚未部署生产。
 
-个人助手和研究助手共用搜索适配。默认 `ASSISTANT_WEB_PROVIDER=deepseek`，管理员设置 `ASSISTANT_WEB_ENABLED=true` 后，复用当前所选官方 DeepSeek 模型密钥；企业默认与本人个人配置分别解析，不从其他模型或其他账号借用。仅 provider=deepseek 且 HTTPS 官方 `api.deepseek.com` 根地址或 `/v1` 可复用；第三方转发地址不能发送密钥到官方搜索。可选 `ASSISTANT_WEB_MAX_RESULTS` 默认 5、范围 1–8。只有显式选择 `ASSISTANT_WEB_PROVIDER=tavily` 时才使用服务端 `ASSISTANT_WEB_API_KEY`，不自动跨服务商回退。示例见 [`backend/.env.example`](../backend/.env.example)。默认禁用；浏览器只读取当前模型就绪状态，切换/保存后刷新，不接收密钥。生产需将变量透传至两个应用并重新创建容器，保留完整运行覆盖。
+个人助手和研究助手共用搜索适配。默认 `ASSISTANT_WEB_PROVIDER=model`，管理员设置 `ASSISTANT_WEB_ENABLED=true` 后，搜索随当前选中模型切换：DeepSeek 使用其官方搜索，Kimi 使用其官方搜索；已有 `deepseek` 配置是 `model` 的兼容别名。企业默认与本人个人配置分别解析，不从其他模型或其他账号借用。只接受 provider=deepseek 的 HTTPS `api.deepseek.com`，或 provider=kimi 的 HTTPS `api.moonshot.cn` / `api.moonshot.ai` 根地址或 `/v1`；Kimi 保持所选账号的原区域，第三方代理密钥不转发给官方搜索。可选 `ASSISTANT_WEB_MAX_RESULTS` 默认 5、范围 1–8。只有显式选择 `ASSISTANT_WEB_PROVIDER=tavily` 时才使用服务端 `ASSISTANT_WEB_API_KEY`，不自动跨服务商回退。示例见 [`backend/.env.example`](../backend/.env.example)。默认禁用；浏览器只读取当前模型就绪状态，切换/保存后刷新，不接收密钥。生产需将变量透传至两个应用并重新创建容器，保留完整运行覆盖。
 
-正式运行须先备份并执行 Alembic `014`，保留既有问答。本地 `?preview=1` 只演示模式与来源，不调用搜索服务；真实接口未配置时返回明确错误，不伪装成已联网。DeepSeek 搜索适配本身没有新增迁移；实际生产版本、联网结果和验收边界以发布记录为准。详见[自动问答与联网搜索](assistant-auto-search.md)。
+正式运行须先备份并执行 Alembic `014`，保留既有问答。本地 `?preview=1` 只演示模式与来源，不调用搜索服务；真实接口未配置时返回明确错误，不伪装成已联网。模型跟随搜索适配本身没有新增迁移；实际生产版本、联网结果和验收边界以发布记录为准。详见[自动问答与联网搜索](assistant-auto-search.md)。
 
 ## 生产前端构建参数
 

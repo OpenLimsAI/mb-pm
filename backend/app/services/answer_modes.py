@@ -42,6 +42,9 @@ def followup(question):
             text,
             re.I,
         )
+        or re.search(
+            r"(?:这个|该|上述|前述|前面(?:的)?|上面(?:的)?)(?:问题|话题|主题|结论|方案)", text
+        )
         or re.match(
             r"^(?:(?:请|帮我|请你)(?:再)?\s*)?(?:(?:把|将|对|关于)\s*)?(?:第[一二三四五六七八九十百\d]+(?:项|点|条|种|个|部分|节)|这(?:项|点|条|种)|that (?:item|point)|the (?:first|second|third|fourth) (?:item|point))",
             text,

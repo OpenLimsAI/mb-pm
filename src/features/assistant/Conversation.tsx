@@ -37,8 +37,8 @@ export default function Conversation({ taskId, messages, artifacts, userName, on
     return <section key={turn[0].id} className="aa-turn" aria-label={`第 ${index + 1} 轮对话`}>
       <div className="aa-turn-header"><strong className="aa-turn-number">第 {index + 1} 轮</strong>{Number.isFinite(started.getTime()) && <time dateTime={turn[0].createdAt}>{dateFormat.format(started)}</time>}</div>
       {turn.map(message => message.role === 'user' ? <article key={message.id} className="aa-message aa-user-message" aria-label="你的提问">
-        <div className="aa-message-overline"><span className="aa-mini-avatar">{Array.from(userName || '我')[0]}</span><strong>你的提问</strong></div>
-        <div className="aa-question-text">{message.content}</div>
+        <div className="aa-message-overline"><span className="aa-mini-avatar">{Array.from(userName || '我')[0]}</span><strong>你的提问</strong><button type="button" className="aa-copy-question" onClick={() => onCopy(message.content)}><Copy size={13} />复制提问</button></div>
+        <div className="aa-question-text" tabIndex={0} aria-label="提问内容，可选中复制">{message.content}</div>
         {message.baseArtifactId && <button type="button" className="aa-lineage" onClick={() => onArtifact(message.baseArtifactId!)}>基于原稿：{artifacts.find(artifact => artifact.id === message.baseArtifactId)?.title || '查看原稿'}</button>}
         {message.context && <details className="aa-context-details"><summary><Paperclip size={12} />本轮附带资料 · {message.context.length.toLocaleString()} 字</summary><pre>{message.context}</pre></details>}
       </article> : <article key={message.id} className="aa-message aa-assistant-message" aria-label="AI 回答">

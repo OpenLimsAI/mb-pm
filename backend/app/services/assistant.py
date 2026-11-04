@@ -13,6 +13,7 @@ from app.models.assistant import AssistantMessage, AssistantTask
 from app.services import (
     ai,
     answer_modes,
+    assistant_history,
     assistant_projects,
     assistant_sources,
     assistant_tool_chat,
@@ -416,11 +417,12 @@ def question(db, claims, task, payload):
         raise HTTPException(409, assistant_requests.BUSY)
     if task.revision != payload.revision:
         raise HTTPException(409, CONFLICT)
-    prior_project_access = check_history_access(
-        db,
-        claims,
-        db.scalars(select(AssistantMessage).where(AssistantMessage.task_id == task.id)).all(),
-    )
+    all_history = db.scalars(
+        select(AssistantMessage)
+        .where(AssistantMessage.task_id == task.id)
+        .order_by(AssistantMessage.position)
+    ).all()
+    prior_project_access = check_history_access(db, claims, all_history)
     base_artifact = assistant_artifacts.selected(db, claims, task, payload)
     count = db.scalar(
         select(func.count())
@@ -449,36 +451,8 @@ def question(db, claims, task, payload):
     # Prior answers may contain sources that are no longer selected or accessible.
     # Rebuild evidence on every turn instead of forwarding old conversation text.
     diagnostics.configure_model("custom" if selected["kind"] == "private" else provider, cfg)
-    history = list(
-        reversed(
-            db.scalars(
-                select(AssistantMessage)
-                .where(AssistantMessage.task_id == task.id)
-                .order_by(AssistantMessage.position.desc())
-                .limit(6)
-            ).all()
-        )
-    )
+    history = all_history[-6:]
     previous = next((message for message in reversed(history) if message.role == "assistant"), None)
-    previous_question = next(
-        (
-            message.content
-            for message in reversed(history)
-            if message.role == "user" and previous and message.request_id == previous.request_id
-        ),
-        "",
-    )
-    previous_web_question = next(
-        (
-            message.content
-            for message in reversed(history)
-            if message.role == "user"
-            and previous is not None
-            and message.request_id == previous.request_id
-            and message.answer_mode == "web"
-        ),
-        "",
-    )
     if payload.answer_mode is None:
         # Legacy requests keep their knowledge behavior; restored PM requests
         # use the personal router rather than implying KB access.
@@ -497,21 +471,19 @@ def question(db, claims, task, payload):
         previous_sources=(previous.application_scope or {}).get("used_sources", [])
         if previous
         else [],
-        previous_web_question=previous_web_question,
         reference_material_available=bool(payload.context.strip()),
     )
     plan = assistant_artifacts.inherit_plan(plan, base_artifact, payload.question)
     if base_artifact:
         assistant_artifacts.selected(db, claims, task, payload, actual_sources=plan.sources)
-    knowledge_query = plan.query
+    topic = assistant_history.topic_questions(all_history, payload.question, set(plan.sources))
+    knowledge_query = assistant_history.query(topic, payload.question)
     if base_artifact:
         knowledge_query = (
             assistant_artifacts.original_question(db, base_artifact)[:600]
             + "\n修改要求："
             + payload.question[:380]
         )
-    elif previous_question and answer_modes.followup(payload.question):
-        knowledge_query = previous_question[:600] + "\n追问：" + payload.question[:380]
     use_knowledge = "knowledge" in plan.sources
     use_projects = "projects" in plan.sources
     diagnostics.stage("application_data")
@@ -564,13 +536,34 @@ def question(db, claims, task, payload):
                 ),
             }
         )
+    # A bounded older topic can survive repeated re-answers without replaying
+    # old assistant evidence. Recent history remains limited to three rounds.
+    recent_ids = {message.id for message in history}
+    for topic_message in topic:
+        if topic_message.id not in recent_ids:
+            messages.append(
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {
+                            "previous_question": topic_message.content[:1500],
+                            "requires_fresh_evidence": True,
+                        },
+                        ensure_ascii=False,
+                    ),
+                }
+            )
+    seen_questions = {payload.question.strip()}
+    topic_ids = {message.id for message in topic}
     for message in history:
+        if message.role == "user":
+            if message.content.strip() in seen_questions:
+                continue
+            seen_questions.add(message.content.strip())
+        prior_sources = assistant_history.sources(message)
         # Previous application-derived questions and answers are never new
         # evidence, even when the same source is still selected.
-        if message.answer_mode in ("knowledge", "application") or (
-            message.application_scope and message.application_scope.get("used_sources")
-        ):
-            prior_sources = (message.application_scope or {}).get("used_sources", [])
+        if message.answer_mode in ("knowledge", "application") or prior_sources:
             if (
                 message.role == "user"
                 and prior_sources
@@ -591,7 +584,11 @@ def question(db, claims, task, payload):
                     }
                 )
             continue
-        if payload.answer_mode is not None and message.answer_mode != plan.mode:
+        if (
+            payload.answer_mode is not None
+            and message.answer_mode != plan.mode
+            and not (message.role == "user" and message.id in topic_ids)
+        ):
             continue
         if message.role == "user":
             messages.append(
@@ -642,16 +639,10 @@ def question(db, claims, task, payload):
     messages.append({"role": "user", "content": json.dumps(model_input, ensure_ascii=False)})
     # Snapshot ORM-backed routing state before rollback expires loaded rows.
     # External search/model I/O must not lazily reopen a read transaction.
-    public_query = plan.query
-    if (
-        plan.mode == "web"
-        and previous_question
-        and previous
-        and previous.answer_mode == "web"
-        and answer_modes.followup(payload.question)
-        and public_query == payload.question
-    ):
-        public_query = previous_question[:1200] + "\n追问：" + payload.question
+    public_topic = assistant_history.topic_questions(
+        all_history, payload.question, set(), public_only=True
+    )
+    public_query = assistant_history.query(public_topic, payload.question)
     task_id = task.id
     # Release the read transaction before waiting on any external model service.
     db.rollback()

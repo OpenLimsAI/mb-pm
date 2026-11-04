@@ -348,7 +348,7 @@ def test_proxy_profile_web_request_does_not_send_key_to_official_or_fallback(
     response = test_assistant.question(
         f, task, model_profile_id="proxy", answer_mode="web", question="最新研究进展"
     )
-    assert response.status_code == 503 and "DeepSeek 官方模型" in response.json()["detail"]
+    assert response.status_code == 503 and "当前模型未接入联网搜索" in response.json()["detail"]
     assert calls == [] and not f.calls
     assert f.client.get(f"{test_assistant.PREFIX}/{task['id']}").json()["messages"] == []
 

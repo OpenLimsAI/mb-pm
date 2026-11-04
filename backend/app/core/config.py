@@ -39,7 +39,7 @@ class Settings(BaseSettings):
 
     # Public search is opt-in and server-owned; never expose this key to browsers.
     ASSISTANT_WEB_ENABLED: bool = False
-    ASSISTANT_WEB_PROVIDER: Literal["deepseek", "tavily"] = "deepseek"
+    ASSISTANT_WEB_PROVIDER: Literal["model", "deepseek", "tavily"] = "model"
     ASSISTANT_WEB_API_KEY: str = ""
     ASSISTANT_WEB_MAX_RESULTS: int = Field(default=5, ge=1, le=8)
     ASSISTANT_PER_USER_PENDING: int = Field(default=3, ge=1, le=20)

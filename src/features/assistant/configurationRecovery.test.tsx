@@ -118,3 +118,28 @@ it('directs model configuration failures to model settings', async () => {
   expect(screen.getByRole('link', { name: '打开 AI 模型设置' })).toHaveAttribute('href', '/model-settings?preview=1')
   expect(client.submitRequest).not.toHaveBeenCalled()
 })
+
+it('refreshes model checks and clears the old configuration error after editing the same model profile', async () => {
+  const client = createPreviewAssistantClient('model-config-refresh')
+  const task = await client.create({ id: crypto.randomUUID(), title: '更新模型配置', instructions: '' })
+  let revision = 1
+  const modelClient: ModelSettingsClient = { get: vi.fn(async () => ({ revision, profiles: [], defaultProfileId: null })), save: vi.fn(), test: vi.fn() }
+  client.preflight = vi.fn(async (): Promise<AssistantPreflight> => revision === 1 ? { ready: false, checks: [{ key: 'web', status: 'blocked', message: '当前模型联网尚未配置' }] } : ready)
+  client.send = vi.fn(client.send)
+  render(<AssistantApp client={client} modelClient={modelClient} userName="模型检查用户" preview />)
+  await screen.findByRole('heading', { name: task.title, level: 2 })
+  const composer = screen.getByRole('textbox', { name: '给 AI 助手的任务' })
+  fireEvent.change(composer, { target: { value: '检索近期研究进展' } })
+  fireEvent.click(screen.getByRole('button', { name: '发送任务消息' }))
+  await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('当前模型联网尚未配置'))
+  expect(screen.getAllByText('当前模型联网尚未配置')).toHaveLength(1)
+  expect(client.send).not.toHaveBeenCalled()
+  revision = 2
+  fireEvent.focus(window)
+  await screen.findByText('配置检查通过；实际可用性以本次请求结果为准。')
+  expect(screen.queryByText('当前模型联网尚未配置')).not.toBeInTheDocument()
+  expect(composer).toHaveValue('检索近期研究进展')
+  expect(client.send).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: '发送任务消息' }))
+  await waitFor(() => expect(client.send).toHaveBeenCalledTimes(1))
+})
