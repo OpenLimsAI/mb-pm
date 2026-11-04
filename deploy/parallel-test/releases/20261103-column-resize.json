@@ -1,0 +1,360 @@
+{
+  "prepared": {
+    "source": "f56ee9b161f19b6471a7bac5675b666237d4500d",
+    "image": "sha256:fea09b49a217be8e4b3f0e99f8ae1175299fe9543c643b077b5e6dcd918da7c8",
+    "previous_image": "sha256:e1359512220692e994afef7363818786d885bec3d58c541b371d024b13d42d2c",
+    "backend_files_identical_to_main": 155,
+    "column_bundle": {
+      "wbs_bundle_markers": 10,
+      "wbs_css_contracts": 10,
+      "column_resize_markers": 4
+    },
+    "static_sha256": "d00ffbd3698abfd56784280ba0156c184e19227a1f4ff4f8c47ec387f67f25a3",
+    "release_directory": "/home/prometheus/mb-pm-v2/releases/column-resize-f56ee9b-20261103",
+    "source_sha256": "79d8c4352cd92c942d850b1bd5cef5280c00e19e782ec545335d7749cf418bb9",
+    "built_sha256": "3563fea8b789f00931a91fad6868ba33188e97479b2487894306a2b1c0b3507d"
+  },
+  "security_scan": {
+    "source": "f56ee9b161f19b6471a7bac5675b666237d4500d",
+    "image": "sha256:fea09b49a217be8e4b3f0e99f8ae1175299fe9543c643b077b5e6dcd918da7c8",
+    "image_config_sha256": "sha256:9dd16d1ec0c55b7553c6d10173b420237474a11fdbd97236acc1ef5060f0d179",
+    "high_critical_fixable_vulnerabilities": 0,
+    "scanner": "aquasec/trivy@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c",
+    "database": {
+      "Version": 2,
+      "NextUpdate": "2026-11-04T19:16:30.092558916Z",
+      "UpdatedAt": "2026-11-03T19:16:30.092559407Z",
+      "DownloadedAt": "2026-11-03T23:18:18.079262168Z"
+    }
+  },
+  "production": {
+    "source": "f56ee9b161f19b6471a7bac5675b666237d4500d",
+    "image": "sha256:fea09b49a217be8e4b3f0e99f8ae1175299fe9543c643b077b5e6dcd918da7c8",
+    "previous_image": "sha256:e1359512220692e994afef7363818786d885bec3d58c541b371d024b13d42d2c",
+    "instances": 2,
+    "preserved_files": [
+      "/home/prometheus/mb-pm-v2/compose.yml",
+      "/home/prometheus/mb-pm-v2/compose.production.yml",
+      "/home/prometheus/mb-pm-v2/compose.direct.yml",
+      "/home/prometheus/mb-pm-v2/releases/header-9516977/compose.no-note-sync.yml",
+      "/home/prometheus/mb-pm-v2/releases/assistant-dikw-e294fdc/compose.knowledge.private.yml",
+      "/home/prometheus/mb-pm-v2/releases/knowledge-sources-687bddc-20261101/compose.knowledge-sources.yml",
+      "/home/prometheus/mb-pm-v2/releases/deepseek-search-99ca39d-20261101/compose.deepseek-search.yml",
+      "/home/prometheus/security-hardening-20261102/limits-1.json",
+      "/home/prometheus/security-hardening-20261102/pm-release-cd02021/compose.security.active.yml",
+      "/home/prometheus/mb-pm-v2/releases/report-workbench-e33b48d-20261102/compose.report-workbench.yml",
+      "/home/prometheus/mb-pm-v2/releases/efficient-workspace-c6e4b9f-20261103/rollout/pm.fixed-images.json",
+      "/home/prometheus/mb-pm-v2/releases/knowledge-sso-20261102/application-switch/group-0.active.json",
+      "/home/prometheus/mb-pm-v2/releases/report-editor-layout-48401af-20261103/rollout/pm.fixed-images.json",
+      "/home/prometheus/mb-pm-v2/releases/assistant-scope-8147c1d-20261102-r2/compose.assistant-scope.yml",
+      "/home/prometheus/mb-pm-v2/releases/reference-papers-b79f0da-20261103/rollout/pm.fixed-images.json",
+      "/home/prometheus/mb-pm-v2/releases/assistant-layout-642e187-20261103-r2/compose.assistant-layout.yml",
+      "/home/prometheus/mb-pm-v2/releases/project-actions-c304a1e-20261103-r2/rollout/pm.fixed-images.json",
+      "/home/prometheus/mb-pm-v2/releases/gantt-263e10c-20261103/rollout/pm.fixed-images.json",
+      "/home/prometheus/mb-pm-v2/releases/wbs-workspace-21252b6-20261103/rollout/pm.fixed-images.json"
+    ],
+    "verification": [
+      {
+        "nonroot_uid": 10001,
+        "runtime_role": "maibo_pm_runtime",
+        "elevated_db_flags": false,
+        "business_constraints": {
+          "projects": 4,
+          "sub_projects": 2,
+          "tasks": 7,
+          "project_finances": 1
+        },
+        "core_connection": "verified_readonly",
+        "source_count": 331,
+        "production_api_build": true,
+        "source": "f56ee9b161f19b6471a7bac5675b666237d4500d",
+        "csp": true,
+        "anonymous_api": 401,
+        "persistent_data_readable": true
+      },
+      {
+        "nonroot_uid": 10001,
+        "runtime_role": "maibo_pm_runtime",
+        "elevated_db_flags": false,
+        "business_constraints": {
+          "projects": 4,
+          "sub_projects": 2,
+          "tasks": 7,
+          "project_finances": 1
+        },
+        "core_connection": "verified_readonly",
+        "source_count": 331,
+        "production_api_build": true,
+        "source": "f56ee9b161f19b6471a7bac5675b666237d4500d",
+        "csp": true,
+        "anonymous_api": 401,
+        "persistent_data_readable": true
+      }
+    ],
+    "migrations": false,
+    "tables_checked": 43,
+    "prior_record_ids_preserved": true,
+    "prior_assistant_messages_preserved": true,
+    "model_settings_preserved": true,
+    "backend_files_changed": [],
+    "restore_proof": {
+      "isolated_restore": true,
+      "tables_restored": 43,
+      "network": "none",
+      "ports_published": false,
+      "temporary_database_removed": true
+    }
+  },
+  "live": [
+    {
+      "name": "/mb-pm-v2-app-1",
+      "image": "sha256:fea09b49a217be8e4b3f0e99f8ae1175299fe9543c643b077b5e6dcd918da7c8",
+      "health": "healthy",
+      "started": "2026-11-04T00:01:21.721243208Z",
+      "compose_files": 20
+    },
+    {
+      "name": "/mb-pm-v2-app-direct-1",
+      "image": "sha256:fea09b49a217be8e4b3f0e99f8ae1175299fe9543c643b077b5e6dcd918da7c8",
+      "health": "healthy",
+      "started": "2026-11-04T00:01:21.719686018Z",
+      "compose_files": 20
+    }
+  ],
+  "backup": {
+    "directory": "/home/prometheus/mb-pm-v2/releases/column-resize-f56ee9b-20261103/rollout/private-backup",
+    "mode": "0o700",
+    "encrypted_database_bytes": 3388025,
+    "rollback_command_file": "/home/prometheus/mb-pm-v2/releases/column-resize-f56ee9b-20261103/rollout/rollback-command.json"
+  },
+  "checked_at_utc": "2026-11-04T00:02:00.566953+00:00",
+  "feature_pr": "https://github.com/OpenLimsAI/mb-pm/pull/153",
+  "feature_head": "c31aa03861a3c53e15c2eba6a27eef52d4b73e55",
+  "source": "f56ee9b161f19b6471a7bac5675b666237d4500d",
+  "source_tree": "e227c037a1d974de3798240fc738e9fe9cda1aa7",
+  "ci": [
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-03T23:32:26Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41738954284/job/126275301160",
+      "name": "前端 · 类型检查 + 构建（硬护栏）",
+      "startedAt": "2026-11-03T23:24:56Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-03T23:25:46Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41738954509/job/126275300892",
+      "name": "dependencies",
+      "startedAt": "2026-11-03T23:24:56Z",
+      "status": "COMPLETED",
+      "workflowName": "Security"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-03T23:25:05Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41738954284/job/126275300540",
+      "name": "后端 · ruff 格式检查（硬护栏）",
+      "startedAt": "2026-11-03T23:24:56Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-03T23:27:05Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41738954509/job/126275300541",
+      "name": "container",
+      "startedAt": "2026-11-03T23:24:56Z",
+      "status": "COMPLETED",
+      "workflowName": "Security"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-03T23:28:33Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41738954284/job/126275301120",
+      "name": "后端 · pytest（PostgreSQL · 硬护栏）",
+      "startedAt": "2026-11-03T23:24:56Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-03T23:26:20Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41738954284/job/126275301012",
+      "name": "Docker · 镜像构建验证（硬护栏）",
+      "startedAt": "2026-11-03T23:24:56Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-03T23:25:41Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41738954284/job/126275301013",
+      "name": "Lint 报告（软护栏 · 不阻断）",
+      "startedAt": "2026-11-03T23:24:59Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    }
+  ],
+  "public": {
+    "checked_at_utc": "2026-11-04T00:02:01.045610+00:00",
+    "source": "f56ee9b161f19b6471a7bac5675b666237d4500d",
+    "checks": [
+      {
+        "url": "https://pm.openlims.ai/health",
+        "expected_status": 200,
+        "status": 200,
+        "passed": true
+      },
+      {
+        "url": "https://pm.openlims.ai/build-info.json",
+        "expected_status": 200,
+        "status": 200,
+        "source": "f56ee9b161f19b6471a7bac5675b666237d4500d",
+        "passed": true
+      },
+      {
+        "url": "https://pm.openlims.ai/gantt",
+        "expected_status": 200,
+        "status": 200,
+        "index_sha256": "191ed3ac6301ebf102003946216c5697e34c1915d9fadfee2bbae24aacc3a815",
+        "cloudflare_analytics_scripts_removed": 1,
+        "normalized_index_sha256": "620ba91a520e3e2c102b2f4fbaeb5df6e11df55361bd32fd821ecccc7e0203bc",
+        "index_matches_image_after_known_edge_injection": true,
+        "passed": true
+      },
+      {
+        "url": "https://pm.openlims.ai/api/v1/projects",
+        "expected_status": 401,
+        "status": 401,
+        "passed": true
+      },
+      {
+        "url": "https://www.openlims.ai/health",
+        "expected_status": 200,
+        "status": 200,
+        "passed": true
+      },
+      {
+        "url": "https://www.openlims.ai/build-info.json",
+        "expected_status": 200,
+        "status": 200,
+        "source": "f56ee9b161f19b6471a7bac5675b666237d4500d",
+        "passed": true
+      },
+      {
+        "url": "https://www.openlims.ai/login",
+        "expected_status": 200,
+        "status": 200,
+        "index_sha256": "191ed3ac6301ebf102003946216c5697e34c1915d9fadfee2bbae24aacc3a815",
+        "cloudflare_analytics_scripts_removed": 1,
+        "normalized_index_sha256": "620ba91a520e3e2c102b2f4fbaeb5df6e11df55361bd32fd821ecccc7e0203bc",
+        "index_matches_image_after_known_edge_injection": true,
+        "passed": true
+      },
+      {
+        "url": "https://www.openlims.ai/api/v1/projects",
+        "expected_status": 401,
+        "status": 401,
+        "passed": true
+      }
+    ],
+    "all_passed": true
+  },
+  "frontend_tests": {
+    "files": 97,
+    "passed": 913
+  },
+  "release_tool_tests": 17,
+  "packaging_helper_tests": 4,
+  "frontend_static_files": 177,
+  "local_browser": {
+    "checks": [
+      "WBS rendered width matches resized column",
+      "Gantt pointer resize aligns actual frozen column",
+      "Escape cancels drag without exiting fullscreen",
+      "Gantt width survives reload",
+      "Narrow view preserves timeline space",
+      "Portfolio gantt keyboard resize",
+      "Workload member column",
+      "Template simulated gantt"
+    ],
+    "errors": [],
+    "titleCount": 71
+  },
+  "local_browser_edge": {
+    "checks": [
+      "Full-height divider works after vertical and horizontal scroll",
+      "Workload week columns share remaining width evenly",
+      "Workload sticky member width adapts to narrow viewport and restores preference"
+    ],
+    "weeks": [
+      60,
+      60,
+      60,
+      60,
+      60,
+      60,
+      60,
+      60
+    ],
+    "bounded": 396
+  },
+  "production_browser": {
+    "checked_at_utc": "2026-11-04T00:05:43.838991+00:00",
+    "browser": "Google Chrome",
+    "origin": "https://pm.openlims.ai",
+    "authenticated_session": true,
+    "role": "system administrator",
+    "real_project_task_count": 33,
+    "interaction_mode": "business data read-only; local column preferences only",
+    "wbs_keyboard_widths": [
+      380,
+      396,
+      380
+    ],
+    "wbs_full_name_help_exposed": true,
+    "gantt_pointer_widths": [
+      320,
+      500
+    ],
+    "long_task_name_fully_visible_after_widening": true,
+    "fullscreen_resize_after_vertical_scroll": {
+      "before": 500,
+      "after": 560
+    },
+    "escape_exits_fullscreen": true,
+    "width_after_reload": 560,
+    "double_click_reset_width": 320,
+    "temporary_browser_tab_closed": true,
+    "not_exercised_in_production": [
+      "business data editing and saving",
+      "native hover popup visual timing",
+      "portfolio and template gantt interaction",
+      "AI analysis history and workload interaction",
+      "other accounts and browsers"
+    ]
+  },
+  "actual_image_login": {
+    "source": "f56ee9b161f19b6471a7bac5675b666237d4500d",
+    "actual_image_static_archive_verified": true,
+    "anonymous_me_status": 401,
+    "username_password_editable": true,
+    "submit_enabled": true
+  },
+  "source_retrieval": {
+    "source": "f56ee9b161f19b6471a7bac5675b666237d4500d",
+    "head": "c31aa03861a3c53e15c2eba6a27eef52d4b73e55",
+    "tree": "e227c037a1d974de3798240fc738e9fe9cda1aa7",
+    "verified_signed_commit": true,
+    "retrieved_via": "GitHub API; Git transport timed out"
+  }
+}
