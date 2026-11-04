@@ -105,6 +105,17 @@ def evidence_for(store, actor, paper, connect, question):
         raise HTTPException(
             422, f'「{paper["title"][:100]}」正文尚不可读取，请先解析或选择有正文的资料'
         )
+    excerpts = _excerpt(body, question)
+    if not paper["id"].startswith("archive:"):
+        # Core uses JavaScript UTF-16 offsets; local archive text uses codepoints.
+        excerpts = [
+            {
+                **item,
+                "offset": len(body[: item["offset"]].encode("utf-16-le")) // 2,
+                "length": len(item["text"].encode("utf-16-le")) // 2,
+            }
+            for item in excerpts
+        ]
     return {
         "paperId": paper["id"],
         "title": paper["title"],
@@ -116,7 +127,7 @@ def evidence_for(store, actor, paper, connect, question):
             for key, value in metadata.items()
             if key in {"authors", "year", "doi", "code", "documentType", "officialStatus"}
         },
-        "excerpts": _excerpt(body, question),
+        "excerpts": excerpts,
         "bodyTruncated": len(body) > 5400,
     }
 

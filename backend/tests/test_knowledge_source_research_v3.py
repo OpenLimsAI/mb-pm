@@ -357,3 +357,20 @@ def test_pending_original_research_checks_signed_receipt_again_before_returning(
             request()
         assert error.value.status_code == 403 and len(calls) == 1
     assert len(reads) >= 2
+
+
+def test_core_evidence_offsets_select_the_actual_text_in_utf16_reader(store):
+    s, _ = store
+    body = "𝛼 introduction.\n\nRelevant evidence with 𝛽."
+
+    def connect(*args, **values):
+        return {"body": body, "hash": "actual-body-hash"}
+
+    evidence = service.evidence_for(s, ACTOR, PAPERS[0], connect, "Relevant")
+    encoded = body.encode("utf-16-le")
+    for excerpt in evidence["excerpts"]:
+        selected = encoded[
+            excerpt["offset"] * 2 : (excerpt["offset"] + excerpt["length"]) * 2
+        ].decode("utf-16-le")
+        assert selected == excerpt["text"]
+    assert evidence["excerpts"][1]["offset"] == 18
