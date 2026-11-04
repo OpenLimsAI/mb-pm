@@ -32,7 +32,13 @@
 .aa-sidebar nav button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 38px; padding: 8px 11px; border: 1px solid transparent; border-radius: 6px; color: #6a8190; background: transparent; text-align: left; font-size: 12px; }
 .aa-sidebar nav button:hover { color: var(--workbench-brand-strong); background: #edf3f7; }
 .aa-sidebar nav button.is-active { color: var(--workbench-brand-strong); background: var(--workbench-soft); font-weight: 600; }
-.aa-sidebar nav button > span { margin-left: auto; font-size: 12px; color: #90a3b0; }
+.aa-sidebar nav button > svg { flex-shrink: 0; }
+.aa-sidebar-settings { display: grid; gap: 4px; margin-top: 12px; padding-top: 16px; border-top: 1px solid var(--workbench-line, #dce5ec); }
+.aa-sidebar nav button.aa-data-settings { align-items: flex-start; }
+.aa-data-settings > svg { margin-top: 2px; }
+.aa-data-settings-copy { display: grid; gap: 5px; min-width: 0; }
+.aa-data-settings-copy strong { font-size: inherit; font-weight: inherit; white-space: nowrap; }
+.aa-data-settings-copy small { color: #90a3b0; font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
 .aa-task-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 34px; margin-top: 24px; padding: 0 8px; color: #8397a6; font-size: 12px; }
 .aa-icon-button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 29px; height: 29px; border: 0; border-radius: 5px; background: transparent; color: #7e94a3; }
 .aa-icon-button:hover:not(:disabled) { color: var(--workbench-brand-strong); background: #eaf3f8; }

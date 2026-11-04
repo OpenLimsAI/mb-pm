@@ -250,3 +250,9 @@ GitHub Actions 检查前端账号权限覆盖率、门户路由及构建、后�
 正式入口 `/knowledge-sources` 使用门户会话与真实 `/api/v1/knowledge-sources` 接口，需配对知识库桥接版本及开启新应用/后台开关；旧 `INFORMATION_APP_ENABLED` 继续关闭。开发预览只显示连接提示，不执行真实采集。
 
 针对性检查：`npx vitest run src/features/knowledge-sources/KnowledgeSourceApp.test.tsx src/pages/Workspace.test.tsx`、`node scripts/test-portal-routing.mjs`，后端知识源测试与全量检查按原测试说明执行。需检验全库读取、多分类去重、目录预览、下载部分失败与重试、旧监控不恢复和权限失效。
+
+## Kimi生成与阶段超时回归
+
+后端在 `backend` 运行 `pytest tests/test_kimi_generation.py tests/test_assistant_generation.py tests/test_assistant_output_recovery.py tests/test_assistant_diagnostics.py tests/test_assistant_transport_diagnostics.py tests/test_model_search.py`；前端运行 `npm test -- src/features/assistant/RequestProgressView.test.tsx src/features/assistant/AssistantApp.test.tsx`。
+
+使用模拟时间和传输覆盖官方地址/区域、低思考与深度分析、121秒首响应、持续思考但无正文、正文后断流、停止/失权/旧线程未退出、剩余预算不足、一次恢复共用额度、搜索不重复，以及日志和草稿不泄漏推理内容或密钥。不通过真实等待几分钟构造自动化测试；真实服务商验收单独记录模型、流式首正文、耗时和调用次数，不输出凭据或回答正文。

@@ -339,8 +339,9 @@ def test_removed_providers_rejected_and_legacy_settings_fall_back(client, auth_h
 
 def test_startup_adds_prompt_column_to_existing_table(tmp_path, monkeypatch):
     """已建过 project_ai_analyses 的老库：启动时补上 prompt 列，旧记录为空串。"""
-    import app.main as main
     from sqlalchemy import create_engine, inspect, text
+
+    import app.main as main
 
     engine = create_engine(f"sqlite:///{tmp_path / 'old.db'}")
     with engine.begin() as conn:
@@ -467,7 +468,7 @@ def test_revoked_project_lead_cannot_use_ai_with_old_token(client, iam_user, bea
 
 
 @pytest.mark.parametrize("provider,profile_provider", [("kimi", None), ("", "kimi")])
-@pytest.mark.parametrize("probe,limit,effort", [(True, 4096, "low"), (False, 16384, "high")])
+@pytest.mark.parametrize("probe,limit,effort", [(True, 4096, "low"), (False, 16384, "low")])
 def test_kimi_bounded_thinking_request(provider, profile_provider, probe, limit, effort):
     seen = []
 

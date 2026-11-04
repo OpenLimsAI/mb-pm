@@ -301,3 +301,29 @@ def test_capability_and_actual_search_follow_model_switches(assistant_client, mo
         assert calls[0]["headers"]["Authorization"] == "Bearer " + expected["api_key"]
         assert calls[0]["url"].startswith(expected["base_url"])
         assert "private-material" not in json.dumps(calls[0]["json"])
+
+
+@pytest.mark.parametrize(
+    "question,kind",
+    [
+        ("上游培养中哪些因素影响抗体片段？", "general"),
+        ("请深入分析上游培养中抗体片段的风险及证据", "analysis"),
+        ("不用深入分析，简述上游培养中抗体片段的原因", "general"),
+    ],
+)
+def test_web_synthesis_respects_explicit_depth_within_durable_generation(monkeypatch, question, kind):
+    from app.services import assistant_generation as generation
+
+    native.enabled(monkeypatch, "model")
+    searches = transport(monkeypatch)
+    calls = []
+
+    def generate(provider, cfg, messages, **kwargs):
+        calls.append((provider, kwargs["kind"]))
+        return "Evidence [1]", {}
+
+    monkeypatch.setattr(generation, "call", generate)
+    with generation.run_context(lambda fields: None):
+        web_search.answer(question, selected={"kind": "system"}, provider="kimi", cfg=KIMI)
+    assert calls == [("kimi", kind)]
+    assert len(searches) == 1
