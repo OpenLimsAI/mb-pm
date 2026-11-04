@@ -14,6 +14,7 @@ const existingItem = { id: 'old', category: 'bug', description: '列表加载缓
 const newItem = { id: 'abc', category: 'feature', description: '建议增加筛选', status: 'open', author_name: '李同事', created_at: '2026-10-27T12:00:00Z', images: ['img1'], can_delete: true }
 
 beforeEach(() => {
+  server.use(http.get('*/api/v1/feedback/:id/activities', () => HttpResponse.json({ items: [], next_cursor: null })))
   let imageNumber = 0
   vi.stubGlobal('URL', class extends NativeURL {
     static createObjectURL() { return `blob:preview-${++imageNumber}` }
@@ -132,6 +133,11 @@ it('submits a new feature with an image, makes it visible despite previous filte
   const row = (await screen.findByText('建议增加筛选')).closest('article')!
   expect(within(row).getByRole('img')).toHaveAttribute('src', '/api/v1/feedback/images/img1')
   await userEvent.click(within(row).getByRole('button', { name: '标记为已修复' }))
+  const progress = screen.getByRole('dialog', { name: '反馈详情' })
+  await waitFor(() => expect(within(progress).getByRole('button', { name: '保存状态' })).toBeEnabled())
+  await userEvent.click(within(progress).getByRole('button', { name: '保存状态' }))
+  await waitFor(() => expect(within(progress).getByRole('button', { name: '关闭详情' })).toBeEnabled())
+  await userEvent.click(within(progress).getByRole('button', { name: '关闭详情' }))
   expect(await within(row).findByText('已修复')).toBeInTheDocument()
   expect(within(row).getByRole('button', { name: '重新打开' })).toBeInTheDocument()
 })
@@ -230,7 +236,10 @@ it('keeps the existing status when the server rejects a change', async () => {
   mountFeedback()
   const row = (await screen.findByText('列表加载缓慢')).closest('article')!
   await userEvent.click(within(row).getByRole('button', { name: '标记为已修复' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent('状态更新失败')
+  const progress = screen.getByRole('dialog', { name: '反馈详情' })
+  await waitFor(() => expect(within(progress).getByRole('button', { name: '保存状态' })).toBeEnabled())
+  await userEvent.click(within(progress).getByRole('button', { name: '保存状态' }))
+  expect(await within(progress).findByRole('alert')).toHaveTextContent('状态更新失败')
   expect(within(row).getByRole('button', { name: '标记为已修复' })).toBeInTheDocument()
 })
 
@@ -274,7 +283,7 @@ it('only shows delete for authorized feedback, cancels without a request, and de
 
   await userEvent.click(within(own).getByRole('button', { name: '删除反馈' }))
   let dialog = screen.getByRole('dialog')
-  expect(within(dialog).getByText(/删除后无法恢复，图片也会被删除/)).toBeInTheDocument()
+  expect(within(dialog).getByText(/删除后无法恢复，图片、回复和处理记录也会一并删除/)).toBeInTheDocument()
   await userEvent.click(within(dialog).getByRole('button', { name: '取消' }))
   expect(deletions).toBe(0)
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
