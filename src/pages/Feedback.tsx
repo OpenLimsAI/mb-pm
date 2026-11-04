@@ -2,7 +2,7 @@ import ApplicationActions from '../components/application/ApplicationActions'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import axios from 'axios'
 import { AlertCircle, ArrowUpRight, Bug, Check, CheckCircle2, ChevronRight, CircleDot, ImagePlus, Lightbulb, MessageSquareText, Plus, RefreshCw, Search, ShieldCheck, Trash2, X } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { usePortalContext } from '../components/portal/context'
 import { API_BASE } from '../api/client'
 import '../features/information/information.css'
@@ -31,6 +31,7 @@ function formatDate(value: string) {
 
 export default function Feedback() {
   const { user, preview, applications, refresh } = usePortalContext()
+  const [searchParams, setSearchParams] = useSearchParams()
   const suffix = preview ? '?preview=1' : ''
   const name = user.displayName || user.username
   const allowed = preview || applications.some((entry) => entry.id === 'feedback' && entry.enabled)
@@ -42,7 +43,16 @@ export default function Feedback() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [query, setQuery] = useState('')
-  const [composerOpen, setComposerOpen] = useState(false)
+  const [composerRequested, setComposerRequested] = useState(false)
+  const composerOpen = allowed && !loading && !loadError && (composerRequested || searchParams.get('compose') === '1')
+  const setComposerOpen = (open: boolean) => {
+    setComposerRequested(open)
+    if (!open && searchParams.has('compose')) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('compose')
+      setSearchParams(next, { replace: true })
+    }
+  }
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [category, setCategory] = useState<Category>('bug')
   const [description, setDescription] = useState('')
@@ -181,7 +191,7 @@ export default function Feedback() {
         item = { id: `demo-${Date.now()}`, category, description: description.trim(), status: 'open', author_name: name, created_at: new Date().toISOString(), images: attachments.map((attachment) => attachment.url), can_delete: true }
       } else {
         const data = new FormData(); data.append('category', category); data.append('description', description.trim())
-        attachments.forEach((attachment) => data.append('images', attachment.file))
+        attachments.forEach((attachment) => data.append('images', attachment.file, attachment.file.name))
         item = (await client.post<FeedbackItem>('', data)).data
       }
       setItems((current) => [item, ...current]); clearFilters(); resetForm(preview); setComposerOpen(false)
@@ -245,9 +255,14 @@ export default function Feedback() {
     </div></div>}
     {composerOpen && <div className="feedback-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeComposer() }}><div className="feedback-dialog" role="dialog" aria-modal="true" aria-labelledby="feedback-dialog-title" ref={dialogRef}>
       {confirmDiscard ? <div className="feedback-discard"><span className="feedback-dialog-icon"><AlertCircle size={23} /></span><h2 id="feedback-dialog-title">放弃这条反馈？</h2><p>你填写的内容和已选图片还没有提交，关闭后将不会保存。</p><div className="feedback-dialog-actions"><button ref={continueEditingRef} type="button" className="feedback-outline-button" onClick={() => setConfirmDiscard(false)}>继续编辑</button><button type="button" className="feedback-danger-button" onClick={discardComposer}>放弃并关闭</button></div></div> : <><div className="feedback-dialog-header"><div><div className="feedback-dialog-kicker">SHARE YOUR FEEDBACK</div><h2 id="feedback-dialog-title">提交反馈</h2><p>说说你遇到的问题，或分享让系统更好用的想法。</p></div><button type="button" className="feedback-icon-button" aria-label="关闭" disabled={submitting} onClick={closeComposer}><X size={20} /></button></div>
-      <form onSubmit={(event) => { void submit(event) }} className="feedback-dialog-form"><fieldset className="feedback-category-picker"><legend>反馈分类</legend><button type="button" aria-pressed={category === 'bug'} className={category === 'bug' ? 'is-selected' : ''} onClick={() => setCategory('bug')}><span><Bug size={18} /></span><div><strong>Bug 问题</strong><small>遇到故障或异常</small></div>{category === 'bug' && <CheckCircle2 size={17} />}</button><button type="button" aria-pressed={category === 'feature'} className={category === 'feature' ? 'is-selected' : ''} onClick={() => setCategory('feature')}><span><Lightbulb size={18} /></span><div><strong>新功能建议</strong><small>分享需求或想法</small></div>{category === 'feature' && <CheckCircle2 size={17} />}</button></fieldset>
+      <form onSubmit={(event) => { void submit(event) }} onPaste={(event) => {
+        const images = Array.from(event.clipboardData.items).filter((item) => item.kind === 'file' && item.type.startsWith('image/')).map((item) => item.getAsFile()).filter((file): file is File => file !== null)
+        if (!images.length) return
+        event.preventDefault()
+        if (!submitting) addImages(images)
+      }} className="feedback-dialog-form"><fieldset className="feedback-category-picker"><legend>反馈分类</legend><button type="button" aria-pressed={category === 'bug'} className={category === 'bug' ? 'is-selected' : ''} onClick={() => setCategory('bug')}><span><Bug size={18} /></span><div><strong>Bug 问题</strong><small>遇到故障或异常</small></div>{category === 'bug' && <CheckCircle2 size={17} />}</button><button type="button" aria-pressed={category === 'feature'} className={category === 'feature' ? 'is-selected' : ''} onClick={() => setCategory('feature')}><span><Lightbulb size={18} /></span><div><strong>新功能建议</strong><small>分享需求或想法</small></div>{category === 'feature' && <CheckCircle2 size={17} />}</button></fieldset>
         <div className="feedback-field"><div className="feedback-field-heading"><label htmlFor="feedback-description">问题或建议 <span>必填</span></label><span>{description.length} / 5000</span></div><textarea ref={descriptionRef} id="feedback-description" required maxLength={5000} rows={6} value={description} onChange={(event) => setDescription(event.target.value)} placeholder={category === 'bug' ? '请描述遇到的问题，例如发生在哪里、操作步骤和实际结果。' : '请描述你的想法，以及它希望解决什么问题。'} /></div>
-        <div className="feedback-field"><div className="feedback-field-heading"><span className="feedback-field-label">图片说明 <span>选填</span></span><span>{attachments.length} / 3</span></div><div className="feedback-attachment-grid">{attachments.map((attachment) => <div className="feedback-attachment" key={attachment.id}><img src={attachment.url} alt={`已添加图片 ${attachment.file.name}`} /><button type="button" aria-label={`移除图片 ${attachment.file.name}`} onClick={() => { revoke(attachment.url); setAttachments((current) => current.filter((entry) => entry.id !== attachment.id)); setAttachmentError('') }}><X size={15} /></button></div>)}{attachments.length < 3 && <label className="feedback-upload"><ImagePlus size={20} /><span>添加图片</span><input aria-label="添加图片" type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => { addImages(Array.from(event.target.files || [])); event.target.value = '' }} /></label>}</div><p className="feedback-field-help">支持 PNG、JPEG、WebP，最多 3 张，每张不超过 5 MB。</p>{attachmentError && <div className="feedback-form-error" role="alert"><AlertCircle size={15} /><span>{attachmentError}</span><button type="button" onClick={() => setAttachmentError('')}>忽略未添加的图片</button></div>}</div>
+        <div className="feedback-field"><div className="feedback-field-heading"><span className="feedback-field-label">图片说明 <span>选填</span></span><span>{attachments.length} / 3</span></div><div className="feedback-attachment-grid">{attachments.map((attachment) => <div className="feedback-attachment" key={attachment.id}><img src={attachment.url} alt={`已添加图片 ${attachment.file.name}`} /><button type="button" aria-label={`移除图片 ${attachment.file.name}`} onClick={() => { revoke(attachment.url); setAttachments((current) => current.filter((entry) => entry.id !== attachment.id)); setAttachmentError('') }}><X size={15} /></button></div>)}{attachments.length < 3 && <label className="feedback-upload"><ImagePlus size={20} /><span>添加图片</span><input aria-label="添加图片" type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => { addImages(Array.from(event.target.files || [])); event.target.value = '' }} /></label>}</div><p className="feedback-field-help">截图后可在此按 Ctrl / Cmd + V 粘贴，也可点击添加图片。支持 PNG、JPEG、WebP，最多 3 张，每张不超过 5 MB。</p>{attachmentError && <div className="feedback-form-error" role="alert"><AlertCircle size={15} /><span>{attachmentError}</span><button type="button" onClick={() => setAttachmentError('')}>忽略未添加的图片</button></div>}</div>
         {formError && <div className="feedback-form-error" role="alert"><AlertCircle size={15} />{formError}</div>}
         <div className="feedback-dialog-footer"><p><ShieldCheck size={15} />反馈和图片对组织内登录成员可见。</p><div className="feedback-dialog-actions"><button type="button" className="feedback-outline-button" disabled={submitting} onClick={closeComposer}>取消</button><button type="submit" className="feedback-create" disabled={submitting || loading || !!attachmentError}>{submitting ? '正在提交…' : '提交反馈'}<ChevronRight size={16} /></button></div></div>
       </form></>}
