@@ -214,7 +214,9 @@ def model_call(request_fn, provider, cfg, path, body, *, timeout):
     trace.upstream_status = None
     trace.stage = "model"
     started = monotonic()
-    budget = body.get("max_tokens", body.get("options", {}).get("num_predict"))
+    budget = body.get(
+        "max_completion_tokens", body.get("max_tokens", body.get("options", {}).get("num_predict"))
+    )
     trace.emit(
         "model_started",
         round=trace.model_rounds,

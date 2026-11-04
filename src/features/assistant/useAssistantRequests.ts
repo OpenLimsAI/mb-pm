@@ -4,9 +4,10 @@ import type { AssistantClient, AssistantRequest, AssistantTask, TaskQuestion, Ta
 interface Callbacks {
   restore(job: AssistantRequest): void
   complete(row: AssistantTask, job: AssistantRequest): void
-  fail(taskId: string, message: string, job?: AssistantRequest): void
+  fail(taskId: string, message: string, job?: AssistantRequest, context?: { requestId?: string; displayedInProgress: boolean }): void
 }
 export interface RequestProgress {
+  requestId?: string
   job?: AssistantRequest
   phase: 'checking' | 'processing' | 'reconnecting' | 'auth' | 'failed'
   message?: string
@@ -50,11 +51,11 @@ export default function useAssistantRequests(client: AssistantClient, namespace:
     epochs.current.set(taskId, epoch)
     let job = initial, requestId = initial?.requestId || knownId, polling = false, missingChecks = 0, settled = false, restored = false
     const current = () => !settled && alive.current && sessionGeneration.current === generation && epochs.current.get(taskId) === epoch
-    const publish = (value: RequestProgress) => { if (current()) setProgress(old => ({ ...old, [taskId]: value })) }
+    const publish = (value: RequestProgress) => { if (current()) setProgress(old => ({ ...old, [taskId]: { ...value, requestId } })) }
     const schedule = (delay: number) => { if (current()) { clearTimer(taskId); timers.current.set(taskId, setTimeout(() => { void tick() }, delay)) } }
     const terminalFailure = (message: string, record?: AssistantRequest) => {
       if (!current()) return
-      publish({ phase: 'failed', job: record, message }); settled = true; stop(taskId); callbacksRef.current.fail(taskId, message, record)
+      publish({ phase: 'failed', job: record, message }); settled = true; stop(taskId); callbacksRef.current.fail(taskId, message, record, { requestId, displayedInProgress: true })
     }
     const accept = async (record: AssistantRequest) => {
       if (!current()) return
@@ -122,7 +123,7 @@ export default function useAssistantRequests(client: AssistantClient, namespace:
     const generation = sessionGeneration.current
     const epoch = (epochs.current.get(task.id) || 0) + 1; epochs.current.set(task.id, epoch)
     remember(task.id, input.requestId)
-    setProgress(old => ({ ...old, [task.id]: { phase: 'checking' } }))
+    setProgress(old => ({ ...old, [task.id]: { phase: 'checking', requestId: input.requestId } }))
     try {
       const job = await client.submitRequest!(task, input)
       if (alive.current && sessionGeneration.current === generation && epochs.current.get(task.id) === epoch) watch(task.id, job)
@@ -140,7 +141,7 @@ export default function useAssistantRequests(client: AssistantClient, namespace:
         }
       }
       if (status === 401 || status === 403 || status === 404 || status === 409 || status === 422 || status === 429) {
-        remember(task.id, null, input.requestId); removeProgress(task.id); callbacksRef.current.fail(task.id, errorMessage(reason))
+        remember(task.id, null, input.requestId); removeProgress(task.id); callbacksRef.current.fail(task.id, errorMessage(reason), undefined, { requestId: input.requestId, displayedInProgress: false })
       } else {
         // The response can be lost after acceptance. Read by the same ID; never
         // start another paid model call merely because a POST response was lost.
@@ -164,7 +165,7 @@ export default function useAssistantRequests(client: AssistantClient, namespace:
       if (alive.current && sessionGeneration.current === generation && epochs.current.get(taskId) === epoch) watch(taskId, record)
     } catch (reason) {
       if (alive.current && sessionGeneration.current === generation && epochs.current.get(taskId) === epoch) {
-        callbacksRef.current.fail(taskId, `停止请求未确认：${errorMessage(reason)} 正在重新核对进度。`)
+        callbacksRef.current.fail(taskId, `停止请求未确认：${errorMessage(reason)} 正在重新核对进度。`, undefined, { requestId, displayedInProgress: false })
         watch(taskId, undefined, requestId)
       }
     }

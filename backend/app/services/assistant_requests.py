@@ -35,9 +35,14 @@ DRAFT_CODES = {
     "response_too_large",
     "model_network",
     "model_invalid_response",
+    "model_empty_response",
+    "model_auth",
+    "model_rate_limit",
+    "model_rejected",
     "request_interrupted",
     "request_cancelled",
 }
+DRAFT_CONTEXT_CHARS = 16000
 
 
 @dataclass
@@ -53,6 +58,12 @@ class Execution:
 
 def now():
     return datetime.now(UTC)
+
+
+def interrupted():
+    return HTTPException(
+        409, INTERRUPTED, headers={diagnostics.ERROR_HEADER: "request_interrupted"}
+    )
 
 
 def active_id():
@@ -87,6 +98,10 @@ def _scope_access(db, claims, task, job):
         solution_knowledge.check_access(claims)
 
 
+def continuable(job):
+    return bool(job.status in {"failed", "cancelled"} and job.partial_content and job.payload)
+
+
 def view(db, claims, task, job):
     _scope_access(db, claims, task, job)
     payload = job.payload
@@ -98,7 +113,7 @@ def view(db, claims, task, job):
             "stage": job.stage,
             "partial_content": job.partial_content if job.status != "completed" else "",
             "error_code": job.error_code,
-            "can_continue": bool(job.partial_content and job.status in {"failed", "cancelled"}),
+            "can_continue": continuable(job),
             "started_at": job.started_at,
             "finished_at": job.finished_at,
             "payload_expired": not bool(payload),
@@ -257,13 +272,26 @@ def continuation_context(db, claims, task, payload, *, actual_sources=None):
         raise HTTPException(422, "继续此草稿需要保留原来的应用数据范围，或重新提问")
     if actual_sources is not None and not used.issubset(actual_sources):
         raise HTTPException(422, "继续此草稿需要查询原来的应用数据，请选择相同的数据范围和回答方式")
-    if job.status not in {"failed", "cancelled"} or not job.partial_content or not job.payload:
+    if not continuable(job):
         raise HTTPException(422, "该请求没有可继续的未完成草稿，请重新提问")
+    draft = job.partial_content
+    truncated = len(draft) > DRAFT_CONTEXT_CHARS
+    omitted = 0
+    if truncated:
+        marker = "\n\n[草稿中段已省略；以下为末尾，省略处不代表内容连续]\n\n"
+        kept = DRAFT_CONTEXT_CHARS - len(marker)
+        head = (kept + 1) // 2
+        tail = kept - head
+        omitted = len(draft) - kept
+        draft = draft[:head] + marker + draft[-tail:]
     return json.dumps(
         {
             "original_question": job.payload.get("question", ""),
-            "unfinished_content": job.partial_content[:16000],
-            "instruction": "这是未完成、未经核对的草稿，仅用于理解上下文；请重新核对事实并给出完整回答。应用事实须重新查询，不能将草稿当作新证据。",
+            "unfinished_content": draft,
+            "truncated": truncated,
+            "original_chars": len(job.partial_content),
+            "omitted_chars": omitted,
+            "instruction": "这是未完成、未经核对的草稿，仅用于理解上下文；请重新核对事实并给出完整回答。应用事实须重新查询，不能将草稿当作新证据。truncated 为真时只保留首尾，不要推断被省略的中段。",
         },
         ensure_ascii=False,
     )
@@ -439,9 +467,10 @@ def progress(**fields):
     if not execution:
         return
     if execution.stop and execution.stop.is_set():
-        raise HTTPException(409, INTERRUPTED)
+        raise interrupted()
     force = (
-        bool(fields.get("final_partial"))
+        bool(fields.get("checkpoint"))
+        or bool(fields.get("final_partial"))
         or bool(fields.get("first_content"))
         or bool(fields.get("application_scope"))
         or bool(fields.get("stage") and fields["stage"] != execution.last_stage)
@@ -452,7 +481,7 @@ def progress(**fields):
         "updated_at": now(),
         "lease_until": now() + timedelta(seconds=execution.lease_seconds),
     }
-    if fields.get("stage") in {"waiting_model", "generating", "saving"}:
+    if fields.get("stage") in {"waiting_model", "recovering", "generating", "saving"}:
         values["stage"] = fields["stage"]
     if fields.get("first_content"):
         values["first_content_at"] = now()
@@ -477,7 +506,7 @@ def progress(**fields):
         )
         if changed.rowcount != 1:
             db.rollback()
-            raise HTTPException(409, INTERRUPTED)
+            raise interrupted()
         db.commit()
     execution.last_write = monotonic()
     if "stage" in fields:
@@ -507,7 +536,7 @@ def complete(db):
         )
     )
     if changed.rowcount != 1:
-        raise HTTPException(409, INTERRUPTED)
+        raise interrupted()
 
 
 def fail(db, job_id, token, error, status=503, code="request_failed", diagnostic_id=""):
@@ -556,7 +585,7 @@ def execute(job_id, token, *, factory=SessionLocal, stop=None, streaming=True):
             return
         task = db.get(AssistantTask, job.task_id)
         if task is None or task.active_request_id != job_id:
-            fail(db, job_id, token, INTERRUPTED, 409)
+            fail(db, job_id, token, INTERRUPTED, 409, code="request_interrupted")
             return
         payload = TaskQuestion.model_validate(job.payload)
         claims = {"iss": task.issuer, "sub": task.owner_id, "owner": settings.CASDOOR_ORG}

@@ -562,7 +562,7 @@ describe('background assistant generation in the workspace', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('模型读取超时')
     expect(screen.getByRole('alert')).toHaveTextContent('a'.repeat(32))
     expect(composer()).toHaveValue('分析培养因素')
-    expect(screen.getByText('未完成草稿 · 请继续生成并核对后使用')).toBeInTheDocument()
+    expect(screen.getByText('未完成草稿 · 已保留正文，使用前请核对')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '发送任务消息' }))
     await waitFor(() => expect(client.submitRequest).toHaveBeenCalledTimes(2))
     expect(vi.mocked(client.submitRequest).mock.calls[1][1].requestId).not.toBe(firstId)

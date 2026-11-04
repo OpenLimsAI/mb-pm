@@ -88,7 +88,7 @@ describe('assistant recovery and curation', () => {
     fireEvent.click(screen.getByRole('button', { name: '停止生成' })); await waitFor(() => expect(cancel).toHaveBeenCalledOnce())
     await act(async () => view.rerender(<RequestProgressView progress={{ phase: 'failed', job: { ...job, status: 'cancelled', canContinue: true } }} onContinue={resume} onCopyDiagnostic={copy} />))
     expect(screen.getByText('已停止生成')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '接着草稿继续' })); expect(resume).toHaveBeenCalledOnce()
+    fireEvent.click(screen.getByRole('button', { name: '根据草稿重新整理' })); expect(resume).toHaveBeenCalledOnce()
     fireEvent.click(screen.getByRole('button', { name: '复制诊断信息' }))
     expect(copy.mock.calls[0][0]).toContain('请求编号：job'); expect(copy.mock.calls[0][0]).not.toContain('私人')
     expect(screen.queryByRole('button', { name: '导出 Markdown' })).not.toBeInTheDocument()
