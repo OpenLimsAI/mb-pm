@@ -404,5 +404,11 @@
       "planning-workload-capacity.png",
       "planning-workload-zero.png"
     ]
+  },
+  "rollback_boundary": {
+    "old_backend_lacks_acceptance_and_revision_guards": true,
+    "require_current_image_and_release_backup_lock_check": true,
+    "retain_new_schema_and_data": true,
+    "keep_affected_tasks_quiesced_and_reload_clients_before_resuming_new_version": true
   }
 }
