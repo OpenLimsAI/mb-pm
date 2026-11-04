@@ -14,6 +14,7 @@ const existingItem = { id: 'old', category: 'bug', description: '列表加载缓
 const newItem = { id: 'abc', category: 'feature', description: '建议增加筛选', status: 'open', author_name: '李同事', created_at: '2026-10-27T12:00:00Z', images: ['img1'], can_delete: true }
 
 beforeEach(() => {
+  server.use(http.get('*/api/v1/feedback/:id/activities', () => HttpResponse.json({ items: [], next_cursor: null })))
   let imageNumber = 0
   vi.stubGlobal('URL', class extends NativeURL {
     static createObjectURL() { return `blob:preview-${++imageNumber}` }
@@ -32,11 +33,13 @@ function mountFeedback(enabled = true, search = '') {
   render(<App />)
 }
 
-async function openComposer() {
+async function openComposer(application = 'pm') {
   const button = (await screen.findAllByRole('button', { name: '提交反馈' }))[0]
   await waitFor(() => expect(button).toBeEnabled())
   await userEvent.click(button)
-  return screen.getByRole('dialog')
+  const dialog = screen.getByRole('dialog')
+  if (application) await userEvent.selectOptions(within(dialog).getByLabelText(/所属应用/), application)
+  return dialog
 }
 
 it('opens the requested composer after loading, then closes it without reopening on refresh', async () => {
@@ -74,6 +77,7 @@ it('pastes a screenshot into the composer and sends it with the feedback', async
   mountFeedback(true, '?compose=1')
   const dialog = await screen.findByRole('dialog', { name: '提交反馈' })
   const description = within(dialog).getByLabelText(/问题或建议/)
+  await userEvent.selectOptions(within(dialog).getByLabelText(/所属应用/), 'kb')
   const screenshot = new File(['screenshot'], 'screenshot.png', { type: 'image/png' })
   fireEvent.paste(description, { clipboardData: { items: [{ kind: 'file', type: screenshot.type, getAsFile: () => screenshot }] } })
   expect(within(dialog).getByRole('img', { name: '已添加图片 screenshot.png' })).toBeInTheDocument()
@@ -132,6 +136,11 @@ it('submits a new feature with an image, makes it visible despite previous filte
   const row = (await screen.findByText('建议增加筛选')).closest('article')!
   expect(within(row).getByRole('img')).toHaveAttribute('src', '/api/v1/feedback/images/img1')
   await userEvent.click(within(row).getByRole('button', { name: '标记为已修复' }))
+  const progress = screen.getByRole('dialog', { name: '反馈详情' })
+  await waitFor(() => expect(within(progress).getByRole('button', { name: '保存状态' })).toBeEnabled())
+  await userEvent.click(within(progress).getByRole('button', { name: '保存状态' }))
+  await waitFor(() => expect(within(progress).getByRole('button', { name: '关闭详情' })).toBeEnabled())
+  await userEvent.click(within(progress).getByRole('button', { name: '关闭详情' }))
   expect(await within(row).findByText('已修复')).toBeInTheDocument()
   expect(within(row).getByRole('button', { name: '重新打开' })).toBeInTheDocument()
 })
@@ -230,7 +239,10 @@ it('keeps the existing status when the server rejects a change', async () => {
   mountFeedback()
   const row = (await screen.findByText('列表加载缓慢')).closest('article')!
   await userEvent.click(within(row).getByRole('button', { name: '标记为已修复' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent('状态更新失败')
+  const progress = screen.getByRole('dialog', { name: '反馈详情' })
+  await waitFor(() => expect(within(progress).getByRole('button', { name: '保存状态' })).toBeEnabled())
+  await userEvent.click(within(progress).getByRole('button', { name: '保存状态' }))
+  expect(await within(progress).findByRole('alert')).toHaveTextContent('状态更新失败')
   expect(within(row).getByRole('button', { name: '标记为已修复' })).toBeInTheDocument()
 })
 
@@ -245,9 +257,9 @@ it('does not request feedback data when the application is unavailable', async (
 it('protects an unfinished draft and restores focus after it is discarded', async () => {
   server.use(http.get('*/api/v1/feedback', () => HttpResponse.json([])))
   mountFeedback()
-  const dialog = await openComposer()
+  const dialog = await openComposer('')
   const draft = within(dialog).getByLabelText(/问题或建议/)
-  expect(draft).toHaveFocus()
+  await waitFor(() => expect(draft).toHaveFocus())
   await userEvent.type(draft, '还没有提交的反馈')
   await userEvent.keyboard('{Escape}')
   expect(within(dialog).getByRole('heading', { name: '放弃这条反馈？' })).toBeInTheDocument()
@@ -274,7 +286,7 @@ it('only shows delete for authorized feedback, cancels without a request, and de
 
   await userEvent.click(within(own).getByRole('button', { name: '删除反馈' }))
   let dialog = screen.getByRole('dialog')
-  expect(within(dialog).getByText(/删除后无法恢复，图片也会被删除/)).toBeInTheDocument()
+  expect(within(dialog).getByText(/删除后无法恢复，图片、回复和处理记录也会一并删除/)).toBeInTheDocument()
   await userEvent.click(within(dialog).getByRole('button', { name: '取消' }))
   expect(deletions).toBe(0)
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -304,4 +316,45 @@ it('keeps the feedback and displays an error in the confirmation dialog when del
   expect(deletions).toBe(1)
   expect(within(own).getByText('建议增加筛选')).toBeInTheDocument()
   expect(within(dialog).getByRole('button', { name: '确认删除' })).toBeEnabled()
+})
+
+
+it('requires an application for the new form and sends it together with description and an image', async () => {
+  let posts = 0
+  let multipart = ''
+  server.use(
+    http.get('*/api/v1/feedback', () => HttpResponse.json([])),
+    http.post('*/api/v1/feedback', async ({ request }) => {
+      posts++; multipart = await request.text()
+      return HttpResponse.json({ ...newItem, application: 'kb' }, { status: 201 })
+    }),
+  )
+  mountFeedback()
+  const dialog = await openComposer('')
+  await userEvent.type(within(dialog).getByLabelText(/问题或建议/), '知识库页面的问题')
+  await userEvent.click(within(dialog).getByRole('button', { name: '提交反馈' }))
+  expect(posts).toBe(0)
+  await userEvent.selectOptions(within(dialog).getByLabelText(/所属应用/), 'kb')
+  await userEvent.upload(within(dialog).getByLabelText('添加图片'), new File(['image'], 'screen.png', { type: 'image/png' }))
+  await userEvent.click(within(dialog).getByRole('button', { name: '提交反馈' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(posts).toBe(1)
+  expect(multipart).toContain('name="application"')
+  expect(multipart).toContain('kb')
+  expect(multipart).toContain('name="images"')
+  expect(within(screen.getByRole('article')).getByText('知识库')).toBeInTheDocument()
+})
+
+it('protects the selected application in an unfinished draft and clears it after discard', async () => {
+  server.use(http.get('*/api/v1/feedback', () => HttpResponse.json([])))
+  mountFeedback()
+  let dialog = await openComposer('kb')
+  await userEvent.click(within(dialog).getByRole('button', { name: '取消' }))
+  expect(within(dialog).getByRole('heading', { name: '放弃这条反馈？' })).toBeInTheDocument()
+  await userEvent.click(within(dialog).getByRole('button', { name: '继续编辑' }))
+  expect(within(dialog).getByLabelText(/所属应用/)).toHaveValue('kb')
+  await userEvent.click(within(dialog).getByRole('button', { name: '取消' }))
+  await userEvent.click(within(dialog).getByRole('button', { name: '放弃并关闭' }))
+  dialog = await openComposer('')
+  expect(within(dialog).getByLabelText(/所属应用/)).toHaveValue('')
 })
