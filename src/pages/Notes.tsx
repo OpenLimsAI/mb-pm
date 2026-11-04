@@ -1,5 +1,5 @@
 import ApplicationActions from '../components/application/ApplicationActions'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { NotebookPen, ShieldCheck } from 'lucide-react'
 import { usePortalContext } from '../components/portal/context'
 import NotesWorkspace from '../features/notes/NotesWorkspace'
@@ -9,7 +9,7 @@ export default function Notes() {
   const { user, identityNamespace, preview } = usePortalContext()
   const namespace = `${identityNamespace || user.id}:${user.id}`
   const embedded = new URLSearchParams(window.location.search).get('embed') === 'knowledge'
-  const identity = embedded ? window.location.hash.slice(1) : ''
+  const [identity] = useState(() => embedded ? window.location.hash.slice(1) : '')
   const client = useMemo(() => preview ? createPreviewNotesClient(namespace) : embedded ? createNotesApi(identity || 'invalid') : notesApi, [namespace, preview, embedded, identity])
   return <div className={`pn-app${embedded ? ' pn-app-knowledge-embed' : ''}`}>
     <a className="pn-skip" href="#pn-content">跳至笔记内容</a>

@@ -43,7 +43,8 @@ it('opens the requested composer after loading, then closes it without reopening
   server.use(http.get('*/api/v1/feedback', () => HttpResponse.json([existingItem])))
   mountFeedback(true, '?compose=1&keep=1')
   const dialog = await screen.findByRole('dialog', { name: '提交反馈' })
-  expect(within(dialog).getByLabelText(/问题或建议/)).toHaveFocus()
+  // Dialog insertion can precede the passive effect that moves focus into it.
+  await waitFor(() => expect(within(dialog).getByLabelText(/问题或建议/)).toHaveFocus())
   await userEvent.click(within(dialog).getByRole('button', { name: '取消' }))
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   expect(window.location.search).toBe('?keep=1')

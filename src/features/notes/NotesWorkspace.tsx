@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowUpRight, BookOpen, FileText, FolderOpen, Link2, LoaderCircle, NotebookPen, PencilLine, Plus, Radio, RefreshCw, RotateCcw, Search, ShieldCheck, Trash2 } from 'lucide-react'
 import type { NotesClient, NoteSource, PersonalNote } from './client'
 import { noteSourceNames } from './client'
@@ -13,6 +13,15 @@ export default function NotesWorkspace({ client, mode = 'embedded', userName, ac
   const [offset, setOffset] = useState(0), [reload, setReload] = useState(0), [loading, setLoading] = useState(true), [error, setError] = useState(''), [notice, setNotice] = useState('')
   const [editing, setEditing] = useState<PersonalNote | NoteDraft | null>(null), [busy, setBusy] = useState(false), [undo, setUndo] = useState<PersonalNote | null>(null)
   const request = useRef(0), currentClient = useRef(client)
+  const embedState = useRef<'ready' | 'unavailable' | null>(null)
+  // Fragment navigation (including the skip link) must not replace the account
+  // binding established when this embedded document was opened.
+  const [embedIdentity] = useState(() => window.location.hash.slice(1))
+  const reportEmbedState = useCallback((state: 'ready' | 'unavailable' | null) => {
+    embedState.current = state
+    if (!acceptParentRefresh || window.parent === window || !state || !/^[a-f0-9]{64}$/.test(embedIdentity)) return
+    window.parent.postMessage({ type: `mberp:notes:${state}`, version: 1, identity: embedIdentity }, new URL(knowledgeLaunchUrl).origin)
+  }, [acceptParentRefresh, embedIdentity])
   const [linkedId] = useState(() => new URLSearchParams(window.location.search).get('note')?.slice(0, 128) || '')
   const [linkedResult, setLinkedResult] = useState<{ client: NotesClient; note: PersonalNote | null; error: string } | null>(null)
   const linkedNote = mode === 'app' && linkedResult?.client === client ? linkedResult.note : null
@@ -26,25 +35,34 @@ export default function NotesWorkspace({ client, mode = 'embedded', userName, ac
   useEffect(() => {
     const token = ++request.current
     let active = true
+    if (currentClient.current !== client) embedState.current = null
     currentClient.current = client
     const timer = setTimeout(() => {
       setLoading(true); setError('')
       client.list({ search, sourceApp: source || undefined, trashed, offset }).then(result => {
         if (!active || request.current !== token) return
-        setItems(previous => offset ? [...previous, ...result.items.filter(note => !previous.some(old => old.id === note.id))] : result.items); setTotal(result.total)
-      }).catch(reason => { if (active && request.current === token) setError(reason instanceof Error ? reason.message : '笔记读取失败，请重试。') }).finally(() => { if (active && request.current === token) setLoading(false) })
+        setItems(previous => offset ? [...previous, ...result.items.filter(note => !previous.some(old => old.id === note.id))] : result.items); setTotal(result.total); reportEmbedState('ready')
+      }).catch(reason => {
+        if (!active || request.current !== token) return
+        setError(reason instanceof Error ? reason.message : '笔记读取失败，请重试。')
+        // A transient refresh failure must not hide an open editor. Lost/mismatched
+        // identity does invalidate the embedded view immediately.
+        if (embedState.current !== 'ready' || reason?.status === 401 || reason?.status === 403) reportEmbedState('unavailable')
+      }).finally(() => { if (active && request.current === token) setLoading(false) })
     }, search ? 200 : 0)
     return () => { active = false; clearTimeout(timer) }
-  }, [client, search, source, trashed, offset, reload])
+  }, [client, search, source, trashed, offset, reload, reportEmbedState])
   const refresh = () => { setOffset(0); setReload(value => value + 1) }
   useEffect(() => {
     if (!acceptParentRefresh || window.parent === window) return
     const handler = (event: MessageEvent) => {
-      if (event.source === window.parent && event.origin === new URL(knowledgeLaunchUrl).origin && event.data?.type === 'mberp:notes:refresh') refresh()
+      if (event.source !== window.parent || event.origin !== new URL(knowledgeLaunchUrl).origin) return
+      if (event.data?.type === 'mberp:notes:refresh') refresh()
+      if (event.data?.type === 'mberp:notes:status' && event.data?.version === 1) reportEmbedState(embedState.current)
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [acceptParentRefresh])
+  }, [acceptParentRefresh, reportEmbedState])
   useEffect(() => {
     const update = () => { if (document.visibilityState !== 'hidden') { setOffset(0); setReload(value => value + 1) } }
     const timer = window.setInterval(update, 15000)

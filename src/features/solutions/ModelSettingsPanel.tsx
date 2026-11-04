@@ -95,7 +95,7 @@ export default function ModelSettingsPanel({ client, preview, onChange, onClose 
   }
 
   return <div className="ks-model-settings">
-    <p className="ks-model-intro">为当前账号保存多组模型配置，供 AI 助手和研究报告使用。</p>
+    <p className="ks-model-intro">为当前账号保存多组模型配置，供 AI 助手、研究报告及知识库的问答、翻译、摘要和标签生成共用。</p>
     {preview ? <div className="ks-model-banner" role="note"><CircleAlert size={17} /><span>演示预览：仅在本机保存非秘密配置。无法保存真实密钥或测试连接，预览不调用模型。</span></div> : <div className="ks-model-security"><ShieldCheck size={15} /><span>已保存密钥不会回显；留空保留原密钥。配置草稿在本窗口内保留。</span></div>}
     {isLoading ? <div className="ks-model-loading" role="status"><LoaderCircle size={19} className="ks-spin" />正在读取模型设置…</div> : loadError ? <div className="ks-model-error" role="alert">{loadError}<button type="button" className="ks-button" onClick={() => { setLoading(true); setLoadError(''); setLoadAttempt(value => value + 1) }}>重试加载</button></div> : <>
       <div className="ks-model-config-heading"><span>{drafts.length} / {MAX_MODEL_PROFILES} 组配置{dirty && <small> · 尚未保存</small>}</span><button type="button" className="ks-button" disabled={busy || drafts.length >= MAX_MODEL_PROFILES} onClick={addProfile}><Plus size={15} />添加模型</button></div>
