@@ -23,6 +23,7 @@ class PortalApplicationOut(BaseModel):
         "accounts",
         "assistant",
         "mdm",
+        "data-backup",
     ]
     enabled: bool
     reason: str | None = None

@@ -182,5 +182,18 @@
     "completed": true,
     "kbResultSHA256": "e26032b518cc3870814bc287623408f187e44a564a1a1c5ef1ac4133b7e06989",
     "pmResultSHA256": "f2e36c81ec14dc52b4678633142071c63bedb909a90dbedab3e8d16ba08aae0c"
+  },
+  "releaseRecordCIFollowup": {
+    "initialHead": "6b20048468281d57b7b7f27fdd19c34d95c0d903",
+    "initialFrontendAssertions": 1171,
+    "initialFrontendTestFiles": 142,
+    "initialAssertionAndCoveragePassed": true,
+    "initialUnhandledError": "Test teardown reset an async API mock while component was still mounted; passive effect observed undefined mock return",
+    "fix": "Unmount ProjectAIWorkbench before resetAllMocks and global store changes",
+    "testOnly": true,
+    "runtimeCodeChanged": false,
+    "unhandledErrorsIgnored": false,
+    "thresholdsChanged": false,
+    "redeployed": false
   }
 }

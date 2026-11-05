@@ -1,0 +1,14 @@
+{
+  "bind": "127.0.0.1",
+  "port": 18941,
+  "secretFile": "/home/prometheus/backup-catalogue/private/hmac.key",
+  "stateDirectory": "/home/prometheus/backup-catalogue/state",
+  "keyFile": "/home/prometheus/backups/private/backup.key",
+  "roots": [
+    {"id": "business", "label": "完整业务与项目备份", "path": "/home/prometheus/backups"},
+    {"id": "pm-config", "label": "项目管理配置备份", "path": "/home/prometheus/mb-pm-v2/private-config-backups"}
+  ],
+  "lockDirectory": "/home/prometheus/backups/daily",
+  "planScript": "/home/prometheus/security-hardening-20261102/daily_backup.py",
+  "requestsPerMinute": 120
+}

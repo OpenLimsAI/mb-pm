@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
-import { LogOut, ShieldCheck, LayoutDashboard, Sparkles, Library, BriefcaseBusiness, Settings2, CircleHelp } from 'lucide-react'
+import { Archive, LogOut, ShieldCheck, LayoutDashboard, Sparkles, Library, BriefcaseBusiness, Settings2, CircleHelp } from 'lucide-react'
 import type { PortalUser } from '../../api/portal'
 import { workspaceSections } from './workspaceSections'
 import '../../styles/workspace.css'
@@ -15,7 +15,7 @@ export default function PortalLayout({ user, logout, preview = false, children }
   const { pathname, hash } = useLocation()
   const atWorkspace = pathname === '/'
   const suffix = preview ? '?preview=1' : ''
-  const sectionIcons = [Sparkles, Library, BriefcaseBusiness, Settings2]
+  const sectionIcons = [Sparkles, Library, BriefcaseBusiness, Archive, Settings2]
   return <div id="workspace-top" className="workspace-shell efficient-portal">
     <a className="portal-skip-link" href="#portal-content">跳至主要内容</a>
     <header className="workspace-header">

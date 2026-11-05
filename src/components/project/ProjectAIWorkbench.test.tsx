@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getAIStatus, type AIAnalysis } from '../../api/ai'
@@ -33,6 +33,8 @@ beforeEach(() => {
   useDataStore.setState({ mode: 'api', ready: true })
 })
 afterEach(() => {
+  // Unmount before resetting mocks or stores so pending effects cannot call a reset mock.
+  cleanup()
   vi.resetAllMocks()
   vi.unstubAllGlobals()
   useAuth.setState({ currentUser: null, status: 'loading' })
