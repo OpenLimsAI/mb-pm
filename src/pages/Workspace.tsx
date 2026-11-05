@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { ArrowRight, BookOpen, BriefcaseBusiness, Check, ChevronRight, FilePenLine, MessageSquareText, NotebookPen, Settings2, SlidersHorizontal, LockKeyhole, Radar, Sparkles, RefreshCw, ShieldCheck, UsersRound } from 'lucide-react'
+import { Archive, ArrowRight, BookOpen, BriefcaseBusiness, Check, ChevronRight, FilePenLine, MessageSquareText, NotebookPen, Settings2, SlidersHorizontal, LockKeyhole, Radar, Sparkles, RefreshCw, ShieldCheck, UsersRound } from 'lucide-react'
 import PortalLayout from '../components/portal/PortalLayout'
 import { workspaceSections } from '../components/portal/workspaceSections'
 import { usePortalContext } from '../components/portal/context'
@@ -13,7 +13,7 @@ export interface WorkspaceUser {
 }
 
 export interface WorkspaceApplication {
-  id: 'pm' | 'kb' | 'information' | 'knowledge-sources' | 'solutions' | 'notes' | 'accounts' | 'assistant' | 'feedback' | 'mdm'
+  id: 'pm' | 'kb' | 'information' | 'knowledge-sources' | 'solutions' | 'notes' | 'accounts' | 'assistant' | 'feedback' | 'mdm' | 'data-backup'
   enabled: boolean
   reason?: string
 }
@@ -29,7 +29,7 @@ interface ApplicationPresentation {
   previewHref?: string
   external?: boolean
   planned?: boolean
-  kind: 'projects' | 'knowledge' | 'information' | 'solutions' | 'notes' | 'hr' | 'accounts' | 'settings' | 'ai' | 'assistant' | 'feedback'
+  kind: 'projects' | 'knowledge' | 'information' | 'solutions' | 'notes' | 'hr' | 'accounts' | 'settings' | 'ai' | 'assistant' | 'feedback' | 'backup'
   features: readonly string[]
 }
 
@@ -56,13 +56,16 @@ const businessApps: readonly ApplicationPresentation[] = [
   { id: 'feedback', accessId: 'feedback', name: '回音壁', englishName: 'FEEDBACK', description: '反馈使用中遇到的问题和新功能建议，查看处理状态。', domain: '问题 · 建议 · 改进', href: '/launch/feedback', previewHref: '/feedback?preview=1', kind: 'feedback', features: ['问题反馈', '图片说明', '修复状态'] },
   { id: 'hr', name: '人力资源', englishName: 'HUMAN RESOURCES', description: '人员与组织管理的统一入口，应用正在规划中。', domain: '待开发应用', href: '', planned: true, kind: 'hr', features: ['人员档案', '组织管理', '人事流程'] },
 ]
+const dataApps: readonly ApplicationPresentation[] = [
+  { id: 'data-backup', accessId: 'data-backup', name: '数据备份', englishName: 'DATA BACKUP', description: '查看实际备份计划、文件内容与磁盘占用，确认后清理所选备份。', domain: '仅系统管理员', href: '/data-backup', previewHref: '/data-backup?preview=1', kind: 'backup', features: ['实际备份计划', '内容与容量', '按需清理'] },
+]
 const settingApps: readonly ApplicationPresentation[] = [
   { id: 'settings', name: '我的设置', englishName: 'MY SETTINGS', description: '管理个人登录账号，修改用户名、密码并查看应用访问。', domain: '个人账号', href: '/settings', previewHref: '/settings?preview=1', kind: 'settings', features: ['登录身份', '用户名与密码', '应用访问'] },
   { id: 'models', name: 'AI 设置', englishName: 'AI SETTINGS', description: '统一配置助手、研究报告与知识库使用的模型服务和默认模型。', domain: '个人模型', href: '/model-settings', previewHref: '/model-settings?preview=1', kind: 'ai', features: ['多个服务商', '模型配置', '默认选择'] },
   { id: 'mdm', accessId: 'mdm', name: '主数据管理', englishName: 'MASTER DATA MANAGEMENT', description: '管理分子、药物资产与项目登记治理；执行计划在关联的项目中维护。', domain: '主数据权限独立校验', href: '/launch/mdm', external: true, kind: 'projects', features: ['分子与药物资产', '项目登记治理', '执行关联'] },
   { id: 'accounts', accessId: 'accounts', name: '账号管理', englishName: 'ACCOUNT MANAGEMENT', description: '统一查看组织成员与账号身份，按管理权限维护账号信息。', domain: '按管理权限使用', href: '/accounts', kind: 'accounts', features: ['组织成员', '账号身份', '应用权限'] },
 ]
-const icons = { assistant: Sparkles, solutions: FilePenLine, notes: NotebookPen, knowledge: BookOpen, information: Radar, projects: BriefcaseBusiness, hr: UsersRound, accounts: ShieldCheck, settings: Settings2, ai: SlidersHorizontal, feedback: MessageSquareText }
+const icons = { backup: Archive, assistant: Sparkles, solutions: FilePenLine, notes: NotebookPen, knowledge: BookOpen, information: Radar, projects: BriefcaseBusiness, hr: UsersRound, accounts: ShieldCheck, settings: Settings2, ai: SlidersHorizontal, feedback: MessageSquareText }
 
 function ApplicationCard({ application, access, preview }: { application: ApplicationPresentation; access?: WorkspaceApplication; preview: boolean }) {
   const Icon = icons[application.kind]
@@ -156,6 +159,10 @@ export default function Workspace({ user, applications, onRefresh, onLogout, pre
         <section id="workspace-business" tabIndex={-1} className="workspace-category workspace-category--business" aria-labelledby="workspace-business-title">
           <div className="workspace-section-heading"><div><div className="workspace-section-label">BUSINESS MANAGEMENT</div><h2 id="workspace-business-title">业务管理版块</h2><p>集中处理项目协作、人员事务与使用反馈。</p></div><BriefcaseBusiness size={25} aria-hidden="true" /></div>
           <div className="workspace-app-grid workspace-business-grid">{businessApps.map(application => <ApplicationCard key={application.id} application={application} access={applications.find(entry => entry.id === application.accessId)} preview={preview} />)}</div>
+        </section>
+        <section id="workspace-data" tabIndex={-1} className="workspace-category workspace-category--data" aria-labelledby="workspace-data-title">
+          <div className="workspace-section-heading"><div><div className="workspace-section-label">DATA MANAGEMENT</div><h2 id="workspace-data-title">数据管理版块</h2><p>管理业务数据保护，核对备份状态与恢复能力。</p></div><Archive size={25} aria-hidden="true" /></div>
+          <div className="workspace-app-grid">{dataApps.map(application => <ApplicationCard key={application.id} application={application} access={applications.find(entry => entry.id === application.accessId)} preview={preview} />)}</div>
         </section>
         <section id="workspace-settings" tabIndex={-1} className="workspace-category workspace-category--settings" aria-labelledby="workspace-settings-title">
           <div className="workspace-section-heading"><div><div className="workspace-section-label">PREFERENCES & TOOLS</div><h2 id="workspace-settings-title">功能设置版块</h2><p>管理个人偏好、AI 模型、主数据与账号权限。</p></div><Settings2 size={25} aria-hidden="true" /></div>

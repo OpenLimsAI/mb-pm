@@ -189,6 +189,11 @@ def applications(claims: dict, db: Session) -> list[PortalApplicationOut]:
         PortalApplicationOut(id="feedback", enabled=True),
         PortalApplicationOut(id="notes", enabled=True),
         PortalApplicationOut(id="assistant", enabled=True),
+        PortalApplicationOut(
+            id="data-backup",
+            enabled="admin" in roles,
+            reason=None if "admin" in roles else "仅系统管理员可用",
+        ),
         # 仅决定是否显示入口；账号管理接口每次请求都向 IAM 实时核对身份
         PortalApplicationOut(
             id="accounts",

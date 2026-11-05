@@ -43,7 +43,7 @@ describe('workspace application entries', () => {
   })
   it('keeps active knowledge apps before business and settings', () => {
     const { container } = render(<MemoryRouter><Workspace user={{ id: 'a', username: 'a', displayName: '研究员' }} applications={[]} preview onRefresh={vi.fn()} onLogout={vi.fn()} /></MemoryRouter>)
-    expect([...container.querySelectorAll('.workspace-category h2')].map(element => element.textContent)).toEqual(['AI 智能版块', '知识信息版块', '业务管理版块', '功能设置版块'])
+    expect([...container.querySelectorAll('.workspace-category h2')].map(element => element.textContent)).toEqual(['AI 智能版块', '知识信息版块', '业务管理版块', '数据管理版块', '功能设置版块'])
     const intelligence = screen.getByRole('region', { name: 'AI 智能版块' })
     expect(within(intelligence).getByRole('link', { name: '进入AI 助手' })).toHaveAttribute('href', '/assistant?preview=1')
     const knowledge = screen.getByRole('region', { name: '知识信息版块' })
@@ -80,4 +80,16 @@ describe('workspace application entries', () => {
     expect(screen.getByRole('link', { name: '进入我的笔记' })).not.toHaveAttribute('target')
     expect(screen.queryByRole('link', { name: '进入知识库' })).not.toBeInTheDocument()
   })
+})
+
+it.each([false, true])('opens data backup only with its own entitlement (%s)', enabled => {
+  render(<MemoryRouter><Workspace user={{ id: 'a', username: 'a', displayName: '同事' }} applications={[{ id: 'accounts', enabled: true }, { id: 'data-backup', enabled }]} onRefresh={vi.fn()} onLogout={vi.fn()} /></MemoryRouter>)
+  const section = screen.getByRole('region', { name: '数据管理版块' })
+  expect(within(section).getByRole('heading', { name: '数据备份' })).toBeVisible()
+  expect(!!within(section).queryByRole('link', { name: '进入数据备份' })).toBe(enabled)
+  if (enabled) expect(within(section).getByRole('link', { name: '进入数据备份' })).toHaveAttribute('href', '/data-backup')
+})
+it('links the data backup preview to an explicit preview route', () => {
+  render(<MemoryRouter><Workspace user={null} applications={[]} preview onRefresh={vi.fn()} onLogout={vi.fn()} /></MemoryRouter>)
+  expect(screen.getByRole('link', { name: '进入数据备份' })).toHaveAttribute('href', '/data-backup?preview=1')
 })

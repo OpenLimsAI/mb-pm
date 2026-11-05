@@ -1,0 +1,25 @@
+# User systemd unit. Review paths before installing; no root or Docker group required.
+[Unit]
+Description=Maibo private backup catalogue
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/prometheus/backup-catalogue
+ExecStart=/usr/bin/python3 /home/prometheus/backup-catalogue/catalogue_agent.py --config /home/prometheus/backup-catalogue/private/config.json
+Restart=on-failure
+RestartSec=15
+UMask=0077
+NoNewPrivileges=true
+# User services may not support mount namespaces. Do not copy system-unit sandbox flags blindly.
+# The service has no Docker membership requirement and never invokes Docker or mutates cron.
+MemoryMax=384M
+CPUQuota=50%
+TasksMax=32
+KillMode=control-group
+TimeoutStopSec=15
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
