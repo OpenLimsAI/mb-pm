@@ -6,8 +6,9 @@ import type { NotesClient, PersonalNote } from './client'
 import type { NoteDraft } from './draft'
 import './notes.css'
 
-export default function NoteEditor({ client, draft, existing, onClose, onSaved }: {
+export default function NoteEditor({ client, draft, existing, onClose, onSaved, inline = false, onStateChange }: {
   client: NotesClient; draft: NoteDraft; existing?: PersonalNote; onClose: () => void; onSaved: (note: PersonalNote) => void
+  inline?: boolean; onStateChange?: (state: { dirty: boolean; busy: boolean }) => void
 }) {
   const [title, setTitle] = useState(draft.title), [content, setContent] = useState(draft.content)
   const [draftClient] = useState(client)
@@ -15,9 +16,18 @@ export default function NoteEditor({ client, draft, existing, onClose, onSaved }
   const [busy, setBusy] = useState(false), [error, setError] = useState('')
   const pending = useRef(false), alive = useRef(true), dialog = useRef<HTMLDivElement>(null)
   const closeRef = useRef(onClose)
+  const dirty = title !== draft.title || content !== draft.content
+  useEffect(() => { onStateChange?.({ dirty, busy }) }, [dirty, busy, onStateChange])
+  useEffect(() => {
+    if (!dirty) return
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [dirty])
   useEffect(() => { closeRef.current = onClose })
   useEffect(() => {
     alive.current = true
+    if (inline) return () => { alive.current = false }
     const previous = document.activeElement as HTMLElement | null
     dialog.current?.focus()
     const keyboard = (event: KeyboardEvent) => {
@@ -30,7 +40,7 @@ export default function NoteEditor({ client, draft, existing, onClose, onSaved }
     }
     document.addEventListener('keydown', keyboard)
     return () => { alive.current = false; document.removeEventListener('keydown', keyboard); if (previous?.isConnected) previous.focus({ preventScroll: true }) }
-  }, [])
+  }, [inline])
   async function save() {
     if (pending.current || accountChanged) return
     const input = { title: title.trim(), content, sourceApp: draft.sourceApp, sourceTitle: draft.sourceTitle, sourceUrl: draft.sourceUrl }
@@ -42,7 +52,7 @@ export default function NoteEditor({ client, draft, existing, onClose, onSaved }
     } catch (reason) { if (alive.current) setError(reason instanceof Error ? reason.message : '笔记未能保存，当前内容已保留。') }
     finally { pending.current = false; if (alive.current) setBusy(false) }
   }
-  return createPortal(<div className="pn-overlay"><div className="pn-dialog" role="dialog" aria-modal="true" aria-label={existing ? '编辑笔记' : '存入我的笔记'} ref={dialog} tabIndex={-1}>
+  const editor = <div className={inline ? 'pn-inline-editor' : 'pn-dialog'} role={inline ? 'region' : 'dialog'} aria-modal={inline ? undefined : true} aria-label={existing ? '编辑笔记' : '存入我的笔记'} ref={dialog} tabIndex={-1}>
     <header><span className="pn-dialog-icon"><NotebookPen size={20} aria-hidden="true" /></span><div><h2>{existing ? '编辑笔记' : '存入我的笔记'}</h2><p>保留阅读摘录，记录自己的思考。</p></div><button className="pn-button pn-close" type="button" disabled={busy} onClick={onClose} aria-label="关闭笔记窗口"><X size={19} aria-hidden="true" /></button></header>
     <form onSubmit={event => { event.preventDefault(); void save() }}>
       <div className="pn-editor-fields">
@@ -54,5 +64,6 @@ export default function NoteEditor({ client, draft, existing, onClose, onSaved }
       </div>
       <footer><span className="pn-save-hint">保存到个人笔记</span><button className="pn-button" type="button" disabled={busy} onClick={onClose}>取消</button><button className="pn-button pn-primary" type="submit" disabled={busy || accountChanged || !title.trim() || !content.trim() || content.length > 50000}>{busy ? <LoaderCircle size={15} className="pn-spin" aria-hidden="true" /> : <Check size={15} aria-hidden="true" />}{busy ? '保存中…' : '保存笔记'}</button></footer>
     </form>
-  </div></div>, document.body)
+  </div>
+  return inline ? editor : createPortal(<div className="pn-overlay">{editor}</div>, document.body)
 }
