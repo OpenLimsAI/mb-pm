@@ -4,7 +4,18 @@ import NotesWorkspace from './NotesWorkspace'
 import { createPreviewNotesClient } from './client'
 import { newNote } from './draft'
 
-beforeEach(() => { localStorage.clear(); window.history.replaceState({}, '', '/') })
+// Keep persistence and account-boundary flows explicit while the editor defaults to rich text.
+function markdownBody() {
+  const body = screen.getByRole('textbox', { name: '笔记正文' })
+  if (body.tagName !== 'TEXTAREA') fireEvent.click(screen.getByRole('button', { name: 'Markdown' }))
+  return screen.getByRole('textbox', { name: '笔记正文' })
+}
+
+beforeEach(() => {
+  localStorage.clear(); window.history.replaceState({}, '', '/')
+  Range.prototype.getBoundingClientRect = () => ({ x: 0, y: 0, width: 100, height: 20, top: 0, right: 100, bottom: 20, left: 0, toJSON: () => ({}) })
+  Range.prototype.getClientRects = () => ({ length: 0, item: () => null, [Symbol.iterator]: function* () {} }) as unknown as DOMRectList
+})
 async function fixture() {
   const client = createPreviewNotesClient('three-pane')
   const first = newNote({ title: '研究摘录', content: '## 研究背景\n\n第一段完整内容。\n\n第二段是列表中省略的正文。', sourceApp: 'solutions' })
@@ -31,12 +42,14 @@ it('edits and creates in the right pane, returning to the saved content', async 
   fireEvent.click(screen.getByRole('button', { name: '编辑笔记' }))
   expect(screen.getByRole('region', { name: '编辑笔记' })).toBeInTheDocument()
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  fireEvent.change(screen.getByLabelText('笔记正文'), { target: { value: '更新后的完整内容。' } })
+  expect(screen.getByRole('textbox', { name: '笔记正文' })).toHaveAttribute('contenteditable', 'true')
+  expect(screen.getByRole('button', { name: '可视编辑' })).toHaveAttribute('aria-pressed', 'true')
+  fireEvent.change(markdownBody(), { target: { value: '更新后的完整内容。' } })
   fireEvent.click(screen.getByRole('button', { name: '保存笔记' }))
   await waitFor(() => expect(within(screen.getByRole('main')).getByText('更新后的完整内容。')).toBeInTheDocument())
   fireEvent.click(screen.getByRole('button', { name: '新建笔记' }))
   fireEvent.change(screen.getByLabelText('笔记标题'), { target: { value: '新想法' } })
-  fireEvent.change(screen.getByLabelText('笔记正文'), { target: { value: '保存到自己的空间。' } })
+  fireEvent.change(markdownBody(), { target: { value: '保存到自己的空间。' } })
   fireEvent.click(screen.getByRole('button', { name: '保存笔记' }))
   await screen.findByRole('heading', { name: '新想法' })
   expect((await client.list()).total).toBe(3)
@@ -44,10 +57,10 @@ it('edits and creates in the right pane, returning to the saved content', async 
 it('retains unsaved content when switching and offers an inline choice without discarding silently', async () => {
   await fixture()
   fireEvent.click(screen.getByRole('button', { name: '编辑笔记' }))
-  fireEvent.change(screen.getByLabelText('笔记正文'), { target: { value: '未保存的想法。' } })
+  fireEvent.change(markdownBody(), { target: { value: '未保存的想法。' } })
   fireEvent.click(screen.getByRole('button', { name: '查看笔记：个人观察' }))
   expect(screen.getByRole('alert')).toHaveTextContent('未保存')
-  expect(screen.getByLabelText('笔记正文')).toHaveValue('未保存的想法。')
+  expect(markdownBody()).toHaveValue('未保存的想法。')
   fireEvent.click(screen.getByRole('button', { name: '继续编辑' }))
   expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: '查看笔记：个人观察' }))
@@ -58,7 +71,7 @@ it('retains unsaved content when switching and offers an inline choice without d
 it('saves a dirty draft before continuing a requested source change', async () => {
   const { client, a } = await fixture()
   fireEvent.click(screen.getByRole('button', { name: '编辑笔记' }))
-  fireEvent.change(screen.getByLabelText('笔记正文'), { target: { value: '保留后再切换。' } })
+  fireEvent.change(markdownBody(), { target: { value: '保留后再切换。' } })
   fireEvent.click(within(screen.getByRole('navigation')).getByRole('button', { name: '个人记录' }))
   fireEvent.click(screen.getByRole('button', { name: '保存笔记' }))
   await screen.findByRole('heading', { name: '个人观察' })
@@ -67,13 +80,13 @@ it('saves a dirty draft before continuing a requested source change', async () =
 it('keeps the edit revision and draft across background updates and reports a conflict', async () => {
   const { client, a } = await fixture()
   fireEvent.click(screen.getByRole('button', { name: '编辑笔记' }))
-  fireEvent.change(screen.getByLabelText('笔记正文'), { target: { value: '本页未保存的内容。' } })
+  fireEvent.change(markdownBody(), { target: { value: '本页未保存的内容。' } })
   await client.save(a, { ...a, content: '另一页面已经保存。' })
   fireEvent.click(screen.getByRole('button', { name: '刷新笔记' }))
-  await waitFor(() => expect(screen.getByLabelText('笔记正文')).toHaveValue('本页未保存的内容。'))
+  await waitFor(() => expect(markdownBody()).toHaveValue('本页未保存的内容。'))
   fireEvent.click(screen.getByRole('button', { name: '保存笔记' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('其他页面更新')
-  expect(screen.getByLabelText('笔记正文')).toHaveValue('本页未保存的内容。')
+  expect(markdownBody()).toHaveValue('本页未保存的内容。')
   expect((await client.get!(a.id)).content).toBe('另一页面已经保存。')
 })
 it('does not leave an in-flight save or apply its result to another selected note', async () => {
@@ -82,13 +95,45 @@ it('does not leave an in-flight save or apply its result to another selected not
   const original = client.save.bind(client)
   vi.spyOn(client, 'save').mockImplementation((note, input) => new Promise(resolve => { complete = () => { void original(note, input).then(resolve) } }))
   fireEvent.click(screen.getByRole('button', { name: '编辑笔记' }))
-  fireEvent.change(screen.getByLabelText('笔记正文'), { target: { value: '保存中的内容。' } })
+  fireEvent.change(markdownBody(), { target: { value: '保存中的内容。' } })
   fireEvent.click(screen.getByRole('button', { name: '保存笔记' }))
   fireEvent.click(screen.getByRole('button', { name: '查看笔记：个人观察' }))
-  expect(screen.getByLabelText('笔记正文')).toHaveValue('保存中的内容。')
+  expect(markdownBody()).toHaveValue('保存中的内容。')
   await act(async () => complete())
   await screen.findByRole('heading', { name: '研究摘录' })
 })
+
+it('keeps an inline draft open and unsaved until an image finishes loading', async () => {
+  const { client, a } = await fixture()
+  const save = vi.spyOn(client, 'save')
+  fireEvent.click(screen.getByRole('button', { name: '编辑笔记' }))
+  const bytes = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFuoAAAAASUVORK5CYII='), char => char.charCodeAt(0))
+  const file = new File([bytes], 'small.png', { type: 'image/png' })
+  let finish!: (buffer: ArrayBuffer) => void
+  Object.defineProperty(file, 'arrayBuffer', { value: () => new Promise<ArrayBuffer>(resolve => { finish = resolve }) })
+  fireEvent.change(screen.getByLabelText('选择笔记图片'), { target: { files: [file] } })
+  expect(screen.getByText('正在插入图片…')).toBeInTheDocument()
+  const submit = screen.getByRole('button', { name: '保存笔记' })
+  expect(submit).toBeDisabled()
+  expect(screen.getByRole('button', { name: '关闭笔记窗口' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: '取消' })).toBeDisabled()
+  // The form guard also blocks programmatic submission, independently of disabled buttons.
+  fireEvent.submit(submit.closest('form')!)
+  fireEvent.click(screen.getByRole('button', { name: '关闭笔记窗口' }))
+  fireEvent.click(screen.getByRole('button', { name: '查看笔记：个人观察' }))
+  expect(screen.getByRole('region', { name: '编辑笔记' })).toBeInTheDocument()
+  expect(screen.getByLabelText('笔记标题')).toHaveValue(a.title)
+  expect(save).not.toHaveBeenCalled()
+  await act(async () => finish(bytes.buffer))
+  await waitFor(() => expect(screen.getByRole('img', { name: 'small.png' })).toBeInTheDocument())
+  await waitFor(() => expect(screen.getByRole('button', { name: '保存笔记' })).toBeEnabled())
+  expect(screen.getByRole('button', { name: '关闭笔记窗口' })).toBeEnabled()
+  fireEvent.click(screen.getByRole('button', { name: '保存笔记' }))
+  await waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+  expect(save.mock.calls[0][1].content).toContain('![small.png](data:image/png;base64,')
+  expect((await client.get!(a.id)).content).toContain('![small.png](data:image/png;base64,')
+})
+
 it('reads trashed notes without allowing editing, then restores them', async () => {
   const { client, a } = await fixture()
   fireEvent.click(screen.getByRole('button', { name: '移至回收站：研究摘录' }))
@@ -103,7 +148,7 @@ it('reads trashed notes without allowing editing, then restores them', async () 
 it('hides a linked reader after an identity-bound refresh is denied', async () => {
   const { client, a } = await fixture()
   fireEvent.click(screen.getByRole('button', { name: '编辑笔记' }))
-  fireEvent.change(screen.getByLabelText('笔记正文'), { target: { value: '保存后的正文' } })
+  fireEvent.change(markdownBody(), { target: { value: '保存后的正文' } })
   fireEvent.click(screen.getByRole('button', { name: '保存笔记' }))
   await screen.findByRole('heading', { name: a.title })
   vi.spyOn(client, 'list').mockRejectedValue(Object.assign(new Error('登录账号已变化'), { status: 403 }))

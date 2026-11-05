@@ -3,6 +3,7 @@ import { EditorContent, useEditor, useEditorState } from '@tiptap/react'
 import type { Editor } from '@tiptap/react'
 import { mergeAttributes } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
+import { TaskList, TaskItem } from '@tiptap/extension-list'
 import { TableKit } from '@tiptap/extension-table'
 import Image from '@tiptap/extension-image'
 import { richCitation } from './RichCitation'
@@ -12,6 +13,7 @@ import { Markdown } from '@tiptap/markdown'
 import { htmlToReportMarkdown, safeReportImage, readReportImage } from './reportMarkup'
 import { moveDocumentBlock, nextCaptionNumber, captionMarkdown } from './editorDocumentTools'
 import { getRange } from './richSelection'
+import { MarkdownBold, MarkdownItalic, MarkdownStrike } from './markdownMarks'
 import './richEditor.css'
 
 export type RichRange = { start: number; end: number; text: string; from: number; to: number; left: number; top: number; input: HTMLElement }
@@ -24,7 +26,7 @@ const SafeImage = Image.extend({
   },
 }).configure({ allowBase64: true })
 
-export function RichBodySegment({ value, label, disabled, segmented = false, finalSegment = true, onChange, onRange, onActive, onSlash, onError, allowAI = true, references = [], onCitation }: {
+export function RichBodySegment({ value, label, disabled, segmented = false, finalSegment = true, onChange, onRange, onActive, onSlash, onError, allowAI = true, references = [], onCitation, placeholder: customPlaceholder, maxContentLength = 4_000_000, onImage }: {
   value: string; label: string; disabled: boolean; segmented?: boolean; finalSegment?: boolean
   onChange: (value: string, start: number, end: number) => void
   onRange: (range: RichRange | null) => void
@@ -32,13 +34,16 @@ export function RichBodySegment({ value, label, disabled, segmented = false, fin
   onSlash: (offset: number) => void
   onError?: (message: string) => void
   allowAI?: boolean
+  placeholder?: string
+  maxContentLength?: number
+  onImage?: (file: File) => void
   references?: NumberedReference[]
   onCitation?: (reference: Reference) => void
 }) {
-  const placeholder = segmented ? '继续撰写，或输入 / 提问…' : '从研究问题开始，写下观察、依据和你的判断。输入 / 插入 AI 问答…'
+  const placeholder = customPlaceholder ?? (segmented ? '继续撰写，或输入 / 提问…' : '从研究问题开始，写下观察、依据和你的判断。输入 / 插入 AI 问答…')
   const dragOwner = useRef(crypto.randomUUID())
-  const latest = useRef({ value, onChange, onRange, onActive, onSlash, onError, references, onCitation })
-  useEffect(() => { latest.current = { value, onChange, onRange, onActive, onSlash, onError, references, onCitation } })
+  const latest = useRef({ value, onChange, onRange, onActive, onSlash, onError, references, onCitation, maxContentLength, onImage })
+  useEffect(() => { latest.current = { value, onChange, onRange, onActive, onSlash, onError, references, onCitation, maxContentLength, onImage } })
   const slashRef = useRef<number | null>(null)
   const [slash, setSlash] = useState<number | null>(null)
   useEffect(() => { slashRef.current = slash }, [slash])
@@ -46,14 +51,14 @@ export function RichBodySegment({ value, label, disabled, segmented = false, fin
     try {
       const src = await readReportImage(file)
       if (instance.isDestroyed || !instance.isEditable) return
-      if (latest.current.value.length + src.length > 4_000_000) throw new Error('本章节图片与文字合计超过容量，请压缩图片或拆分章节。')
+      if (latest.current.value.length + src.length + 100 > latest.current.maxContentLength) throw new Error('图片与文字合计超过正文容量，请压缩图片后重试。')
       const number = nextCaptionNumber(latest.current.value, '图')
       instance.chain().focus().setImage({ src, alt: file.name || `图 ${number}` }).insertContent(captionMarkdown('图', number, file.name.replace(/\.[^.]+$/, '') || '图片标题'), { contentType: 'markdown' }).run()
       latest.current.onError?.('')
     } catch (error) { latest.current.onError?.(error instanceof Error ? error.message : '图片读取失败') }
   }
   const editor = useEditor({
-    extensions: [StarterKit.configure({ link: { openOnClick: false, protocols: ['https', 'http', 'mailto'] } }), TableKit.configure({ table: { resizable: true } }), SafeImage, richCitation(references, onCitation), Markdown],
+    extensions: [StarterKit.configure({ bold: false, italic: false, strike: false, link: { openOnClick: false, protocols: ['https', 'http', 'mailto'] } }), MarkdownBold, MarkdownItalic, MarkdownStrike, TableKit.configure({ table: { resizable: true } }), TaskList, TaskItem.configure({ nested: true }), SafeImage, richCitation(references, onCitation), Markdown],
     content: value, contentType: 'markdown', editable: !disabled,
     editorProps: { attributes: { role: 'textbox', 'aria-label': label, 'aria-multiline': 'true', 'data-placeholder': placeholder, class: 'ks-rich-document' },
       handleDOMEvents: {
@@ -62,8 +67,9 @@ export function RichBodySegment({ value, label, disabled, segmented = false, fin
       handleDrop(view, event) {
         const instance = handles.get(view.dom.closest('.ks-rich-segment')!)
         if (!instance) return false
+        if (!instance.isEditable) return true
         const file = [...(event.dataTransfer?.files || [])].find(file => file.type.startsWith('image/'))
-        if (file) { event.preventDefault(); const position = view.posAtCoords({ left: event.clientX, top: event.clientY }); if (position) instance.commands.setTextSelection(position.pos); void insertClipboardImage(instance, file); return true }
+        if (file) { event.preventDefault(); const position = view.posAtCoords({ left: event.clientX, top: event.clientY }); if (position) instance.commands.setTextSelection(position.pos); if (latest.current.onImage) latest.current.onImage(file); else void insertClipboardImage(instance, file); return true }
         const data = event.dataTransfer?.getData('application/x-report-block')
         if (!data) return false
         try {
@@ -76,8 +82,10 @@ export function RichBodySegment({ value, label, disabled, segmented = false, fin
         } catch { return true }
       },
       handlePaste(view, event) {
+        const active = handles.get(view.dom.closest('.ks-rich-segment')!)
+        if (!active?.isEditable) return true
         const file = [...(event.clipboardData?.files || [])].find(file => file.type.startsWith('image/'))
-        if (file) { const instance = handles.get(view.dom.closest('.ks-rich-segment')!); if (instance) { event.preventDefault(); void insertClipboardImage(instance, file); return true } }
+        if (file) { const instance = handles.get(view.dom.closest('.ks-rich-segment')!); if (instance) { event.preventDefault(); if (latest.current.onImage) latest.current.onImage(file); else void insertClipboardImage(instance, file); return true } }
         const html = event.clipboardData?.getData('text/html')
         if (!html) return false
         event.preventDefault()

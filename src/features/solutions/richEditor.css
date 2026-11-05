@@ -30,3 +30,8 @@
 .ks-rich-slash { position:absolute; z-index:8; bottom:10px; display:flex; background:white; border:1px solid #c9dce9; box-shadow:0 4px 20px #25496d20; border-radius:8px; padding:8px; }
 .ks-rich-slash button { padding:8px; color:#24476b; }.ks-editor-error { color:#a83838; font-size:12px; padding:6px 0; }
 .ks-image-dialog { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:8px; background:#edf5fb; }
+
+.ks-rich-document ul[data-type='taskList'] { padding-left: 0; list-style: none; }
+.ks-rich-document ul[data-type='taskList'] > li { display: flex; align-items: flex-start; gap: 8px; }
+.ks-rich-document ul[data-type='taskList'] > li > label { flex: 0 0 auto; padding-top: .55em; }
+.ks-rich-document ul[data-type='taskList'] > li > div { flex: 1; min-width: 0; }
