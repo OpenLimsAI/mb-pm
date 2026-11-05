@@ -405,3 +405,20 @@ def test_legacy_catalog_lookup_is_explicit_and_only_for_the_owner(registry_db):
     with pytest.raises(HTTPException) as error:
         knowledge_ai.models(registry_db, member("bob"), "legacy-task")
     assert error.value.status_code == 404
+
+
+def test_automatic_unconfigured_default_uses_retrieval_without_another_provider(registry_db):
+    configured = draft().model_copy(
+        update={"profiles": [draft().profiles[0].model_copy(update={"api_key": None})]}
+    )
+    solution_ai.save_settings(registry_db, member(), configured)
+    assert solution_ai.select_model(registry_db, member(), None) == {"kind": "retrieval"}
+    with pytest.raises(HTTPException):
+        solution_ai.select_model(registry_db, member(), "shared:shared-research")
+
+
+def test_shared_provider_tuning_preserves_legacy_private_transport(registry_db):
+    solution_ai.save_settings(registry_db, member(), draft())
+    shared = solution_ai.select_model(registry_db, member("bob"), "shared:shared-research")
+    assert solution_ai.transport_provider(shared["config"]) == "minimax"
+    assert solution_ai.transport_provider({"provider": "minimax"}) == "custom"

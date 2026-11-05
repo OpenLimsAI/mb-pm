@@ -43,7 +43,7 @@ def legacy_bootstrap():
                 "id": "system_" + provider,
                 "name": "系统 " + provider,
                 "provider": provider,
-                "base_url": cfg["base_url"],
+                "base_url": cfg.get("base_url") or ai.DEFAULTS[provider]["base_url"],
                 "model": cfg["model"],
                 "api_key": cfg.get("api_key", ""),
             }

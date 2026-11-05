@@ -41,7 +41,7 @@ def solution_client(token_factory, monkeypatch):
     monkeypatch.setattr(solution_knowledge, "configured", lambda: False)
     monkeypatch.setattr(
         ai,
-        "load_settings",
+        "load_legacy_settings",
         lambda: {
             "provider": "deepseek",
             "providers": {"deepseek": {"model": "test", "api_key": ""}},
@@ -259,7 +259,7 @@ def test_configured_ai_is_grounded_and_failure_is_not_no_results(solution_client
     row = create(f)
     monkeypatch.setattr(
         ai,
-        "load_settings",
+        "load_legacy_settings",
         lambda: {
             "provider": "deepseek",
             "providers": {"deepseek": {"model": "test", "api_key": "fake-test-key"}},
@@ -292,7 +292,7 @@ def test_invalid_ai_citations_rejected(solution_client, monkeypatch):
     row = create(f)
     monkeypatch.setattr(
         ai,
-        "load_settings",
+        "load_legacy_settings",
         lambda: {
             "provider": "deepseek",
             "providers": {"deepseek": {"model": "test", "api_key": "fake"}},

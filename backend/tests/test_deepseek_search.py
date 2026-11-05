@@ -64,7 +64,7 @@ def enterprise(monkeypatch, **changes):
     cfg = {**OFFICIAL, **changes}
     monkeypatch.setattr(
         ai,
-        "load_settings",
+        "load_legacy_settings",
         lambda: {"provider": cfg["provider"], "providers": {cfg["provider"]: cfg}},
     )
     return cfg
@@ -217,20 +217,20 @@ def test_capability_tracks_current_selected_profile_without_other_key_fallback(
     ]
     assert test_solution_ai.save(f, profiles, default="official").status_code == 200
     endpoint = test_assistant.PREFIX + "/capabilities"
-    for model in ("enterprise", "system", "official", None):
+    for model in ("enterprise", "system", "shared:official", None):
         response = f.client.get(endpoint, params={"model_profile_id": model} if model else {})
         assert response.status_code == 200
         assert response.json()["web_search"]["configured"] is True
         assert response.json()["web_search"]["provider"] == "deepseek"
         assert "fake-key" not in response.text and "api.deepseek.com" not in response.text
-    for model in ("proxy", "retrieval", "missing"):
+    for model in ("shared:proxy", "retrieval", "missing"):
         response = f.client.get(endpoint, params={"model_profile_id": model})
         assert response.status_code == 200 and not response.json()["web_search"]["configured"]
         assert "fake-key" not in response.text and "proxy.example" not in response.text
     f.login("other")
-    assert not f.client.get(endpoint, params={"model_profile_id": "official"}).json()["web_search"][
-        "configured"
-    ]
+    assert f.client.get(endpoint, params={"model_profile_id": "shared:official"}).json()[
+        "web_search"
+    ]["configured"]
 
 
 def test_tavily_capability_does_not_claim_generation_ready_without_selected_enterprise_key(
@@ -281,7 +281,7 @@ def test_personal_search_uses_exact_selected_key_and_excludes_private_context(
     response = test_assistant.question(
         f,
         task,
-        model_profile_id=selected,
+        model_profile_id="shared:official" if selected == "official" else selected,
         answer_mode="web",
         data_sources=[],
         question="柿子脱涩最新公开研究",
@@ -346,7 +346,7 @@ def test_proxy_profile_web_request_does_not_send_key_to_official_or_fallback(
     calls = transport(monkeypatch)
     task = test_assistant.create(f)
     response = test_assistant.question(
-        f, task, model_profile_id="proxy", answer_mode="web", question="最新研究进展"
+        f, task, model_profile_id="shared:proxy", answer_mode="web", question="最新研究进展"
     )
     assert response.status_code == 503 and "当前模型未接入联网搜索" in response.json()["detail"]
     assert calls == [] and not f.calls
@@ -381,7 +381,7 @@ def test_report_search_uses_private_selected_key_and_retains_verified_citation(
     response = test_solutions.question(
         f,
         report,
-        model_profile_id="official",
+        model_profile_id="shared:official",
         answer_mode="web",
         question="柿子脱涩最新公开研究",
         context="private-report-context",

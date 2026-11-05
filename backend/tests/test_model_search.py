@@ -269,19 +269,19 @@ def test_capability_and_actual_search_follow_model_switches(assistant_client, mo
     assert test_solution_ai.save(f, profiles, default="kimi").status_code == 200
     monkeypatch.setattr(solution_ai, "chat", lambda *_a, **_kw: ("Public evidence [1]", {}))
     for model, provider in (
-        ("enterprise", "deepseek"),
-        ("kimi", "kimi"),
+        ("enterprise", "kimi"),
+        ("shared:kimi", "kimi"),
         (None, "kimi"),
-        ("deepseek", "deepseek"),
+        ("shared:deepseek", "deepseek"),
     ):
         params = {"model_profile_id": model} if model else {}
         cap = f.client.get(test_assistant.PREFIX + "/capabilities", params=params)
         assert cap.status_code == 200 and cap.json()["web_search"]["provider"] == provider
         assert "fake-key" not in cap.text
     for selected, expected_provider in (
-        ("kimi", "kimi"),
-        ("deepseek", "deepseek"),
-        ("kimi", "kimi"),
+        ("shared:kimi", "kimi"),
+        ("shared:deepseek", "deepseek"),
+        ("shared:kimi", "kimi"),
     ):
         calls = (
             transport(monkeypatch) if expected_provider == "kimi" else native.transport(monkeypatch)
@@ -311,7 +311,9 @@ def test_capability_and_actual_search_follow_model_switches(assistant_client, mo
         ("不用深入分析，简述上游培养中抗体片段的原因", "general"),
     ],
 )
-def test_web_synthesis_respects_explicit_depth_within_durable_generation(monkeypatch, question, kind):
+def test_web_synthesis_respects_explicit_depth_within_durable_generation(
+    monkeypatch, question, kind
+):
     from app.services import assistant_generation as generation
 
     native.enabled(monkeypatch, "model")

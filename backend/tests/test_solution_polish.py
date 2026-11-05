@@ -67,7 +67,7 @@ def test_explicit_model_uses_same_personal_configuration(solution_client, monkey
         "chat",
         lambda cfg, *_args, **_kwargs: (seen.append(cfg["model"]) or "润色后的文字", {}),
     )
-    assert polish(f, report, model_profile_id="review-model").status_code == 200
+    assert polish(f, report, model_profile_id="shared:review-model").status_code == 200
     assert seen == ["review-id"]
 
 
@@ -77,7 +77,7 @@ def test_system_model_and_unconfigured_model(solution_client, monkeypatch):
     assert polish(f, report, model_profile_id="system").status_code == 422
     monkeypatch.setattr(
         ai,
-        "load_settings",
+        "load_legacy_settings",
         lambda: {"provider": "ollama", "providers": {"ollama": {"model": "local-editor"}}},
     )
     calls = []

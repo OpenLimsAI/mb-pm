@@ -113,9 +113,20 @@ def select_model(db, claims, profile_id):
             raise HTTPException(404, "历史个人模型不存在或不属于当前账号")
         return {"kind": "private", "config": _ready(profile)}
     profile = next((p for p in shared["profiles"] if p["id"] == selected), None)
+    if profile_id is None and (
+        profile is None
+        or (profile["provider"] not in {"custom", "ollama"} and not profile.get("api_key"))
+    ):
+        # Automatic report mode may still return retrieval-only evidence; it must
+        # not silently select a different configured provider.
+        return {"kind": "retrieval"}
     if profile is None:
         raise HTTPException(422, "尚未选择共享默认模型，请先在 AI 设置中选择模型")
-    return {"kind": "private", "config": _ready(profile), "scope": "organization"}
+    return {
+        "kind": "private",
+        "config": {**_ready(profile), "_scope": "organization"},
+        "scope": "organization",
+    }
 
 
 def resolved_addresses(host, port, *, allow_private=False):
@@ -241,7 +252,11 @@ def pinned_request(provider, cfg, path, body=None, timeout=60):
 
 
 def transport_provider(profile):
-    return "ollama" if profile["provider"] == "ollama" else "custom"
+    return (
+        profile["provider"]
+        if profile.get("_scope") == "organization" or profile["provider"] == "ollama"
+        else "custom"
+    )
 
 
 def chat(profile, messages, *, timeout=60):

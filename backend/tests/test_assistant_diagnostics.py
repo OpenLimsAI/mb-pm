@@ -80,13 +80,11 @@ def test_finish_reason_and_usage_retain_evidence_for_output_limit(
             },
         }
 
-    monkeypatch.setattr(
-        ai,
-        "chat",
-        lambda provider, cfg, messages, **kw: REAL_CHAT(
-            "deepseek", cfg, messages, request_fn=upstream, **kw
-        ),
-    )
+    def bounded_upstream(provider, cfg, messages, **kwargs):
+        kwargs.pop("request_fn", None)
+        return REAL_CHAT("deepseek", cfg, messages, request_fn=upstream, **kwargs)
+
+    monkeypatch.setattr(ai, "chat", bounded_upstream)
     response = test_assistant.question(f, test_assistant.create(f))
     assert response.status_code == 422
     completed = next(e for e in events if e["event"] == "model_completed")

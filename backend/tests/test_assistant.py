@@ -24,7 +24,7 @@ def assistant_client(solution_client, monkeypatch):
     f.client.app.include_router(assistant.router, prefix="/api/v1")
     monkeypatch.setattr(
         ai,
-        "load_settings",
+        "load_legacy_settings",
         lambda: {"provider": "ollama", "providers": {"ollama": {"model": "isolated-test"}}},
     )
     f.calls = []
@@ -318,7 +318,7 @@ def test_missing_model_and_retrieval_do_not_fall_back(assistant_client, monkeypa
     assert question(f, task, model_profile_id="missing").status_code == 404
     monkeypatch.setattr(
         ai,
-        "load_settings",
+        "load_legacy_settings",
         lambda: {
             "provider": "deepseek",
             "providers": {"deepseek": {"model": "test", "api_key": ""}},
@@ -604,7 +604,7 @@ def test_kb_tools_route_uses_pinned_private_transport(assistant_client, monkeypa
 
     def tools(provider, cfg, messages, claims, **kwargs):
         assert not f.db.in_transaction()
-        assert provider == "custom" and cfg["api_key"] == test_solution_ai.FAKE_KEY
+        assert provider == "deepseek" and cfg["api_key"] == test_solution_ai.FAKE_KEY
         assert kwargs["request_fn"] is solution_ai.pinned_request
         seen.append(messages)
         return "已查询知识库原文"
@@ -714,6 +714,7 @@ def test_kb_native_tool_roundtrip_is_saved_only_after_final_reply(assistant_clie
     monkeypatch.setenv("SOLUTION_KB_TOKEN", "server-only-token")
     monkeypatch.setenv("SOLUTION_KB_PUBLIC_URL", "https://kb.test")
     monkeypatch.setattr(ai, "request", request)
+    monkeypatch.setattr(solution_ai, "pinned_request", request)
     monkeypatch.setattr(solution_knowledge, "_request", core)
     task = create(f)
     request_id = str(uuid4())

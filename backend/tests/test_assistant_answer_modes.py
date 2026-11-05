@@ -410,7 +410,7 @@ def grounded_model(monkeypatch, fixture, *, require_released=True):
     calls = []
     monkeypatch.setattr(
         ai,
-        "load_settings",
+        "load_legacy_settings",
         lambda: {"provider": "ollama", "providers": {"ollama": {"model": "isolated-web-model"}}},
     )
 

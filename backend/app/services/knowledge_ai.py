@@ -65,7 +65,7 @@ def selected(db, claims, payload):
         raise HTTPException(422, "请选择可生成内容的共享模型")
     if choice["kind"] == "private":
         return (
-            ("ollama" if choice["config"]["provider"] == "ollama" else "custom"),
+            solution_ai.transport_provider(choice["config"]),
             dict(choice["config"]),
             solution_ai.pinned_request,
         )
