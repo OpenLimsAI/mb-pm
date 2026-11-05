@@ -195,5 +195,25 @@
     "unhandledErrorsIgnored": false,
     "thresholdsChanged": false,
     "redeployed": false
+  },
+  "securityFollowup": {
+    "finding": "CVE-2026-109518",
+    "severity": "HIGH",
+    "packages": {
+      "apt": {
+        "installed": "3.0.3",
+        "minimumFixed": "3.0.4"
+      },
+      "libapt-pkg7.0": {
+        "installed": "3.0.3",
+        "minimumFixed": "3.0.4"
+      }
+    },
+    "failedHead": "98339170c96db4d1224eda59ceb18af8798682e7",
+    "actualVulnerabilityNotNetworkFailure": true,
+    "ignoredOrWaived": false,
+    "fix": "Upgrade target OS packages on the existing fixed Python base; force actual versions >=3.0.4; preserve runtime declarations",
+    "deployment": "pending_actual_security_image_acceptance_and_fixed_main_rollout",
+    "initialReleaseEvidencePreserved": true
   }
 }
