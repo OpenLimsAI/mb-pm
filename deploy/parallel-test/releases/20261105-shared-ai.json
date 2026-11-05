@@ -1,0 +1,145 @@
+{
+  "status": "core_production_accepted_with_explicit_business_limits",
+  "production_core_accepted": true,
+  "deployment_date": "2026-11-05",
+  "verification": {
+    "accepted": true,
+    "live": [
+      {
+        "name": "mb-pm-v2-app-1",
+        "source": "1c52a0fd61533984d90273996c3b1ef20da08d36",
+        "image": "sha256:20dd0d92c1cc6a5b3e1af942aa3f0e1546208d7e446befd6473d5ffb58341db2",
+        "healthy": true,
+        "routing_verified": true,
+        "compose_files": 33
+      },
+      {
+        "name": "mb-pm-v2-app-direct-1",
+        "source": "1c52a0fd61533984d90273996c3b1ef20da08d36",
+        "image": "sha256:20dd0d92c1cc6a5b3e1af942aa3f0e1546208d7e446befd6473d5ffb58341db2",
+        "healthy": true,
+        "routing_verified": true,
+        "compose_files": 33
+      },
+      {
+        "name": "dikw-mbweb",
+        "source": "968875c99404dd4cd843203e0facf84d3dd02c21",
+        "image": "sha256:6b9e0a67b6f4a3fb33d0e9e1878aeea750440c27cdf06d78108b558ccba08b6c",
+        "healthy": true,
+        "routing_verified": true,
+        "compose_files": 13
+      }
+    ],
+    "same_registry_on_both_pm_instances": true,
+    "catalogues": {
+      "mb-pm-v2-app-1": {
+        "catalogue_sha256": "3d9f17fa19e74ee51c7d45138de24318c930885aac338eb461bfa4f94a77e4c4",
+        "profile_count": 4,
+        "revision": 1,
+        "default_profile_id": "shared:system_deepseek",
+        "default_available": true,
+        "legacy_minimax_imported": true,
+        "server_registry_read_verified": true,
+        "authenticated_http_catalogue_verified": false
+      },
+      "mb-pm-v2-app-direct-1": {
+        "catalogue_sha256": "3d9f17fa19e74ee51c7d45138de24318c930885aac338eb461bfa4f94a77e4c4",
+        "profile_count": 4,
+        "revision": 1,
+        "default_profile_id": "shared:system_deepseek",
+        "default_available": true,
+        "legacy_minimax_imported": true,
+        "server_registry_read_verified": true,
+        "authenticated_http_catalogue_verified": false
+      }
+    },
+    "public_checks": 16,
+    "public_accepted": true,
+    "backup_verified": true,
+    "restore_verified": true,
+    "existing_data_retained": true,
+    "originals_verified": 869,
+    "schema_old_tables_preserved": 63,
+    "schema_ledger_preserved": [
+      "019"
+    ],
+    "default_preserved": true,
+    "preferences_preserved": true,
+    "legacy_minimax_imported": true,
+    "real_provider_request_executed": false,
+    "real_user_browser_validation": false,
+    "directory_comparison_excludes_per_deployment_settings_url": true
+  },
+  "pm_tree": "f86517ca415362b08cd12432903fdabe8555ccc4",
+  "knowledge_base_version": "0.1.15",
+  "public_cohort": "0.1.9-rc.1",
+  "schema": {
+    "migration_only": "027",
+    "alembic_command_or_stamp_used": false,
+    "ledger_before": [
+      "019"
+    ],
+    "ledger_after": [
+      "019"
+    ],
+    "old_tables_preserved": 63
+  },
+  "source_archive_sha256": "1959a3b0d6bcbf9eb226cf1d16f16a215a9fdedacd67ec264bd7b1ffe97905d2",
+  "ci": {
+    "latest_pr_checks_passed": 7,
+    "postgres_tests_passed": 2191,
+    "postgres_skipped": 0,
+    "postgres_coverage_percent": 93.14,
+    "frontend_test_files": 147,
+    "frontend_tests": 1212,
+    "backup_adapter_tests": 111
+  },
+  "postgres18_fixture": {
+    "accepted": true,
+    "synthetic_only": true,
+    "production_accessed": false,
+    "production_data_mounted": false,
+    "prior_tables_preserved": 4,
+    "shared_rows_preserved": 1,
+    "ledger": [
+      "019"
+    ],
+    "first_attempt_failed_then_fixture_mount_corrected": true,
+    "data_mount": "/var/lib/postgresql"
+  },
+  "receipts_sha256": {
+    "final-verification.json": "1c2adfcf165d8b1bedc12759bc7abf2947050b458b9cc71b026cd7153a123a5c",
+    "backup.json": "f18005089ddfb0c28a419f8328cf10452efca67ffaeaac192a512d7be84dcfc5",
+    "schema-apply.json": "221f96738fc2f14c8ffa3ce372c78cd461d137ee687b85df101ba7e87c03959d",
+    "schema-pg-attempt2.json": "a79f23e0d8f55b82eaebe0a146176faa9a5eaca7da71a4a1f859077b39559ec9",
+    "minimax-apply-apply.json": "6c2229fa3b5c5346d63162fbee939a321052b2f0ec2cee73a489fa9cf748f770",
+    "switch-pm-apply.json": "86ee4ed8a2603745dd424e0362773d2cb4215a0b33d5ee92eefe4df767149c14",
+    "switch-kb-apply.json": "8da83e0797e623dfac0c8b60ef13dcf601bdfb50b1b96cf908a01f3649aa0217"
+  },
+  "first_pg18_failure_sha256": "367f5555cdbb836f8a1253d149ee594f37a108926afffe2c7882d8bc56a0249e",
+  "rollback_baseline": [
+    {
+      "name": "mb-pm-v2-app-1",
+      "source": "88bf737a89dcfdcf877c23f27a3db5b18437637d",
+      "image": "sha256:4253ecba5fcba6194827376be2369efac1e326da0a2e6acd8f98a39feba11b17"
+    },
+    {
+      "name": "mb-pm-v2-app-direct-1",
+      "source": "88bf737a89dcfdcf877c23f27a3db5b18437637d",
+      "image": "sha256:4253ecba5fcba6194827376be2369efac1e326da0a2e6acd8f98a39feba11b17"
+    },
+    {
+      "name": "dikw-mbweb",
+      "source": "f72eb01ee6b6124ac22c9e7216c602d22830b042",
+      "image": "sha256:c3e3b9536b1114cb83e123dc7c12a797898548b45bbf0eb602327d75a65ea0b2"
+    }
+  ],
+  "limits": {
+    "real_provider_request_executed": false,
+    "authenticated_http_catalogue_verified": false,
+    "real_user_browser_validation": false,
+    "browser_reached_login_page_only": true
+  },
+  "documentation_only": true,
+  "documentation_change_does_not_deploy": true
+}
