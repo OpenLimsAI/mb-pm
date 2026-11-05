@@ -19,7 +19,11 @@
     "test:production-login": "node scripts/test-production-login.mjs"
   },
   "dependencies": {
+    "@tiptap/extension-bold": "^3.32.2",
     "@tiptap/extension-image": "^3.32.2",
+    "@tiptap/extension-italic": "^3.32.2",
+    "@tiptap/extension-list": "^3.32.2",
+    "@tiptap/extension-strike": "^3.32.2",
     "@tiptap/extension-table": "^3.32.2",
     "@tiptap/markdown": "^3.32.2",
     "@tiptap/react": "^3.32.2",

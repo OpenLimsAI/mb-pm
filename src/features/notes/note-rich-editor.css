@@ -1,0 +1,33 @@
+.pn-document-editor { min-width: 0; border: 1px solid var(--workbench-line, #d7e4e6); border-radius: 8px; background: var(--workbench-bg, #f4f7f7); color: var(--workbench-ink, #18373e); font-weight: 400; }
+.pn-document-toolbar { position: sticky; top: 0; z-index: 3; display: flex; flex-wrap: wrap; align-items: center; gap: 3px; padding: 8px; border-bottom: 1px solid var(--workbench-line, #d7e4e6); border-radius: 8px 8px 0 0; background: var(--workbench-panel, #fff); }
+.pn-document-toolbar button, .pn-document-context button, .pn-document-link button { display: inline-flex; align-items: center; justify-content: center; min-height: 32px; min-width: 32px; padding: 5px 7px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--workbench-muted, #5b747a); font: inherit; font-size: 12px; cursor: pointer; }
+.pn-document-toolbar button:hover:not(:disabled), .pn-document-context button:hover:not(:disabled), .pn-document-link button:hover:not(:disabled) { background: var(--workbench-soft, #e7f3f3); color: var(--workbench-brand-strong, #08616c); }
+.pn-document-toolbar button[aria-pressed='true'] { background: var(--workbench-soft, #e7f3f3); color: var(--workbench-brand-strong, #08616c); }
+.pn-document-editor button:disabled, .pn-document-editor select:disabled { cursor: not-allowed; opacity: .4; }
+.pn-document-toolbar select { max-width: 120px; min-height: 32px; padding: 4px 6px; border: 1px solid var(--workbench-line, #d7e4e6); border-radius: 4px; color: inherit; background: var(--workbench-panel, #fff); font: inherit; font-size: 12px; }
+.pn-format-divider { width: 1px; height: 20px; margin-inline: 3px; background: var(--workbench-line, #d7e4e6); }
+.pn-document-mode { display: flex; gap: 2px; margin-left: auto; padding: 2px; border-radius: 5px; background: var(--workbench-bg, #f4f7f7); }
+.pn-document-mode button { padding-inline: 8px; white-space: nowrap; }
+.pn-document-mode button[aria-pressed='true'] { background: var(--workbench-panel, #fff); box-shadow: 0 1px 3px #18373e14; }
+.pn-document-context, .pn-document-link { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; padding: 6px 10px; border-bottom: 1px solid var(--workbench-line, #d7e4e6); background: var(--workbench-panel, #fff); }
+.pn-document-link input { flex: 1; min-width: 120px; padding: 5px 8px; font-size: 12px; }
+.pn-document-error { padding: 8px 12px; color: #974b3c; background: #fff6f3; font-size: 12px; }
+.pn-document-paper { margin: 16px; padding: 24px 30px; min-height: 360px; border: 1px solid var(--workbench-line, #d7e4e6); background: var(--workbench-panel, #fff); box-shadow: 0 2px 6px #18373e08; }
+.pn-document-editor .ks-rich-document { min-height: 300px; padding: 0; font-size: 15px; line-height: 1.9; color: var(--workbench-ink, #18373e); }
+.pn-document-editor .ks-rich-document:focus, .pn-document-editor .ks-rich-document:focus-visible { outline: none; box-shadow: none; }
+.pn-document-editor:has(.ks-rich-document:focus) { border-color: var(--workbench-brand, #087a86); }
+.pn-app .pn-document-editor .ks-rich-document p, .pn-dialog .pn-document-editor .ks-rich-document p { margin: .55em 0; }
+.pn-document-editor .ks-rich-document h1, .pn-document-editor .ks-rich-document h2, .pn-document-editor .ks-rich-document h3 { margin: 1.1em 0 .5em; font-weight: 600; color: var(--workbench-ink, #18373e); }
+.pn-document-editor .ks-rich-document a { color: var(--workbench-brand, #087a86); text-decoration: underline; text-underline-offset: 3px; }
+.pn-document-editor .ks-rich-document > :first-child { margin-top: 0; }
+.pn-document-editor .ks-rich-document > :last-child { margin-bottom: 0; }
+.pn-document-editor .pn-markdown-source { display: block; width: 100%; min-height: 300px; max-height: none; padding: 0; border: 0; border-radius: 0; outline: none; background: transparent; color: inherit; font: 13px/1.8 ui-monospace, SFMono-Regular, Consolas, monospace; resize: vertical; }
+.pn-document-editor .pn-markdown-source:focus { box-shadow: none; outline: none; }
+@media (max-width: 640px) {
+  .pn-document-toolbar { gap: 1px; padding: 6px; }
+  .pn-format-divider { margin-inline: 2px; }
+  .pn-document-paper { margin: 8px; padding: 20px 16px; min-height: 280px; }
+  .pn-document-editor .ks-rich-document, .pn-document-editor .pn-markdown-source { min-height: 240px; }
+}
+
+.pn-document-status { padding-bottom: 10px; color: var(--workbench-muted, #5b747a); font-size: 12px; }

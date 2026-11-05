@@ -1,5 +1,6 @@
 import TurndownService from 'turndown'
 import { gfm } from 'turndown-plugin-gfm'
+import { markdownMark } from './markdownMarks'
 
 export const MAX_REPORT_IMAGE_BYTES = 1024 * 1024
 export function safeReportImage(src: string): boolean {
@@ -21,6 +22,14 @@ export function htmlToReportMarkdown(html: string): string {
   })
   const converter = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced', bulletListMarker: '-' })
   converter.use(gfm)
+  for (const [name, tags, delimiter] of [
+    ['reportBold', ['strong', 'b'], '**'],
+    ['reportItalic', ['em', 'i'], '*'],
+    ['reportStrike', ['del', 's', 'strike'], '~~'],
+  ] as const) converter.addRule(name, {
+    filter: node => (tags as readonly string[]).includes(node.nodeName.toLowerCase()),
+    replacement: (content, node) => content.trim() ? markdownMark(content, delimiter, node.textContent || '') : '',
+  })
   converter.addRule('reportTableCell', { filter: ['th', 'td'], replacement: (content, node) => `${node.previousElementSibling ? ' ' : '| '}${content.trim().replace(/\n+/g, '<br>').replaceAll('|', '\\|')} |` })
   return converter.turndown(doc.body.innerHTML)
 }

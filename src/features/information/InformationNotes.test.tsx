@@ -12,14 +12,20 @@ const user = { id: 'person', username: 'person', displayName: '研究员' }
 function mount(path: string, preview = true) {
   return render(<MemoryRouter initialEntries={[path]}><Routes><Route element={<Outlet context={{ user, identityNamespace: 'issuer', preview, applications: [], refresh: vi.fn(), logout: vi.fn() }} />}><Route path="/information/*" element={<InformationApp />} /></Route></Routes></MemoryRouter>)
 }
-beforeEach(() => { localStorage.clear(); vi.clearAllMocks() })
+beforeEach(() => {
+  localStorage.clear(); vi.clearAllMocks()
+  Range.prototype.getBoundingClientRect = () => ({ x: 0, y: 0, width: 100, height: 20, top: 0, right: 100, bottom: 20, left: 0, toJSON: () => ({}) })
+  Range.prototype.getClientRects = () => ({ length: 0, item: () => null, [Symbol.iterator]: function* () {} }) as unknown as DOMRectList
+})
 it('shares independent notes with the standalone app and can edit them from industry information', async () => {
   const client = createPreviewNotesClient('issuer:person'), draft = newNote({ title: '我的跨应用观察', content: '报告内的个人思考', sourceApp: 'solutions' })
   await client.create(draft.id, draft)
   mount('/information/notes?preview=1')
   expect(await screen.findByRole('heading', { name: '我的跨应用观察' })).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: '编辑笔记' }))
-  fireEvent.change(screen.getByLabelText('笔记正文'), { target: { value: '行业信息中补充的想法' } })
+  expect(screen.getByRole('textbox', { name: '笔记正文' })).toHaveAttribute('contenteditable', 'true')
+  fireEvent.click(screen.getByRole('button', { name: 'Markdown' }))
+  fireEvent.change(screen.getByRole('textbox', { name: '笔记正文' }), { target: { value: '行业信息中补充的想法' } })
   fireEvent.click(screen.getByRole('button', { name: '保存笔记' }))
   await screen.findByText('行业信息中补充的想法')
   expect((await client.list()).items[0].content).toBe('行业信息中补充的想法')
@@ -36,7 +42,8 @@ it('lets a reader select industry text and save its excerpt with source attribut
   fireEvent.mouseUp(paragraph)
   fireEvent.click(screen.getByRole('button', { name: '存入我的笔记' }))
   const dialog = screen.getByRole('dialog', { name: '存入我的笔记' })
-  expect(within(dialog).getByLabelText('笔记正文')).toHaveValue(selected)
+  expect(within(dialog).getByRole('textbox', { name: '笔记正文' })).toHaveTextContent(selected)
+  expect(within(dialog).getByRole('button', { name: '可视编辑' })).toHaveAttribute('aria-pressed', 'true')
   expect(within(dialog).getByRole('link', { name: '查看来源' })).toHaveAttribute('href', expect.stringMatching(/^https:\/\//))
   fireEvent.click(within(dialog).getByRole('button', { name: '保存笔记' }))
   await screen.findByText('已存入我的笔记。')

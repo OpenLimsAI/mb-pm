@@ -5,7 +5,18 @@ import NoteEditor from './NoteEditor'
 import { createPreviewNotesClient } from './client'
 import { newNote } from './draft'
 
-beforeEach(() => { localStorage.clear(); window.history.replaceState({}, '', '/') })
+// Keep persistence and account-boundary flows explicit while the editor defaults to rich text.
+function markdownBody() {
+  const body = screen.getByRole('textbox', { name: '笔记正文' })
+  if (body.tagName !== 'TEXTAREA') fireEvent.click(screen.getByRole('button', { name: 'Markdown' }))
+  return screen.getByRole('textbox', { name: '笔记正文' })
+}
+
+beforeEach(() => {
+  localStorage.clear(); window.history.replaceState({}, '', '/')
+  Range.prototype.getBoundingClientRect = () => ({ x: 0, y: 0, width: 100, height: 20, top: 0, right: 100, bottom: 20, left: 0, toJSON: () => ({}) })
+  Range.prototype.getClientRects = () => ({ length: 0, item: () => null, [Symbol.iterator]: function* () {} }) as unknown as DOMRectList
+})
 it('opens a report source link read-only through the current account client', async () => {
   const client = createPreviewNotesClient('source-link')
   const draft = newNote({ title: '原始笔记', content: '来源正文' })
@@ -25,12 +36,13 @@ it('creates, edits, searches and restores personal notes', async () => {
   await screen.findByText('还没有笔记')
   fireEvent.click(screen.getByRole('button', { name: '新建笔记' }))
   const dialog = screen.getByRole('dialog', { name: '存入我的笔记' })
+  expect(within(dialog).getByRole('textbox', { name: '笔记正文' })).toHaveAttribute('contenteditable', 'true')
   fireEvent.change(within(dialog).getByLabelText('笔记标题'), { target: { value: '实验观察' } })
-  fireEvent.change(within(dialog).getByLabelText('笔记正文'), { target: { value: '独立保存的个人思考。' } })
+  fireEvent.change(markdownBody(), { target: { value: '独立保存的个人思考。' } })
   fireEvent.click(within(dialog).getByRole('button', { name: '保存笔记' }))
   await screen.findByRole('heading', { name: '实验观察' })
   fireEvent.click(screen.getByRole('button', { name: '编辑笔记' }))
-  fireEvent.change(screen.getByLabelText('笔记正文'), { target: { value: '补充后的个人思考。' } })
+  fireEvent.change(markdownBody(), { target: { value: '补充后的个人思考。' } })
   fireEvent.click(screen.getByRole('button', { name: '保存笔记' }))
   await screen.findByText('补充后的个人思考。')
   fireEvent.change(screen.getByRole('textbox', { name: '搜索我的笔记' }), { target: { value: '不存在的关键词' } })
@@ -54,7 +66,7 @@ it('keeps the draft on failure and prevents duplicate saves or closing while pen
   expect(save).toHaveBeenCalledTimes(1)
   await act(async () => reject(new Error('版本冲突，正文已保留。')))
   await screen.findByRole('alert')
-  expect(screen.getByLabelText('笔记正文')).toHaveValue('不能丢失的正文')
+  expect(markdownBody()).toHaveValue('不能丢失的正文')
   await waitFor(() => expect(screen.getByRole('button', { name: '保存笔记' })).toBeEnabled())
 })
 it('freezes an open draft when its account client changes, retaining the text without saving to either account', async () => {
@@ -63,10 +75,10 @@ it('freezes an open draft when its account client changes, retaining the text wi
   const draft = newNote({ title: 'A 的草稿', content: 'A 的私人正文' })
   const props = { draft, onClose: vi.fn(), onSaved: vi.fn() }
   const view = render(<NoteEditor client={a} {...props} />)
-  fireEvent.change(screen.getByLabelText('笔记正文'), { target: { value: '尚未保存的修改' } })
+  fireEvent.change(markdownBody(), { target: { value: '尚未保存的修改' } })
   view.rerender(<NoteEditor client={b} {...props} />)
   expect(screen.getByRole('alert')).toHaveTextContent('登录账号已变化')
-  expect(screen.getByLabelText('笔记正文')).toHaveValue('尚未保存的修改')
+  expect(markdownBody()).toHaveValue('尚未保存的修改')
   expect(screen.getByRole('button', { name: '保存笔记' })).toBeDisabled()
   fireEvent.submit(screen.getByRole('button', { name: '保存笔记' }).closest('form')!)
   expect(createA).not.toHaveBeenCalled()

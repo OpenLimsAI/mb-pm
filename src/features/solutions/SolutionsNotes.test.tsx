@@ -4,7 +4,11 @@ import SolutionsApp from './SolutionsApp'
 import { createDemoClient } from './demo'
 import { createPreviewNotesClient } from '../notes/client'
 
-beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-editor-mode', 'markdown'); sessionStorage.clear(); localStorage.setItem('ks-writing-mode', 'split') })
+beforeEach(() => {
+  localStorage.clear(); localStorage.setItem('ks-editor-mode', 'markdown'); sessionStorage.clear(); localStorage.setItem('ks-writing-mode', 'split')
+  Range.prototype.getBoundingClientRect = () => ({ x: 0, y: 0, width: 100, height: 20, top: 0, right: 100, bottom: 20, left: 0, toJSON: () => ({}) })
+  Range.prototype.getClientRects = () => ({ length: 0, item: () => null, [Symbol.iterator]: function* () {} }) as unknown as DOMRectList
+})
 it('opens the report home first without reading a document or question history', async () => {
   const client = createDemoClient('home-test', 'author', '研究员'), get = vi.spyOn(client, 'get'), history = vi.spyOn(client, 'history')
   render(<SolutionsApp client={client} userId="author" userName="研究员" preview initialHome />)
@@ -27,7 +31,8 @@ it('captures selected writing as a private note with origin, without changing th
   expect(screen.getByRole('button', { name: 'Polish 文字' })).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: '存入我的笔记' }))
   const dialog = screen.getByRole('dialog', { name: '存入我的笔记' })
-  expect(within(dialog).getByLabelText('笔记正文')).toHaveValue(excerpt)
+  expect(within(dialog).getByRole('textbox', { name: '笔记正文' })).toHaveTextContent(excerpt)
+  expect(within(dialog).getByRole('button', { name: '可视编辑' })).toHaveAttribute('aria-pressed', 'true')
   expect(dialog).toHaveTextContent('缓冲体系选择与验证报告 · 研究目标与适用范围')
   fireEvent.click(within(dialog).getByRole('button', { name: '保存笔记' }))
   await waitFor(() => expect(screen.queryByRole('dialog', { name: '存入我的笔记' })).not.toBeInTheDocument())

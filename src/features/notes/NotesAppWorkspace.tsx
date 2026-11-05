@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, BookOpen, ExternalLink, FileText, FolderOpen, Link2, LoaderCircle, NotebookPen, PencilLine, Plus, Radio, RefreshCw, RotateCcw, Search, ShieldCheck, Trash2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
+import { safeMarkdownLink } from '../../components/markdownSafety'
+import { safeReportImage } from '../solutions/reportMarkup'
 import remarkGfm from 'remark-gfm'
 import { noteSourceNames, noteSourceUrl } from './client'
 import type { NotesClient, NoteSource, PersonalNote } from './client'
@@ -13,7 +15,7 @@ import './notes-workspace.css'
 
 const sourceIcons = { manual: NotebookPen, solutions: FileText, information: Radio, knowledge: BookOpen }
 const updatedAt = (note: PersonalNote) => new Date(note.updatedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-const excerpt = (content: string) => content.replace(/^#{1,6}\s+/gm, '').replace(/^[>*-]\s+/gm, '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/[`*_~]/g, '').replace(/\s+/g, ' ').trim()
+const excerpt = (content: string) => content.replaceAll('<span></span>', '').replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1').replace(/^#{1,6}\s+/gm, '').replace(/^[>*-]\s+/gm, '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/[`*_~]/g, '').replace(/\s+/g, ' ').trim()
 
 export default function NotesAppWorkspace({ client, userName, acceptParentRefresh = false }: { client: NotesClient; userName?: string; acceptParentRefresh?: boolean }) {
   const collection = useNoteCollection(client, acceptParentRefresh)
@@ -99,7 +101,7 @@ export default function NotesAppWorkspace({ client, userName, acceptParentRefres
           <div className="pn-reader-paper"><h2>{selected.title}</h2><div className="pn-reader-meta"><time dateTime={selected.updatedAt}>更新于 {new Date(selected.updatedAt).toLocaleString('zh-CN')}</time><span>{selected.content.length.toLocaleString()} 字</span></div>
             {selected.deletedAt && <p className="pn-notice">这条笔记已移至回收站，恢复后可继续编辑。</p>}
             {(selected.sourceTitle || originUrl) && <div className="pn-reader-origin"><Link2 size={14} aria-hidden="true" /><span>{selected.sourceTitle || '原文来源'}</span>{originUrl && <a href={originUrl} target="_blank" rel="noreferrer">查看来源<ExternalLink size={12} aria-hidden="true" /></a>}</div>}
-            <div className="pn-reading-content"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: ({ href, title, children }) => <a href={href} title={title} target="_blank" rel="noreferrer">{children}</a> }}>{selected.content}</ReactMarkdown></div>
+            <div className="pn-reading-content"><ReactMarkdown skipHtml remarkPlugins={[remarkGfm]} urlTransform={(url, key) => key === 'src' ? safeReportImage(url) ? url : '' : safeMarkdownLink(url) || ''} components={{ a: ({ href, title, children }) => safeMarkdownLink(href) ? <a href={href} title={title} target="_blank" rel="noopener noreferrer">{children}</a> : <span>{children}</span>, img: ({ src, alt }) => safeReportImage(src || '') ? <img src={src} alt={alt} /> : <span>[图片：{alt || '外部图片未加载'}]</span> }}>{selected.content}</ReactMarkdown></div>
           </div>
         </article>
         <footer className="pn-reader-footer"><span><ShieldCheck size={13} aria-hidden="true" />{selected.wisdom?.status === 'synced' ? '已共享到知识库检索' : selected.wisdom?.status === 'pending' ? '检索副本同步中…' : selected.wisdom?.status === 'error' ? selected.wisdom.error : '仅本人可见'}</span>{client.share && !selected.deletedAt && <button type="button" className="pn-button pn-text-button" disabled={busy} onClick={() => { void share(selected) }}>{selected.wisdom?.enabled ? '撤下共享' : '共享到知识库检索'}</button>}</footer>

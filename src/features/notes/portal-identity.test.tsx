@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { HttpResponse, http } from 'msw'
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Notes from '../../pages/Notes'
 import Solutions from '../../pages/Solutions'
 import InformationApp from '../information/InformationApp'
@@ -14,6 +14,18 @@ import { server } from '../../test/setup'
 vi.mock('../solutions/SolutionsApp', () => ({
   default: ({ notesClient }: { notesClient: NotesClient }) => <NotesWorkspace client={notesClient} />,
 }))
+
+// Keep persistence and account-boundary flows explicit while the editor defaults to rich text.
+function markdownBody() {
+  const body = screen.getByRole('textbox', { name: '笔记正文' })
+  if (body.tagName !== 'TEXTAREA') fireEvent.click(screen.getByRole('button', { name: 'Markdown' }))
+  return screen.getByRole('textbox', { name: '笔记正文' })
+}
+
+beforeEach(() => {
+  Range.prototype.getBoundingClientRect = () => ({ x: 0, y: 0, width: 100, height: 20, top: 0, right: 100, bottom: 20, left: 0, toJSON: () => ({}) })
+  Range.prototype.getClientRects = () => ({ length: 0, item: () => null, [Symbol.iterator]: function* () {} }) as unknown as DOMRectList
+})
 
 describe('portal note entry points', () => {
   it.each(['standalone', 'report', 'information', 'source'] as const)(
@@ -45,11 +57,11 @@ describe('portal note entry points', () => {
         fireEvent.click(screen.getByRole('button', { name: '新建笔记' }))
       }
       fireEvent.change(screen.getByLabelText('笔记标题'), { target: { value: '账号 A 的草稿' } })
-      fireEvent.change(screen.getByLabelText('笔记正文'), { target: { value: 'A 的私人正文' } })
+      fireEvent.change(markdownBody(), { target: { value: 'A 的私人正文' } })
       sessionIdentity = 'portal-b'
       fireEvent.click(screen.getByRole('button', { name: '保存笔记' }))
       expect(await screen.findByRole('alert')).toHaveTextContent('登录账号已变化')
-      expect(screen.getByLabelText('笔记正文')).toHaveValue('A 的私人正文')
+      expect(markdownBody()).toHaveValue('A 的私人正文')
       expect(sentIdentities).toEqual(['portal-a'])
       expect(written).toEqual([])
     },
