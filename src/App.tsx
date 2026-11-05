@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import Login from './pages/Login'
 import { WorkspacePage } from './pages/Workspace'
 import PortalGate from './components/portal/PortalGate'
-import { accountsUrl, assistantUrl, feedbackUrl, informationUrl, knowledgeSourcesUrl, solutionsUrl, releaseNotesUrl, settingsRedirect, siteMode, workspaceUrl } from './lib/site'
+import { accountsUrl, dataBackupUrl, assistantUrl, feedbackUrl, informationUrl, knowledgeSourcesUrl, solutionsUrl, releaseNotesUrl, settingsRedirect, siteMode, workspaceUrl } from './lib/site'
 import { RequirePerm } from './components/auth/RequirePerm'
 import { BootSplash } from './components/auth/AuthStatus'
 
@@ -34,6 +34,7 @@ const Notes = lazy(() => import('./pages/Notes'))
 const Assistant = lazy(() => import('./pages/Assistant'))
 const PortalAISettings = lazy(() => import('./pages/PortalAISettings'))
 const Solutions = lazy(() => import('./pages/Solutions'))
+const DataBackup = lazy(() => import('./pages/DataBackup'))
 const Feedback = lazy(() => import('./pages/Feedback'))
 
 // www 域名只开放门户页面；pm 保留业务路由与独立鉴权；本地 combined 同时预览两者。
@@ -51,6 +52,7 @@ export default function App() {
           <Route element={<PortalGate />}>
             <Route path="/" element={<WorkspacePage />} />
             <Route path="/settings" element={<SettingsRoute />} />
+            <Route path="/data-backup" element={<DataBackup />} />
             <Route path="/model-settings" element={<PortalAISettings />} />
             <Route path="/notes" element={<Notes />} />
             <Route path="/assistant/*" element={<Assistant />} />
@@ -67,6 +69,7 @@ export default function App() {
         </>}
         {siteMode === 'pm' && <>
           <Route path="/workspace" element={<ExternalWorkspace />} />
+          <Route path="/data-backup" element={<ExternalRedirect to={dataBackupUrl} message="正在打开数据备份 …" />} />
           <Route path="/feedback" element={<ExternalRedirect to={feedbackUrl} message="正在打开回音壁 …" />} />
           <Route path="/assistant/*" element={<ExternalRedirect to={assistantUrl} message="正在打开 AI 助手 …" />} />
           <Route path="/knowledge-sources/*" element={<ExternalRedirect to={knowledgeSourcesUrl} message="正在打开知识源 …" />} />
@@ -112,6 +115,7 @@ export default function App() {
 function RouteTitle() {
   const { pathname } = useLocation()
   useEffect(() => {
+    if (pathname === '/data-backup') { document.title = '数据备份 · 迈博工作空间'; return }
     if (pathname === '/feedback') { document.title = '回音壁 · 迈博工作空间'; return }
     if (pathname === '/assistant' || pathname.startsWith('/assistant/')) { document.title = 'AI 助手 · 迈博工作空间'; return }
     if (pathname === '/notes') { document.title = '我的笔记 · 迈博工作空间'; return }

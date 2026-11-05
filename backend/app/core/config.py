@@ -69,6 +69,10 @@ class Settings(BaseSettings):
     KNOWLEDGE_SOURCE_APP_ENABLED: bool = True
     KNOWLEDGE_SOURCE_WORKER_ENABLED: bool = False
 
+    # Private server-side backup agent; never expose these settings to browsers.
+    DATA_BACKUP_AGENT_URL: str = ""
+    DATA_BACKUP_AGENT_SECRET: str = Field(default="", repr=False)
+
     # —— 应用 —— #
     APP_ENV: str = "development"
     # 同时作为 IAM 会话令牌的加密密钥：须为 ≥32 字符的随机值，否则 IAM 登录返回 503。

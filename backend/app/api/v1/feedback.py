@@ -39,6 +39,7 @@ APPLICATIONS = frozenset(
         "pm",
         "kb",
         "knowledge-sources",
+        "data-backup",
         "solutions",
         "assistant",
         "notes",
