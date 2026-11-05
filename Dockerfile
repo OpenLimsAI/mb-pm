@@ -43,9 +43,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /code
 
-# Debian trixie apt security fix (CVE-2026-109518); retain the pinned Python base.
+# Debian security update for CVE-2026-109518; retain the pinned Python runtime.
 RUN apt-get update \
-    && apt-get install --no-install-recommends --only-upgrade -y apt libapt-pkg7.0 \
+    && apt-get install --only-upgrade --no-install-recommends -y apt libapt-pkg7.0 \
     && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' apt)" ge 3.0.4 \
     && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' libapt-pkg7.0)" ge 3.0.4 \
     && rm -rf /var/lib/apt/lists/*

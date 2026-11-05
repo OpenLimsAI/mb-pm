@@ -1,0 +1,219 @@
+{
+  "schema": 1,
+  "release": "knowledge-source-v3-20261104",
+  "status": "production_deployed_verified",
+  "date": "2026-11-04",
+  "timezone": "America/New_York",
+  "published": true,
+  "sources": {
+    "pm": "e7eb5f4b2134d5aead607823a43e24638b7c2380",
+    "kb": "eebadb54c1d798f52a0b84af25983a3864c6d17e"
+  },
+  "images": {
+    "pm": "sha256:b2737f616be951ee76102a211a634fe5de1a407b085b755a28205e609e2bca13",
+    "kb": "sha256:c59c182cddcbfa53fd53c86182824d616d5d4cb8ddb4dc7366a16ce12f874600"
+  },
+  "pullRequests": [
+    "https://github.com/OpenLimsAI/mb-pm/pull/176",
+    "https://github.com/OpenLimsAI/mb-pm/pull/179",
+    "https://github.com/OpenDIKW/dikw-mbweb/pull/51"
+  ],
+  "implementation": {
+    "features": 20,
+    "detail": "../../../docs/knowledge-source-v3.md",
+    "implemented": true,
+    "mainMerged": true,
+    "latestPRHeadCIPassed": true
+  },
+  "actualIsolatedImageAcceptance": {
+    "pm": {
+      "accepted": true,
+      "phases": 2,
+      "network": "none",
+      "restartPersistenceVerified": true,
+      "cleanupCompleted": true,
+      "receiptSHA256": "79affb3dedb38f5f1368f4092d3a461df90d56877c183ce5d0556674f846ffee"
+    },
+    "kb": {
+      "accepted": true,
+      "phases": 2,
+      "network": "none",
+      "restartPersistenceVerified": true,
+      "cleanupCompleted": true,
+      "receiptSHA256": "17578253ebb23b704f503b5233bab4dd03d5aec46211d276de9a7759a5d8c489"
+    },
+    "customerData": false,
+    "paidModels": false,
+    "integratedProductionIAMBusinessAcceptance": false
+  },
+  "scans": {
+    "policy": {
+      "severity": [
+        "HIGH",
+        "CRITICAL"
+      ],
+      "ignoreUnfixed": true
+    },
+    "pm": {
+      "accepted": true,
+      "reportSHA256": "e764bf196846b674d2899618377c9588897525a9d7d0f63da3a4976c63c787d0",
+      "ociDigestChainVerified": true
+    },
+    "kb": {
+      "accepted": true,
+      "reportSHA256": "0a4f6d3a167f91185e08befa4bff936d9523c5d2e9975cd276b7f7d3c4e5d835"
+    }
+  },
+  "backup": {
+    "attempt": "r5",
+    "encryptedBackupVerified": true,
+    "independentRestoreVerified": true,
+    "postgresDatabases": 3,
+    "sqliteDatabases": 10,
+    "restoredMounts": 21,
+    "sqliteIntegrity": "ok",
+    "productionWritersStopped": false,
+    "databaseRestoreToProduction": false,
+    "archiveSHA256": "dbb9656ddf823553fff2a255147a3e99c8dda0be4a5974375a2e0399e8d6de24",
+    "restoreReceiptSHA256": "6e385868a5186fae038ccd8e8fe31471afaed82441cc0125573c029abb3b1a04",
+    "consistency": "per-database PostgreSQL snapshot, SQLite online backup, bounded hash-stable file capture; no global cross-store atomic snapshot guarantee"
+  },
+  "originalsPreflight": {
+    "verified": true,
+    "scopes": 2,
+    "files": 865,
+    "bytes": 138461268,
+    "fullCustomerPathsPublished": false,
+    "rawManifestServerOnly": true
+  },
+  "production": {
+    "deployed": true,
+    "state": "recovery_completed_verified",
+    "deployedAtUTC": "2026-11-05T01:40:07Z",
+    "healthyServicesVerified": true,
+    "dataAndOriginalsRetained": true,
+    "signedReadOnlyIAMCoreConnectivity": "passed",
+    "publicEntryVerification": {
+      "accepted": true,
+      "source": "e7eb5f4b2134d5aead607823a43e24638b7c2380",
+      "startedAt": "2026-11-05T01:47:20.964278+00:00",
+      "anonymousGETs": 11,
+      "checks": 12,
+      "receiptSHA256": "8c7f953ed64dc8895406db87f82f1acf73ab49682cc38e0b296b1806630d4d62",
+      "originHTTPIndexSHA256": "5d60efe89df5f3de6e8ec4bad5622e6dd73c8f266477e7ecb226a3b4afdc586f",
+      "originHTTPEvidenceSHA256": "b3ea4dd48369fddcedad09711c901f71f0249bba6902c66ecb7596694eebe2e9",
+      "cloudflareTransform": "Only exact identified Web Analytics beacon plus LF normalized; all other HTML bytes and actual main JS SHA required to match",
+      "initialWholeHTMLHashCheck": "Failed and preserved; no production configuration change or rollback"
+    },
+    "customerWriteFlows": "not_performed",
+    "paidModelBusinessFlows": "not_performed",
+    "postgresMigration": false,
+    "databaseRestoreToProduction": false,
+    "iamOrModelConfigChanged": false,
+    "businessJobsPausedOrCancelled": false,
+    "deployedAtAmericaNewYork": "2026-11-04T20:40:07-05:00",
+    "profiles": {
+      "kb": {
+        "source": "eebadb54c1d798f52a0b84af25983a3864c6d17e",
+        "image": "sha256:c59c182cddcbfa53fd53c86182824d616d5d4cb8ddb4dc7366a16ce12f874600",
+        "deployed": true,
+        "healthy": true,
+        "dataRetained": true,
+        "v3BridgeCompatible": true,
+        "resultSHA256": "e26032b518cc3870814bc287623408f187e44a564a1a1c5ef1ac4133b7e06989",
+        "originalsVerified": 865
+      },
+      "pm": {
+        "source": "e7eb5f4b2134d5aead607823a43e24638b7c2380",
+        "image": "sha256:b2737f616be951ee76102a211a634fe5de1a407b085b755a28205e609e2bca13",
+        "deployed": true,
+        "healthy": true,
+        "dataRetained": true,
+        "v3BridgeCompatible": true,
+        "resultSHA256": "f2e36c81ec14dc52b4678633142071c63bedb909a90dbedab3e8d16ba08aae0c",
+        "originalsVerified": 865
+      }
+    }
+  },
+  "compose": {
+    "pm": {
+      "before": 29,
+      "addedImageOverlay": 1,
+      "plannedAfter": 30,
+      "observedAfter": 30
+    },
+    "kb": {
+      "before": 10,
+      "addedImageOverlay": 1,
+      "plannedAfter": 11,
+      "observedAfter": 11
+    }
+  },
+  "rollback": {
+    "pm": {
+      "image": "sha256:e2d649a9299ecc4f43e2bb5f42d215311849936f829947d36af2aa222c5f7987",
+      "source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a"
+    },
+    "kb": {
+      "image": "sha256:3d113fe21bec12afc37ce4280bdfa34e324a479ae8edf1d13ba5008085d99252",
+      "source": "684103354c37e3ac814b460e8ee4e0af5b6d7537"
+    },
+    "imageAndOriginalConfigurationOnly": true,
+    "restoreOldDatabase": false,
+    "preserveNewRecordsAndOriginals": true,
+    "concurrentReleaseOwnershipMustMatch": true
+  },
+  "documentationOnlyNoRedeployment": true,
+  "deploymentExecutionNote": {
+    "initialKBImageSwitchedAndHealthy": true,
+    "initialRuntimeCheckFalseFailure": "HostConfig.Binds array ordering only; complete binding multiset unchanged",
+    "automaticRollbackExecuted": false,
+    "pmSwitchedAtFailure": false,
+    "recoveryStrategy": "Normalize only the order of complete Binds strings, preserve all options/duplicates/other HostConfig; verify live KB in place before normal PM apply",
+    "recoveryActuallyCompleted": true,
+    "recoveryVerification": "passed_exact_versions_full_configuration_live_readonly_data_originals",
+    "kbRestartedDuringRecovery": false,
+    "operationsTestsPassed": 137,
+    "priorFailedAttemptPreserved": true
+  },
+  "productionEvidence": {
+    "receiptSHA256": "99303b85fc7a13ae839e0b31748483bd609733082849a42f61635ad4d23b72bd",
+    "privateReceiptServerOnly": true,
+    "completed": true,
+    "kbResultSHA256": "e26032b518cc3870814bc287623408f187e44a564a1a1c5ef1ac4133b7e06989",
+    "pmResultSHA256": "f2e36c81ec14dc52b4678633142071c63bedb909a90dbedab3e8d16ba08aae0c"
+  },
+  "releaseRecordCIFollowup": {
+    "initialHead": "6b20048468281d57b7b7f27fdd19c34d95c0d903",
+    "initialFrontendAssertions": 1171,
+    "initialFrontendTestFiles": 142,
+    "initialAssertionAndCoveragePassed": true,
+    "initialUnhandledError": "Test teardown reset an async API mock while component was still mounted; passive effect observed undefined mock return",
+    "fix": "Unmount ProjectAIWorkbench before resetAllMocks and global store changes",
+    "testOnly": true,
+    "runtimeCodeChanged": false,
+    "unhandledErrorsIgnored": false,
+    "thresholdsChanged": false,
+    "redeployed": false
+  },
+  "securityFollowup": {
+    "finding": "CVE-2026-109518",
+    "severity": "HIGH",
+    "packages": {
+      "apt": {
+        "installed": "3.0.3",
+        "minimumFixed": "3.0.4"
+      },
+      "libapt-pkg7.0": {
+        "installed": "3.0.3",
+        "minimumFixed": "3.0.4"
+      }
+    },
+    "failedHead": "98339170c96db4d1224eda59ceb18af8798682e7",
+    "actualVulnerabilityNotNetworkFailure": true,
+    "ignoredOrWaived": false,
+    "fix": "Upgrade target OS packages on the existing fixed Python base; force actual versions >=3.0.4; preserve runtime declarations",
+    "deployment": "pending_actual_security_image_acceptance_and_fixed_main_rollout",
+    "initialReleaseEvidencePreserved": true
+  }
+}
