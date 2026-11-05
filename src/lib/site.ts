@@ -23,6 +23,7 @@ export const siteMode: SiteMode = ['portal', 'pm', 'combined'].includes(configur
 export const workspaceUrl = siteMode === 'combined' ? '/' : portalPublicUrl
 /** 行业信息作为工作台独立应用，共用门户登录，不依赖项目管理会话。 */
 export const knowledgeSourcesUrl = siteMode === 'pm' ? `${portalPublicUrl}/knowledge-sources` : '/knowledge-sources'
+export const dataBackupUrl = siteMode === 'pm' ? `${portalPublicUrl}/data-backup` : '/data-backup'
 export const informationUrl = siteMode === 'pm' ? `${portalPublicUrl}/information` : '/information'
 export const feedbackUrl = siteMode === 'pm' ? `${portalPublicUrl}/feedback` : '/feedback'
 export const assistantUrl = siteMode === 'pm' ? `${portalPublicUrl}/assistant` : '/assistant'
@@ -70,6 +71,6 @@ export function projectApplicationUrl(returnTo = '/dashboard'): string {
 /** 组合开发模式中，门户页面始终验证门户会话，避免被仍有效的 PM 会话来回重定向。 */
 export function loginUsesProjectSession(returnTo: string): boolean {
   const path = returnTo.split(/[?#]/)[0].replace(/\/+$/, '') || '/'
-  const portalPaths = ['/', '/workspace', '/account', '/accounts', '/settings', '/model-settings', '/notes', '/assistant', '/feedback', '/help', '/release-notes']
+  const portalPaths = ['/', '/workspace', '/account', '/accounts', '/settings', '/model-settings', '/data-backup', '/notes', '/assistant', '/feedback', '/help', '/release-notes']
   return siteMode === 'pm' || (siteMode === 'combined' && !portalPaths.includes(path) && !path.startsWith('/launch/') && path !== '/knowledge-sources' && !path.startsWith('/knowledge-sources/') && path !== '/information' && !path.startsWith('/information/') && !path.startsWith('/assistant/') && path !== '/solutions' && !path.startsWith('/solutions/'))
 }

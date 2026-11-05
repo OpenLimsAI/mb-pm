@@ -100,6 +100,9 @@ jobs:
         working-directory: backend
         run: python -m pytest tests/ -v --cov=app.services.accounts --cov=app.schemas.accounts --cov=app.api.v1.accounts --cov=app.api.v1.portal --cov-branch --cov-fail-under=90 --cov-report=term-missing --cov-report=json:coverage.json
 
+      - name: 备份管理适配器安全与删除回归
+        run: python -m unittest discover -s deploy/data-backup/tests -v
+
   # ───────── 硬护栏 4：Docker 镜像可构建 ─────────
   docker:
     name: Docker · 镜像构建验证（硬护栏）
