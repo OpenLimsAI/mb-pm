@@ -5,7 +5,7 @@ import PortalLayout from '../components/portal/PortalLayout'
 import Workspace from './Workspace'
 
 const user = { id: 'reader', username: 'reader', displayName: '同事' }
-const sections = ['AI 智能版块', '知识信息版块', '业务管理版块', '功能设置版块']
+const sections = ['AI 智能版块', '知识信息版块', '业务管理版块', '数据管理版块', '功能设置版块']
 const originalScroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
 function Home({ preview = false }: { preview?: boolean }) {
   return <Workspace user={user} applications={[]} preview={preview} onRefresh={vi.fn()} onLogout={vi.fn()} />

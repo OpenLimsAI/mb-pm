@@ -2,7 +2,7 @@ import axios from 'axios'
 import { API_BASE } from '../../api/client'
 
 export const applicationLabels = {
-  platform: '平台与登录', pm: '项目管理', kb: '知识库', 'knowledge-sources': '知识源',
+  platform: '平台与登录', pm: '项目管理', kb: '知识库', 'knowledge-sources': '知识源', 'data-backup': '数据备份',
   solutions: '研究报告', assistant: 'AI助手', notes: '我的笔记', models: 'AI设置',
   settings: '我的设置', mdm: '主数据管理', accounts: '账号管理', feedback: '回音壁', other: '其他',
 } as const
