@@ -239,6 +239,68 @@ class ManifestTests(Fixture):
         item=self.app.catalog()[0][self.item(path)['id']];self.assertEqual(item['status'],'unreadable');self.assertNotIn('PRIVATE',json.dumps(item,default=str))
 
 
+class TimezoneTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory();self.base=Path(self.tmp.name).resolve()
+        self.zones=self.base/'zoneinfo';self.zones.mkdir()
+        for name in ('Asia/Shanghai','Etc/UTC'):
+            source=next((Path(root)/name for root in a.TZPATH if (Path(root)/name).is_file()),None)
+            if source is None: self.skipTest('System zoneinfo files unavailable')
+            target=self.zones/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(source.read_bytes())
+        self.localtime=self.base/'localtime';self.metadata=self.base/'timezone'
+        self.metadata.write_text('Etc/UTC\n')
+        real_path=Path
+        def system_path(value):
+            return {'/etc/localtime':self.localtime,'/etc/timezone':self.metadata}.get(str(value),real_path(value))
+        self.paths=patch.object(a,'Path',side_effect=system_path);self.paths.start()
+        self.roots=patch.object(a,'TZPATH',(str(self.zones),));self.roots.start()
+        self.command=patch.object(a.subprocess,'run');self.run=self.command.start()
+        self.run.side_effect=OSError('timedatectl unavailable')
+        self.addCleanup(self.command.stop);self.addCleanup(self.roots.stop);self.addCleanup(self.paths.stop);self.addCleanup(self.tmp.cleanup)
+    def test_localtime_symlink_wins_over_stale_utc_and_command(self):
+        self.localtime.symlink_to(self.zones/'Asia/Shanghai')
+        self.run.side_effect=None;self.run.return_value=Mock(stdout='Etc/UTC\n')
+        self.assertEqual(a.timezone_read(),'Asia/Shanghai');self.run.assert_not_called()
+    def test_relative_localtime_symlink_resolved(self):
+        self.localtime.symlink_to('zoneinfo/Asia/Shanghai')
+        self.assertEqual(a.timezone_read(),'Asia/Shanghai');self.run.assert_not_called()
+    def test_copied_localtime_confirmed_by_timedatectl(self):
+        self.localtime.write_bytes((self.zones/'Asia/Shanghai').read_bytes())
+        self.run.side_effect=None;self.run.return_value=Mock(stdout='Asia/Shanghai\n')
+        self.assertEqual(a.timezone_read(),'Asia/Shanghai')
+        self.run.assert_called_once_with(['timedatectl','show','--property=Timezone','--value'],capture_output=True,text=True,timeout=5,check=True)
+    def test_legacy_timezone_only_used_when_file_matches(self):
+        self.localtime.write_bytes((self.zones/'Asia/Shanghai').read_bytes());self.metadata.write_text('Asia/Shanghai\n')
+        self.assertEqual(a.timezone_read(),'Asia/Shanghai')
+    def test_stale_utc_metadata_with_copied_localtime_is_unknown(self):
+        self.localtime.write_bytes((self.zones/'Asia/Shanghai').read_bytes())
+        self.assertEqual(a.timezone_read(),'unknown')
+    def test_conflicting_timedatectl_and_metadata_never_override_localtime(self):
+        self.localtime.write_bytes((self.zones/'Asia/Shanghai').read_bytes())
+        self.run.side_effect=None;self.run.return_value=Mock(stdout='Etc/UTC\n')
+        self.assertEqual(a.timezone_read(),'unknown')
+    def test_unreadable_localtime_can_use_authoritative_service(self):
+        self.run.side_effect=None;self.run.return_value=Mock(stdout='Asia/Shanghai\n')
+        self.assertEqual(a.timezone_read(),'Asia/Shanghai')
+    def test_unproven_metadata_without_localtime_is_unknown(self):
+        self.assertEqual(a.timezone_read(),'unknown')
+    def test_invalid_service_value_falls_back_only_to_matching_metadata(self):
+        self.localtime.write_bytes((self.zones/'Asia/Shanghai').read_bytes());self.metadata.write_text('Asia/Shanghai\n')
+        self.run.side_effect=None;self.run.return_value=Mock(stdout='not/a/timezone\n')
+        self.assertEqual(a.timezone_read(),'Asia/Shanghai')
+    def test_service_timeout_and_stale_metadata_fail_closed(self):
+        self.localtime.write_bytes((self.zones/'Asia/Shanghai').read_bytes())
+        self.run.side_effect=a.subprocess.TimeoutExpired('timedatectl',5)
+        self.assertEqual(a.timezone_read(),'unknown')
+    def test_plan_reports_actual_shanghai_schedule_despite_stale_utc(self):
+        self.localtime.symlink_to(self.zones/'Asia/Shanghai')
+        script=self.base/'daily_backup.py';script.write_text('')
+        self.run.side_effect=None;self.run.return_value=Mock(stdout=f'30 3 * * * /usr/bin/python3 {script}\n',stderr='',returncode=0)
+        result=a.plan_read({'planScript':script})
+        self.assertEqual(result['status'],'active');self.assertEqual(result['timezone'],'Asia/Shanghai');self.assertIn('03:30',result['summary'])
+        self.run.assert_called_once_with(['crontab','-l'],capture_output=True,text=True,timeout=5)
+
+
 class PlanTests(Fixture):
     def plan(self,stdout,code=0,stderr=''):
         result=Mock(stdout=stdout,stderr=stderr,returncode=code)

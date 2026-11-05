@@ -24,7 +24,7 @@ import subprocess
 import threading
 import time
 import uuid
-from zoneinfo import ZoneInfo
+from zoneinfo import TZPATH, ZoneInfo
 
 UTC = dt.timezone.utc
 NAME = re.compile(r'maibo-(\d{8}T\d{6}Z)\.tar\.gz\.gpg\Z')
@@ -234,11 +234,39 @@ def scan_archive(config,item):
 
 
 def timezone_read():
+    # Cron follows the host's /etc/localtime. Debian's /etc/timezone can remain
+    # stale after timedatectl changes the zone, so it must not take precedence.
+    localtime=Path('/etc/localtime');roots=[Path(path) for path in TZPATH]
     try:
-        path=Path('/etc/timezone')
-        value=path.read_text().strip() if path.is_file() else subprocess.run(['timedatectl','show','--property=Timezone','--value'],capture_output=True,text=True,timeout=5,check=True).stdout.strip()
-        ZoneInfo(value);return value
-    except (OSError,ValueError,KeyError,subprocess.SubprocessError): return 'unknown'
+        target=localtime.resolve(strict=True)
+        for root in roots:
+            try: value=target.relative_to(root.resolve()).as_posix()
+            except ValueError: continue
+            if len(value)>80: continue
+            ZoneInfo(value);return value
+    except (OSError,RuntimeError,ValueError,KeyError): pass
+    try: data=localtime.read_bytes() if localtime.stat().st_size<=128*1024 else None
+    except OSError: data=None
+    def confirmed(value,require_match=False):
+        if not value or len(value)>80: return None
+        ZoneInfo(value)
+        if data is None: return None if require_match else value
+        for root in roots:
+            try:
+                path=root/value
+                if path.stat().st_size==len(data) and path.read_bytes()==data: return value
+            except OSError: continue
+        return None
+    try:
+        value=subprocess.run(['timedatectl','show','--property=Timezone','--value'],capture_output=True,text=True,timeout=5,check=True).stdout.strip()
+        value=confirmed(value)
+        if value: return value
+    except (OSError,ValueError,KeyError,subprocess.SubprocessError): pass
+    try:
+        value=confirmed(Path('/etc/timezone').read_text().strip(),require_match=True)
+        if value: return value
+    except (OSError,ValueError,KeyError): pass
+    return 'unknown'
 
 def retention_read(script):
     try:
