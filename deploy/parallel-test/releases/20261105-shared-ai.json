@@ -84,7 +84,6 @@
     ],
     "old_tables_preserved": 63
   },
-  "source_archive_sha256": "1959a3b0d6bcbf9eb226cf1d16f16a215a9fdedacd67ec264bd7b1ffe97905d2",
   "ci": {
     "latest_pr_checks_passed": 7,
     "postgres_tests_passed": 2191,
@@ -141,5 +140,8 @@
     "browser_reached_login_page_only": true
   },
   "documentation_only": true,
-  "documentation_change_does_not_deploy": true
+  "documentation_change_does_not_deploy": true,
+  "original_delivery_archive_sha256": "1959a3b0d6bcbf9eb226cf1d16f16a215a9fdedacd67ec264bd7b1ffe97905d2",
+  "deployment_build_archive_sha256": "5d31b5ae1262244585fab6e1a3a19a353f77db3cfb697a47d7fa8afa7ac16dd3",
+  "archive_packaging_note": "Original delivery has no prefix; actual deployment build archive uses source/ prefix. Both verified against the same Git tree."
 }
