@@ -43,6 +43,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /code
 
+# Debian trixie apt security fix (CVE-2026-109518); retain the pinned Python base.
+RUN apt-get update \
+    && apt-get install --no-install-recommends --only-upgrade -y apt libapt-pkg7.0 \
+    && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' apt)" ge 3.0.4 \
+    && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' libapt-pkg7.0)" ge 3.0.4 \
+    && rm -rf /var/lib/apt/lists/*
+
 # psycopg[binary] 自带 libpq，无需系统级编译依赖，镜像保持精简
 COPY backend/requirements.lock ./
 RUN pip install --require-hashes -r requirements.lock \
