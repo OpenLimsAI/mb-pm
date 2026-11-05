@@ -1,0 +1,448 @@
+{
+  "feature_pr": "https://github.com/OpenLimsAI/mb-pm/pull/173",
+  "feature_source": "7a8ac77e5152b696f51e1c6eb40669f0ff34c2d5",
+  "feature_ci_head": "f1ab68588d8bcaf13cda46c7a1eda676e417a20a",
+  "feature_ci": [
+    {
+      "name": "前端 · 类型检查 + 构建（硬护栏）",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41901414188/job/126824523925"
+    },
+    {
+      "name": "dependencies",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41901414367/job/126824524709"
+    },
+    {
+      "name": "后端 · ruff 格式检查（硬护栏）",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41901414188/job/126824523833"
+    },
+    {
+      "name": "container",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41901414367/job/126824524708"
+    },
+    {
+      "name": "后端 · pytest（PostgreSQL · 硬护栏）",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41901414188/job/126824524091"
+    },
+    {
+      "name": "Docker · 镜像构建验证（硬护栏）",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41901414188/job/126824523493"
+    },
+    {
+      "name": "Lint 报告（软护栏 · 不阻断）",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/OpenLimsAI/mb-pm/actions/runs/41901414188/job/126824524011"
+    }
+  ],
+  "production_source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a",
+  "production_image": "mb-pm:assistant-kimi-stream-08caf7d-20261104",
+  "production_image_id": "sha256:e2d649a9299ecc4f43e2bb5f42d215311849936f829947d36af2aa222c5f7987",
+  "feature_inheritance": {
+    "status": "ahead",
+    "ahead_by": 2,
+    "behind_by": 0,
+    "commits": [
+      "2e1f422654d6ad5df2dab370549a4a794e4f8484",
+      "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a"
+    ]
+  },
+  "artifact": {
+    "api_base": "/api/v1",
+    "app_mode": "domain",
+    "files_verified": 180,
+    "image_static_archive_sha256": "25e88886f23760326ce9e296d3561d5ce812d3cffde53f67a0644006c98cfeba",
+    "index_sha256": "0f96b5b834e96eefb3bea5d009d1c0335b25dd06cf1f78e36bd7a8b672140d0f",
+    "production_api": true,
+    "schema": 1,
+    "source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a"
+  },
+  "public": {
+    "checked_at_utc": "2026-11-05T00:44:59.884023+00:00",
+    "source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a",
+    "statuses": {
+      "health": 200,
+      "manifest": 200,
+      "assistant": 200,
+      "solutions": 200,
+      "anonymous_tasks": 401,
+      "anonymous_reports": 401,
+      "anonymous_collaboration": 401,
+      "anonymous_note_links": 401,
+      "assistant_chunk": 200,
+      "solutions_chunk": 200
+    },
+    "authenticated_customer_session_tested": false,
+    "public_verified": true,
+    "public_manifest_matches_image": true,
+    "public_assistant_bundle_matches_image": true,
+    "public_solutions_bundle_matches_image": true,
+    "report_api_anonymous_denied": true
+  },
+  "isolated_report_authorization": {
+    "source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a",
+    "image": "sha256:e2d649a9299ecc4f43e2bb5f42d215311849936f829947d36af2aa222c5f7987",
+    "production_changed": false,
+    "production_records_copied": 0,
+    "production_records_written": 0,
+    "schema_only": true,
+    "schema_archive_sha256": "07651bb19d63d1dca1b2e608e7319a4ace6e12ddbb6f71720c2b891feb366c25",
+    "schema_tables": 63,
+    "actual_production_heads": [
+      "019"
+    ],
+    "production_heads_preserved": true,
+    "database_migration": false,
+    "same_live_containers_before_after": true,
+    "instances": [
+      {
+        "name": "mb-pm-v2-app-1",
+        "id": "df14b891658789971d8d8d488c8eb5a44a656e4bc4ba7af8f0791abfd2c85f92"
+      },
+      {
+        "name": "mb-pm-v2-app-direct-1",
+        "id": "9207ade523f2395e84a7a5d12b88a7df99fc17e7e1dec164953dbea2611eb542"
+      }
+    ],
+    "qa_removed": true,
+    "candidate_removed": true,
+    "temporary_env_removed": true,
+    "report_auth": {
+      "status": "passed",
+      "checks": [
+        "anonymous_401",
+        "owner_explicit_grants",
+        "editor_save_and_stale_write_409",
+        "commenter_reply_resolve_cas_presence",
+        "unrelated_isolation",
+        "note_link_actor_isolation",
+        "revoked_grant_immediate",
+        "csrf_origin_403"
+      ],
+      "isolated_database": "report_experience_check_08caf7d_20261104",
+      "signed_jwt_cookie_session": true,
+      "iam_active_status_fixture": true,
+      "production_records_written": 0,
+      "external_model_calls": 0,
+      "external_downloads": 0,
+      "real_iam_calls": 0
+    }
+  },
+  "production_deployment_receipt": {
+    "source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a",
+    "backend_verification": {
+      "backend_manifests_sha256": "1b9c13137a9043d12e9c6f33a12a144af9d0bbf375aad6adf2bb6b29d88317d8",
+      "backend_verified_against_source": true,
+      "baseline_files_checked": 190,
+      "baseline_manifest_source": "b36c278e4bf0411fc40fb8edf73e6e423b972b7f",
+      "baseline_source": "b36c278e4bf0411fc40fb8edf73e6e423b972b7f",
+      "candidate_files_checked": 192,
+      "candidate_source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a",
+      "changed_paths": [
+        "alembic/versions/2026_11_03_0400-020_pm_execution.py",
+        "app/api/v1/progress_policy.py",
+        "app/api/v1/solutions.py",
+        "app/schemas/report_collaboration.py",
+        "app/schemas/solution.py",
+        "app/services/ai.py",
+        "app/services/assistant_diagnostics.py",
+        "app/services/assistant_generation.py",
+        "app/services/assistant_generation_policy.py",
+        "app/services/report_collaboration.py",
+        "app/services/solution_workbench.py",
+        "app/services/solutions.py",
+        "app/services/template_upgrade.py",
+        "app/services/web_search.py"
+      ]
+    },
+    "database_migration": false,
+    "schema_version": "019",
+    "tables_checked": 63,
+    "prior_record_ids_retained": true,
+    "prior_assistant_messages_unchanged": true,
+    "model_settings_preserved": true,
+    "security_settings_preserved": true,
+    "other_containers_unchanged": 22,
+    "instances": {
+      "mb-pm-v2-app-1": {
+        "anonymous_api": 401,
+        "application_scope_column": true,
+        "assistant_entry": 200,
+        "database": "mb_pm",
+        "health": 200,
+        "index_sha256": "0f96b5b834e96eefb3bea5d009d1c0335b25dd06cf1f78e36bd7a8b672140d0f",
+        "knowledge_ai_client_configured": false,
+        "knowledge_ai_enabled": false,
+        "knowledge_papers": 331,
+        "production_artifact": {
+          "api_base": "/api/v1",
+          "app_mode": "domain",
+          "files_verified": 180,
+          "index_sha256": "0f96b5b834e96eefb3bea5d009d1c0335b25dd06cf1f78e36bd7a8b672140d0f",
+          "production_api": true,
+          "schema": 1,
+          "source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a"
+        },
+        "routing_cases": 6,
+        "runtime": {
+          "database": "mb_pm",
+          "new_tables_authorized": true,
+          "runtime_dml_only": true,
+          "workers_disabled": false
+        },
+        "web_configured": true,
+        "worker_configuration": {
+          "assistant_request_worker_enabled": true,
+          "project_ai_worker_enabled": true
+        }
+      },
+      "mb-pm-v2-app-direct-1": {
+        "anonymous_api": 401,
+        "application_scope_column": true,
+        "assistant_entry": 200,
+        "database": "mb_pm",
+        "health": 200,
+        "index_sha256": "0f96b5b834e96eefb3bea5d009d1c0335b25dd06cf1f78e36bd7a8b672140d0f",
+        "knowledge_ai_client_configured": false,
+        "knowledge_ai_enabled": false,
+        "knowledge_papers": 331,
+        "production_artifact": {
+          "api_base": "/api/v1",
+          "app_mode": "domain",
+          "files_verified": 180,
+          "index_sha256": "0f96b5b834e96eefb3bea5d009d1c0335b25dd06cf1f78e36bd7a8b672140d0f",
+          "production_api": true,
+          "schema": 1,
+          "source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a"
+        },
+        "routing_cases": 6,
+        "runtime": {
+          "database": "mb_pm",
+          "new_tables_authorized": true,
+          "runtime_dml_only": true,
+          "workers_disabled": false
+        },
+        "web_configured": true,
+        "worker_configuration": {
+          "assistant_request_worker_enabled": true,
+          "project_ai_worker_enabled": true
+        }
+      }
+    }
+  },
+  "existing_release_directory": "/home/prometheus/mb-pm-v2/releases/assistant-kimi-stream-08caf7d-20261104",
+  "existing_backup_directory": "/home/prometheus/mb-pm-v2/private-config-backups/assistant-kimi-stream-08caf7d-20261104",
+  "compose_files_count": 29,
+  "dedicated_7a_candidate_switched": false,
+  "repeated_deployment_for_report_verification": false,
+  "production_migration_in_report_verification": false,
+  "login_smoke": {
+    "method": "Isolated headless Chrome CDP with actual image static files and anonymous API fixture",
+    "passed": true,
+    "log_sha256": "4154190bfe57efb6755ebeacc37d226784c14abd509063310ab4ab52f60a0747",
+    "credentials_entered": false,
+    "form_submitted": false,
+    "actual_artifact_sha256": "25e88886f23760326ce9e296d3561d5ce812d3cffde53f67a0644006c98cfeba"
+  },
+  "local_tests": {
+    "frontend_files": 136,
+    "frontend_passed": 1133,
+    "backend_passed": 1758,
+    "backend_skipped": 6
+  },
+  "acceptance_boundary": {
+    "real_customer_report_interaction_tested": false,
+    "real_model_report_generation_tested": false,
+    "real_paper_download_tested": false,
+    "pdf_raster_pages": true,
+    "word_toc_manual_refresh": true,
+    "production_records_written_by_report_verification": 0
+  },
+  "report_code_verification": {
+    "schema": 1,
+    "checked_at_utc": "2026-11-05T00:46:50.324621+00:00",
+    "feature_source": "7a8ac77e5152b696f51e1c6eb40669f0ff34c2d5",
+    "live_source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a",
+    "live_image_id": "sha256:e2d649a9299ecc4f43e2bb5f42d215311849936f829947d36af2aa222c5f7987",
+    "all_six_report_files_match": true,
+    "source_containment": {
+      "provider": "GitHub compare API",
+      "url": "https://github.com/OpenLimsAI/mb-pm/compare/7a8ac77e5152b696f51e1c6eb40669f0ff34c2d5...08caf7d80cbb4861e85160451dc8d0caa1bf9a4a",
+      "status": "ahead",
+      "base_sha": "7a8ac77e5152b696f51e1c6eb40669f0ff34c2d5",
+      "merge_base_sha": "7a8ac77e5152b696f51e1c6eb40669f0ff34c2d5",
+      "head_sha": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a",
+      "ahead_by": 2,
+      "behind_by": 0,
+      "report_feature_files_changed_after_merge": [],
+      "full_compare_receipt_sha256": "a0ec0e242cf049bda93df5cdd37693ad78956901ddb6725ef34e31485ffd4771"
+    },
+    "files": [
+      {
+        "path": "app/api/v1/solutions.py",
+        "expected_sha256": "9d75c2746ff6f387c60e3bbf3eefb2a204a920888743be09793e07c520db22d3",
+        "actual_sha256": "9d75c2746ff6f387c60e3bbf3eefb2a204a920888743be09793e07c520db22d3",
+        "match": true,
+        "verified_instances": [
+          "mb-pm-v2-app-1",
+          "mb-pm-v2-app-direct-1"
+        ]
+      },
+      {
+        "path": "app/schemas/report_collaboration.py",
+        "expected_sha256": "83489f6bfdeb22967594157a0165b0b241df9c3992d4155371a9239f1bc7c66a",
+        "actual_sha256": "83489f6bfdeb22967594157a0165b0b241df9c3992d4155371a9239f1bc7c66a",
+        "match": true,
+        "verified_instances": [
+          "mb-pm-v2-app-1",
+          "mb-pm-v2-app-direct-1"
+        ]
+      },
+      {
+        "path": "app/schemas/solution.py",
+        "expected_sha256": "449699664f4c5c9bfa2887681b2c0689204eababfc16ec4d291b71f2800a3592",
+        "actual_sha256": "449699664f4c5c9bfa2887681b2c0689204eababfc16ec4d291b71f2800a3592",
+        "match": true,
+        "verified_instances": [
+          "mb-pm-v2-app-1",
+          "mb-pm-v2-app-direct-1"
+        ]
+      },
+      {
+        "path": "app/services/report_collaboration.py",
+        "expected_sha256": "053d2cf52a42a76ccf0266080920e9458dbd50c6d0be8081973011824c2ee774",
+        "actual_sha256": "053d2cf52a42a76ccf0266080920e9458dbd50c6d0be8081973011824c2ee774",
+        "match": true,
+        "verified_instances": [
+          "mb-pm-v2-app-1",
+          "mb-pm-v2-app-direct-1"
+        ]
+      },
+      {
+        "path": "app/services/solution_workbench.py",
+        "expected_sha256": "6582f056566ae1dbd027cac4b3b9adb15ae907e283a5d5a517baccc84cb3bae3",
+        "actual_sha256": "6582f056566ae1dbd027cac4b3b9adb15ae907e283a5d5a517baccc84cb3bae3",
+        "match": true,
+        "verified_instances": [
+          "mb-pm-v2-app-1",
+          "mb-pm-v2-app-direct-1"
+        ]
+      },
+      {
+        "path": "app/services/solutions.py",
+        "expected_sha256": "8fab8a6870fb85b6e8ba16af3d36fc52603859f1b1e90f6a23c8190ad9d86f0a",
+        "actual_sha256": "8fab8a6870fb85b6e8ba16af3d36fc52603859f1b1e90f6a23c8190ad9d86f0a",
+        "match": true,
+        "verified_instances": [
+          "mb-pm-v2-app-1",
+          "mb-pm-v2-app-direct-1"
+        ]
+      }
+    ],
+    "instances": [
+      {
+        "name": "mb-pm-v2-app-1",
+        "container_id": "df14b891658789971d8d8d488c8eb5a44a656e4bc4ba7af8f0791abfd2c85f92",
+        "source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a",
+        "image_id": "sha256:e2d649a9299ecc4f43e2bb5f42d215311849936f829947d36af2aa222c5f7987",
+        "image_reference": "mb-pm:assistant-kimi-stream-08caf7d-20261104",
+        "healthy": true,
+        "readonly_rootfs": true,
+        "compose_files": [
+          "/home/prometheus/mb-pm-v2/compose.yml",
+          "/home/prometheus/mb-pm-v2/compose.production.yml",
+          "/home/prometheus/mb-pm-v2/compose.direct.yml",
+          "/home/prometheus/mb-pm-v2/releases/header-9516977/compose.no-note-sync.yml",
+          "/home/prometheus/mb-pm-v2/releases/assistant-dikw-e294fdc/compose.knowledge.private.yml",
+          "/home/prometheus/mb-pm-v2/releases/knowledge-sources-687bddc-20261101/compose.knowledge-sources.yml",
+          "/home/prometheus/mb-pm-v2/releases/deepseek-search-99ca39d-20261101/compose.deepseek-search.yml",
+          "/home/prometheus/security-hardening-20261102/limits-1.json",
+          "/home/prometheus/security-hardening-20261102/pm-release-cd02021/compose.security.active.yml",
+          "/home/prometheus/mb-pm-v2/releases/report-workbench-e33b48d-20261102/compose.report-workbench.yml",
+          "/home/prometheus/mb-pm-v2/releases/efficient-workspace-c6e4b9f-20261103/rollout/pm.fixed-images.json",
+          "/home/prometheus/mb-pm-v2/releases/knowledge-sso-20261102/application-switch/group-0.active.json",
+          "/home/prometheus/mb-pm-v2/releases/report-editor-layout-48401af-20261103/rollout/pm.fixed-images.json",
+          "/home/prometheus/mb-pm-v2/releases/assistant-scope-8147c1d-20261102-r2/compose.assistant-scope.yml",
+          "/home/prometheus/mb-pm-v2/releases/reference-papers-b79f0da-20261103/rollout/pm.fixed-images.json",
+          "/home/prometheus/mb-pm-v2/releases/assistant-layout-642e187-20261103-r2/compose.assistant-layout.yml",
+          "/home/prometheus/mb-pm-v2/releases/project-actions-c304a1e-20261103-r2/rollout/pm.fixed-images.json",
+          "/home/prometheus/mb-pm-v2/releases/gantt-263e10c-20261103/rollout/pm.fixed-images.json",
+          "/home/prometheus/mb-pm-v2/releases/wbs-workspace-21252b6-20261103/rollout/pm.fixed-images.json",
+          "/home/prometheus/mb-pm-v2/releases/column-resize-f56ee9b-20261103/rollout/pm.fixed-images.json",
+          "/home/prometheus/mb-pm-v2/releases/pm-p1-e0744d0-20261103/rollout/pm.fixed-images.json",
+          "/home/prometheus/mb-pm-v2/releases/assistant-trash-eb067ac-20261103/compose.assistant-trash.yml",
+          "/home/prometheus/mb-pm-v2/releases/assistant-recovery-9d3e7f8-20261104/compose.assistant-recovery.yml",
+          "/home/prometheus/mb-pm-v2/releases/feedback-entry-b492388-20261104/rollout/pm.fixed-images.json",
+          "/home/prometheus/mb-pm-v2/releases/feedback-entry-70e5593-20261104/rollout/pm.fixed-images.json",
+          "/home/prometheus/mb-pm-v2/releases/assistant-experience-2ec58ec-20261104/compose.assistant-experience.yml",
+          "/home/prometheus/mb-pm-v2/releases/pm-p2-fd44233-20261104/rollout/pm.fixed-images.json",
+          "/home/prometheus/mb-pm-v2/releases/feedback-v2-b36c278-20261104/rollout/pm.fixed-images.json",
+          "/home/prometheus/mb-pm-v2/releases/assistant-kimi-stream-08caf7d-20261104/compose.assistant-kimi-stream.yml"
+        ],
+        "actual_sha256": {
+          "app/api/v1/solutions.py": "9d75c2746ff6f387c60e3bbf3eefb2a204a920888743be09793e07c520db22d3",
+          "app/schemas/report_collaboration.py": "83489f6bfdeb22967594157a0165b0b241df9c3992d4155371a9239f1bc7c66a",
+          "app/schemas/solution.py": "449699664f4c5c9bfa2887681b2c0689204eababfc16ec4d291b71f2800a3592",
+          "app/services/report_collaboration.py": "053d2cf52a42a76ccf0266080920e9458dbd50c6d0be8081973011824c2ee774",
+          "app/services/solution_workbench.py": "6582f056566ae1dbd027cac4b3b9adb15ae907e283a5d5a517baccc84cb3bae3",
+          "app/services/solutions.py": "8fab8a6870fb85b6e8ba16af3d36fc52603859f1b1e90f6a23c8190ad9d86f0a"
+        }
+      },
+      {
+        "name": "mb-pm-v2-app-direct-1",
+        "container_id": "9207ade523f2395e84a7a5d12b88a7df99fc17e7e1dec164953dbea2611eb542",
+        "source": "08caf7d80cbb4861e85160451dc8d0caa1bf9a4a",
+        "image_id": "sha256:e2d649a9299ecc4f43e2bb5f42d215311849936f829947d36af2aa222c5f7987",
+        "image_reference": "mb-pm:assistant-kimi-stream-08caf7d-20261104",
+        "healthy": true,
+        "readonly_rootfs": true,
+        "compose_files": [
+          "/home/prometheus/mb-pm-v2/compose.yml",
+          "/home/prometheus/mb-pm-v2/compose.production.yml",
+          "/home/prometheus/mb-pm-v2/compose.direct.yml",
+          "/home/prometheus/mb-pm-v2/releases/header-9516977/compose.no-note-sync.yml",
+          "/home/prometheus/mb-pm-v2/releases/assistant-dikw-e294fdc/compose.knowledge.private.yml",
+          "/home/prometheus/mb-pm-v2/releases/knowledge-sources-687bddc-20261101/compose.knowledge-sources.yml",
+          "/home/prometheus/mb-pm-v2/releases/deepseek-search-99ca39d-20261101/compose.deepseek-search.yml",
+          "/home/prometheus/security-hardening-20261102/limits-1.json",
+          "/home/prometheus/security-hardening-20261102/pm-release-cd02021/compose.security.active.yml",
+          "/home/prometheus/mb-pm-v2/releases/report-workbench-e33b48d-20261102/compose.report-workbench.yml",
+          "/home/prometheus/mb-pm-v2/releases/efficient-workspace-c6e4b9f-20261103/rollout/pm.fixed-images.json",
+          "/home/prometheus/mb-pm-v2/releases/knowledge-sso-20261102/application-switch/group-0.active.json",
+          "/home/prometheus/mb-pm-v2/releases/report-editor-layout-48401af-20261103/rollout/pm.fixed-images.json",
+          "/home/prometheus/mb-pm-v2/releases/assistant-scope-8147c1d-20261102-r2/compose.assistant-scope.yml",
+          "/home/prometheus/mb-pm-v2/releases/reference-papers-b79f0da-20261103/rollout/pm.fixed-images.json",
+          "/home/prometheus/mb-pm-v2/releases/assistant-layout-642e187-20261103-r2/compose.assistant-layout.yml",
+          "/home/prometheus/mb-pm-v2/releases/project-actions-c304a1e-20261103-r2/rollout/pm.fixed-images.json",
+          "/home/prometheus/mb-pm-v2/releases/gantt-263e10c-20261103/rollout/pm.fixed-images.json",
+          "/home/prometheus/mb-pm-v2/releases/wbs-workspace-21252b6-20261103/rollout/pm.fixed-images.json",
+          "/home/prometheus/mb-pm-v2/releases/column-resize-f56ee9b-20261103/rollout/pm.fixed-images.json",
+          "/home/prometheus/mb-pm-v2/releases/pm-p1-e0744d0-20261103/rollout/pm.fixed-images.json",
+          "/home/prometheus/mb-pm-v2/releases/assistant-trash-eb067ac-20261103/compose.assistant-trash.yml",
+          "/home/prometheus/mb-pm-v2/releases/assistant-recovery-9d3e7f8-20261104/compose.assistant-recovery.yml",
+          "/home/prometheus/mb-pm-v2/releases/feedback-entry-b492388-20261104/rollout/pm.fixed-images.json",
+          "/home/prometheus/mb-pm-v2/releases/feedback-entry-70e5593-20261104/rollout/pm.fixed-images.json",
+          "/home/prometheus/mb-pm-v2/releases/assistant-experience-2ec58ec-20261104/compose.assistant-experience.yml",
+          "/home/prometheus/mb-pm-v2/releases/pm-p2-fd44233-20261104/rollout/pm.fixed-images.json",
+          "/home/prometheus/mb-pm-v2/releases/feedback-v2-b36c278-20261104/rollout/pm.fixed-images.json",
+          "/home/prometheus/mb-pm-v2/releases/assistant-kimi-stream-08caf7d-20261104/compose.assistant-kimi-stream.yml"
+        ],
+        "actual_sha256": {
+          "app/api/v1/solutions.py": "9d75c2746ff6f387c60e3bbf3eefb2a204a920888743be09793e07c520db22d3",
+          "app/schemas/report_collaboration.py": "83489f6bfdeb22967594157a0165b0b241df9c3992d4155371a9239f1bc7c66a",
+          "app/schemas/solution.py": "449699664f4c5c9bfa2887681b2c0689204eababfc16ec4d291b71f2800a3592",
+          "app/services/report_collaboration.py": "053d2cf52a42a76ccf0266080920e9458dbd50c6d0be8081973011824c2ee774",
+          "app/services/solution_workbench.py": "6582f056566ae1dbd027cac4b3b9adb15ae907e283a5d5a517baccc84cb3bae3",
+          "app/services/solutions.py": "8fab8a6870fb85b6e8ba16af3d36fc52603859f1b1e90f6a23c8190ad9d86f0a"
+        }
+      }
+    ],
+    "production_changed": false,
+    "environment_captured": false,
+    "customer_records_read": false
+  }
+}
