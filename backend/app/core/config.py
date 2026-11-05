@@ -106,6 +106,11 @@ class Settings(BaseSettings):
     MDM_SOURCE_NAMESPACE: str = "mdm"
     OIDC_GLOBAL_LOGOUT_ENABLED: bool = False
     CASDOOR_ACCOUNT_STATUS_VISIBLE: bool = False
+    # Explicit opt-in; v4 deployments must provide live password-policy claims.
+    CASDOOR_ACCOUNT_STATUS_MODE: Literal[
+        "get_user", "casdoor_v4_userinfo", "casdoor_v4_self_policy"
+    ] = "get_user"
+    OIDC_DEVICE_LOGOUT_ENABLED: bool = False
     IAM_SESSION_SECONDS: int = Field(default=3600, ge=60, le=604800)
     # Renewable sessions remain idle-limited; the browser never receives OAuth tokens.
     IAM_SESSION_ABSOLUTE_SECONDS: int = Field(default=28800, ge=300, le=604800)
