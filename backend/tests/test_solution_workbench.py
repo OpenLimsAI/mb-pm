@@ -127,7 +127,7 @@ def test_deleted_topic_cannot_reappear_after_model_finishes(solution_client, mon
     add_source(f)
     monkeypatch.setattr(
         ai,
-        "load_settings",
+        "load_legacy_settings",
         lambda: {
             "provider": "deepseek",
             "providers": {"deepseek": {"model": "test", "api_key": "test"}},

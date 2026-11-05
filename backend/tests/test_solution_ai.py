@@ -14,15 +14,26 @@ from test_solutions import PREFIX, add_source, create, question
 from app.core import security
 from app.core.config import settings
 from app.db.base import Base
+from app.models.organization_ai import OrganizationAISettings
 from app.models.solution import SolutionAnswer
 from app.models.solution_ai import SolutionAISettings
-from app.schemas.solution_ai import ModelSettingsInput
+from app.schemas.solution_ai import SharedModelSettingsInput as ModelSettingsInput
 from app.services import ai, password_policy, solution_ai
 
 SETTINGS = PREFIX + "/ai/settings"
 TEST = PREFIX + "/ai/test"
 FAKE_KEY = "fake-private-model-secret-for-tests"
-solution_client = test_solutions.solution_client
+base_solution_client = test_solutions.solution_client
+
+
+@pytest.fixture
+def solution_client(base_solution_client, monkeypatch):
+    from app.services import organization_ai
+
+    monkeypatch.setattr(
+        organization_ai, "legacy_bootstrap", lambda: {"profiles": [], "default_profile_id": None}
+    )
+    return base_solution_client
 
 
 def profile(**changes):
@@ -49,11 +60,11 @@ def save(f, profiles=None, *, revision=0, default="personal-model-1"):
 
 
 def claims(subject="author", issuer=None):
-    return {"iss": issuer or settings.casdoor_issuer, "sub": subject}
+    return {"iss": issuer or settings.casdoor_issuer, "owner": settings.CASDOOR_ORG, "sub": subject}
 
 
 def stored(f):
-    row = f.db.get(SolutionAISettings, (settings.casdoor_issuer, "author"))
+    row = f.db.get(OrganizationAISettings, (settings.casdoor_issuer, settings.CASDOOR_ORG))
     return security.unseal(row.encrypted_payload)
 
 
@@ -78,31 +89,33 @@ def test_private_settings_initial_encrypted_and_whitelisted(solution_client):
     }
     assert FAKE_KEY not in response.text
     assert FAKE_KEY not in f.client.get(SETTINGS).text
-    row = f.db.get(SolutionAISettings, (settings.casdoor_issuer, "author"))
+    row = f.db.get(OrganizationAISettings, (settings.casdoor_issuer, settings.CASDOOR_ORG))
     assert FAKE_KEY not in row.encrypted_payload
     assert "model.example" not in row.encrypted_payload
     assert stored(f)["profiles"][0]["api_key"] == FAKE_KEY
 
 
-def test_identity_and_issuer_isolation(solution_client):
+def test_organization_members_share_and_issuer_isolation(solution_client):
     f = solution_client
     assert save(f).status_code == 200
     f.login("other")
-    assert f.client.get(SETTINGS).json()["profiles"] == []
-    with pytest.raises(HTTPException) as error:
-        solution_ai.select_model(f.db, claims("other"), "personal-model-1")
-    assert error.value.status_code == 404
+    assert f.client.get(SETTINGS).json()["profiles"][0]["id"] == "shared:personal-model-1"
+    assert (
+        solution_ai.select_model(f.db, claims("other"), "shared:personal-model-1")["config"][
+            "api_key"
+        ]
+        == FAKE_KEY
+    )
     assert solution_ai.settings(f.db, claims(issuer="https://other-issuer"))["revision"] == 0
-    # The same arbitrary ID is independent under another issuer, including its key.
     other = ModelSettingsInput(profiles=[profile(api_key="other-fake-key")], revision=0)
     solution_ai.save_settings(f.db, claims(issuer="https://other-issuer"), other)
     assert (
-        solution_ai.select_model(f.db, claims(), "personal-model-1")["config"]["api_key"]
+        solution_ai.select_model(f.db, claims(), "shared:personal-model-1")["config"]["api_key"]
         == FAKE_KEY
     )
-    assert save(f, [profile(api_key="second-fake-key")]).status_code == 200
+    assert save(f, [profile(api_key="second-fake-key")], revision=1).status_code == 200
     f.login()
-    assert stored(f)["profiles"][0]["api_key"] == FAKE_KEY
+    assert stored(f)["profiles"][0]["api_key"] == "second-fake-key"
 
 
 def test_revision_prevents_overwrite_and_deletion_persists(solution_client):
@@ -120,7 +133,7 @@ def test_database_compare_and_swap_rejects_a_stale_session(token_factory, tmp_pa
     with Session(engine, expire_on_commit=False) as stale, Session(engine) as writer:
         initial = ModelSettingsInput(profiles=[profile()], revision=0)
         solution_ai.save_settings(stale, claims(), initial)
-        cached = stale.get(SolutionAISettings, (settings.casdoor_issuer, "author"))
+        cached = stale.get(OrganizationAISettings, (settings.casdoor_issuer, settings.CASDOOR_ORG))
         current = ModelSettingsInput(profiles=[profile(name="current")], revision=1)
         solution_ai.save_settings(writer, claims(), current)
         assert cached.revision == 1
@@ -239,7 +252,7 @@ def test_authentication_same_origin_and_password_policy(solution_client, monkeyp
 def test_storage_encryption_errors_are_safe(solution_client, monkeypatch):
     f = solution_client
     assert save(f).status_code == 200
-    row = f.db.get(SolutionAISettings, (settings.casdoor_issuer, "author"))
+    row = f.db.get(OrganizationAISettings, (settings.casdoor_issuer, settings.CASDOOR_ORG))
     row.encrypted_payload = "damaged-" + FAKE_KEY
     f.db.commit()
     response = f.client.get(SETTINGS)
@@ -296,7 +309,7 @@ def test_keyless_cloud_saves_but_test_and_ask_reject(solution_client, monkeypatc
         == 422
     )
     doc = create(f)
-    assert question(f, doc).status_code == 422
+    assert question(f, doc, model_profile_id="system").status_code == 422
 
 
 def test_custom_keyless_connection_and_error_redaction(solution_client, monkeypatch):
@@ -364,7 +377,7 @@ def test_ask_default_and_explicit_private_models_with_valid_evidence(solution_cl
     first = question(f, doc)
     assert first.status_code == 200 and first.json()["mode"] == "ai"
     assert first.json()["model"] == "research-test"
-    second = question(f, doc, model_profile_id="model-2")
+    second = question(f, doc, model_profile_id="shared:model-2")
     assert second.status_code == 200 and second.json()["model"] == "second-model"
     assert [entry[0]["model"] for entry in calls] == ["research-test", "second-model"]
     assert calls[0][2] == {"timeout": 60}
@@ -379,23 +392,21 @@ def test_system_compatibility_and_retrieval_override(solution_client, monkeypatc
     f = solution_client
     add_source(f)
     doc = create(f)
-    cfg = {"model": "global-test", "api_key": "global-fake-key"}
-    monkeypatch.setattr(
-        ai, "load_settings", lambda: {"provider": "deepseek", "providers": {"deepseek": cfg}}
-    )
+    assert save(f, [profile(model="shared-default")]).status_code == 200
     calls = []
     monkeypatch.setattr(
         ai,
-        "chat",
-        lambda provider, actual, *_a, **_kw: calls.append((provider, actual)) or ("global [1]", {}),
+        "load_settings",
+        lambda *a, **k: pytest.fail("shared aliases must not load a separate global default"),
     )
-    assert question(f, doc).json()["model"] == "global-test"
-    assert save(f, [profile(api_key="")]).status_code == 200
-    assert question(f, doc, model_profile_id="system").json()["model"] == "global-test"
-    assert calls == [("deepseek", cfg), ("deepseek", cfg)]
-    monkeypatch.setattr(ai, "load_settings", lambda: pytest.fail("retrieval must not load global"))
     monkeypatch.setattr(
-        solution_ai, "_load", lambda *_a: pytest.fail("retrieval must not load private")
+        solution_ai, "chat", lambda actual, *_a, **_kw: calls.append(actual) or ("shared [1]", {})
+    )
+    assert question(f, doc).json()["model"] == "shared-default"
+    assert question(f, doc, model_profile_id="system").json()["model"] == "shared-default"
+    assert len(calls) == 2 and all(item["api_key"] == FAKE_KEY for item in calls)
+    monkeypatch.setattr(
+        solution_ai, "_load", lambda *_a: pytest.fail("retrieval must not load shared models")
     )
     response = question(f, doc, model_profile_id="retrieval")
     assert response.status_code == 200 and response.json()["mode"] == "retrieval"

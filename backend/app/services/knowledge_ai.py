@@ -20,49 +20,37 @@ TIMEOUT_SECONDS = 120
 FINISH_REASONS = {"stop", "length", "tool_calls", "content_filter"}
 
 
-def system_config():
-    try:
-        current = ai.load_settings()
-        provider = current["provider"]
-        return provider, dict(current["providers"][provider])
-    except (OSError, ValueError, KeyError, TypeError):
-        raise HTTPException(503, "工作台系统模型配置暂不可读取") from None
-
-
-def models(db, claims):
-    # This is the same encrypted (issuer, subject) row edited by /model-settings.
-    _, saved = solution_ai._load(db, claims)
+def models(db, claims, legacy_profile_id=None):
     public = solution_ai.settings(db, claims)
-    try:
-        provider, cfg = system_config()
-    except HTTPException:
-        # An unavailable enterprise file must not lock users out of their own models.
-        provider, cfg = "", {}
-    items = [
-        {
-            "id": profile["id"],
-            "name": profile["name"],
-            "provider": profile["provider"],
-            "model": profile["model"],
-            "key_set": bool(profile.get("api_key")),
-            "available": profile["provider"] == "custom" or bool(profile.get("api_key")),
-        }
-        for profile in saved["profiles"]
-    ]
-    items.append(
-        {
-            "id": "system",
-            "name": "工作台系统默认",
-            "provider": provider,
-            "model": cfg.get("model", ""),
-            "key_set": bool(cfg.get("api_key")),
-            "available": bool(cfg.get("model"))
-            and (provider == "ollama" or bool(cfg.get("api_key"))),
-        }
-    )
+    if legacy_profile_id is not None:
+        if legacy_profile_id.startswith("shared:") or legacy_profile_id in {"system", "retrieval"}:
+            raise HTTPException(422, "历史模型标识无效")
+        _, personal = solution_ai._load_personal(db, claims)
+        profile = next((p for p in personal["profiles"] if p["id"] == legacy_profile_id), None)
+        if profile is None:
+            raise HTTPException(404, "历史模型不存在或不属于当前账号")
+        public["profiles"].append(
+            {
+                "id": profile["id"],
+                "name": profile["name"],
+                "provider": profile["provider"],
+                "model": profile["model"],
+                "key_set": bool(profile.get("api_key")),
+            }
+        )
     return {
-        "models": items,
-        "default_model_id": saved["default_profile_id"] or "system",
+        "models": [
+            {
+                "id": p["id"],
+                "name": p["name"],
+                "provider": p["provider"],
+                "model": p["model"],
+                "key_set": p["key_set"],
+                "available": p["provider"] in {"custom", "ollama"} or p["key_set"],
+            }
+            for p in public["profiles"]
+        ],
+        "default_model_id": public["default_profile_id"] or "system",
         "revision": public["revision"],
         "settings_url": settings.portal_origin + "/model-settings",
     }
@@ -74,14 +62,14 @@ def selected(db, claims, payload):
             raise HTTPException(409, "工作台模型设置已更新，请重新选择后重试")
     choice = solution_ai.select_model(db, claims, payload.model)
     if choice["kind"] == "retrieval":
-        raise HTTPException(422, "请选择可生成内容的个人模型或工作台系统默认模型")
+        raise HTTPException(422, "请选择可生成内容的共享模型")
     if choice["kind"] == "private":
-        return "custom", dict(choice["config"]), solution_ai.pinned_request
-    provider, cfg = system_config()
-    if not cfg.get("model") or (provider != "ollama" and not cfg.get("api_key")):
-        raise HTTPException(422, "工作台系统默认模型尚未配置，请在 AI 设置中选择个人模型")
-    # No fallback to a different provider on failure, including offline_fallback.
-    return provider, cfg, ai.request
+        return (
+            solution_ai.transport_provider(choice["config"]),
+            dict(choice["config"]),
+            solution_ai.pinned_request,
+        )
+    raise HTTPException(422, "共享模型选择无效，请重新选择")
 
 
 def ollama_body(body):

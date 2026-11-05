@@ -141,7 +141,7 @@ def capabilities_for_model(db, claims, profile_id):
         cfg = selected["config"]
         provider = cfg.get("provider")
     else:
-        config = ai.load_settings()
+        config = ai.load_settings(db, claims)
         provider = config["provider"]
         cfg = config["providers"][provider]
     if not isinstance(cfg.get("model"), str) or not cfg["model"].strip():
@@ -416,7 +416,7 @@ def answer(question, *, selected, provider, cfg, search_query=None, context_mess
 
     content, _ = (
         assistant_generation.call(
-            "custom" if selected["kind"] == "private" else provider,
+            solution_ai.transport_provider(cfg) if selected["kind"] == "private" else provider,
             cfg,
             messages,
             request_fn=solution_ai.pinned_request if selected["kind"] == "private" else None,

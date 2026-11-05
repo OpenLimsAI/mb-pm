@@ -16,7 +16,7 @@ def model_calls(monkeypatch):
     calls = []
     monkeypatch.setattr(
         ai,
-        "load_settings",
+        "load_legacy_settings",
         lambda: {"provider": "ollama", "providers": {"ollama": {"model": "local-topic-test"}}},
     )
 

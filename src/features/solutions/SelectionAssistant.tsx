@@ -119,7 +119,7 @@ export default function SelectionAssistant({ reportId, selection, modelLabel, pr
           <button type="button" aria-pressed={session.action === 'polish'} disabled={busy || session.selection.containsCitation} onClick={() => open('polish', session.selection)}><WandSparkles size={15} />Polish 文字</button>
         </div>
         {session.selection.containsCitation && <p className="ks-muted">选区包含参考引用，可围绕选段提问；文字润色请缩小选区，保留原有引用。</p>}<div className="ks-selection-original"><span>选中原文</span><blockquote>{session.selection.text}</blockquote></div>
-        <div className="ks-selection-model"><Sparkles size={13} />{preview ? '本地演示' : modelLabel || '企业默认模型'}<span>{session.action === 'ask' ? `资料范围：${scope}` : '仅润色选中文字，保留事实、数值与限定条件'}</span></div>
+        <div className="ks-selection-model"><Sparkles size={13} />{preview ? '本地演示' : modelLabel || '组织默认模型'}<span>{session.action === 'ask' ? `资料范围：${scope}` : '仅润色选中文字，保留事实、数值与限定条件'}</span></div>
         {preview && <p className="ks-selection-preview-note">{session.action === 'ask' ? '预览仅演示回答方式和来源展示，不调用外部模型或联网搜索。' : '预览仅演示空格与标点整理，不调用外部模型；可编辑建议，体验替换与撤销。'}</p>}
         {session.action === 'polish' && <label className="ks-field">修改方式<select aria-label="AI 修改方式" disabled={busy} value={operation} onChange={event => setOperation(event.target.value)}><option value="">润色表达</option><option value="扩写论述，保留原有事实，不补充未经证实的数据">扩写论述</option><option value="缩写内容，保留关键事实和限定条件">精简内容</option><option value="改写为正式研究报告语气，保留事实和数值">正式表达</option></select></label>}
         <form onSubmit={event => { event.preventDefault(); void generate() }}>

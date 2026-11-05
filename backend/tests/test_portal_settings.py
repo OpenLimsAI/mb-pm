@@ -10,6 +10,7 @@ from app.core import security
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.models import IAMIdentity, PortalSession, User
+from app.models.organization_ai import OrganizationAISettings
 from app.services import ai, iam_admin, password_policy
 from app.services.iam_admin import IAMError
 
@@ -21,6 +22,9 @@ USERNAME_URL = "/api/v1/portal/username"
 @pytest.fixture(autouse=True)
 def isolated_ai_settings(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "AI_SETTINGS_PATH", str(tmp_path / "ai.json"))
+    with SessionLocal() as db:
+        db.query(OrganizationAISettings).delete()
+        db.commit()
 
 
 def portal_headers(token_factory, sub, name, *roles, origin=True):
@@ -70,7 +74,8 @@ def uid(prefix: str) -> str:
 
 
 def ai_payload():
-    cfg = ai.public_settings(ai.load_settings())
+    with SessionLocal() as db:
+        cfg = ai.public_settings(ai.load_settings(db))
     cfg["providers"]["deepseek"]["api_key"] = "test-secret-not-real"
     cfg["providers"]["deepseek"]["model"] = "deepseek-chat"
     return cfg

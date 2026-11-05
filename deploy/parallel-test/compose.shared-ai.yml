@@ -1,0 +1,16 @@
+# Optional persistent upgrade overlay for existing complete Compose chains.
+# Keep the host .env values; never pass one-off docker exec/export settings.
+# Do not enable until the existing IAM self-status requirements are verified.
+services:
+  app:
+    environment:
+      KNOWLEDGE_AI_ENABLED: ${KNOWLEDGE_AI_ENABLED:-false}
+      KNOWLEDGE_AI_CLIENT_ID: ${KNOWLEDGE_AI_CLIENT_ID:-}
+      OIDC_GLOBAL_LOGOUT_ENABLED: ${OIDC_GLOBAL_LOGOUT_ENABLED:-false}
+      CASDOOR_ACCOUNT_STATUS_VISIBLE: ${CASDOOR_ACCOUNT_STATUS_VISIBLE:-false}
+  app-direct:
+    environment:
+      KNOWLEDGE_AI_ENABLED: ${KNOWLEDGE_AI_ENABLED:-false}
+      KNOWLEDGE_AI_CLIENT_ID: ${KNOWLEDGE_AI_CLIENT_ID:-}
+      OIDC_GLOBAL_LOGOUT_ENABLED: ${OIDC_GLOBAL_LOGOUT_ENABLED:-false}
+      CASDOOR_ACCOUNT_STATUS_VISIBLE: ${CASDOOR_ACCOUNT_STATUS_VISIBLE:-false}

@@ -75,7 +75,7 @@ export default function ModelSettingsPanel({ client, preview, onChange, onClose 
       const value = await client.save({ profiles: drafts.map(modelProfileDraft), defaultProfileId: defaultId, revision: saved.revision })
       if (!active.current || token !== generation.current) return
       setSaved(value); setDrafts(toDrafts(value)); setDefaultId(value.defaultProfileId); setDirty(false); setTestMessage(null)
-      setNotice(preview ? '示例配置已保存到本机，未保存密钥，也未调用模型。' : '全部模型配置已保存。'); onChange(value); notifySearchConfigurationChanged()
+      setNotice(preview ? '示例配置已保存到本机，未保存密钥，也未调用模型。' : '共享模型配置已保存。'); onChange(value); notifySearchConfigurationChanged()
     } catch (error) { if (active.current && token === generation.current) setSaveError(errorText(error)) }
     finally { if (active.current && token === generation.current) setSaving(false) }
   }
@@ -83,7 +83,7 @@ export default function ModelSettingsPanel({ client, preview, onChange, onClose 
     if (!selected || preview || busy) return
     const invalid = validateModelProfile(selected)
     if (invalid) { setTestMessage({ ok: false, text: invalid }); return }
-    if (!keyAvailable && selected.provider !== 'custom') { setTestMessage({ ok: false, text: '此服务商尚未配置密钥，请输入 API 密钥后测试。' }); return }
+    if (!keyAvailable && !['custom', 'ollama'].includes(selected.provider)) { setTestMessage({ ok: false, text: '此服务商尚未配置密钥，请输入 API 密钥后测试。' }); return }
     if (endpointChanged && !selected.apiKey && !selected.clearKey) { setTestMessage({ ok: false, text: '服务商或地址已改变，请输入适用于新地址的密钥。' }); return }
     const token = generation.current
     setTesting(true); setTestMessage(null)
@@ -95,30 +95,30 @@ export default function ModelSettingsPanel({ client, preview, onChange, onClose 
   }
 
   return <div className="ks-model-settings">
-    <p className="ks-model-intro">为当前账号保存多组模型配置，供 AI 助手、研究报告及知识库的问答、翻译、摘要和标签生成共用。</p>
+    <p className="ks-model-intro">为组织成员保存共享模型配置，供 AI 助手、研究报告及知识库的问答、翻译、摘要和标签生成共用。</p>
     {preview ? <div className="ks-model-banner" role="note"><CircleAlert size={17} /><span>演示预览：仅在本机保存非秘密配置。无法保存真实密钥或测试连接，预览不调用模型。</span></div> : <div className="ks-model-security"><ShieldCheck size={15} /><span>已保存密钥不会回显；留空保留原密钥。配置草稿在本窗口内保留。</span></div>}
     {isLoading ? <div className="ks-model-loading" role="status"><LoaderCircle size={19} className="ks-spin" />正在读取模型设置…</div> : loadError ? <div className="ks-model-error" role="alert">{loadError}<button type="button" className="ks-button" onClick={() => { setLoading(true); setLoadError(''); setLoadAttempt(value => value + 1) }}>重试加载</button></div> : <>
       <div className="ks-model-config-heading"><span>{drafts.length} / {MAX_MODEL_PROFILES} 组配置{dirty && <small> · 尚未保存</small>}</span><button type="button" className="ks-button" disabled={busy || drafts.length >= MAX_MODEL_PROFILES} onClick={addProfile}><Plus size={15} />添加模型</button></div>
       <div className="ks-model-grid">
         <nav className="ks-model-list" aria-label="模型配置列表">{drafts.map(profile => <button type="button" key={profile.id} disabled={busy} className={selectedId === profile.id ? 'is-selected' : ''} aria-label={`编辑配置：${profile.name || '未命名配置'}`} aria-current={selectedId === profile.id ? 'true' : undefined} onClick={() => { setSelectedId(profile.id); setTestMessage(null) }}><Server size={16} /><span><strong>{profile.name || '未命名配置'}</strong><small>{modelProviderLabels[profile.provider]}</small></span>{defaultId === profile.id && <Star size={13} aria-label="默认模型" />}</button>)}{!drafts.length && <div className="ks-model-empty"><Server size={24} /><p>尚未添加模型</p><small>添加服务地址和模型名称，保存后可选择使用。</small></div>}</nav>
         {selected ? <div className="ks-model-editor"><fieldset disabled={busy}><div className="ks-model-editor-heading"><h3>{selected.name || '未命名配置'}</h3><button type="button" className="ks-button" aria-label="删除当前模型配置" onClick={removeProfile}><Trash2 size={14} />删除</button></div>
-          <div className="ks-model-fields"><label className="ks-field">配置名称<input value={selected.name} maxLength={80} onChange={event => update({ name: event.target.value })} placeholder="例如：研究资料分析" /></label><label className="ks-field">服务商<select value={selected.provider} onChange={event => { const provider = event.target.value as ModelProvider; update({ provider, baseUrl: modelProviderEndpoints[provider], ...(provider === 'kimi' ? { model: 'kimi-k3.1-pro' } : {}) }) }}>{Object.entries(modelProviderLabels).map(([provider, label]) => <option key={provider} value={provider}>{label}</option>)}</select></label></div>
+          <div className="ks-model-fields"><label className="ks-field">配置名称<input value={selected.name} maxLength={80} onChange={event => update({ name: event.target.value })} placeholder="例如：研究资料分析" /></label><label className="ks-field">服务商<select value={selected.provider} onChange={event => { const provider = event.target.value as ModelProvider; update({ provider, baseUrl: modelProviderEndpoints[provider], clearKey: provider === 'ollama', ...(provider === 'kimi' ? { model: 'kimi-k3.1-pro' } : {}) }) }}>{Object.entries(modelProviderLabels).map(([provider, label]) => <option key={provider} value={provider}>{label}</option>)}</select></label></div>
           <label className="ks-field">服务地址<input type="url" value={selected.baseUrl} maxLength={500} onChange={event => update({ baseUrl: event.target.value })} placeholder="https://your-model-service.example/v1" autoComplete="off" spellCheck={false} /></label>
-          <p className="ks-model-help">填写兼容 OpenAI 的 API 基础地址，不含 /chat/completions。MiniMax 预设为国际地址，可按账号所在地区修改。</p>
+          <p className="ks-model-help">{selected.provider === 'ollama' ? '填写 Ollama 服务根地址，不含 /api/chat。自托管地址仍须通过服务器既有的安全批准。' : '填写兼容 OpenAI 的 API 基础地址，不含 /chat/completions。MiniMax 预设为国际地址，可按账号所在地区修改。'}</p>
           <label className="ks-field">模型名称<input value={selected.model} maxLength={160} onChange={event => update({ model: event.target.value })} placeholder="填写服务商控制台中的完整模型名称" autoComplete="off" spellCheck={false} /></label>
-          <ModelPricePicker provider={selected.provider} baseUrl={selected.baseUrl} model={selected.model} onSelect={model => update({ model })} />
-          <label className="ks-field">API 密钥<input type="password" value={selected.apiKey || ''} disabled={preview || busy} maxLength={2000} onChange={event => update({ apiKey: event.target.value, clearKey: false })} placeholder={preview ? '预览不接受真实密钥' : stored?.keySet && !endpointChanged && !selected.clearKey ? '已保存；留空保持原密钥' : '输入此服务的 API 密钥'} autoComplete="new-password" spellCheck={false} /></label>
-          <div className="ks-model-key-state"><KeyRound size={13} /><span>{preview ? '预览配置不包含密钥' : selected.apiKey ? '新密钥待保存' : endpointChanged ? '地址已改变，原密钥不再适用' : selected.clearKey ? '已选择清除密钥' : keyAvailable ? '密钥已保存' : selected.provider === 'custom' ? '未配置密钥；可用于无密钥的自托管服务' : '尚未配置密钥，无法向此模型提问'}</span></div>
-          {endpointChanged && !preview && <p className="ks-model-warning">服务商或地址已改变，原密钥不会复用。请输入新密钥，或勾选清除密钥后保存。</p>}
-          {!preview && <label className="ks-model-checkbox"><input type="checkbox" checked={!!selected.clearKey} onChange={event => update({ clearKey: event.target.checked, apiKey: undefined })} />清除已保存密钥</label>}
-          <label className="ks-model-checkbox"><input type="checkbox" checked={defaultId === selected.id} onChange={event => { setDefaultId(event.target.checked ? selected.id : null); setDirty(true); setSaveError(''); setNotice('') }} />设为个人默认模型</label>
+          {selected.provider === 'ollama' ? <p className="ks-model-help">Ollama 使用自托管服务，不提供供应商报价；运行成本由部署环境决定。</p> : <ModelPricePicker provider={selected.provider} baseUrl={selected.baseUrl} model={selected.model} onSelect={model => update({ model })} />}
+          <label className="ks-field">API 密钥<input type="password" value={selected.apiKey || ''} disabled={preview || busy || selected.provider === 'ollama'} maxLength={2000} onChange={event => update({ apiKey: event.target.value, clearKey: false })} placeholder={selected.provider === 'ollama' ? 'Ollama 无需 API 密钥' : preview ? '预览不接受真实密钥' : stored?.keySet && !endpointChanged && !selected.clearKey ? '已保存；留空保持原密钥' : '输入此服务的 API 密钥'} autoComplete="new-password" spellCheck={false} /></label>
+          <div className="ks-model-key-state"><KeyRound size={13} /><span>{selected.provider === 'ollama' ? 'Ollama 无需 API 密钥' : preview ? '预览配置不包含密钥' : selected.apiKey ? '新密钥待保存' : endpointChanged ? '地址已改变，原密钥不再适用' : selected.clearKey ? '已选择清除密钥' : keyAvailable ? '密钥已保存' : selected.provider === 'custom' ? '未配置密钥；可用于无密钥的自托管服务' : '尚未配置密钥，无法向此模型提问'}</span></div>
+          {endpointChanged && !preview && selected.provider !== 'ollama' && <p className="ks-model-warning">服务商或地址已改变，原密钥不会复用。请输入新密钥，或勾选清除密钥后保存。</p>}
+          {!preview && selected.provider !== 'ollama' && <label className="ks-model-checkbox"><input type="checkbox" checked={!!selected.clearKey} onChange={event => update({ clearKey: event.target.checked, apiKey: undefined })} />清除已保存密钥</label>}
+          <label className="ks-model-checkbox"><input type="checkbox" checked={defaultId === selected.id} onChange={event => { setDefaultId(event.target.checked ? selected.id : null); setDirty(true); setSaveError(''); setNotice('') }} />设为组织默认模型</label>
           <div className="ks-model-test"><button type="button" className="ks-button" disabled={preview || busy} onClick={() => void test()}>{testing ? <LoaderCircle className="ks-spin" size={15} /> : <Zap size={15} />}{testing ? '正在测试…' : '测试连接'}</button><small>{preview ? '预览不调用模型' : '仅发送固定短测试消息，可能消耗少量 token；测试不会保存配置。'}</small></div>
-        </fieldset>{testMessage && <div className={testMessage.ok ? 'ks-model-success' : 'ks-model-error'} role={testMessage.ok ? 'status' : 'alert'}>{testMessage.ok ? <Check size={15} /> : <CircleAlert size={15} />}{testMessage.text}</div>}</div> : <div className="ks-model-start"><Server size={30} /><h3>连接你的研究模型</h3><p>可为不同服务或用途建立多组配置，再选择默认模型。</p><button type="button" className="ks-button ks-primary" disabled={busy} onClick={addProfile}><Plus size={15} />添加第一组配置</button></div>}
+        </fieldset>{testMessage && <div className={testMessage.ok ? 'ks-model-success' : 'ks-model-error'} role={testMessage.ok ? 'status' : 'alert'}>{testMessage.ok ? <Check size={15} /> : <CircleAlert size={15} />}{testMessage.text}</div>}</div> : <div className="ks-model-start"><Server size={30} /><h3>配置组织共享模型</h3><p>可为不同服务或用途建立多组配置，再选择默认模型。</p><button type="button" className="ks-button ks-primary" disabled={busy} onClick={addProfile}><Plus size={15} />添加第一组配置</button></div>}
       </div>
       {!defaultId && drafts.length > 0 && <p className="ks-model-help">尚未设置默认模型，可在问答时选择配置。</p>}
       {saveError && <div className="ks-model-error" role="alert"><CircleAlert size={16} /><span>{saveError} 草稿仍保留。</span></div>}
       {notice && <div className="ks-model-success" role="status"><Check size={15} /><span>{notice}</span></div>}
     </>}
-    <footer className="ks-model-footer"><span>{dirty ? '修改在保存后生效' : '仅对当前账号生效'}</span><button type="button" className="ks-button" onClick={onClose}>{dirty ? '取消' : '关闭'}</button><button type="button" className="ks-button ks-primary" disabled={isLoading || !!loadError || busy || !dirty} onClick={() => void save()}>{saving && <LoaderCircle className="ks-spin" size={14} />}{saving ? '正在保存…' : '保存全部配置'}</button></footer>
+    <footer className="ks-model-footer"><span>{preview ? '仅在当前浏览器演示' : dirty ? '修改在保存后对组织成员生效' : '组织成员共用此配置'}</span><button type="button" className="ks-button" onClick={onClose}>{dirty ? '取消' : '关闭'}</button><button type="button" className="ks-button ks-primary" disabled={isLoading || !!loadError || busy || !dirty} onClick={() => void save()}>{saving && <LoaderCircle className="ks-spin" size={14} />}{saving ? '正在保存…' : '保存全部配置'}</button></footer>
   </div>
 }

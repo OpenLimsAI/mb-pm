@@ -165,7 +165,7 @@ def test_output_recovery_forces_worker_fence_check_after_recent_partial_write(
         "api_key": "isolated-test",
     }
     monkeypatch.setattr(
-        ai, "load_settings", lambda: {"provider": "deepseek", "providers": {"deepseek": cfg}}
+        ai, "load_legacy_settings", lambda: {"provider": "deepseek", "providers": {"deepseek": cfg}}
     )
     calls = []
     interrupted = False
@@ -228,7 +228,7 @@ def test_failed_automatic_recovery_keeps_saved_draft_and_reports_upstream_error(
     }
     monkeypatch.setattr(
         ai,
-        "load_settings",
+        "load_legacy_settings",
         lambda: {"provider": "deepseek", "providers": {"deepseek": cfg}},
     )
     factory = helpers.factory_for(f)
@@ -279,7 +279,7 @@ def test_oversized_automatic_recovery_preserves_persisted_prefix_without_artifac
     chosen = helpers.claimed(f, task, body)
     cfg = {"model": "deepseek-v4-pro", "base_url": "https://api.deepseek.com/v1", "api_key": "test"}
     monkeypatch.setattr(
-        ai, "load_settings", lambda: {"provider": "deepseek", "providers": {"deepseek": cfg}}
+        ai, "load_legacy_settings", lambda: {"provider": "deepseek", "providers": {"deepseek": cfg}}
     )
     calls = []
     prefix = "A" * 79999

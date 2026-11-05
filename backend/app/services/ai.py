@@ -93,7 +93,7 @@ class NetworkError(AIError):
         super().__init__(message, code=code)
 
 
-def load_settings() -> dict:
+def load_legacy_settings() -> dict:
     with _lock:
         path = Path(settings.AI_SETTINGS_PATH)
         saved = json.loads(path.read_text()) if path.exists() else {}
@@ -109,6 +109,48 @@ def load_settings() -> dict:
                 key: (saved.get(key) or "").strip() or default for key, default, _ in KINDS.values()
             },
         }
+
+
+def load_settings(db=None, claims=None) -> dict:
+    if db is None:
+        return load_legacy_settings()
+    from app.services import organization_ai
+
+    scope = claims or {"iss": settings.casdoor_issuer, "owner": settings.CASDOOR_ORG}
+    row, shared = organization_ai.load(db, scope)
+    # The old file is read only by the configured organization's bootstrap.
+    # Never make its saved keys available as fallbacks in another organization.
+    legacy = {
+        "provider": "deepseek",
+        "offline_fallback": False,
+        "providers": {p: dict(v) for p, v in DEFAULTS.items()},
+        **{key: default for key, default, _ in KINDS.values()},
+    }
+    legacy = {**legacy, **shared.get("preferences", {}), "revision": row.revision if row else 0}
+    for key, default, _ in KINDS.values():
+        legacy[key] = legacy[key].strip() or default
+    selected = next(
+        (p for p in shared["profiles"] if p["id"] == shared["default_profile_id"]), None
+    )
+    providers = dict(legacy["providers"])
+    for profile in shared["profiles"]:
+        providers[profile["provider"]] = {
+            "base_url": profile["base_url"],
+            "model": profile["model"],
+            "api_key": profile.get("api_key", ""),
+        }
+    if selected is None:
+        return {
+            **legacy,
+            "provider": "custom",
+            "providers": {**providers, "custom": {"base_url": "", "model": "", "api_key": ""}},
+        }
+    providers[selected["provider"]] = {
+        "base_url": selected["base_url"],
+        "model": selected["model"],
+        "api_key": selected.get("api_key", ""),
+    }
+    return {**legacy, "provider": selected["provider"], "providers": providers}
 
 
 def public_settings(cfg: dict) -> dict:
@@ -143,18 +185,79 @@ def resolve_config(provider: str, draft: ProviderConfig, stored: dict) -> dict:
     return value
 
 
-def save_settings(draft: AISettingsInput) -> dict:
+def _save_shared_settings(draft, db, claims):
+    from fastapi import HTTPException
+
+    from app.schemas.solution_ai import SharedModelSettingsInput
+    from app.services import organization_ai
+
+    if draft.revision is None:
+        raise HTTPException(409, "共享设置已启用版本校验，请重新加载设置后再保存")
+    scope = claims or {"iss": settings.casdoor_issuer, "owner": settings.CASDOOR_ORG}
+    _, shared = organization_ai.load(db, scope)
+    stored = load_settings(db, scope)
+    profiles = {p["id"]: dict(p) for p in shared["profiles"]}
+    model_changed = not draft.preserve_shared_models and (
+        draft.provider != stored["provider"]
+        or any(
+            resolve_config(provider, value, stored) != stored["providers"][provider]
+            for provider, value in draft.providers.items()
+        )
+    )
+    default = shared["default_profile_id"]
+    if model_changed:
+        for provider, value in draft.providers.items():
+            config = resolve_config(provider, value, stored)
+            identifier = "system_" + provider
+            if config.get("model"):
+                profiles[identifier] = {
+                    "id": identifier,
+                    "name": "系统 " + provider,
+                    "provider": provider,
+                    "clear_key": value.clear_key,
+                    **config,
+                }
+            else:
+                profiles.pop(identifier, None)
+        default = "system_" + draft.provider
+    payload = SharedModelSettingsInput.model_validate(
+        {
+            "profiles": list(profiles.values()),
+            "default_profile_id": default,
+            "revision": draft.revision,
+        }
+    )
+    preferences = {
+        "offline_fallback": stored["offline_fallback"]
+        if draft.preserve_shared_models
+        else draft.offline_fallback,
+        **{
+            key: ("" if getattr(draft, key).strip() == default else getattr(draft, key).strip())
+            for key, default, _ in KINDS.values()
+        },
+    }
+    # Models, default, and analysis preferences share one CAS/DB commit. The
+    # bootstrap file is not written: a file failure cannot half-commit settings.
+    organization_ai.save(db, scope, payload, preferences=preferences)
+    return public_settings(load_settings(db, scope))
+
+
+def save_settings(draft: AISettingsInput, db=None, claims=None) -> dict:
+    if db is not None:
+        return _save_shared_settings(draft, db, claims)
     with _lock:
-        cfg = load_settings()
-        cfg.update(provider=draft.provider, offline_fallback=draft.offline_fallback)
+        cfg = load_legacy_settings()
+        if not draft.preserve_shared_models:
+            cfg.update(provider=draft.provider, offline_fallback=draft.offline_fallback)
         for key, default, _ in KINDS.values():
             prompt = getattr(draft, key).strip()
             # 与系统默认相同（或留空）时只记「用默认」，以后调整系统默认时自动生效
             cfg[key] = "" if prompt == default else prompt
-        cfg["providers"] = {
-            **cfg["providers"],
-            **{p: resolve_config(p, v, cfg) for p, v in draft.providers.items()},
-        }
+        if not draft.preserve_shared_models:
+            cfg["providers"] = {
+                **cfg["providers"],
+                **{p: resolve_config(p, v, cfg) for p, v in draft.providers.items()},
+            }
         path = Path(settings.AI_SETTINGS_PATH)
         path.parent.mkdir(parents=True, exist_ok=True)
         fd, name = tempfile.mkstemp(dir=path.parent, prefix=".ai-")
@@ -165,7 +268,7 @@ def save_settings(draft: AISettingsInput) -> dict:
         finally:
             if os.path.exists(name):
                 os.unlink(name)
-        return public_settings(load_settings())
+        return public_settings(load_settings(db, claims))
 
 
 def request(provider: str, cfg: dict, path: str, body=None, timeout=25) -> dict:
@@ -173,10 +276,15 @@ def request(provider: str, cfg: dict, path: str, body=None, timeout=25) -> dict:
     if provider in ("deepseek", "minimax", "kimi") and not key:
         raise AIError("尚未填写 API Key，请在 AI 设置中保存密钥")
     from app.schemas.model_network import enterprise_url
+    from app.schemas.solution_ai import model_url
     from app.services.solution_ai import pinned_request
 
     try:
-        endpoint = enterprise_url(provider, cfg["base_url"])
+        endpoint = (
+            enterprise_url(provider, cfg["base_url"])
+            if provider in DEFAULTS
+            else model_url(cfg["base_url"])
+        )
     except ValueError:
         raise AIError(
             "模型地址未获批准，请核对官方地址或联系管理员批准内部模型",

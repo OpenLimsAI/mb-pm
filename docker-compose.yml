@@ -59,6 +59,12 @@ services:
       # AI 设置（含 API Key）放在持久卷里，容器重建不丢失
       AI_SETTINGS_PATH: /data/ai/ai-settings.json
       INFORMATION_DATA_DIR: /data/information
+      # Persist these host settings for the authenticated shared AI gateway.
+      # Disabled until the existing IAM self-status requirements are verified.
+      KNOWLEDGE_AI_ENABLED: ${KNOWLEDGE_AI_ENABLED:-false}
+      KNOWLEDGE_AI_CLIENT_ID: ${KNOWLEDGE_AI_CLIENT_ID:-}
+      OIDC_GLOBAL_LOGOUT_ENABLED: ${OIDC_GLOBAL_LOGOUT_ENABLED:-false}
+      CASDOOR_ACCOUNT_STATUS_VISIBLE: ${CASDOOR_ACCOUNT_STATUS_VISIBLE:-false}
       ASSISTANT_WEB_ENABLED: ${ASSISTANT_WEB_ENABLED:-false}
       ASSISTANT_WEB_PROVIDER: ${ASSISTANT_WEB_PROVIDER:-deepseek}
       ASSISTANT_WEB_API_KEY: ${ASSISTANT_WEB_API_KEY:-}

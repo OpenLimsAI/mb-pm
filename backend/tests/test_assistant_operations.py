@@ -215,7 +215,7 @@ def test_preflight_never_calls_model_and_checks_actual_scope_not_unused_checkbox
     assert [row["key"] for row in response.json()["checks"]] == ["model"]
     monkeypatch.setattr(
         ai,
-        "load_settings",
+        "load_legacy_settings",
         lambda: {"provider": "deepseek", "providers": {"deepseek": {"model": "x", "api_key": ""}}},
     )
     response = f.client.post(PREFIX + "/preflight", json={"model_profile_id": "enterprise"})

@@ -143,3 +143,16 @@ class ModelSettingsInput(Input):
 
 class ModelTestInput(Input):
     profile: ModelProfile
+
+
+class SharedModelProfile(ModelProfile):
+    id: str = Field(min_length=1, max_length=80, pattern=r"^(?:shared:)?[a-zA-Z0-9_-]{1,72}$")
+    provider: Literal["deepseek", "minimax", "kimi", "glm", "openai", "custom", "ollama"]
+
+
+class SharedModelSettingsInput(ModelSettingsInput):
+    profiles: list[SharedModelProfile] = Field(max_length=20)
+
+
+class SharedModelTestInput(Input):
+    profile: SharedModelProfile

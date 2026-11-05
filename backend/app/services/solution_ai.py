@@ -10,10 +10,8 @@ from urllib.parse import urlsplit
 
 from cryptography.fernet import InvalidToken
 from fastapi import HTTPException
-from sqlalchemy import update
-from sqlalchemy.exc import IntegrityError
 
-from app.core.security import seal, unseal
+from app.core.security import unseal
 from app.models.solution_ai import SolutionAISettings
 from app.schemas.model_network import internal_approved
 from app.schemas.solution_ai import ModelSettingsInput, allowed_address, model_url
@@ -24,7 +22,7 @@ CONFIG_ERROR = "个人模型配置暂不可读取，请联系管理员检查加�
 CONFLICT = "模型配置已有新修改，请重新加载后编辑；未覆盖已保存设置"
 
 
-def _load(db, claims):
+def _load_personal(db, claims):
     row = db.get(SolutionAISettings, (claims["iss"], claims["sub"]))
     if row is None:
         return None, {"profiles": [], "default_profile_id": None}
@@ -58,9 +56,17 @@ def _public(data, revision):
     }
 
 
+def _load(db, claims):
+    from app.services import organization_ai
+
+    return organization_ai.load(db, claims)
+
+
 def settings(db, claims):
+    from app.services import organization_ai
+
     row, data = _load(db, claims)
-    return _public(data, row.revision if row else 0)
+    return organization_ai.public(data, row.revision if row else 0)
 
 
 def _resolve(draft, old_profiles):
@@ -77,69 +83,53 @@ def _resolve(draft, old_profiles):
 
 
 def save_settings(db, claims, draft):
-    row, previous = _load(db, claims)
-    if draft.revision != (row.revision if row else 0):
-        raise HTTPException(409, CONFLICT)
-    data = {
-        "profiles": [_resolve(p, previous["profiles"]) for p in draft.profiles],
-        "default_profile_id": draft.default_profile_id,
-    }
-    try:
-        encrypted = seal(data)
-    except HTTPException:
-        raise HTTPException(503, CONFIG_ERROR) from None
-    revision = draft.revision + 1
-    try:
-        if row is None:
-            db.add(
-                SolutionAISettings(
-                    issuer=claims["iss"],
-                    owner_id=claims["sub"],
-                    revision=revision,
-                    encrypted_payload=encrypted,
-                )
-            )
-        else:
-            changed = db.execute(
-                update(SolutionAISettings)
-                .where(
-                    SolutionAISettings.issuer == claims["iss"],
-                    SolutionAISettings.owner_id == claims["sub"],
-                    SolutionAISettings.revision == draft.revision,
-                )
-                .values(revision=revision, encrypted_payload=encrypted),
-                execution_options={"synchronize_session": False},
-            )
-            if changed.rowcount != 1:
-                db.rollback()
-                raise HTTPException(409, CONFLICT)
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(409, CONFLICT) from None
-    return _public(data, revision)
+    from app.services import organization_ai
+
+    return organization_ai.save(db, claims, draft)
+
+
+def is_configured(profile):
+    return bool(profile.get("model")) and (
+        profile["provider"] in {"custom", "ollama"} or bool(profile.get("api_key"))
+    )
 
 
 def _ready(profile):
-    if profile["provider"] != "custom" and not profile.get("api_key"):
-        raise HTTPException(422, "所选个人模型尚未填写密钥，请先完善该模型配置")
+    if not is_configured(profile):
+        raise HTTPException(422, "所选模型尚未填写密钥，请先完善该模型配置")
     return profile
 
 
 def select_model(db, claims, profile_id):
-    """Validate even before retrieval; an explicit missing ID never falls back."""
+    """Shared IDs never collide with the preserved private IDs on existing tasks."""
+    from app.services import organization_ai
+
     if profile_id == "retrieval":
         return {"kind": "retrieval"}
-    if profile_id == "system":
-        return {"kind": "system"}
-    _, saved = _load(db, claims)
-    selected = profile_id if profile_id is not None else saved["default_profile_id"]
-    if selected is None:
-        return {"kind": "system"}
-    profile = next((p for p in saved["profiles"] if p["id"] == selected), None)
+    _, shared = _load(db, claims)
+    if profile_id is None or profile_id == "system":
+        selected = shared["default_profile_id"]
+    elif profile_id.startswith(organization_ai.PREFIX):
+        selected = organization_ai.raw_id(profile_id)
+    else:
+        # Existing task references retain their caller's private profile only.
+        _, personal = _load_personal(db, claims)
+        profile = next((p for p in personal["profiles"] if p["id"] == profile_id), None)
+        if profile is None:
+            raise HTTPException(404, "历史个人模型不存在或不属于当前账号")
+        return {"kind": "private", "config": _ready(profile)}
+    profile = next((p for p in shared["profiles"] if p["id"] == selected), None)
+    if profile_id is None and (profile is None or not is_configured(profile)):
+        # Automatic report mode may still return retrieval-only evidence; it must
+        # not silently select a different configured provider.
+        return {"kind": "retrieval"}
     if profile is None:
-        raise HTTPException(404, "个人模型不存在或无权使用，请重新选择")
-    return {"kind": "private", "config": _ready(profile)}
+        raise HTTPException(422, "尚未选择共享默认模型，请先在 AI 设置中选择模型")
+    return {
+        "kind": "private",
+        "config": {**_ready(profile), "_scope": "organization"},
+        "scope": "organization",
+    }
 
 
 def resolved_addresses(host, port, *, allow_private=False):
@@ -264,14 +254,26 @@ def pinned_request(provider, cfg, path, body=None, timeout=60):
             connection.close()
 
 
+def transport_provider(profile):
+    return (
+        profile["provider"]
+        if profile.get("_scope") == "organization" or profile["provider"] == "ollama"
+        else "custom"
+    )
+
+
 def chat(profile, messages, *, timeout=60):
     # Use only model/messages/stream. In particular do not inherit global vendor tuning.
-    return ai.chat("custom", profile, messages, timeout=timeout, request_fn=pinned_request)
+    provider = transport_provider(profile)
+    return ai.chat(provider, profile, messages, timeout=timeout, request_fn=pinned_request)
 
 
 def test_connection(db, claims, draft):
     _, stored = _load(db, claims)
-    profile = _ready(_resolve(draft.profile, stored["profiles"]))
+    from app.services.organization_ai import raw_id
+
+    normalized = draft.profile.model_copy(update={"id": raw_id(draft.profile.id)})
+    profile = _ready(_resolve(normalized, stored["profiles"]))
     start = time.monotonic()
     try:
         chat(profile, [{"role": "user", "content": "连接测试。请只回复：连接成功。"}], timeout=25)

@@ -6,9 +6,11 @@ from uuid import uuid4
 
 import pytest
 
+from app.core import security
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.models import AuditLog, FinanceAIAnalysis, ProjectFinance, Task
+from app.models.organization_ai import OrganizationAISettings
 from app.schemas.ai import AISettingsInput
 from app.services import ai
 
@@ -18,6 +20,9 @@ CATEGORIES = ("人力", "设备", "原材料", "外部服务", "其他")
 @pytest.fixture(autouse=True)
 def isolated_ai_settings(tmp_path, monkeypatch, live_ai_roles):
     monkeypatch.setattr(settings, "AI_SETTINGS_PATH", str(tmp_path / "ai.json"))
+    with SessionLocal() as db:
+        db.query(OrganizationAISettings).delete()
+        db.commit()
 
 
 def set_costs(project_id: str, **costs: tuple[float | None, float | None]) -> None:
@@ -46,10 +51,11 @@ def budget_body(**overrides):
 
 
 def enable_ai(**prompts):
-    cfg = ai.public_settings(ai.load_settings())
-    cfg["providers"]["deepseek"]["api_key"] = "test-secret-not-real"
-    cfg.update(prompts)
-    ai.save_settings(AISettingsInput(**cfg))
+    with SessionLocal() as db:
+        cfg = ai.public_settings(ai.load_settings(db))
+        cfg["providers"]["deepseek"]["api_key"] = "test-secret-not-real"
+        cfg.update(prompts)
+        ai.save_settings(AISettingsInput(**cfg), db)
 
 
 # —— 已花费 = 任务实际花费合计 —— #
@@ -224,9 +230,12 @@ def test_finance_prompt_default_custom_reset_and_status(client, auth_headers, li
     assert saved["analysis_prompt"] == ai.DEFAULT_ANALYSIS_PROMPT  # 两套提示词互不影响
     status = client.get("/api/v1/ai/status", headers=auth_headers).json()
     assert status["finance_analysis_prompt"] == "只列出超支项目及原因。"
+    payload = saved
     payload["finance_analysis_prompt"] = ai.DEFAULT_FINANCE_ANALYSIS_PROMPT
-    client.put("/api/v1/ai/settings", json=payload, headers=auth_headers)
-    assert json.loads(open(settings.AI_SETTINGS_PATH).read())["finance_analysis_prompt"] == ""
+    assert client.put("/api/v1/ai/settings", json=payload, headers=auth_headers).status_code == 200
+    with SessionLocal() as db:
+        stored = security.unseal(db.query(OrganizationAISettings).one().encrypted_payload)
+    assert stored["preferences"]["finance_analysis_prompt"] == ""
     payload["finance_analysis_prompt"] = "长" * 4001
     assert client.put("/api/v1/ai/settings", json=payload, headers=auth_headers).status_code == 422
 
@@ -293,7 +302,8 @@ def test_finance_analysis_generation_history_and_staleness(
     temp = client.post(endpoint, headers=auth_headers, json={"prompt": "临时：只给三条建议。"})
     assert prompts[1][1]["content"].startswith("临时：只给三条建议。")
     assert temp.json()["prompt"] == "临时：只给三条建议。"
-    assert ai.load_settings()["finance_analysis_prompt"] == "默认：先看超支项目。"
+    with SessionLocal() as db:
+        assert ai.load_settings(db)["finance_analysis_prompt"] == "默认：先看超支项目。"
 
     set_costs(pid, t2=(20, 6))  # 录入实际花费 → 旧报告过期
     rows = client.get(endpoint, headers=auth_headers).json()

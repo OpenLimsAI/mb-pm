@@ -428,6 +428,7 @@ def isolated_request_sessions(tmp_path):
 
     from app.db.base import Base
     from app.models.assistant import AssistantMessage, AssistantOperationsConfig, AssistantRequest
+    from app.models.organization_ai import OrganizationAISettings
 
     database_url = os.environ.get("TEST_DATABASE_URL")
     admin = schema = None
@@ -450,6 +451,7 @@ def isolated_request_sessions(tmp_path):
                 AssistantMessage.__table__,
                 AssistantRequest.__table__,
                 AssistantOperationsConfig.__table__,
+                OrganizationAISettings.__table__,
             ],
         )
         yield engine, sessionmaker(bind=engine, autoflush=False)
@@ -534,7 +536,7 @@ def test_two_instances_claim_a_queued_request_only_once(isolated_request_session
     calls = []
     monkeypatch.setattr(
         ai,
-        "load_settings",
+        "load_legacy_settings",
         lambda: {"provider": "ollama", "providers": {"ollama": {"model": "isolated-race-test"}}},
     )
 

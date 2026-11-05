@@ -17,9 +17,10 @@ export interface ProviderConfig {
   clearKey?: boolean
 }
 export interface AISettings {
-  provider: AIProvider
+  revision?: number
+  provider: string
   offlineFallback: boolean
-  providers: Record<AIProvider, ProviderConfig>
+  providers: Record<string, ProviderConfig>
   /** 默认项目分析提示词（分析什么、按什么结构输出） */
   analysisPrompt: string
   /** 系统默认提示词（只读，用于「恢复系统默认」） */
@@ -27,6 +28,11 @@ export interface AISettings {
   /** 默认财务分析提示词 */
   financeAnalysisPrompt: string
   defaultFinanceAnalysisPrompt: string
+}
+export interface AISettingsWrite extends Omit<AISettings, 'provider' | 'providers'> {
+  provider: AIProvider
+  providers: Partial<Record<AIProvider, ProviderConfig>>
+  preserveSharedModels?: boolean
 }
 export interface AIStatus {
   provider: AIProvider
@@ -81,7 +87,7 @@ export function aiError(error: unknown): string {
 export const getAIStatus = async () => (await api.get<AIStatus>('/ai/status')).data
 // 项目管理会话；请求与响应的键名由 api 拦截器统一转换。
 export const getAISettings = async () => (await api.get<AISettings>('/ai/settings')).data
-export const saveAISettings = async (settings: AISettings) => (await api.put<AISettings>('/ai/settings', settings)).data
+export const saveAISettings = async (settings: AISettingsWrite) => (await api.put<AISettings>('/ai/settings', settings)).data
 export const getAIModels = async (provider: AIProvider, config: ProviderConfig) =>
   (await api.post<{ models: string[] }>('/ai/models', { provider, config }, { timeout: 35000 })).data
 export const testAIConnection = async (provider: AIProvider, config: ProviderConfig) =>
