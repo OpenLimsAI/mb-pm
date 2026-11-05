@@ -47,6 +47,8 @@ WORKDIR /code
 COPY backend/requirements.lock ./
 RUN pip install --require-hashes -r requirements.lock \
     && pip uninstall --yes setuptools wheel
+# 运行镜像不执行系统软件安装；移除未使用的 APT 及其库，减少运行时攻击面。
+RUN dpkg --purge apt libapt-pkg7.0
 RUN groupadd --gid 10001 app && useradd --uid 10001 --gid app --no-create-home app \
     && mkdir -p /code/.local /data/ai /data/information \
     && chown app:app /code/.local /data/ai /data/information

@@ -45,3 +45,5 @@
 测试：`python3 -m unittest discover -s deploy/data-backup/tests -v`。合成测试不接触生产、不调用Docker、不改变备份任务。
 
 生产接入示例的后端地址为 `http://maibo-backup-relay:18941`，仅由同一Docker私网解析；具体固定镜像、安装与原cron保持证据写入当次发布记录。看护只重新启动清单服务，不执行备份或保留清理。
+
+运行镜像不需要系统包管理器，移除APT及libapt；宿主GPG与备份工具保持原样，升级镜像不会卸载服务器软件。
