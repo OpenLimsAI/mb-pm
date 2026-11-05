@@ -1,0 +1,223 @@
+{
+  "schema": 1,
+  "release": "knowledge-source-v3-security-20261105",
+  "status": "production_security_deployed_and_public_verified",
+  "date": "2026-11-05",
+  "dateBasis": "UTC release record filename; actual deployment timezone values await final receipt",
+  "source": "27cf72e7ffc2c69ac4dfb3eb625770578c4f62e9",
+  "tree": "9961d7534f53fd637ded46f4ab8d81623b9bbd7f",
+  "image": "sha256:0b814c28d26e86b86dcac388bbdc44ca5d17526f72394aeff782553b3632f0ee",
+  "pullRequest": "https://github.com/OpenLimsAI/mb-pm/pull/182",
+  "latestHeadCIPassed": {
+    "head": "703e2cb47f18bc5db47957174970ecfca6cd20c9",
+    "checks": 7,
+    "allSuccess": true
+  },
+  "security": {
+    "finding": "CVE-2026-109518",
+    "severity": "HIGH",
+    "ignoredOrWaived": false,
+    "primarySources": [
+      "https://security-tracker.debian.org/tracker/CVE-2026-109518",
+      "https://security-tracker.debian.org/tracker/DSA-6607-1"
+    ],
+    "firstFailurePreserved": true,
+    "fixedPythonBasePreserved": true,
+    "installedOSPackagesBefore": 87,
+    "installedOSPackagesAfter": 87,
+    "added": [],
+    "removed": [],
+    "changed": [
+      {
+        "name": "apt",
+        "rawName": "apt",
+        "before": "3.0.3",
+        "after": "3.0.4",
+        "architectureBefore": "amd64",
+        "architectureAfter": "amd64"
+      },
+      {
+        "name": "libapt-pkg7.0",
+        "rawName": "libapt-pkg7.0:amd64",
+        "before": "3.0.3",
+        "after": "3.0.4",
+        "architectureBefore": "amd64",
+        "architectureAfter": "amd64"
+      }
+    ],
+    "allPackageDifferencesVerified": true,
+    "packageReceiptSHA256": "cd67ef741b18b84d680585baecf8db2be344123b17a287d278445983b6e6c6d5",
+    "baselineManifestSHA256": "5b349fc0d305c1dcba0dd2b04c55ccac2f8da4069612918fd0372623087cc8bd",
+    "candidateManifestSHA256": "f67f9b9162bd28389dbadaa6eb8a27c877f00bce373886dd989f7c57e2fcb636"
+  },
+  "actualIsolatedImageAcceptance": {
+    "accepted": true,
+    "phases": 2,
+    "network": "none",
+    "restartPersistenceVerified": true,
+    "strictCompletedAndReady": true,
+    "v3BridgeCompatible": true,
+    "cleanupCompleted": true,
+    "customerData": false,
+    "paidModels": false,
+    "receiptSHA256": "28d2262b8f30947b0c70ae16234c47f2dab831c9626bb69d7cffe35bd8161b60"
+  },
+  "freshVulnerabilityScan": {
+    "accepted": true,
+    "returncode": 0,
+    "HIGH": 0,
+    "CRITICAL": 0,
+    "completeImage": true,
+    "ociDigestChainVerified": true,
+    "emptyCacheCreated": true,
+    "oldCacheCopied": false,
+    "freshDBDownloaded": true,
+    "databaseRepository": "public.ecr.aws/aquasecurity/trivy-db:2",
+    "database": {
+      "metadata": {
+        "Version": 2,
+        "NextUpdate": "2026-11-06T01:19:45.907162401Z",
+        "UpdatedAt": "2026-11-05T01:19:45.907162652Z",
+        "DownloadedAt": "2026-11-05T02:54:45.719518032Z"
+      },
+      "metadataSHA256": "0512efee2afa8a8ee9e126f5abbe67329d6b8d129ac3a4fcde236bb359a22ac0",
+      "databaseSHA256": "68917cddd951d3d29ab1e6bc4e1a33cf3bf160743d19276290b77afad13cfa98",
+      "databaseBytes": 1691381760,
+      "downloadedAt": "2026-11-05T02:54:45.719518+00:00"
+    },
+    "scannerImage": "sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c",
+    "policy": {
+      "severity": [
+        "HIGH",
+        "CRITICAL"
+      ],
+      "ignoreUnfixed": true,
+      "scanners": [
+        "vuln"
+      ],
+      "ignoreFile": "/dev/null",
+      "completeImage": true
+    },
+    "reportSHA256": "0e2858c81ab34cf0085235990726652cbf6cd17ece34b300556dce5389a0f9fd",
+    "receiptSHA256": "93fc072f0e4603171d64e6225b72de90818c3d2ab200eef5a3c1274163f56a56",
+    "cleanupCompleted": true
+  },
+  "sourceArchive": {
+    "sha256": "ba9f107b92255989daa0da147849e4cc86ca2bda67daba0edc46355926b10925",
+    "files": 1086,
+    "allGitBlobModesVerified": true
+  },
+  "backup": {
+    "attempt": "security-r2",
+    "encryptedBackupVerified": true,
+    "independentRestoreVerified": true,
+    "postgresDatabases": 3,
+    "restoredMounts": 21,
+    "sqliteDatabases": 11,
+    "sqliteIntegrity": "ok",
+    "restoreCleanupCompleted": true,
+    "productionWritersStopped": false,
+    "databaseRestoreToProduction": false,
+    "archiveSHA256": "b98cd7200941fe5012e9bfa4f41d555b1f1d89889fb4c6685f88312862099134",
+    "restoreReceiptSHA256": "670ba926b98f5f37ee37c9d55fbfb0ae1c224468b4772121cfa6371a60ca5a1e",
+    "globalCrossStoreAtomicSnapshotGuaranteed": false
+  },
+  "originals": {
+    "expectedProtectedFiles": 865,
+    "expectedProtectedBytes": 138461268,
+    "retainedAfterDeploymentVerified": true,
+    "manifestServerOnly": true
+  },
+  "production": {
+    "deployed": true,
+    "state": "actual_pm_security_rollout_completed_and_public_verified",
+    "deployedAtUTC": "2026-11-05T02:58:17.468923Z",
+    "deployedAtAmericaNewYork": "2026-11-04T21:58:17.468923-05:00",
+    "profile": "pm",
+    "instances": 2,
+    "healthyVerified": true,
+    "dataRetained": true,
+    "signedReadOnlyIAMCoreConnectivity": "passed",
+    "publicEntryVerification": "passed",
+    "deploymentReceiptSHA256": "a2e7052a2474d76cc14e15e7d693cb4a299121cef267da9b2c6b7086d4f35dfd",
+    "publicReceiptSHA256": "b3c36c18b4847ea16eefb15a1e2c7214c232ed172c2e46ff53be78ea00a03335",
+    "customerWriteFlows": "not_performed",
+    "paidModelBusinessFlows": "not_performed",
+    "postgresMigration": false,
+    "databaseRestoreToProduction": false,
+    "iamModelEnvironmentOrSecurityConfigChanged": false,
+    "businessJobsPausedOrCancelled": false
+  },
+  "knowledgeBase": {
+    "source": "eebadb54c1d798f52a0b84af25983a3864c6d17e",
+    "image": "sha256:c59c182cddcbfa53fd53c86182824d616d5d4cb8ddb4dc7366a16ce12f874600",
+    "restartPlanned": false,
+    "unchangedAfterDeploymentVerified": true,
+    "restarted": false
+  },
+  "compose": {
+    "pmBefore": 30,
+    "pmObservedAfter": 31,
+    "kbBefore": 11,
+    "kbObservedAfter": 11,
+    "fullResolvedConfigurationPreservedVerified": true
+  },
+  "parallelBackupApplication": {
+    "sourcePreserved": true,
+    "agentEnabledByThisRelease": false,
+    "schedulesEnabledByThisRelease": false
+  },
+  "initialRelease": {
+    "record": "20261104-knowledge-source-v3.md",
+    "source": "e7eb5f4b2134d5aead607823a43e24638b7c2380",
+    "image": "sha256:b2737f616be951ee76102a211a634fe5de1a407b085b755a28205e609e2bca13",
+    "historicalEvidencePreserved": true
+  },
+  "rollback": {
+    "pmImage": "sha256:b2737f616be951ee76102a211a634fe5de1a407b085b755a28205e609e2bca13",
+    "pmSource": "e7eb5f4b2134d5aead607823a43e24638b7c2380",
+    "fullPreviousConfigurationRequired": true,
+    "oldImageStillRequiresCVEFix": true,
+    "restoreOldDatabase": false,
+    "preserveNewRecordsAndOriginals": true,
+    "kbRestart": false
+  },
+  "documentationOnlyNoFurtherRedeployment": true,
+  "productionEvidenceAggregateSHA256": "f50330d18ec32d597bebda080e4487d25a327a9138df8a048d72650f8d9727d9",
+  "publicVerification": {
+    "accepted": true,
+    "readOnly": true,
+    "authenticatedRequests": false,
+    "httpGETs": 11,
+    "checks": 12,
+    "expectedSource": "27cf72e7ffc2c69ac4dfb3eb625770578c4f62e9",
+    "originEvidenceSHA256": "5790b9f8f3d9356eee432031b0bd51a75bb3eb936e5f8802fe333824822baa85",
+    "normalizedOriginHTMLSHA256": "e83da4a84b73caf16112043196d5ea6b74bfdc73e7911d5c2e1a5ed4896bdfd2",
+    "normalizedOriginHTMLBytes": 973,
+    "entryAssetSHA256": "71aa58bad2cfd420ed2ca931b2c03d0a92c1494746e2f88953c1c53584160299",
+    "entryAssetBytes": 292654,
+    "publicReceiptSHA256": "b3c36c18b4847ea16eefb15a1e2c7214c232ed172c2e46ff53be78ea00a03335",
+    "platformHTMLTransform": "Only exact Cloudflare analytics tag and LF; normalized hash matches both source instances"
+  },
+  "preservedFailureHistory": [
+    {
+      "event": "Initial receipt PR frontend failure",
+      "head": "6b20048468281d57b7b7f27fdd19c34d95c0d903",
+      "reason": "Unhandled effect used a reset vi.fn mock before component cleanup; production async API always returns Promise",
+      "fixed": "Unmount before resetting mocks and stores; no ignored unhandled errors or threshold changes",
+      "latestFullFrontendPassed": true
+    },
+    {
+      "event": "CVE security CI failure",
+      "head": "98339170c96db4d1224eda59ceb18af8798682e7",
+      "reason": "Two actual HIGH findings in apt/libapt 3.0.3; not a network failure",
+      "ignoredOrWaived": false
+    },
+    {
+      "event": "Initial security backup refused",
+      "reason": "Stale helper version rejected by safety gate",
+      "notCountedAsSuccessfulBackup": true,
+      "successfulReplacementAttempt": "security-r2"
+    }
+  ]
+}

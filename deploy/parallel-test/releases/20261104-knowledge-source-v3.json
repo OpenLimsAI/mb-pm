@@ -213,7 +213,17 @@
     "actualVulnerabilityNotNetworkFailure": true,
     "ignoredOrWaived": false,
     "fix": "Upgrade target OS packages on the existing fixed Python base; force actual versions >=3.0.4; preserve runtime declarations",
-    "deployment": "pending_actual_security_image_acceptance_and_fixed_main_rollout",
-    "initialReleaseEvidencePreserved": true
+    "deployment": "completed_verified",
+    "initialReleaseEvidencePreserved": true,
+    "source": "27cf72e7ffc2c69ac4dfb3eb625770578c4f62e9",
+    "image": "sha256:0b814c28d26e86b86dcac388bbdc44ca5d17526f72394aeff782553b3632f0ee",
+    "deployedAtUTC": "2026-11-05T02:58:17.468923Z",
+    "releaseRecord": "20261105-knowledge-source-v3-security.json",
+    "liveSignedReadOnlyVerified": true,
+    "publicEntryVerified": true,
+    "originalsRetained": 865,
+    "knowledgeBaseRestarted": false,
+    "deploymentReceiptSHA256": "a2e7052a2474d76cc14e15e7d693cb4a299121cef267da9b2c6b7086d4f35dfd",
+    "publicReceiptSHA256": "b3c36c18b4847ea16eefb15a1e2c7214c232ed172c2e46ff53be78ea00a03335"
   }
 }
