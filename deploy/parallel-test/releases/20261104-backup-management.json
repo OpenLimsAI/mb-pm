@@ -1,0 +1,132 @@
+{
+  "status": "deployed",
+  "source": "88bf737a89dcfdcf877c23f27a3db5b18437637d",
+  "image": "sha256:4253ecba5fcba6194827376be2369efac1e326da0a2e6acd8f98a39feba11b17",
+  "code_prs": [
+    181,
+    185
+  ],
+  "checked_at": "2026-11-05T03:23:02.130492+00:00",
+  "release_root": "/home/prometheus/mb-pm-v2/releases/backup-management-88bf737-20261104",
+  "baseline_source": "27cf72e7ffc2c69ac4dfb3eb625770578c4f62e9",
+  "baseline_image": "sha256:0b814c28d26e86b86dcac388bbdc44ca5d17526f72394aeff782553b3632f0ee",
+  "original_compose_inputs": 31,
+  "active_compose_inputs": 32,
+  "changes": [
+    "two_pm_images",
+    "DATA_BACKUP_AGENT_URL",
+    "DATA_BACKUP_AGENT_SECRET",
+    "private_unix_relay_and_watchdog"
+  ],
+  "migrations": false,
+  "seed": false,
+  "database_restore": false,
+  "database_table_count": 63,
+  "alembic_versions": [
+    "019"
+  ],
+  "schema_before": "9219b90c506349c87fbbb3508bfc38b3c10b3a9ffe7f2ce7090f1ceb6b37ffd6",
+  "schema_after": "9219b90c506349c87fbbb3508bfc38b3c10b3a9ffe7f2ce7090f1ceb6b37ffd6",
+  "comparison": {
+    "schema_unchanged": true,
+    "versions_unchanged": true,
+    "settings_unchanged": true,
+    "business_changes": {}
+  },
+  "plan": {
+    "checkedAt": "2026-11-05T03:19:56.353707+00:00",
+    "retentionSummary": "现有脚本同时保留最近 14 份及至少 14 天；本应用不修改保留规则",
+    "source": "cron",
+    "status": "active",
+    "summary": "每日 03:30 执行现有自动备份",
+    "timezone": "Asia/Shanghai"
+  },
+  "archive_count": 215,
+  "root_count": 13,
+  "storage": {
+    "totalBytes": 210779168768,
+    "freeBytes": 59751878656,
+    "backupBytes": 2901041152,
+    "archiveBytes": 2762707688,
+    "otherBytes": 137846784
+  },
+  "verified_gpg_manifests": 4,
+  "gpg_restore_tested_this_release": false,
+  "private_transport": {
+    "unix_socket": true,
+    "host_tcp": false,
+    "firewall_changed": false,
+    "relay_host_ports": false,
+    "relay_credentials": false,
+    "relay_backup_or_key_mounts": false,
+    "original_backup_cron_preserved": true,
+    "watchdog_added": true
+  },
+  "runtime_security": {
+    "removed_unused_packages": [
+      "apt",
+      "libapt-pkg7.0"
+    ],
+    "system_ca_available": true
+  },
+  "candidate_offline": {
+    "offline_assertions": 40,
+    "static_files": 186,
+    "source": "88bf737a89dcfdcf877c23f27a3db5b18437637d",
+    "network": "none",
+    "credentials_injected": false,
+    "database": "in_memory",
+    "startup_hooks_entered": false,
+    "production_data_accessed": false,
+    "model_calls": false
+  },
+  "backend_files_verified": 206,
+  "host_synthetic_tests": 111,
+  "combined_identity_and_backup_tests": 197,
+  "health": [
+    {
+      "name": "/mb-pm-v2-app-1",
+      "id": "3b3d6d427fa4cd001f0fcf8aac6bf2432fb456f23c3a3bbb5f571c66f0afc671",
+      "image": "sha256:4253ecba5fcba6194827376be2369efac1e326da0a2e6acd8f98a39feba11b17",
+      "health": "healthy"
+    },
+    {
+      "name": "/mb-pm-v2-app-direct-1",
+      "id": "97006dcfb439fde37caee60dabb51d036518179745d5703027ddb0041608f0ef",
+      "image": "sha256:4253ecba5fcba6194827376be2369efac1e326da0a2e6acd8f98a39feba11b17",
+      "health": "healthy"
+    },
+    {
+      "name": "/maibo-backup-relay",
+      "id": "d93f97a3a7ec32acfc012454279c690d9f0a8e5b32ee382aa9deec991a2111f9",
+      "image": "sha256:4253ecba5fcba6194827376be2369efac1e326da0a2e6acd8f98a39feba11b17",
+      "health": "healthy"
+    }
+  ],
+  "public": {
+    "source": "88bf737a89dcfdcf877c23f27a3db5b18437637d",
+    "checkedAt": "2026-11-05T03:23:02.130492+00:00",
+    "public_https": true,
+    "public_manifest_matches_image": true,
+    "public_backup_page_matches_image": true,
+    "backup_assets_match_image": true,
+    "statuses": {
+      "health": 200,
+      "page": 200,
+      "manifest": 200,
+      "anonymous_backup": 401,
+      "assets/DataBackup-DtLHk6Hf.js": 200,
+      "assets/DataBackup-DZaT0zWQ.css": 200
+    },
+    "anonymous_backup_no_store": true,
+    "customer_login_tested": false
+  },
+  "deployed_attempts": 1,
+  "rollbacks": 0,
+  "customer_login_tested": false,
+  "customer_backup_deleted": false,
+  "pre_release_dump_bytes": 4847839,
+  "pre_release_dump_list_verified": true,
+  "pre_release_inputs_saved": 32,
+  "rollback_command": "/home/prometheus/mb-pm-v2/releases/backup-management-88bf737-20261104/production/rollback-command.json"
+}
