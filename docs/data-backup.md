@@ -27,7 +27,7 @@
 
 ## 部署与验收
 
-在最新main上提交PR，全部CI通过后squash合并，固定合并提交构建。安装同版本的宿主适配器、私有配置和HMAC密钥，以仅后端可访问的私有地址提供服务；不得暴露公网路由。后端配置 `DATA_BACKUP_AGENT_URL` 与 `DATA_BACKUP_AGENT_SECRET`。不挂载Docker socket，不改现有backup cron及脚本。
+在最新main上提交PR，全部CI通过后squash合并，固定合并提交构建。安装同版本的宿主适配器、私有配置和HMAC密钥，以仅后端可访问的私有地址提供服务；不得暴露公网路由。宿主入站受限时可使用私有Unix套接字与Docker私网中转；中转没有备份文件、解密密钥或Docker权限，原防火墙不变。后端配置 `DATA_BACKUP_AGENT_URL` 与 `DATA_BACKUP_AGENT_SECRET`。不挂载Docker socket，不改现有backup cron及脚本。
 
 上线前核对纳管根目录不重叠、真实文件权限、原cron与业务时区，保持旧备份与业务数据。历史归档初次扫描需要时间，扫描未完成时如实显示。先使用独立合成目录验证选择删除、最后副本保护、锁冲突及文件变化，再通过真实只读目录验收计划与容量。不要为了验收删除客户现有备份。
 
