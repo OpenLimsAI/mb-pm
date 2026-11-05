@@ -13,6 +13,8 @@ AI 设置仅系统管理员 / 项目负责人（cmc_lead）可用，与项目管
 改密码见 portal.py 的 POST /portal/password。管理员设置了临时密码时，改密码前这里的接口一律 403。
 """
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
@@ -81,21 +83,26 @@ def change_username(payload: UsernameChange, request: Request, db: Session = Dep
     return validate_identity(claims).model_copy(update={"username": payload.new_username})
 
 
+SharedAIReader = Annotated[dict, Depends(ai_reader)]
+SharedAIWriter = Annotated[dict, Depends(ai_writer)]
+SharedAIDatabase = Annotated[Session, Depends(get_db)]
+
+
 @router.get("/settings/ai")
-def get_ai_settings(_: dict = Depends(ai_reader)):
-    return ai_api.settings_view()
+def get_ai_settings(claims: SharedAIReader, db: SharedAIDatabase):
+    return ai_api.settings_view(db, claims)
 
 
 @router.put("/settings/ai")
-def put_ai_settings(body: AISettingsInput, _: dict = Depends(ai_writer)):
-    return ai_api.save_settings(body)
+def put_ai_settings(body: AISettingsInput, claims: SharedAIWriter, db: SharedAIDatabase):
+    return ai_api.save_settings(body, db, claims)
 
 
 @router.post("/settings/ai/models")
-def ai_models(body: ConnectionInput, _: dict = Depends(ai_writer)):
-    return ai_api.list_models(body)
+def ai_models(body: ConnectionInput, claims: SharedAIWriter, db: SharedAIDatabase):
+    return ai_api.list_models(body, db, claims)
 
 
 @router.post("/settings/ai/test")
-def ai_test(body: ConnectionInput, _: dict = Depends(ai_writer)):
-    return ai_api.test_connection(body)
+def ai_test(body: ConnectionInput, claims: SharedAIWriter, db: SharedAIDatabase):
+    return ai_api.test_connection(body, db, claims)

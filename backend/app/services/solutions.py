@@ -610,13 +610,15 @@ def ask_open(db, row, payload, claims, selected, plan, is_cancelled=None):
     if selected["kind"] == "private":
         cfg = dict(selected["config"])
     else:
-        config = ai.load_settings()
+        config = ai.load_settings(db, claims)
         provider = config["provider"]
         cfg = dict(config["providers"][provider])
         if not cfg.get("model") or (provider != "ollama" and not cfg.get("api_key")):
             raise HTTPException(422, "尚未配置可用的 AI 模型，请在 AI 设置中添加模型")
     solution_id, revision = row.id, row.revision
-    diagnostics.configure_model("custom" if selected["kind"] == "private" else provider, cfg)
+    diagnostics.configure_model(
+        solution_ai.transport_provider(cfg) if selected["kind"] == "private" else provider, cfg
+    )
     general_history = []
     if plan.mode == "general" and payload.conversation_id:
         general_history = list(
@@ -848,7 +850,7 @@ def ask(db, row, payload: AskInput, claims, is_cancelled=None):
         try:
             provider, cfg, configured = "", {}, False
             if selected_model["kind"] == "system":
-                config = ai.load_settings()
+                config = ai.load_settings(db, claims)
                 provider = config["provider"]
                 cfg = config["providers"][provider]
                 configured = bool(cfg.get("model") and (provider == "ollama" or cfg.get("api_key")))
@@ -960,7 +962,7 @@ def polish(db, row, payload, claims):
     if selected["kind"] == "private":
         cfg = selected["config"]
     else:
-        config = ai.load_settings()
+        config = ai.load_settings(db, claims)
         provider = config["provider"]
         cfg = config["providers"][provider]
         if not cfg.get("model") or (provider != "ollama" and not cfg.get("api_key")):

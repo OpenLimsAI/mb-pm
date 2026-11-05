@@ -61,7 +61,7 @@ const dataApps: readonly ApplicationPresentation[] = [
 ]
 const settingApps: readonly ApplicationPresentation[] = [
   { id: 'settings', name: '我的设置', englishName: 'MY SETTINGS', description: '管理个人登录账号，修改用户名、密码并查看应用访问。', domain: '个人账号', href: '/settings', previewHref: '/settings?preview=1', kind: 'settings', features: ['登录身份', '用户名与密码', '应用访问'] },
-  { id: 'models', name: 'AI 设置', englishName: 'AI SETTINGS', description: '统一配置助手、研究报告与知识库使用的模型服务和默认模型。', domain: '个人模型', href: '/model-settings', previewHref: '/model-settings?preview=1', kind: 'ai', features: ['多个服务商', '模型配置', '默认选择'] },
+  { id: 'models', name: 'AI 设置', englishName: 'AI SETTINGS', description: '统一配置助手、研究报告与知识库使用的模型服务和默认模型。', domain: '共享模型', href: '/model-settings', previewHref: '/model-settings?preview=1', kind: 'ai', features: ['多个服务商', '模型配置', '默认选择'] },
   { id: 'mdm', accessId: 'mdm', name: '主数据管理', englishName: 'MASTER DATA MANAGEMENT', description: '管理分子、药物资产与项目登记治理；执行计划在关联的项目中维护。', domain: '主数据权限独立校验', href: '/launch/mdm', external: true, kind: 'projects', features: ['分子与药物资产', '项目登记治理', '执行关联'] },
   { id: 'accounts', accessId: 'accounts', name: '账号管理', englishName: 'ACCOUNT MANAGEMENT', description: '统一查看组织成员与账号身份，按管理权限维护账号信息。', domain: '按管理权限使用', href: '/accounts', kind: 'accounts', features: ['组织成员', '账号身份', '应用权限'] },
 ]

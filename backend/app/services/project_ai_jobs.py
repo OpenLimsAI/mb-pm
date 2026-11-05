@@ -100,7 +100,7 @@ def process_one() -> bool:
                 return True
             authorized(db, job.created_by, job.project_id)
             context, focus, prompt = job.context, job.focus, job.prompt
-        cfg = ai.load_settings()
+            cfg = ai.load_settings(db)
         content, provider, model, usage = ai.analyze(cfg, context, focus, prompt + ACTION_PROMPT)
         with SessionLocal() as db:
             job = db.query(ProjectAIJob).filter_by(id=job_id).with_for_update().first()

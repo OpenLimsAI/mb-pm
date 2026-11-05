@@ -61,46 +61,46 @@ def accessible_project(project_id: str, user: User, db: Session) -> Project:
 
 
 # 项目管理「AI设置」经 PM 会话 / Bearer 调用；旧门户接口暂留兼容，共用同一份配置。
-def settings_view() -> dict:
-    return ai.public_settings(ai.load_settings())
+def settings_view(db=None, claims=None) -> dict:
+    return ai.public_settings(ai.load_settings(db, claims))
 
 
-def save_settings(body: AISettingsInput) -> dict:
+def save_settings(body: AISettingsInput, db=None, claims=None) -> dict:
     try:
-        return ai.save_settings(body)
+        return ai.save_settings(body, db, claims)
     except ai.AIError as e:
         raise HTTPException(400, str(e)) from None
 
 
-def list_models(body: ConnectionInput) -> dict:
+def list_models(body: ConnectionInput, db=None, claims=None) -> dict:
     try:
-        cfg = ai.resolve_config(body.provider, body.config, ai.load_settings())
+        cfg = ai.resolve_config(body.provider, body.config, ai.load_settings(db, claims))
         return {"models": ai.list_models(body.provider, cfg)}
     except ai.AIError as e:
         raise HTTPException(502, str(e)) from None
 
 
-def test_connection(body: ConnectionInput) -> dict:
+def test_connection(body: ConnectionInput, db=None, claims=None) -> dict:
     try:
-        cfg = ai.resolve_config(body.provider, body.config, ai.load_settings())
+        cfg = ai.resolve_config(body.provider, body.config, ai.load_settings(db, claims))
         return ai.test_connection(body.provider, cfg)
     except ai.AIError as e:
         raise HTTPException(502, str(e)) from None
 
 
 @router.get("/ai/settings")
-def get_settings(user: ConfigurationManager):
-    return settings_view()
+def get_settings(user: ConfigurationManager, db: Database):
+    return settings_view(db)
 
 
 @router.put("/ai/settings")
-def put_settings(body: AISettingsInput, user: ConfigurationManager):
-    return save_settings(body)
+def put_settings(body: AISettingsInput, user: ConfigurationManager, db: Database):
+    return save_settings(body, db)
 
 
 @router.get("/ai/status")
-def get_status(user: ConfigurationManager):
-    cfg = ai.load_settings()
+def get_status(user: ConfigurationManager, db: Database):
+    cfg = ai.load_settings(db)
     selected = cfg["providers"][cfg["provider"]]
     return {
         "provider": cfg["provider"],
@@ -115,13 +115,13 @@ def get_status(user: ConfigurationManager):
 
 
 @router.post("/ai/models")
-def models(body: ConnectionInput, user: ConfigurationManager):
-    return list_models(body)
+def models(body: ConnectionInput, user: ConfigurationManager, db: Database):
+    return list_models(body, db)
 
 
 @router.post("/ai/test")
-def test(body: ConnectionInput, user: ConfigurationManager):
-    return test_connection(body)
+def test(body: ConnectionInput, user: ConfigurationManager, db: Database):
+    return test_connection(body, db)
 
 
 @router.get("/projects/{project_id}/ai-analyses")
@@ -146,7 +146,7 @@ def generate(project_id: str, body: AnalysisInput, user: ConfigurationManager, d
     context, source = ai.project_context(db, project)
     user_id = user.id
     db.rollback()  # Release the read transaction while waiting for the model.
-    cfg = ai.load_settings()
+    cfg = ai.load_settings(db)
     # 本次临时修改的提示词优先，否则用 AI 设置中的默认提示词；实际使用的提示词随报告保存
     prompt = (body.prompt or "").strip() or cfg["analysis_prompt"]
     try:
@@ -195,7 +195,7 @@ def finance_generate(body: AnalysisInput, user: FinanceManager, db: Database):
     context, source = ai.finance_context(db)
     user_id = user.id
     db.rollback()  # Release the read transaction while waiting for the model.
-    cfg = ai.load_settings()
+    cfg = ai.load_settings(db)
     prompt = (body.prompt or "").strip() or cfg["finance_analysis_prompt"]
     try:
         content, provider, model, usage = ai.analyze(

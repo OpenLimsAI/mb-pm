@@ -205,7 +205,7 @@ def preflight(db, claims, payload):
         if selected["kind"] == "retrieval":
             raise HTTPException(422, "请选择可生成回答的模型")
         if selected["kind"] == "system":
-            config = ai.load_settings()
+            config = ai.load_settings(db, claims)
             provider = config["provider"]
             cfg = config["providers"][provider]
             if not cfg.get("model") or (provider != "ollama" and not cfg.get("api_key")):

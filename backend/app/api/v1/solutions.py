@@ -39,7 +39,7 @@ from app.schemas.solution import (
     TopicInput,
     TopicRevision,
 )
-from app.schemas.solution_ai import ModelSettingsInput, ModelTestInput
+from app.schemas.solution_ai import SharedModelSettingsInput, SharedModelTestInput
 from app.services import assistant_diagnostics as diagnostics
 from app.services import password_policy, solution_ai, solution_knowledge
 from app.services import report_collaboration as collaboration
@@ -84,14 +84,16 @@ def ai_settings(db: Session = Depends(get_db), claims: dict = Depends(identity))
 
 @model_router.put("/settings")
 def save_ai_settings(
-    payload: ModelSettingsInput, db: Session = Depends(get_db), claims: dict = Depends(identity)
+    payload: SharedModelSettingsInput,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
 ):
     return solution_ai.save_settings(db, claims, payload)
 
 
 @model_router.post("/test")
 def test_ai_settings(
-    payload: ModelTestInput, db: Session = Depends(get_db), claims: dict = Depends(identity)
+    payload: SharedModelTestInput, db: Session = Depends(get_db), claims: dict = Depends(identity)
 ):
     return solution_ai.test_connection(db, claims, payload)
 

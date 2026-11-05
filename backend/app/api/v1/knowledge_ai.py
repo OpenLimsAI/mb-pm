@@ -3,7 +3,7 @@
 
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.routing import APIRoute
 from sqlalchemy.orm import Session
@@ -73,8 +73,12 @@ def identity(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/models")
-def models(db: Session = Depends(get_db), claims: dict = Depends(identity)):
-    return service.models(db, claims)
+def models(
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+    legacy_profile_id: str | None = Query(default=None, max_length=80, pattern=r"^[a-zA-Z0-9_-]+$"),
+):
+    return service.models(db, claims, legacy_profile_id)
 
 
 @router.post("/chat/completions")

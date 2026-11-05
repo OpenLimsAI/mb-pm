@@ -75,7 +75,7 @@ def create_job(project_id: str, payload: AnalysisInput, db: DB, user: Analyst):
     if db.bind.dialect.name == "postgresql":
         db.execute(text("SELECT pg_advisory_xact_lock(7211202604)"))
     project = project_access(db, user, project_id, write=True)
-    cfg = ai.load_settings()
+    cfg = ai.load_settings(db)
     prompt = (payload.prompt or "").strip() or cfg["analysis_prompt"]
     existing = (
         db.query(ProjectAIJob)

@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { API_BASE, camelize, snakeize } from '../../api/client'
 
-export type ModelProvider = 'deepseek' | 'minimax' | 'kimi' | 'glm' | 'openai' | 'custom'
+export type ModelProvider = 'deepseek' | 'minimax' | 'kimi' | 'glm' | 'openai' | 'custom' | 'ollama'
 export interface ModelProfile { id: string; name: string; provider: ModelProvider; baseUrl: string; model: string; keySet: boolean }
 export interface ModelSettings { profiles: ModelProfile[]; defaultProfileId: string | null; revision: number }
 export interface ModelProfileDraft extends Omit<ModelProfile, 'keySet'> { apiKey?: string; clearKey?: boolean }
@@ -11,8 +11,8 @@ export interface ModelTestResult { ok: boolean; model: string; ms: number }
 export interface ModelSettingsClient { get(): Promise<ModelSettings>; save(input: ModelSettingsInput): Promise<ModelSettings>; test(profile: ModelProfileDraft): Promise<ModelTestResult> }
 
 export const MAX_MODEL_PROFILES = 20
-export const modelProviderLabels: Record<ModelProvider, string> = { deepseek: 'DeepSeek', minimax: 'MiniMax', kimi: 'Kimi / 月之暗面', glm: '智谱 GLM', openai: 'OpenAI', custom: '自定义 / OpenAI 兼容' }
-export const modelProviderEndpoints: Record<ModelProvider, string> = { deepseek: 'https://api.deepseek.com', minimax: 'https://api.minimax.io/v1', kimi: 'https://api.moonshot.cn/v1', glm: 'https://open.bigmodel.cn/api/paas/v4', openai: 'https://api.openai.com/v1', custom: '' }
+export const modelProviderLabels: Record<ModelProvider, string> = { deepseek: 'DeepSeek', minimax: 'MiniMax', kimi: 'Kimi / 月之暗面', glm: '智谱 GLM', openai: 'OpenAI', custom: '自定义 / OpenAI 兼容', ollama: 'Ollama / 自托管' }
+export const modelProviderEndpoints: Record<ModelProvider, string> = { deepseek: 'https://api.deepseek.com', minimax: 'https://api.minimax.io/v1', kimi: 'https://api.moonshot.cn/v1', glm: 'https://open.bigmodel.cn/api/paas/v4', openai: 'https://api.openai.com/v1', custom: '', ollama: 'http://127.0.0.1:11434' }
 const providers = Object.keys(modelProviderLabels) as ModelProvider[]
 const emptySettings = (): ModelSettings => ({ profiles: [], defaultProfileId: null, revision: 0 })
 
@@ -64,7 +64,7 @@ export function createModelSettingsClient(): ModelSettingsClient {
     if (status === 401) window.dispatchEvent(new Event('solutions:unauthorized'))
     // Provider errors can contain request headers or credentials; never expose their payload/config/cause.
     const text = status === 401 ? '登录已失效，请重新登录后重试。'
-      : status === 409 ? '模型设置已被其他页面更新。草稿仍保留，请重新打开设置后核对。'
+      : status === 409 ? '共享模型设置已被其他成员或页面更新。草稿仍保留，请重新打开设置后核对。'
         : status === 422 ? '配置未通过校验，请检查名称、模型、地址和密钥。'
           : status === 403 ? '当前账号无权访问模型设置。'
             : axios.isAxiosError(error) && error.code === 'ECONNABORTED' ? '连接测试超时，请检查服务地址后重试。'

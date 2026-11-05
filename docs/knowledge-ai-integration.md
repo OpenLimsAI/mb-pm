@@ -1,6 +1,6 @@
 # 知识库统一模型接口
 
-知识库与工作台共用个人模型配置及默认选择。环境发布状态与验收边界见[发布契约](../deploy/parallel-test/releases/20261104-knowledge-unified-ai.md)。个人配置由工作台 `/model-settings` 管理，使用原有 `solution_ai_settings` 表按 OIDC `issuer + sub` 加密保存。知识库服务端取得模型目录和生成结果，无法取得模型密钥或改变模型服务地址。
+知识库与工作台共用组织模型配置及默认选择。环境发布状态与验收边界见[发布契约](../deploy/parallel-test/releases/20261104-knowledge-unified-ai.md)。共享配置由工作台 `/model-settings` 管理，使用 `organization_ai_settings` 表按已验证的 `(issuer, organization)` 加密保存。旧 `solution_ai_settings` 个人配置保留且不自动公开，详见[组织共享 AI 设置](shared-ai-settings.md)。本轮为本地开发，尚未部署。知识库服务端取得模型目录和生成结果，无法取得模型密钥或改变模型服务地址。
 
 ## 身份与配置
 
@@ -19,20 +19,20 @@
 ```json
 {
   "models": [
-    {"id":"profile-1","name":"个人研究模型","provider":"deepseek","model":"configured-model","key_set":true,"available":true},
+    {"id":"shared:profile-1","name":"共享研究模型","provider":"deepseek","model":"configured-model","key_set":true,"available":true},
     {"id":"system","name":"工作台系统默认","provider":"deepseek","model":"configured-system-model","key_set":true,"available":true}
   ],
-  "default_model_id":"profile-1",
+  "default_model_id":"shared:profile-1",
   "revision":1,
   "settings_url":"https://www.example.test/model-settings"
 }
 ```
 
-目录没有 `api_key` 或 `base_url`。默认选择与工作台同一份个人配置一致；未设个人默认时使用明确标记的 `system` 项。系统配置损坏或不可读时，仅系统项不可用，已有个人模型仍可使用。个人模型不存在、缺密钥、被删除或上游失败时不切换到其他模型。
+目录没有 `api_key` 或 `base_url`。默认选择与工作台同一份组织共享配置一致；`system` 兼容选择解析为该组织共享默认。共享配置不存在、缺密钥、被删除或上游失败时明确报错，不借用其他组织或成员的模型密钥。目录与修订号共享，会话和知识库资料权限仍按当前用户验证。
 
 ## 单轮生成与工具
 
-`POST /api/v1/integration/knowledge/ai/chat/completions` 接受非流式 OpenAI 格式。`model` 是上面返回的个人配置 ID 或 `system`，不是供应商模型名称；省略时使用当次工作台默认配置。可选 `settings_revision` 不匹配时返回 409。真实供应商、地址和密钥均由 PM 当前配置解析，输入不允许这些字段或 actor。
+`POST /api/v1/integration/knowledge/ai/chat/completions` 接受非流式 OpenAI 格式。`model` 是上面返回的共享配置 ID 或 `system`，不是供应商模型名称；省略时使用当次工作台默认配置。可选 `settings_revision` 不匹配时返回 409。真实供应商、地址和密钥均由 PM 当前配置解析，输入不允许这些字段或 actor。
 
 支持文本 `messages`、`tools`、`tool_choice`、`parallel_tool_calls`、`response_format`、有限采样选项及输出预算。assistant 的 `tool_calls` 与相应 tool 消息必须成对；支持供应商后续工具轮需要的 `reasoning_content`。该字段只供服务端继续工具对话，不应用作用户可见正文。返回 OpenAI `choices`、`finish_reason`、工具调用和有报告的 `usage`。知识库的共享 Agent 继续负责工具执行、任务事件与 NDJSON 输出。
 
@@ -54,6 +54,6 @@ cd backend
 python -m pytest -q tests/test_knowledge_ai_gateway.py tests/test_solution_ai.py tests/test_solution_ai_transport.py tests/test_model_network_policy.py tests/test_oidc_status.py tests/test_request_limits.py
 ```
 
-覆盖身份／受众隔离、当前角色和密码失效、个人默认与显式系统选择、设置变更、工具往返、压缩／翻译文本、Ollama 转换、请求大小、凭据和错误脱敏。真实环境启用前核对精确知识库受众、实时 IAM 状态校验与配套知识库运行时；测试结果不代替客户账号和真实供应商验收。
+覆盖身份／受众隔离、当前角色和密码失效、共享默认与显式系统选择、设置变更、工具往返、压缩／翻译文本、Ollama 转换、请求大小、凭据和错误脱敏。真实环境启用前核对精确知识库受众、实时 IAM 状态校验与配套知识库运行时；测试结果不代替客户账号和真实供应商验收。
 
 定点及全量回归覆盖统一模型与笔记接口；配套知识库 `tests/e2e/workspace-ai.spec.ts` 用合成 HTTP 验证普通用户统一入口无密钥框、模型选择传到问答请求、页面重新获得焦点时同步默认模型，以及换账号／会话结束后的选择隔离；未调用真实模型。桌面和窄屏界面已保存本地截图检查。

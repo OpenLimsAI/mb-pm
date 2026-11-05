@@ -2,15 +2,19 @@ import { useEffect, useState } from 'react'
 import { CheckCircle2, Cloud, Cpu, Loader2, MessageSquareText, RotateCcw, Save, Unplug } from 'lucide-react'
 import {
   aiError, MAX_PROMPT_LENGTH, providerLabels, getAIModels, getAISettings, saveAISettings, testAIConnection,
-  type AIProvider, type AISettings, type ProviderConfig,
+  providerLabel, type AIProvider, type AISettings, type AISettingsWrite, type ProviderConfig,
 } from '../../api/ai'
 import { Button } from '../ui'
 import { cn } from '../../lib/cn'
 import { ModelPricePicker } from './ModelPricePicker'
 import { modelPriceLabel } from '../../lib/modelPricing'
+import { portalPublicUrl, siteMode } from '../../lib/site'
 
 // 项目管理「AI设置」：服务商 / 模型 / 密钥、离线备用与默认分析提示词（系统管理员 / 项目负责人）。
-// 经 PM 会话调用 /api/v1/ai/settings；沿用原配置文件。online=false 时（界面预览）只显示说明。
+// 经 PM 会话调用 /api/v1/ai/settings；模型映射到组织共享目录，提示词独立保存。
+// online=false 时（界面预览）只显示说明。
+const supportsLegacyProvider = (provider: string): provider is AIProvider => Object.hasOwn(providerLabels, provider)
+
 export function AISettingsPanel({ online = true }: { online?: boolean }) {
   const [draft, setDraft] = useState<AISettings | null>(null)
   const [editing, setEditing] = useState<AIProvider>('deepseek')
@@ -18,13 +22,15 @@ export function AISettingsPanel({ online = true }: { online?: boolean }) {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [dirty, setDirty] = useState(false)
+  const [modelsDirty, setModelsDirty] = useState(false)
+  const sharedSettingsUrl = siteMode === 'pm' ? `${portalPublicUrl}/model-settings` : '/model-settings'
   const [models, setModels] = useState<string[]>([])
   const [retry, setRetry] = useState(0)
 
   useEffect(() => {
     let active = true
     if (online) getAISettings().then(value => {
-      if (active) { setDraft(value); setEditing(value.provider); setError('') }
+      if (active) { setDraft(value); setEditing(supportsLegacyProvider(value.provider) ? value.provider : 'deepseek'); setModelsDirty(false); setError('') }
     }).catch(e => { if (active) setError(aiError(e)) })
     return () => { active = false }
   }, [online, retry])
@@ -37,7 +43,8 @@ export function AISettingsPanel({ online = true }: { online?: boolean }) {
 
   function update(patch: Partial<AISettings>) {
     if (!draft) return
-    setDraft({ ...draft, ...patch }); setDirty(true); setNotice(''); setError('')
+    setDraft({ ...draft, ...patch }); setDirty(true);
+    if ('provider' in patch || 'providers' in patch || 'offlineFallback' in patch) setModelsDirty(true); setNotice(''); setError('')
   }
   function updateProvider(patch: Partial<ProviderConfig>) {
     if (!draft) return
@@ -48,9 +55,13 @@ export function AISettingsPanel({ online = true }: { online?: boolean }) {
     setBusy(kind); setError(''); setNotice('')
     try {
       if (kind === 'save') {
-        const saved = await saveAISettings(draft)
-        setDraft(saved); setDirty(false)
-        setNotice(saved.provider !== 'ollama' && !saved.providers[saved.provider].keySet ? '设置已保存；当前服务商尚未填写 API Key，填写后即可生成分析。' : '设置已保存，项目分析将使用此配置。')
+        const preserveSharedModels = !modelsDirty || !supportsLegacyProvider(draft.provider)
+        const payload: AISettingsWrite = preserveSharedModels
+          ? { ...draft, provider: 'deepseek', providers: {}, preserveSharedModels: true }
+          : { ...draft, provider: draft.provider as AIProvider, providers: Object.fromEntries(Object.keys(providerLabels).filter(provider => draft.providers[provider]).map(provider => [provider, draft.providers[provider]])), preserveSharedModels: false }
+        const saved = await saveAISettings(payload)
+        setDraft(saved); setDirty(false); setModelsDirty(false)
+        setNotice(preserveSharedModels ? '提示词已保存；组织共享模型和默认选择未改变。' : saved.provider !== 'ollama' && !saved.providers[saved.provider]?.keySet ? '设置已保存；当前服务商尚未填写 API Key，填写后即可生成分析。' : '共享模型设置已保存，项目分析将使用此配置。')
       } else if (kind === 'models') {
         const result = await getAIModels(editing, draft.providers[editing])
         setModels(result.models)
@@ -63,17 +74,20 @@ export function AISettingsPanel({ online = true }: { online?: boolean }) {
   }
 
   const cfg = draft?.providers[editing]
+  const legacyProvider = !!draft && supportsLegacyProvider(draft.provider)
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <p className="text-sm text-ink-500">管理项目分析使用的 AI 服务与本地模型。</p>
+        <div><p className="text-sm text-ink-500">维护项目与财务分析提示词；模型与工作台、研究报告和知识库共用。</p><a className="text-brand-700 underline text-sm" href={sharedSettingsUrl} target="_blank" rel="noopener noreferrer">打开统一 AI 模型设置</a></div>
         <Button variant="primary" disabled={!draft || !!busy || !dirty || !online} onClick={() => action('save')} icon={busy === 'save' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}>保存设置{dirty ? ' · 未保存' : ''}</Button>
       </div>
       {!online && <div className="p-4 rounded-lg bg-amber-50 text-amber-800 text-sm">当前为离线演示模式，请连接后端后配置 AI。</div>}
       {error && <div role="alert" className="p-3 rounded-lg bg-red-50 text-red-700 text-sm">{error}{!draft && online && <button className="underline ml-3" onClick={() => setRetry(v => v + 1)}>重新加载</button>}</div>}
       {notice && <div role="status" className="p-3 rounded-lg bg-emerald-50 text-emerald-800 text-sm flex items-center gap-2"><CheckCircle2 className="w-4 h-4 shrink-0" />{notice}</div>}
       {!draft && online && !error && <div className="flex gap-2 items-center text-ink-500"><Loader2 className="animate-spin w-4 h-4" />正在加载设置…</div>}
-      {draft && cfg && <>
+      {draft && <>
+        {!legacyProvider && <section className="card p-5 space-y-2" aria-label="当前组织共享默认模型"><h2 className="font-semibold">当前组织共享默认模型</h2><p>{providerLabel(draft.provider)} · {draft.providers[draft.provider]?.model || '尚未设置'}</p><p className="text-sm text-ink-500">此服务商在统一 AI 设置中管理。这里保存提示词不会更改共享模型或默认选择。</p></section>}
+        {cfg && legacyProvider && <>
         <section className="card p-5 space-y-4">
           <div><h2 className="font-semibold">分析服务</h2><p className="text-sm text-ink-500 mt-1">选择项目分析服务。每家服务商的地址、模型和密钥分别保存。</p></div>
           <fieldset disabled={!!busy} className="grid sm:grid-cols-2 gap-5">
@@ -102,6 +116,7 @@ export function AISettingsPanel({ online = true }: { online?: boolean }) {
           <p className="text-sm text-ink-500">仅在网络连接失败或超时时切换；密钥错误、额度不足不会触发。分析记录会标明实际使用的模型。</p>
           {draft.offlineFallback && <p className="text-sm">备用模型：<b>{draft.providers.ollama.model || '尚未配置'}</b><button className="ml-3 text-brand-700 underline" disabled={!!busy} onClick={() => { setEditing('ollama'); setModels([]) }}>配置本地模型</button></p>}
         </section>
+        </>}
         <PromptCard
           title="项目分析提示词"
           description="告诉模型要分析什么、按什么结构输出。项目详情「AI 分析」默认使用这段提示词，生成前也可临时修改。"

@@ -23,6 +23,7 @@ from app.models.mdm_integration import (  # noqa: F401
     OIDCRevocation,
 )
 from app.models.note import PersonalNote  # noqa: F401
+from app.models.organization_ai import OrganizationAISettings  # noqa: F401
 from app.models.planning import ProjectCalendar, UserWeeklyCapacity  # noqa: F401
 from app.models.pm_management import (
     PMCostEntry,

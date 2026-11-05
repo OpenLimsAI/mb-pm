@@ -63,14 +63,14 @@ deploy/    部署配置及历史发布记录
 项目协同、交付验收、联动排期、全任务基线及台账见[项目执行与协同](docs/pm-execution-improvements.md)。
 Excel 回导、模板升级、进度权重及 AI 行动见[项目计划工具](docs/pm-planning-tools.md)。
 入口与边界见 [功能说明](docs/features.md)、[AI 助手](docs/ai-assistant.md)、[知识源](docs/knowledge-sources.md)、[研究报告工作台](docs/research-report-workbench.md) 和 [研究报告体验升级](docs/research-report-experience.md)。
-工作台 `/model-settings` 是个人模型统一入口，供知识库问答、翻译、摘要和标签复用。配置与授权边界见[知识库统一模型接口](docs/knowledge-ai-integration.md)，环境发布状态见[发布契约](deploy/parallel-test/releases/20261104-knowledge-unified-ai.md)。
+工作台 `/model-settings` 是组织共享模型统一入口，供知识库问答、翻译、摘要和标签复用。配置与授权边界见[知识库统一模型接口](docs/knowledge-ai-integration.md)，环境发布状态见[发布契约](deploy/parallel-test/releases/20261104-knowledge-unified-ai.md)。
 
 ## 配置与权限
 
 前端参考 [`.env.local.example`](.env.local.example)，后端参考 [`backend/.env.example`](backend/.env.example)。
 真实登录须填写 IAM 客户端配置及随机会话密钥，生产 HTTPS 启用 Secure Cookie。
 
-账号和角色在 IAM 管理，日常通过门户「账号管理」维护（仅系统管理员 / 项目负责人可见）；个人用户名、密码在门户「我的设置」，PM 全局模型与提示词在项目管理「AI设置」。研究报告内的个人模型按账号独立保存，不授予或改变 PM 全局配置权限。项目管理默认对组织内所有人开放，知识库需对应 KB 角色。
+账号和角色在 IAM 管理，日常通过门户「账号管理」维护（仅系统管理员 / 项目负责人可见）；个人用户名、密码在门户「我的设置」，项目管理「AI设置」保留兼容入口和分析提示词，模型读取同一组织共享目录。共享模型及默认选择供组织成员共用；旧个人配置保留，不自动公开。当前变更与上线边界见[组织共享 AI 设置](docs/shared-ai-settings.md)。项目管理默认对组织内所有人开放，知识库需对应 KB 角色。
 门户、PM 与 KB 各自检查权限并维护会话。门户与 PM 支持活跃续期，研究报告可在重登后恢复工作现场；时限、旧会话过渡与诊断见[会话配置](docs/configuration.md#独立门户与会话)。跨应用 SSO 须单独验收。
 数据管理中的备份应用仅限系统管理员；范围、计划来源、历史清单及删除保护见[备份管理](docs/data-backup.md)。
 变量、回调、开通方式及退出范围见 [配置与权限](docs/configuration.md)；原件、模型设置及密钥备份见[容器持久化](docs/configuration.md#容器业务数据持久化)；Kimi 与定价范围见[模型价格参考](docs/model-pricing.md)。

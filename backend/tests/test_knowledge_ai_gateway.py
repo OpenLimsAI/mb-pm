@@ -8,14 +8,16 @@ from uuid import uuid4
 import httpx
 import pytest
 from jose import jwt
+from sqlalchemy import delete
 
 from app.core.config import settings
 from app.db.session import SessionLocal
-from app.schemas.solution_ai import ModelSettingsInput
+from app.models.organization_ai import OrganizationAISettings
+from app.schemas.solution_ai import SharedModelSettingsInput
 from app.services import ai, oidc_status, solution_ai
 
 PREFIX = "/api/v1/integration/knowledge/ai"
-SECRET = "synthetic-personal-provider-key-never-return"
+SECRET = "synthetic-shared-provider-key-never-return"
 SYSTEM_SECRET = "synthetic-system-provider-key-never-return"
 
 
@@ -100,7 +102,7 @@ def gateway(client, token_factory, monkeypatch):
         },
         "offline_fallback": True,
     }
-    monkeypatch.setattr(ai, "load_settings", lambda: copy.deepcopy(system))
+    monkeypatch.setattr(ai, "load_legacy_settings", lambda: copy.deepcopy(system))
 
     def transport(provider, cfg, path, body, timeout):
         state.model_calls.append((provider, copy.deepcopy(cfg), path, copy.deepcopy(body), timeout))
@@ -130,23 +132,23 @@ def gateway(client, token_factory, monkeypatch):
 
     def save(
         *,
-        owner=subject,
+        member=subject,
         provider="deepseek",
-        model="synthetic-personal",
+        model="synthetic-shared",
         key=SECRET,
         revision=0,
-        default="personal-1",
+        default="profile-1",
     ):
         with SessionLocal() as db:
             solution_ai.save_settings(
                 db,
-                {"iss": settings.casdoor_issuer, "sub": owner},
-                ModelSettingsInput.model_validate(
+                {"iss": settings.casdoor_issuer, "owner": settings.CASDOOR_ORG, "sub": member},
+                SharedModelSettingsInput.model_validate(
                     {
                         "profiles": [
                             {
-                                "id": "personal-1",
-                                "name": "Personal research",
+                                "id": "profile-1",
+                                "name": "Shared research",
                                 "provider": provider,
                                 "base_url": "https://model.example.test/v1",
                                 "model": model,
@@ -159,10 +161,24 @@ def gateway(client, token_factory, monkeypatch):
                 ),
             )
 
+    def clear_shared_scope():
+        with SessionLocal() as db:
+            db.execute(
+                delete(OrganizationAISettings).where(
+                    OrganizationAISettings.issuer == settings.casdoor_issuer,
+                    OrganizationAISettings.organization == settings.CASDOOR_ORG,
+                )
+            )
+            db.commit()
+
+    clear_shared_scope()
     save()
-    return SimpleNamespace(
-        client=client, state=state, token=token, headers=headers, save=save, system=system
-    )
+    try:
+        yield SimpleNamespace(
+            client=client, state=state, token=token, headers=headers, save=save, system=system
+        )
+    finally:
+        clear_shared_scope()
 
 
 def ask(f, **changes):
@@ -176,22 +192,22 @@ def ask(f, **changes):
     )
 
 
-def test_models_share_actor_default_and_never_return_keys_or_endpoints(gateway):
+def test_models_share_organization_default_and_never_return_keys_or_endpoints(gateway):
     f = gateway
     response = f.client.get(PREFIX + "/models", headers=f.headers())
     assert response.status_code == 200
     data = response.json()
-    assert data["default_model_id"] == "personal-1" and data["revision"] == 1
+    assert data["default_model_id"] == "shared:profile-1" and data["revision"] == 1
     assert data["settings_url"] == "https://portal.example.test/model-settings"
     assert data["models"][0] == {
-        "id": "personal-1",
-        "name": "Personal research",
+        "id": "shared:profile-1",
+        "name": "Shared research",
         "provider": "deepseek",
-        "model": "synthetic-personal",
+        "model": "synthetic-shared",
         "key_set": True,
         "available": True,
     }
-    assert [item["id"] for item in data["models"]] == ["personal-1", "system"]
+    assert [item["id"] for item in data["models"]] == ["shared:profile-1"]
     assert SECRET not in response.text and SYSTEM_SECRET not in response.text
     assert "model.example.test" not in response.text
     assert response.headers["cache-control"] == "no-store"
@@ -202,7 +218,7 @@ def test_default_explicit_system_and_missing_profile_do_not_cross_fallback(gatew
     assert ask(f).status_code == 200
     assert f.state.model_calls[-1][1]["api_key"] == SECRET
     assert ask(f, model="system").status_code == 200
-    assert f.state.model_calls[-1][1]["api_key"] == SYSTEM_SECRET
+    assert f.state.model_calls[-1][1]["api_key"] == SECRET
     before = len(f.state.model_calls)
     assert ask(f, model="missing").status_code == 404
     assert ask(f, model="retrieval").status_code == 422
@@ -210,23 +226,26 @@ def test_default_explicit_system_and_missing_profile_do_not_cross_fallback(gatew
     assert len(f.state.model_calls) == before
 
 
-def test_unreadable_system_file_does_not_disable_personal_models(gateway, monkeypatch):
+def test_unreadable_legacy_file_does_not_disable_saved_shared_models(gateway, monkeypatch):
     def broken():
         raise OSError("synthetic config unavailable")
 
-    monkeypatch.setattr(ai, "load_settings", broken)
+    monkeypatch.setattr(ai, "load_legacy_settings", broken)
     response = gateway.client.get(PREFIX + "/models", headers=gateway.headers())
     assert response.status_code == 200
     assert response.json()["models"][0]["available"] is True
-    assert response.json()["models"][-1]["available"] is False
+    assert [model["id"] for model in response.json()["models"]] == ["shared:profile-1"]
     assert ask(gateway).status_code == 200
-    assert ask(gateway, model="system").status_code == 503
+    assert ask(gateway, model="system").status_code == 200
+    assert gateway.state.model_calls[-1][1]["api_key"] == SECRET
 
 
-def test_same_profile_id_is_resolved_only_for_verified_subject(gateway, token_factory):
+def test_shared_profile_updates_are_visible_to_verified_members_of_the_same_organization(
+    gateway, token_factory
+):
     f = gateway
     other = "kb-other-" + uuid4().hex
-    f.save(owner=other, key="synthetic-other-person-key")
+    f.save(member=other, key="synthetic-updated-shared-key", revision=1)
     other_headers = {
         "Authorization": "Bearer "
         + token_factory("kb_viewer", sub=other, aud=["kb-test"], iat=int(time.time()))
@@ -234,12 +253,19 @@ def test_same_profile_id_is_resolved_only_for_verified_subject(gateway, token_fa
     response = f.client.post(
         PREFIX + "/chat/completions",
         headers=other_headers,
-        json={"model": "personal-1", "messages": [{"role": "user", "content": "other prompt"}]},
+        json={
+            "model": "shared:profile-1",
+            "messages": [{"role": "user", "content": "other prompt"}],
+        },
     )
     assert response.status_code == 200
-    assert f.state.model_calls[-1][1]["api_key"] == "synthetic-other-person-key"
+    assert f.state.model_calls[-1][1]["api_key"] == "synthetic-updated-shared-key"
     assert ask(f).status_code == 200
-    assert f.state.model_calls[-1][1]["api_key"] == SECRET
+    assert f.state.model_calls[-1][1]["api_key"] == "synthetic-updated-shared-key"
+    # A bare legacy ID must not accidentally select the new shared profile.
+    calls = len(f.state.model_calls)
+    assert ask(f, model="profile-1").status_code == 404
+    assert len(f.state.model_calls) == calls
 
 
 @pytest.mark.parametrize(
@@ -289,7 +315,7 @@ def test_kb_roles_can_generate_without_pm_business_membership(gateway, role):
     assert ask(gateway).status_code == 200
 
 
-def test_only_kb_audience_accepted_and_existing_personal_api_does_not_accept_it(
+def test_only_kb_audience_accepted_and_existing_workbench_api_does_not_accept_it(
     gateway, token_factory
 ):
     f = gateway
@@ -311,6 +337,10 @@ def test_only_kb_audience_accepted_and_existing_personal_api_does_not_accept_it(
         ).status_code
         == 401
     )
+    assert (
+        f.client.get(PREFIX + "/models", headers=f.headers(owner="another-org")).status_code == 403
+    )
+    assert not f.state.model_calls
 
 
 def test_tools_and_followup_results_are_forwarded_without_execution(gateway):
@@ -460,13 +490,9 @@ def test_length_finish_and_unknown_usage_are_preserved_without_fabricated_cost(g
     assert response.json()["usage"] == {}
 
 
-def test_system_ollama_tool_protocol_conversion(gateway):
+def test_shared_default_ollama_tool_protocol_conversion(gateway):
     f = gateway
-    f.system.clear()
-    f.system.update(
-        provider="ollama",
-        providers={"ollama": {"base_url": "http://local-approved", "model": "synthetic-local"}},
-    )
+    f.save(provider="ollama", model="synthetic-local", key="", revision=1)
     f.state.result = {
         "message": {
             "role": "assistant",

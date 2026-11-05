@@ -443,14 +443,16 @@ def question(db, claims, task, payload):
     if selected["kind"] == "private":
         cfg = dict(selected["config"])
     else:
-        config = ai.load_settings()
+        config = ai.load_settings(db, claims)
         provider = config["provider"]
         cfg = dict(config["providers"][provider])
         if not cfg.get("model") or (provider != "ollama" and not cfg.get("api_key")):
             raise HTTPException(422, "尚未配置可用模型，请先在 AI 模型设置中添加模型")
     # Prior answers may contain sources that are no longer selected or accessible.
     # Rebuild evidence on every turn instead of forwarding old conversation text.
-    diagnostics.configure_model("custom" if selected["kind"] == "private" else provider, cfg)
+    diagnostics.configure_model(
+        solution_ai.transport_provider(cfg) if selected["kind"] == "private" else provider, cfg
+    )
     history = all_history[-6:]
     previous = next((message for message in reversed(history) if message.role == "assistant"), None)
     if payload.answer_mode is None:
@@ -672,7 +674,9 @@ def question(db, claims, task, payload):
         elif use_knowledge:
             with assistant_sources.collect() as sources:
                 content = assistant_tool_chat.chat(
-                    "custom" if selected["kind"] == "private" else provider,
+                    solution_ai.transport_provider(cfg)
+                    if selected["kind"] == "private"
+                    else provider,
                     cfg,
                     messages,
                     claims,
@@ -688,7 +692,9 @@ def question(db, claims, task, payload):
         else:
             content, _ = (
                 assistant_generation.call(
-                    "custom" if selected["kind"] == "private" else provider,
+                    solution_ai.transport_provider(cfg)
+                    if selected["kind"] == "private"
+                    else provider,
                     cfg,
                     messages,
                     request_fn=solution_ai.pinned_request

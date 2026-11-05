@@ -48,12 +48,17 @@ class AISettingsInput(BaseModel):
     provider: Provider = "deepseek"
     providers: dict[Provider, ProviderConfig]
     offline_fallback: bool = False
+    preserve_shared_models: bool = False
     # 默认分析提示词（项目 / 财务）；留空或与系统默认相同时使用系统默认
     analysis_prompt: str = Field(default="", max_length=MAX_PROMPT_LENGTH)
     finance_analysis_prompt: str = Field(default="", max_length=MAX_PROMPT_LENGTH)
 
     @model_validator(mode="after")
     def selected_model(self):
+        if self.preserve_shared_models:
+            if self.providers:
+                raise ValueError("仅保存提示词时不能同时提交模型配置")
+            return self
         for provider, config in self.providers.items():
             if config.model or config.api_key or provider == self.provider:
                 enterprise_url(provider, config.base_url)
