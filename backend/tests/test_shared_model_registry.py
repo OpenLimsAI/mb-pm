@@ -217,6 +217,7 @@ def test_global_compatibility_write_updates_same_shared_registry(
     payload = AISettingsInput.model_validate(
         {
             "provider": "minimax",
+            "revision": 0,
             "providers": {
                 "minimax": {
                     "base_url": "https://api.minimaxi.com/v1",
@@ -267,6 +268,7 @@ def test_prompt_only_compatibility_does_not_replace_shared_default(
                 }
             },
             "analysis_prompt": "A changed prompt",
+            "revision": current["revision"],
         }
     )
     ai.save_settings(payload, registry_db, member())
@@ -274,17 +276,18 @@ def test_prompt_only_compatibility_does_not_replace_shared_default(
         solution_ai.settings(registry_db, member())["default_profile_id"]
         == "shared:shared-research"
     )
-    assert solution_ai.settings(registry_db, member())["revision"] == 1
+    assert solution_ai.settings(registry_db, member())["revision"] == 2
     only_prompts = AISettingsInput.model_validate(
         {
             "provider": "deepseek",
             "providers": {},
             "preserve_shared_models": True,
             "analysis_prompt": "Prompt-only compatibility",
+            "revision": 2,
         }
     )
     ai.save_settings(only_prompts, registry_db, member())
-    assert solution_ai.settings(registry_db, member())["revision"] == 1
+    assert solution_ai.settings(registry_db, member())["revision"] == 3
     assert ai.load_settings(registry_db, member())["analysis_prompt"] == "Prompt-only compatibility"
 
 
@@ -422,3 +425,184 @@ def test_shared_provider_tuning_preserves_legacy_private_transport(registry_db):
     shared = solution_ai.select_model(registry_db, member("bob"), "shared:shared-research")
     assert solution_ai.transport_provider(shared["config"]) == "minimax"
     assert solution_ai.transport_provider({"provider": "minimax"}) == "custom"
+
+
+@pytest.mark.parametrize("submitted_revision", [None, 0, 1])
+def test_legacy_form_cannot_replace_a_newer_shared_default(registry_db, submitted_revision):
+    from app.schemas.ai import AISettingsInput
+    from app.services import ai
+
+    first = draft().model_copy(
+        update={
+            "profiles": [
+                draft()
+                .profiles[0]
+                .model_copy(
+                    update={
+                        "provider": "deepseek",
+                        "base_url": "https://api.deepseek.com",
+                        "model": "old-model",
+                    }
+                )
+            ]
+        }
+    )
+    solution_ai.save_settings(registry_db, member(), first)
+    old = ai.public_settings(ai.load_settings(registry_db, member()))
+    newer = draft(revision=1)
+    solution_ai.save_settings(registry_db, member("bob"), newer)
+    old.update(revision=submitted_revision, analysis_prompt="stale form prompt")
+    # Legacy forms support only four provider slots.
+    old["providers"] = {key: value for key, value in old["providers"].items() if key in ai.DEFAULTS}
+    with pytest.raises(HTTPException) as error:
+        ai.save_settings(AISettingsInput.model_validate(old), registry_db, member())
+    assert error.value.status_code == 409
+    current = solution_ai.settings(registry_db, member())
+    assert current["revision"] == 2
+    assert current["default_profile_id"] == "shared:shared-research"
+    assert current["profiles"][0]["model"] == "MiniMax-M3"
+
+
+@pytest.mark.parametrize("provider", ["custom", "ollama"])
+def test_global_status_accepts_the_same_keyless_default_as_runtime(registry_db, provider):
+    from app.api.v1.ai import get_status
+    from app.core.config import settings
+
+    configured = draft().model_copy(
+        update={
+            "profiles": [
+                draft()
+                .profiles[0]
+                .model_copy(
+                    update={
+                        "provider": provider,
+                        "base_url": "https://model.example/v1",
+                        "api_key": None,
+                    }
+                )
+            ]
+        }
+    )
+    identity = member(org=settings.CASDOOR_ORG, issuer=settings.casdoor_issuer)
+    solution_ai.save_settings(registry_db, identity, configured)
+    assert (
+        solution_ai.select_model(registry_db, identity, "system")["config"]["provider"] == provider
+    )
+    assert get_status(None, registry_db)["ready"] is True
+
+
+def test_compatibility_save_uses_one_database_commit_without_writing_bootstrap_file(
+    registry_db, monkeypatch
+):
+    from app.schemas.ai import AISettingsInput
+    from app.services import ai, shared_ai_import
+
+    def unwritable(*args, **kwargs):
+        pytest.fail("active shared settings must not write the old bootstrap file")
+
+    monkeypatch.setattr(ai.tempfile, "mkstemp", unwritable)
+    solution_ai.save_settings(registry_db, member(), draft())
+    payload = AISettingsInput.model_validate(
+        {
+            "provider": "deepseek",
+            "revision": 1,
+            "providers": {
+                "deepseek": {
+                    "base_url": "https://api.deepseek.com",
+                    "model": "new-model",
+                    "api_key": "synthetic-key",
+                }
+            },
+            "analysis_prompt": "atomic prompt",
+        }
+    )
+    ai.save_settings(payload, registry_db, member())
+    assert (
+        solution_ai.settings(registry_db, member())["default_profile_id"]
+        == "shared:system_deepseek"
+    )
+    assert ai.load_settings(registry_db, member())["analysis_prompt"] == "atomic prompt"
+    source = {
+        "scope": "service_shared",
+        "provider": "minimax",
+        "base_url": "https://api.minimaxi.com/v1",
+        "model": "MiniMax-M3",
+        "api_key": "synthetic-import",
+    }
+    shared_ai_import.import_profile(registry_db, member(), source, expected_revision=2)
+    assert ai.load_settings(registry_db, member())["analysis_prompt"] == "atomic prompt"
+
+
+def test_compatibility_database_failure_rolls_back_model_and_preferences_together(registry_db):
+    from sqlalchemy import event
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from app.schemas.ai import AISettingsInput
+    from app.services import ai
+
+    solution_ai.save_settings(registry_db, member(), draft())
+    before = solution_ai.settings(registry_db, member())
+
+    def fail_commit(session):
+        raise SQLAlchemyError("synthetic unavailable database")
+
+    event.listen(registry_db, "before_commit", fail_commit, once=True)
+    payload = AISettingsInput.model_validate(
+        {
+            "provider": "deepseek",
+            "revision": 1,
+            "providers": {
+                "deepseek": {
+                    "base_url": "https://api.deepseek.com",
+                    "model": "new-model",
+                    "api_key": "synthetic-key",
+                }
+            },
+            "analysis_prompt": "should not commit",
+        }
+    )
+    with pytest.raises(HTTPException) as error:
+        ai.save_settings(payload, registry_db, member())
+    assert error.value.status_code == 503
+    assert solution_ai.settings(registry_db, member()) == before
+    assert ai.load_settings(registry_db, member())["analysis_prompt"] != "should not commit"
+
+
+def test_runtime_never_uses_legacy_file_keys_for_another_organization(registry_db, monkeypatch):
+    from app.services import ai
+
+    monkeypatch.setattr(
+        ai,
+        "load_legacy_settings",
+        lambda: pytest.fail("must not read another organization's bootstrap keys"),
+    )
+    loaded = ai.load_settings(registry_db, member(org="unconfigured-other-org"))
+    assert loaded["provider"] == "custom"
+    assert all(not config.get("api_key") for config in loaded["providers"].values())
+
+
+def test_file_only_legacy_utility_keeps_private_permissions(monkeypatch, tmp_path):
+    import os
+    import stat
+
+    from app.core.config import settings
+    from app.schemas.ai import AISettingsInput
+    from app.services import ai
+
+    path = tmp_path / "old-bootstrap.json"
+    monkeypatch.setattr(settings, "AI_SETTINGS_PATH", str(path))
+    payload = AISettingsInput.model_validate(
+        {
+            "provider": "deepseek",
+            "providers": {
+                "deepseek": {
+                    "base_url": "https://api.deepseek.com",
+                    "model": "test",
+                    "api_key": "synthetic-only",
+                }
+            },
+        }
+    )
+    ai.save_settings(payload)
+    if os.name == "posix":
+        assert stat.S_IMODE(path.stat().st_mode) == 0o600

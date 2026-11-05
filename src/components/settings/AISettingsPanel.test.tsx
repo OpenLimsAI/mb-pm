@@ -11,7 +11,7 @@ const legacyProviders = {
   ollama: { base_url: 'http://127.0.0.1:11434', model: '', key_set: false },
 }
 function setup(provider: string) {
-  const settings = { provider, providers: { ...legacyProviders, ...(provider in legacyProviders ? {} : { [provider]: { base_url: 'https://model.example/v1', model: 'shared-default-model', key_set: true } }) }, offline_fallback: false, analysis_prompt: '原项目提示', finance_analysis_prompt: '原财务提示', default_analysis_prompt: '默认项目提示', default_finance_analysis_prompt: '默认财务提示' }
+  const settings = { revision: 3, provider, providers: { ...legacyProviders, ...(provider in legacyProviders ? {} : { [provider]: { base_url: 'https://model.example/v1', model: 'shared-default-model', key_set: true } }) }, offline_fallback: false, analysis_prompt: '原项目提示', finance_analysis_prompt: '原财务提示', default_analysis_prompt: '默认项目提示', default_finance_analysis_prompt: '默认财务提示' }
   const writes: Record<string, unknown>[] = []
   server.use(
     http.get('*/api/v1/ai/settings', () => HttpResponse.json(settings)),
@@ -55,7 +55,7 @@ describe('legacy project AI settings with a shared registry', () => {
     fireEvent.change(screen.getByLabelText('模型名称'), { target: { value: 'explicit-new-model' } })
     fireEvent.click(screen.getByRole('button', { name: /保存设置/ }))
     await screen.findByText('共享模型设置已保存，项目分析将使用此配置。')
-    expect(writes[0]).toMatchObject({ provider: 'deepseek', preserve_shared_models: false, providers: { deepseek: { model: 'explicit-new-model' } } })
+    expect(writes[0]).toMatchObject({ revision: 3, provider: 'deepseek', preserve_shared_models: false, providers: { deepseek: { model: 'explicit-new-model' } } })
     expect(Object.keys(writes[0].providers as object).sort()).toEqual(['deepseek', 'kimi', 'minimax', 'ollama'])
   })
 })

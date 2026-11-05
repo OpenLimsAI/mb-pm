@@ -17,6 +17,7 @@ export interface ProviderConfig {
   clearKey?: boolean
 }
 export interface AISettings {
+  revision?: number
   provider: string
   offlineFallback: boolean
   providers: Record<string, ProviderConfig>

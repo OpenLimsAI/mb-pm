@@ -10,6 +10,12 @@ Provider = Literal["deepseek", "minimax", "kimi", "ollama"]
 MAX_PROMPT_LENGTH = 4000
 
 
+class AIAnalysisPreferences(BaseModel):
+    offline_fallback: bool = False
+    analysis_prompt: str = Field(default="", max_length=MAX_PROMPT_LENGTH)
+    finance_analysis_prompt: str = Field(default="", max_length=MAX_PROMPT_LENGTH)
+
+
 class ProviderConfig(BaseModel):
     base_url: str = Field(max_length=500)
     model: str = Field(default="", max_length=160)
@@ -49,6 +55,8 @@ class AISettingsInput(BaseModel):
     providers: dict[Provider, ProviderConfig]
     offline_fallback: bool = False
     preserve_shared_models: bool = False
+    # Required only when the compatibility API changes shared model settings.
+    revision: int | None = Field(default=None, ge=0)
     # 默认分析提示词（项目 / 财务）；留空或与系统默认相同时使用系统默认
     analysis_prompt: str = Field(default="", max_length=MAX_PROMPT_LENGTH)
     finance_analysis_prompt: str = Field(default="", max_length=MAX_PROMPT_LENGTH)

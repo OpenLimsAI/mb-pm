@@ -10,7 +10,7 @@ from app.api.deps import get_db, require_role
 from app.core.config import settings
 from app.models import FinanceAIAnalysis, IAMIdentity, Project, ProjectAIAnalysis, User
 from app.schemas.ai import AISettingsInput, AnalysisInput, ConnectionInput
-from app.services import accounts, ai
+from app.services import accounts, ai, solution_ai
 from app.services.scope import visible_project_ids_for
 
 router = APIRouter(tags=["ai"])
@@ -105,8 +105,7 @@ def get_status(user: ConfigurationManager, db: Database):
     return {
         "provider": cfg["provider"],
         "model": selected["model"],
-        "ready": bool(selected["model"])
-        and (cfg["provider"] == "ollama" or bool(selected.get("api_key"))),
+        "ready": solution_ai.is_configured({**selected, "provider": cfg["provider"]}),
         "offline_fallback": cfg["offline_fallback"],
         # 分析面板预填的默认提示词（项目负责人也需要看到，故不走仅管理员可读的设置接口）
         "analysis_prompt": cfg["analysis_prompt"],

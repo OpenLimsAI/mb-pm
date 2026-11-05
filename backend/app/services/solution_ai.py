@@ -88,8 +88,14 @@ def save_settings(db, claims, draft):
     return organization_ai.save(db, claims, draft)
 
 
+def is_configured(profile):
+    return bool(profile.get("model")) and (
+        profile["provider"] in {"custom", "ollama"} or bool(profile.get("api_key"))
+    )
+
+
 def _ready(profile):
-    if profile["provider"] not in {"custom", "ollama"} and not profile.get("api_key"):
+    if not is_configured(profile):
         raise HTTPException(422, "所选模型尚未填写密钥，请先完善该模型配置")
     return profile
 
@@ -113,10 +119,7 @@ def select_model(db, claims, profile_id):
             raise HTTPException(404, "历史个人模型不存在或不属于当前账号")
         return {"kind": "private", "config": _ready(profile)}
     profile = next((p for p in shared["profiles"] if p["id"] == selected), None)
-    if profile_id is None and (
-        profile is None
-        or (profile["provider"] not in {"custom", "ollama"} and not profile.get("api_key"))
-    ):
+    if profile_id is None and (profile is None or not is_configured(profile)):
         # Automatic report mode may still return retrieval-only evidence; it must
         # not silently select a different configured provider.
         return {"kind": "retrieval"}

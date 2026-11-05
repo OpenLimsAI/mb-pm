@@ -3,11 +3,12 @@
 from cryptography.fernet import InvalidToken
 from fastapi import HTTPException
 from sqlalchemy import update
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.core.config import settings
 from app.core.security import seal, unseal
 from app.models.organization_ai import OrganizationAISettings
+from app.schemas.ai import AIAnalysisPreferences
 from app.schemas.solution_ai import RESERVED_IDS, SharedModelSettingsInput
 
 PREFIX = "shared:"
@@ -52,6 +53,7 @@ def legacy_bootstrap():
     return {
         "profiles": profiles,
         "default_profile_id": selected if any(p["id"] == selected for p in profiles) else None,
+        "preferences": AIAnalysisPreferences.model_validate(legacy).model_dump(),
     }
 
 
@@ -82,6 +84,10 @@ def load(db, claims):
         }
         if "imports" in stored:
             data["imports"] = stored["imports"]
+        if "preferences" in stored:
+            data["preferences"] = AIAnalysisPreferences.model_validate(
+                stored["preferences"]
+            ).model_dump()
         return row, data
     except (InvalidToken, ValueError, TypeError, KeyError, HTTPException):
         raise HTTPException(503, UNAVAILABLE) from None
@@ -105,7 +111,7 @@ def public(data, revision):
     }
 
 
-def save(db, claims, draft):
+def save(db, claims, draft, *, preferences=None):
     from app.services.solution_ai import _resolve
 
     row, previous = load(db, claims)
@@ -128,6 +134,10 @@ def save(db, claims, draft):
         raise HTTPException(422, "默认模型必须在共享配置中")
     if "imports" in previous:
         data["imports"] = previous["imports"]
+    if preferences is not None:
+        data["preferences"] = AIAnalysisPreferences.model_validate(preferences).model_dump()
+    elif "preferences" in previous:
+        data["preferences"] = previous["preferences"]
     revision = draft.revision + 1
     issuer, organization = identity(claims)
     try:
@@ -164,4 +174,7 @@ def save(db, claims, draft):
     except IntegrityError:
         db.rollback()
         raise HTTPException(409, CONFLICT) from None
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(503, UNAVAILABLE) from None
     return public(data, revision)

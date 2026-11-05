@@ -112,13 +112,23 @@ def load_legacy_settings() -> dict:
 
 
 def load_settings(db=None, claims=None) -> dict:
-    legacy = load_legacy_settings()
     if db is None:
-        return legacy
+        return load_legacy_settings()
     from app.services import organization_ai
 
     scope = claims or {"iss": settings.casdoor_issuer, "owner": settings.CASDOOR_ORG}
-    _, shared = organization_ai.load(db, scope)
+    row, shared = organization_ai.load(db, scope)
+    # The old file is read only by the configured organization's bootstrap.
+    # Never make its saved keys available as fallbacks in another organization.
+    legacy = {
+        "provider": "deepseek",
+        "offline_fallback": False,
+        "providers": {p: dict(v) for p, v in DEFAULTS.items()},
+        **{key: default for key, default, _ in KINDS.values()},
+    }
+    legacy = {**legacy, **shared.get("preferences", {}), "revision": row.revision if row else 0}
+    for key, default, _ in KINDS.values():
+        legacy[key] = legacy[key].strip() or default
     selected = next(
         (p for p in shared["profiles"] if p["id"] == shared["default_profile_id"]), None
     )
@@ -175,44 +185,67 @@ def resolve_config(provider: str, draft: ProviderConfig, stored: dict) -> dict:
     return value
 
 
-def save_settings(draft: AISettingsInput, db=None, claims=None) -> dict:
-    with _lock:
-        model_changed = True
-        if db is not None:
-            current = load_settings(db, claims)
-            model_changed = draft.provider != current["provider"] or any(
-                resolve_config(provider, value, current) != current["providers"][provider]
-                for provider, value in draft.providers.items()
-            )
-        if db is not None and not draft.preserve_shared_models and model_changed:
-            from app.schemas.solution_ai import SharedModelSettingsInput
-            from app.services import organization_ai
+def _save_shared_settings(draft, db, claims):
+    from fastapi import HTTPException
 
-            scope = claims or {"iss": settings.casdoor_issuer, "owner": settings.CASDOOR_ORG}
-            row, shared = organization_ai.load(db, scope)
-            stored = load_settings(db, scope)
-            profiles = {p["id"]: dict(p) for p in shared["profiles"]}
-            for provider, value in draft.providers.items():
-                config = resolve_config(provider, value, stored)
-                identifier = "system_" + provider
-                if config.get("model"):
-                    profiles[identifier] = {
-                        "id": identifier,
-                        "name": "系统 " + provider,
-                        "provider": provider,
-                        "clear_key": value.clear_key,
-                        **config,
-                    }
-                else:
-                    profiles.pop(identifier, None)
-            payload = SharedModelSettingsInput.model_validate(
-                {
-                    "profiles": list(profiles.values()),
-                    "default_profile_id": "system_" + draft.provider,
-                    "revision": row.revision if row else 0,
+    from app.schemas.solution_ai import SharedModelSettingsInput
+    from app.services import organization_ai
+
+    if draft.revision is None:
+        raise HTTPException(409, "共享设置已启用版本校验，请重新加载设置后再保存")
+    scope = claims or {"iss": settings.casdoor_issuer, "owner": settings.CASDOOR_ORG}
+    _, shared = organization_ai.load(db, scope)
+    stored = load_settings(db, scope)
+    profiles = {p["id"]: dict(p) for p in shared["profiles"]}
+    model_changed = not draft.preserve_shared_models and (
+        draft.provider != stored["provider"]
+        or any(
+            resolve_config(provider, value, stored) != stored["providers"][provider]
+            for provider, value in draft.providers.items()
+        )
+    )
+    default = shared["default_profile_id"]
+    if model_changed:
+        for provider, value in draft.providers.items():
+            config = resolve_config(provider, value, stored)
+            identifier = "system_" + provider
+            if config.get("model"):
+                profiles[identifier] = {
+                    "id": identifier,
+                    "name": "系统 " + provider,
+                    "provider": provider,
+                    "clear_key": value.clear_key,
+                    **config,
                 }
-            )
-            organization_ai.save(db, scope, payload)
+            else:
+                profiles.pop(identifier, None)
+        default = "system_" + draft.provider
+    payload = SharedModelSettingsInput.model_validate(
+        {
+            "profiles": list(profiles.values()),
+            "default_profile_id": default,
+            "revision": draft.revision,
+        }
+    )
+    preferences = {
+        "offline_fallback": stored["offline_fallback"]
+        if draft.preserve_shared_models
+        else draft.offline_fallback,
+        **{
+            key: ("" if getattr(draft, key).strip() == default else getattr(draft, key).strip())
+            for key, default, _ in KINDS.values()
+        },
+    }
+    # Models, default, and analysis preferences share one CAS/DB commit. The
+    # bootstrap file is not written: a file failure cannot half-commit settings.
+    organization_ai.save(db, scope, payload, preferences=preferences)
+    return public_settings(load_settings(db, scope))
+
+
+def save_settings(draft: AISettingsInput, db=None, claims=None) -> dict:
+    if db is not None:
+        return _save_shared_settings(draft, db, claims)
+    with _lock:
         cfg = load_legacy_settings()
         if not draft.preserve_shared_models:
             cfg.update(provider=draft.provider, offline_fallback=draft.offline_fallback)

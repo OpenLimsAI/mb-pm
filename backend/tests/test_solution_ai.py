@@ -309,7 +309,7 @@ def test_keyless_cloud_saves_but_test_and_ask_reject(solution_client, monkeypatc
         == 422
     )
     doc = create(f)
-    assert question(f, doc).status_code == 422
+    assert question(f, doc, model_profile_id="system").status_code == 422
 
 
 def test_custom_keyless_connection_and_error_redaction(solution_client, monkeypatch):

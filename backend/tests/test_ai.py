@@ -1,16 +1,17 @@
 import json
-import os
-import stat
 import threading
 from datetime import date, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
 
+from app.core import security
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.models import Project, ProjectAIAnalysis, SubProject, Task
+from app.models.organization_ai import OrganizationAISettings
 from app.schemas.ai import AISettingsInput
 from app.services import ai
 
@@ -18,6 +19,9 @@ from app.services import ai
 @pytest.fixture(autouse=True)
 def isolated_ai_settings(tmp_path, monkeypatch, live_ai_roles):
     monkeypatch.setattr(settings, "AI_SETTINGS_PATH", str(tmp_path / "ai.json"))
+    with SessionLocal() as db:
+        db.query(OrganizationAISettings).delete()
+        db.commit()
 
 
 @pytest.fixture
@@ -72,8 +76,13 @@ def project(auth_headers):
     return pid
 
 
+def runtime_settings():
+    with SessionLocal() as db:
+        return ai.load_settings(db)
+
+
 def config_payload():
-    cfg = ai.public_settings(ai.load_settings())
+    cfg = ai.public_settings(runtime_settings())
     cfg["providers"]["deepseek"]["api_key"] = "test-secret-not-real"
     return cfg
 
@@ -84,17 +93,25 @@ def test_settings_secrets_preserved_cleared_and_not_forwarded(client, auth_heade
     assert res.status_code == 200
     assert "test-secret" not in res.text
     assert res.json()["providers"]["deepseek"]["key_set"]
-    if os.name == "posix":  # Windows 不提供 POSIX 文件模式；生产 Linux 仍须严格为 0600。
-        assert stat.S_IMODE(os.stat(settings.AI_SETTINGS_PATH).st_mode) == 0o600
+    with SessionLocal() as db:
+        encrypted = db.query(OrganizationAISettings).one().encrypted_payload
+        assert "test-secret-not-real" not in encrypted
+    assert not Path(settings.AI_SETTINGS_PATH).exists()
     payload = res.json()
     payload["providers"]["deepseek"]["api_key"] = ""
-    client.put("/api/v1/ai/settings", json=payload, headers=auth_headers)
-    assert ai.load_settings()["providers"]["deepseek"]["api_key"] == "test-secret-not-real"
+    saved = client.put("/api/v1/ai/settings", json=payload, headers=auth_headers)
+    assert saved.status_code == 200
+    payload = saved.json()
+    assert runtime_settings()["providers"]["deepseek"]["api_key"] == "test-secret-not-real"
     payload["providers"]["deepseek"]["base_url"] = "https://api.deepseek.com/v1"
-    client.put("/api/v1/ai/settings", json=payload, headers=auth_headers)
-    assert not ai.load_settings()["providers"]["deepseek"]["api_key"]
+    saved = client.put("/api/v1/ai/settings", json=payload, headers=auth_headers)
+    assert saved.status_code == 200
+    payload = saved.json()
+    assert not runtime_settings()["providers"]["deepseek"]["api_key"]
     payload["providers"]["deepseek"].update(api_key="replacement", clear_key=False)
-    client.put("/api/v1/ai/settings", json=payload, headers=auth_headers)
+    saved = client.put("/api/v1/ai/settings", json=payload, headers=auth_headers)
+    assert saved.status_code == 200
+    payload = saved.json()
     payload["providers"]["deepseek"].update(api_key="", clear_key=True)
     assert client.put("/api/v1/ai/settings", json=payload, headers=auth_headers).status_code == 200
     assert not client.get("/api/v1/ai/status", headers=auth_headers).json()["ready"]
@@ -286,11 +303,13 @@ def test_analysis_prompt_default_custom_reset_and_limit(client, auth_headers):
     status = client.get("/api/v1/ai/status", headers=auth_headers).json()
     assert status["analysis_prompt"] == "只分析里程碑延期风险，用表格列出。"
 
+    payload = saved
     payload["analysis_prompt"] = ai.DEFAULT_ANALYSIS_PROMPT  # 恢复默认：只记「用默认」
     client.put("/api/v1/ai/settings", json=payload, headers=auth_headers)
-    stored = json.loads(open(settings.AI_SETTINGS_PATH).read())
-    assert stored["analysis_prompt"] == ""
-    assert ai.load_settings()["analysis_prompt"] == ai.DEFAULT_ANALYSIS_PROMPT
+    with SessionLocal() as db:
+        stored = security.unseal(db.query(OrganizationAISettings).one().encrypted_payload)
+    assert stored["preferences"]["analysis_prompt"] == ""
+    assert runtime_settings()["analysis_prompt"] == ai.DEFAULT_ANALYSIS_PROMPT
 
     payload["analysis_prompt"] = "长" * 4001
     assert client.put("/api/v1/ai/settings", json=payload, headers=auth_headers).status_code == 422
@@ -373,7 +392,7 @@ def test_pm_ai_configuration_rechecks_live_iam(client, auth_headers, monkeypatch
 
     saved = client.put("/api/v1/ai/settings", json=config_payload(), headers=auth_headers)
     assert saved.status_code == 200
-    before = ai.load_settings()
+    before = runtime_settings()
     monkeypatch.setattr(
         iam_admin,
         "get_user_by_sub",
@@ -396,7 +415,7 @@ def test_pm_ai_configuration_rechecks_live_iam(client, auth_headers, monkeypatch
         ("POST", "/api/v1/ai/test", connection),
     ]:
         assert client.request(method, url, json=body, headers=auth_headers).status_code == 403
-    assert ai.load_settings() == before
+    assert runtime_settings() == before
 
 
 def test_pm_ai_settings_cookie_requires_pm_origin(client, admin_user, token_factory):
