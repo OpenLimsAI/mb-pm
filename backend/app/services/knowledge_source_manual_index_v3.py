@@ -4,8 +4,10 @@ import copy
 import time
 
 from fastapi import HTTPException
+from sqlalchemy import and_, or_
 
 from app.core.config import settings
+from app.models.information import InformationEntry
 from app.services import password_policy
 from app.services.information import bridge
 from app.services.information.store import iso
@@ -62,19 +64,41 @@ def resolve_manual(store, subject, paper_id, connector=bridge.call):
     return document, source, version, active
 
 
-def version_jobs(store, version_id):
-    return [
-        job
-        for job in store.records("job")
-        if job.get("app") == APP
-        and job.get("kind") == KIND
-        and any(item.get("versionId") == version_id for item in job.get("items", []))
-    ]
+def _status_snapshot(store, version_id):
+    # The authenticated KB check can overlap the worker's completion commit.
+    # Read both records in one statement rather than combining the earlier
+    # version dict with a later job query (completed + pending stops UI polling).
+    rows = (
+        store.db.query(InformationEntry)
+        .filter(
+            InformationEntry.tenant == store.tenant,
+            or_(
+                and_(InformationEntry.kind == "version", InformationEntry.id == version_id),
+                InformationEntry.kind == "job",
+            ),
+        )
+        .populate_existing()
+        .order_by(InformationEntry.updated_at, InformationEntry.id)
+        .all()
+    )
+    version, jobs = None, []
+    for row in rows:
+        value = copy.deepcopy(row.data)
+        if row.kind == "version":
+            version = value
+        elif (
+            value.get("app") == APP
+            and value.get("kind") == KIND
+            and any(item.get("versionId") == version_id for item in value.get("items", []))
+        ):
+            jobs.append(value)
+    if version is None:
+        raise HTTPException(404, "信息获取版本不存在")
+    return version, jobs[-1] if jobs else None
 
 
 def public_status(store, version):
-    jobs = version_jobs(store, version["id"])
-    job = jobs[-1] if jobs else None
+    version, job = _status_snapshot(store, version["id"])
     return {
         "jobId": job["id"] if job else None,
         "status": job.get("status") if job else "not_started",
