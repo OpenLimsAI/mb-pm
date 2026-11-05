@@ -286,6 +286,16 @@ def logout(request: Request, db: Session = Depends(get_db)):
     return no_cache(response)
 
 
+@router.post("/logout/device")
+def logout_device(request: Request, db: Annotated[Session, Depends(get_db)]):
+    require_same_origin(request)
+    if not settings.OIDC_GLOBAL_LOGOUT_ENABLED or not settings.OIDC_DEVICE_LOGOUT_ENABLED:
+        raise HTTPException(503, "当前设备统一退出尚未启用")
+    from app.services.oidc_logout import global_logout
+
+    return global_logout(request, db, all_devices=False)
+
+
 @router.get("/me", response_model=MeOut)
 def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     identity = (

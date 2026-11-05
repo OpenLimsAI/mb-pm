@@ -209,6 +209,16 @@ Kimi 支持、模型价格显示与静态价格目录的维护规则见[模型�
 
 保留期默认0（不清理）；7–365天仅定义显式清理的范围，管理员须再次确认。每批最多1000条终态请求的重复输入与未完成稿；正式任务、消息和诊断状态保留。详情见[AI助手](ai-assistant.md)。部署状态以本次发布回执为准。
 
+## 受限客户端与 v4 会话兼容
+
+`CASDOOR_ACCOUNT_STATUS_MODE=casdoor_v4_self_policy` 对接配套 mb-casd 的固定本人状态及精简角色投影。PM／门户使用有效本人令牌；缺少必填状态、错主体、禁用或查询失败均拒绝，不授予组织管理权。默认仍为 `get_user`，不得只改模式而未确认配套 IdP 能力及字段可见性。
+
+`OIDC_GLOBAL_LOGOUT_ENABLED` 与 `CASDOOR_ACCOUNT_STATUS_VISIBLE` 默认关闭。退出使用当前用户服务端 Bearer 并抑制中间 Cookie，验证退出前身份和退出后失效；失败报告未确认，不假称全局成功。`OIDC_DEVICE_LOGOUT_ENABLED` 默认关闭；显式启用时只使用已验证 ID token 的 sid，不接收浏览器指定 sid，全设备通知仍只带 sub。
+
+产品界面保留 PM“登出”和门户“退出工作台”，不再显示“退出当前设备”；旧 `VITE_DEVICE_LOGOUT_ENABLED` 不会恢复该按钮。后端设备范围兼容能力仍受开关保护。单应用退出、当前会话和全设备退出不能混称。
+
+具体契约、复跑命令和验证限制见[受限 IAM 兼容](iam-v4-compatibility.md)。本改动不创建正式客户端、扩大权限、放宽 CORS 或部署实例。
+
 ## 备份管理连接
 
 `DATA_BACKUP_AGENT_URL` 是宿主机受保护私有地址上的只读目录/选择删除适配器；`DATA_BACKUP_AGENT_SECRET` 与服务器的私有HMAC密钥一致且不少于32字符。未配置时页面明确显示不可连接，不伪造计划或记录。真实密钥不进入Vite、URL、日志或浏览器。

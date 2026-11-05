@@ -56,17 +56,45 @@ def ensure_active_token(
     if current.get("client_id") != expected_audience or current.get("sub") != claims.get("sub"):
         raise HTTPException(401, "统一身份令牌已失效或状态不匹配，请重新登录")
 
-    ensure_enabled_user(token, claims, authenticated_iat=authenticated_iat)
+    if (
+        settings.CASDOOR_ACCOUNT_STATUS_MODE == "casdoor_v4_self_policy"
+        and expected_audience == settings.MDM_DELEGATION_CLIENT_ID
+    ):
+        user = current.get("openlims_self_policy")
+        validate_self_policy(user, claims)
+        if user["isForbidden"] or user["isDeleted"]:
+            raise HTTPException(403, "统一身份账号已停用或删除")
+        apply_live_policy(user, claims, authenticated_iat=authenticated_iat)
+    else:
+        ensure_enabled_user(token, claims, authenticated_iat=authenticated_iat)
 
 
 def ensure_enabled_user(token: str, claims: dict, *, authenticated_iat: int | None = None) -> None:
     """Read only the token holder by immutable ID; discard extra provider data."""
+    if settings.CASDOOR_ACCOUNT_STATUS_MODE == "casdoor_v4_self_policy":
+        user = live_v4_userinfo(token, claims).get("openlims_self_policy")
+        validate_self_policy(user, claims)
+        if user["isForbidden"] or user["isDeleted"]:
+            raise HTTPException(403, "统一身份账号已停用或删除")
+        apply_live_policy(user, claims, authenticated_iat=authenticated_iat)
+        return
+    request_auth = {"headers": {"Authorization": "Bearer " + token}}
+    if settings.CASDOOR_ACCOUNT_STATUS_MODE == "casdoor_v4_userinfo":
+        live_v4_userinfo(token, claims)
+        # e074 already uses its own resource client for IAM account operations.
+        # Do not give the delegated DCR client broader rights or trust its JWT
+        # roles. This opt-in REQUIRES an approved resource-client capability.
+        if not settings.CASDOOR_CLIENT_ID or not settings.CASDOOR_CLIENT_SECRET:
+            raise HTTPException(503, "统一身份本人策略核验客户端尚未配置")
+        request_auth = {
+            "auth": httpx.BasicAuth(settings.CASDOOR_CLIENT_ID, settings.CASDOOR_CLIENT_SECRET)
+        }
     try:
         with httpx.Client(timeout=5, trust_env=False, follow_redirects=False) as client:
             response = client.get(
                 settings.casdoor_internal_url + "/api/get-user",
                 params={"owner": settings.CASDOOR_ORG, "userId": claims["sub"]},
-                headers={"Authorization": "Bearer " + token},
+                **request_auth,
             )
         if response.status_code in {401, 403, 404}:
             raise HTTPException(401, "统一身份账号状态核验被拒绝")
@@ -93,10 +121,83 @@ def ensure_enabled_user(token: str, claims: dict, *, authenticated_iat: int | No
     if user["isForbidden"] or user["isDeleted"]:
         raise HTTPException(403, "统一身份账号已停用或删除")
 
+    apply_live_policy(user, claims, authenticated_iat=authenticated_iat)
+
+
+def live_v4_userinfo(token: str, claims: dict) -> dict:
+    """Verify the caller's live identity before the existing resource client reads policy.
+
+    Upstream rejects disabled users before returning userinfo. Userinfo role
+    names omit isEnabled and password policy, so they are NEVER authorization
+    input. No custom claims, DCR scope expansion or administrator user token.
+    """
+    try:
+        with httpx.Client(timeout=5, trust_env=False, follow_redirects=False) as client:
+            response = client.get(
+                settings.casdoor_internal_url + "/api/userinfo",
+                headers={"Authorization": "Bearer " + token},
+            )
+        if response.status_code in {401, 403, 404}:
+            raise HTTPException(401, "统一身份实时状态核验被拒绝")
+        if response.status_code != 200:
+            raise ValueError("provider status")
+        user = response.json()
+        if not isinstance(user, dict):
+            raise ValueError("provider format")
+    except (httpx.HTTPError, ValueError, TypeError):
+        raise HTTPException(503, "统一身份实时状态服务暂不可用") from None
+    audience = claims.get("aud")
+    if isinstance(audience, list):
+        audience = audience[0] if len(audience) == 1 else None
+    if (
+        not isinstance(audience, str)
+        or not isinstance(user.get("sub"), str)
+        or user.get("sub") != claims.get("sub")
+        or user.get("iss") != settings.casdoor_issuer
+        or user.get("aud") != audience
+    ):
+        raise HTTPException(401, "统一身份实时主体或受众不匹配")
+    return user
+
+
+def validate_self_policy(user: dict, claims: dict) -> None:
+    """Default-off fixed policy extension, never a broad profile/Basic fallback."""
+    fields = {
+        "id",
+        "owner",
+        "isForbidden",
+        "isDeleted",
+        "needUpdatePassword",
+        "lastChangePasswordTime",
+        "roles",
+    }
+    if not isinstance(user, dict) or set(user) != fields:
+        raise HTTPException(503, "统一身份本人策略字段不完整")
+    if user["id"] != claims.get("sub") or user["owner"] != settings.CASDOOR_ORG:
+        raise HTTPException(401, "统一身份本人策略主体不匹配")
+    if any(
+        not isinstance(user[key], bool)
+        for key in ("isForbidden", "isDeleted", "needUpdatePassword")
+    ):
+        raise HTTPException(503, "统一身份本人状态格式不完整")
+    roles = user["roles"]
+    if not isinstance(roles, list) or any(
+        not isinstance(role, dict)
+        or set(role) != {"owner", "name", "isEnabled"}
+        or role["owner"] != settings.CASDOOR_ORG
+        or not isinstance(role["name"], str)
+        or not role["name"].strip()
+        or not isinstance(role["isEnabled"], bool)
+        for role in roles
+    ):
+        raise HTTPException(503, "统一身份本人角色格式不完整")
+
+
+def apply_live_policy(user: dict, claims: dict, *, authenticated_iat: int | None = None) -> None:
     # JWT role claims are a login snapshot. Authorize with the current IAM roles,
     # bound above to this exact immutable subject and organization, on every request.
     roles = user.get("roles")
-    if not isinstance(roles, list) or any(not isinstance(role, (dict, str)) for role in roles):
+    if not isinstance(roles, list) or any(not isinstance(role, dict | str) for role in roles):
         raise HTTPException(503, "统一身份角色状态不完整，请联系管理员")
     if not isinstance(user.get("needUpdatePassword"), bool):
         raise HTTPException(503, "统一身份密码状态字段不可用，请联系管理员")

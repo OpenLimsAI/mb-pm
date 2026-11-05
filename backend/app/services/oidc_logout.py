@@ -126,7 +126,7 @@ def decode_logout_token(token: str) -> tuple[dict, str]:
 def apply_revocation(db: Session, claims: dict, audience: str):
     issuer = claims["iss"]
     subject = claims.get("sub", "")
-    sid = "" if subject else claims.get("sid", "")
+    sid = claims.get("sid", "") if settings.OIDC_DEVICE_LOGOUT_ENABLED or not subject else ""
     # Deliberate conservative policy: a signed sub event ends all this app's
     # sessions for that subject, even if Casdoor supplies a mismatching Beego sid.
     marker_id = _key(issuer, audience, subject, sid)
@@ -223,10 +223,12 @@ def _logout_token_state(client, access: str, audience: str, subject: str, *, por
     return True
 
 
-def global_logout(request: Request, db: Session, *, portal: bool = False):
+def global_logout(request: Request, db: Session, *, portal: bool = False, all_devices: bool = True):
     from app.api.v1.portal import PORTAL_LOGIN_COOKIE, PORTAL_SESSION_COOKIE
     from app.core.security import LOGIN_COOKIE, SESSION_COOKIE
 
+    if not all_devices and not settings.OIDC_DEVICE_LOGOUT_ENABLED:
+        raise HTTPException(503, "当前设备统一退出尚未启用")
     cookie = PORTAL_SESSION_COOKIE if portal else SESSION_COOKIE
     model = PortalSession if portal else IAMSession
     identifier = request.cookies.get(cookie, "")
@@ -239,7 +241,8 @@ def global_logout(request: Request, db: Session, *, portal: bool = False):
     claims = None
     if session:
         try:
-            access = unseal(session.tokens)["access_token"]
+            data = unseal(session.tokens)
+            access = data["access_token"]
             audience = settings.portal_client_id if portal else settings.CASDOOR_CLIENT_ID
             claims = decode_access_token(
                 access,
@@ -247,13 +250,21 @@ def global_logout(request: Request, db: Session, *, portal: bool = False):
                 audience=audience,
                 jwks_url=settings.PORTAL_JWKS_URL or None if portal else None,
             )
+            if settings.OIDC_DEVICE_LOGOUT_ENABLED:
+                from app.services.iam_sessions import verified_session_sid
+
+                claims["sid"] = verified_session_sid(data, claims, portal=portal)
+            if not all_devices and (not isinstance(claims.get("sid"), str) or not claims["sid"]):
+                raise ValueError("verified original session id unavailable")
             with httpx.Client(timeout=8, trust_env=False, follow_redirects=False) as client:
                 if not _logout_token_state(client, access, audience, claims["sub"], portal=portal):
                     raise ValueError("global logout requires an active own-user token")
                 result = client.post(
                     settings.casdoor_internal_url + "/api/sso-logout",
-                    params={"logoutAll": "true"},
-                    headers={"Authorization": "Bearer " + access},
+                    params={"logoutAll": "true" if all_devices else "false"},
+                    # Introspection may set an ephemeral provider cookie. Never
+                    # mix that cookie with this exact own-user Bearer identity.
+                    headers={"Authorization": "Bearer " + access, "Cookie": ""},
                 )
                 payload = result.json()
                 acknowledged = (
@@ -267,12 +278,20 @@ def global_logout(request: Request, db: Session, *, portal: bool = False):
                     )
         except (InvalidToken, httpx.HTTPError, HTTPException, ValueError, TypeError, KeyError):
             succeeded = False
-    if claims:
+    if claims and (all_devices or isinstance(claims.get("sid"), str) and claims["sid"]):
         # Revoke own PM/portal sessions even if provider notification is delayed.
         for audience in sorted({settings.CASDOOR_CLIENT_ID, settings.portal_client_id}):
             apply_revocation(
-                db, {"iss": claims["iss"], "sub": claims["sub"], "iat": int(time.time())}, audience
+                db,
+                {
+                    "iss": claims["iss"],
+                    "sub": claims["sub"],
+                    "iat": int(time.time()),
+                    **({"sid": claims["sid"]} if not all_devices else {}),
+                },
+                audience,
             )
+    protected_cookies = set()
     for model, cookie_name in [
         (IAMSession, SESSION_COOKIE),
         (IAMLogin, LOGIN_COOKIE),
@@ -280,6 +299,44 @@ def global_logout(request: Request, db: Session, *, portal: bool = False):
         (PortalLogin, PORTAL_LOGIN_COOKIE),
     ]:
         identifier = request.cookies.get(cookie_name, "")
+        if settings.OIDC_DEVICE_LOGOUT_ENABLED and cookie_name != cookie:
+            # A different application in this browser can belong to another
+            # user/device. Do not erase its cookie or state on this user's action.
+            preserve = True
+            if (
+                claims
+                and (all_devices or claims.get("sid"))
+                and model in {IAMSession, PortalSession}
+                and identifier
+            ):
+                candidate = db.get(model, digest(identifier))
+                if candidate:
+                    try:
+                        candidate_claims = decode_access_token(
+                            unseal(candidate.tokens)["access_token"],
+                            allow_expired=True,
+                            audience=settings.portal_client_id
+                            if model is PortalSession
+                            else settings.CASDOOR_CLIENT_ID,
+                            jwks_url=settings.PORTAL_JWKS_URL or None
+                            if model is PortalSession
+                            else None,
+                        )
+                        from app.services.iam_sessions import verified_session_sid
+
+                        candidate_claims["sid"] = verified_session_sid(
+                            unseal(candidate.tokens),
+                            candidate_claims,
+                            portal=model is PortalSession,
+                        )
+                        preserve = candidate_claims.get("sub") != claims["sub"] or (
+                            not all_devices and candidate_claims.get("sid") != claims.get("sid")
+                        )
+                    except (InvalidToken, HTTPException, ValueError, TypeError, KeyError):
+                        preserve = True
+            if preserve:
+                protected_cookies.add(cookie_name)
+                continue
         if identifier:
             db.execute(delete(model).where(model.id == digest(identifier)))
     db.commit()
@@ -292,7 +349,8 @@ def global_logout(request: Request, db: Session, *, portal: bool = False):
         destination = origin + "/login?error=logout_incomplete"
     response = RedirectResponse(destination, 303)
     for cookie_name in [SESSION_COOKIE, LOGIN_COOKIE, PORTAL_SESSION_COOKIE, PORTAL_LOGIN_COOKIE]:
-        response.delete_cookie(cookie_name, path="/")
+        if cookie_name not in protected_cookies:
+            response.delete_cookie(cookie_name, path="/")
     response.headers["Cache-Control"] = "no-store"
     response.headers["Referrer-Policy"] = "no-referrer"
     return response
