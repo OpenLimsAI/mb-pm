@@ -197,6 +197,24 @@ def test_worker_polls_bound_task_and_only_marks_ready_after_active_registration(
     assert not any(op in {"import", "status"} for op, _, _ in calls)
 
 
+@pytest.mark.parametrize("actual_index_status", ["not_requested", "pending", "failed", "unknown"])
+def test_completed_job_does_not_invent_ready_from_a_stale_version_argument(
+    manual_ks, actual_index_status
+):
+    _, db, _, _, _, _, version, _, _ = manual_ks
+    job_id = start(manual_ks)
+    store = records(db)
+    actual = store.get("version", version["id"])
+    actual["indexStatus"] = actual_index_status
+    job = store.get("job", job_id)
+    job["status"] = "completed"
+    store.put("version", actual)
+    store.put("job", job)
+    db.commit()
+    status = manual.public_status(store, {**version, "indexStatus": "ready"})
+    assert status["status"] == "completed" and status["indexStatus"] == actual_index_status
+
+
 def test_unknown_status_does_not_become_ready_and_failure_preserves_original(manual_ks):
     _, db, _, _, _, _, version, options, clock = manual_ks
     job_id = start(manual_ks)
@@ -253,6 +271,51 @@ def test_task_id_mismatch_never_marks_an_unrelated_task_success(manual_ks):
     manual.run_step(store, job_id, connector=bridge.call)
     assert store.get("job", job_id)["status"] == "failed"
     assert store.get("version", version["id"])["indexStatus"] != "ready"
+
+
+def test_status_reads_coherent_version_and_job_after_worker_finishes_during_kb_check(
+    manual_ks, monkeypatch
+):
+    client, db, session, _, _, calls, version, options, _ = manual_ks
+    job_id = start(manual_ks)
+    store = records(db)
+    manual.run_step(store, job_id, connector=bridge.call)
+    assert store.get("version", version["id"])["indexStatus"] == "pending"
+    original_bridge = bridge.call
+    finished = {"value": False}
+
+    def finish_during_authorized_read(operation, subject, **values):
+        result = original_bridge(operation, subject, **values)
+        if operation == "library" and not finished["value"]:
+            finished["value"] = True
+            # Simulate the worker's successful atomic commit in another DB session
+            # while status has already loaded the earlier pending version and is
+            # waiting for its authenticated KB read. No clock/sleep is involved.
+            with Session(db.get_bind()) as worker_db:
+                worker = type(store)(worker_db, store.tenant)
+                ready = worker.get("version", version["id"])
+                ready.update(indexStatus="ready", kbPending=False)
+                job = worker.get("job", job_id)
+                job.update(status="completed", processed=1, saved=1, pending=0, updatedAt=iso())
+                job["items"][0].update(status="saved", phase="complete")
+                worker.put("version", ready)
+                worker.put("job", job)
+                worker_db.commit()
+            options.update(state="ready", registered=True, active=True)
+        return result
+
+    monkeypatch.setattr(bridge, "call", finish_during_authorized_read)
+    before = len(calls)
+    response = client.get(
+        BASE + "/status", headers=session(), params={"paperId": "archive:" + version["id"]}
+    )
+    assert response.status_code == 200
+    assert finished["value"] and response.json()["status"] == "completed"
+    assert response.json()["indexStatus"] == "ready"
+    assert not any(
+        op in {"indexUploadedPaper", "statusUploadedPaper"} for op, _, _ in calls[before:]
+    )
+    assert store.get("version", version["id"])["indexStatus"] == "ready"
 
 
 @pytest.mark.parametrize("action", ["pause", "cancel", "resume", "retry"])
