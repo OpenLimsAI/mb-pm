@@ -56,6 +56,21 @@ it('keeps the draft on failure and prevents duplicate saves or closing while pen
   expect(screen.getByLabelText('笔记正文')).toHaveValue('不能丢失的正文')
   await waitFor(() => expect(screen.getByRole('button', { name: '保存笔记' })).toBeEnabled())
 })
+it('freezes an open draft when its account client changes, retaining the text without saving to either account', async () => {
+  const a = createPreviewNotesClient('account-a'), b = createPreviewNotesClient('account-b')
+  const createA = vi.spyOn(a, 'create'), createB = vi.spyOn(b, 'create')
+  const draft = newNote({ title: 'A 的草稿', content: 'A 的私人正文' })
+  const props = { draft, onClose: vi.fn(), onSaved: vi.fn() }
+  const view = render(<NoteEditor client={a} {...props} />)
+  fireEvent.change(screen.getByLabelText('笔记正文'), { target: { value: '尚未保存的修改' } })
+  view.rerender(<NoteEditor client={b} {...props} />)
+  expect(screen.getByRole('alert')).toHaveTextContent('登录账号已变化')
+  expect(screen.getByLabelText('笔记正文')).toHaveValue('尚未保存的修改')
+  expect(screen.getByRole('button', { name: '保存笔记' })).toBeDisabled()
+  fireEvent.submit(screen.getByRole('button', { name: '保存笔记' }).closest('form')!)
+  expect(createA).not.toHaveBeenCalled()
+  expect(createB).not.toHaveBeenCalled()
+})
 it('uses the application sidebar to browse origins and keeps the current category usable', async () => {
   const client = createPreviewNotesClient('person')
   for (const [sourceApp, title] of [['manual', '个人观察'], ['solutions', '报告中的发现'], ['information', '行业摘录'], ['knowledge', '论文摘录']] as const) {

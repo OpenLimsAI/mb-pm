@@ -369,6 +369,17 @@ def session_claims(request: Request, db: Session) -> dict:
     return claims
 
 
+def identity_namespace(claims: dict) -> str:
+    """Stable opaque identity shared by PortalGate and identity-bound clients."""
+    return hashlib.sha256(
+        json.dumps(
+            [claims["iss"], claims["owner"], claims["sub"]],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+
 @router.get("/applications/mdm/launch")
 def mdm_launch(request: Request, db: Annotated[Session, Depends(get_db)]):
     from app.services.mdm_links import mdm_url
@@ -390,13 +401,7 @@ def me(request: Request, db: Session = Depends(get_db)):
     )
     return PortalMeOut(
         user=current_user(claims, db, request),
-        identity_namespace=hashlib.sha256(
-            json.dumps(
-                [claims["iss"], claims["owner"], claims["sub"]],
-                ensure_ascii=False,
-                separators=(",", ":"),
-            ).encode("utf-8")
-        ).hexdigest(),
+        identity_namespace=identity_namespace(claims),
         applications=applications(directory_claims, db),
         must_change_password=password_policy.change_required(db, claims["sub"]),
         can_configure_ai=pm_role(claims) in AI_MANAGERS,

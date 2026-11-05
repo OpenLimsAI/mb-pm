@@ -10,6 +10,8 @@ export default function NoteEditor({ client, draft, existing, onClose, onSaved }
   client: NotesClient; draft: NoteDraft; existing?: PersonalNote; onClose: () => void; onSaved: (note: PersonalNote) => void
 }) {
   const [title, setTitle] = useState(draft.title), [content, setContent] = useState(draft.content)
+  const [draftClient] = useState(client)
+  const accountChanged = client !== draftClient
   const [busy, setBusy] = useState(false), [error, setError] = useState('')
   const pending = useRef(false), alive = useRef(true), dialog = useRef<HTMLDivElement>(null)
   const closeRef = useRef(onClose)
@@ -30,12 +32,12 @@ export default function NoteEditor({ client, draft, existing, onClose, onSaved }
     return () => { alive.current = false; document.removeEventListener('keydown', keyboard); if (previous?.isConnected) previous.focus({ preventScroll: true }) }
   }, [])
   async function save() {
-    if (pending.current) return
+    if (pending.current || accountChanged) return
     const input = { title: title.trim(), content, sourceApp: draft.sourceApp, sourceTitle: draft.sourceTitle, sourceUrl: draft.sourceUrl }
     try { validateNote(input) } catch (reason) { setError(reason instanceof Error ? reason.message : '请检查笔记内容。'); return }
     pending.current = true; setBusy(true); setError('')
     try {
-      const result = existing ? await client.save(existing, input) : await client.create(draft.id, input)
+      const result = existing ? await draftClient.save(existing, input) : await draftClient.create(draft.id, input)
       if (alive.current) onSaved(result)
     } catch (reason) { if (alive.current) setError(reason instanceof Error ? reason.message : '笔记未能保存，当前内容已保留。') }
     finally { pending.current = false; if (alive.current) setBusy(false) }
@@ -48,9 +50,9 @@ export default function NoteEditor({ client, draft, existing, onClose, onSaved }
         <label className="pn-field pn-content-field">笔记正文<textarea required value={content} maxLength={50000} disabled={busy} onChange={event => setContent(event.target.value)} rows={9} placeholder="写下摘录、观察与想法…" /></label>
         <p className="pn-caption">{content.length.toLocaleString()} / 50,000 字{content.length > 50000 && ' · 请缩短正文后保存'}</p>
         <div className="pn-origin"><span className="pn-source-badge"><NotebookPen size={13} aria-hidden="true" />{noteSourceNames[draft.sourceApp]}</span>{draft.sourceTitle && <strong><Link2 size={13} aria-hidden="true" />{draft.sourceTitle}</strong>}{noteSourceUrl(draft.sourceUrl) && <a href={noteSourceUrl(draft.sourceUrl)} target="_blank" rel="noreferrer">查看来源<ExternalLink size={12} aria-hidden="true" /></a>}</div>
-        {error && <p role="alert" className="pn-error">{error}</p>}
+        {(accountChanged || error) && <p role="alert" className="pn-error">{accountChanged ? '登录账号已变化，当前草稿已保留。请复制正文，并使用原账号重新打开笔记。' : error}</p>}
       </div>
-      <footer><span className="pn-save-hint">保存到个人笔记</span><button className="pn-button" type="button" disabled={busy} onClick={onClose}>取消</button><button className="pn-button pn-primary" type="submit" disabled={busy || !title.trim() || !content.trim() || content.length > 50000}>{busy ? <LoaderCircle size={15} className="pn-spin" aria-hidden="true" /> : <Check size={15} aria-hidden="true" />}{busy ? '保存中…' : '保存笔记'}</button></footer>
+      <footer><span className="pn-save-hint">保存到个人笔记</span><button className="pn-button" type="button" disabled={busy} onClick={onClose}>取消</button><button className="pn-button pn-primary" type="submit" disabled={busy || accountChanged || !title.trim() || !content.trim() || content.length > 50000}>{busy ? <LoaderCircle size={15} className="pn-spin" aria-hidden="true" /> : <Check size={15} aria-hidden="true" />}{busy ? '保存中…' : '保存笔记'}</button></footer>
     </form>
   </div></div>, document.body)
 }

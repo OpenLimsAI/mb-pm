@@ -12,7 +12,7 @@ import NoteEditor from '../notes/NoteEditor'
 import { newNote } from '../notes/draft'
 import type { NoteDraft } from '../notes/draft'
 import NoteSelectionCapture from '../notes/NoteSelectionCapture'
-import { createPreviewNotesClient, notesApi, noteSourceUrl } from '../notes/client'
+import { createPortalNotesApi, createPreviewNotesClient, noteSourceUrl } from '../notes/client'
 import LiveDocumentDetail from './LiveDocumentDetail'
 import './information.css'
 import './informationTheme.css'
@@ -53,7 +53,7 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 export default function InformationApp() {
   const { user, identityNamespace, preview } = usePortalContext()
   const notesNamespace = `${identityNamespace || user.id}:${user.id}`
-  const notesClient = useMemo(() => preview ? createPreviewNotesClient(notesNamespace) : notesApi, [notesNamespace, preview])
+  const notesClient = useMemo(() => preview ? createPreviewNotesClient(notesNamespace) : createPortalNotesApi(identityNamespace), [notesNamespace, identityNamespace, preview])
   const noteRoot = useRef<HTMLDivElement>(null)
   const [noteDraft, setNoteDraft] = useState<NoteDraft | null>(null)
   const pages = preview ? demoPages : realPages

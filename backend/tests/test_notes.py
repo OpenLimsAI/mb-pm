@@ -1,6 +1,8 @@
 """Independent portal notes, ownership, concurrency and migration."""
 
+import hashlib
 import importlib.util
+import json
 from pathlib import Path
 from uuid import uuid4
 
@@ -20,6 +22,21 @@ PREFIX = "/api/v1/notes"
 @pytest.fixture
 def note_client(solution_client):
     solution_client.client.app.include_router(notes.router, prefix="/api/v1")
+    session_login = solution_client.login
+
+    def login(subject="author"):
+        session_login(subject)
+        # Each newly opened portal page receives its verified identity from /portal/me.
+        solution_client.client.headers["X-Notes-Portal-Identity"] = notes.portal.identity_namespace(
+            {
+                "iss": notes.settings.casdoor_issuer,
+                "owner": notes.settings.CASDOOR_ORG,
+                "sub": subject,
+            }
+        )
+
+    solution_client.login = login
+    login()
     return solution_client
 
 
@@ -121,6 +138,96 @@ def test_knowledge_origin_requires_matching_session_identity(note_client):
         == 403
     )
     assert f.client.get(PREFIX, headers={"X-Notes-Identity": "wrong"}).status_code == 403
+
+
+def test_portal_draft_is_not_created_under_a_new_cookie_account(note_client):
+    f = note_client
+    # This is the identity returned to account A's already-open PortalGate.
+    identity = hashlib.sha256(
+        json.dumps(
+            [notes.settings.casdoor_issuer, notes.settings.CASDOOR_ORG, "author"],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()
+    headers = {"X-Notes-Portal-Identity": identity}
+    assert f.client.get(PREFIX, headers=headers).status_code == 200
+    draft = body(title="账号 A 未保存草稿", content="账号 A 的私人内容")
+    f.login("another-person")
+    response = f.client.post(PREFIX, json=draft, headers=headers)
+    assert response.status_code == 403
+    assert f.client.get(PREFIX).json()["items"] == []
+    assert f.db.get(PersonalNote, draft["id"]) is None
+    # A can retry the same draft when the original account is restored.
+    f.login("author")
+    assert f.client.post(PREFIX, json=draft, headers=headers).status_code == 201
+
+
+@pytest.mark.parametrize("method", ["get", "post"])
+def test_notes_reject_requests_without_an_expected_identity(note_client, method):
+    f = note_client
+    f.client.headers.pop("X-Notes-Portal-Identity", None)
+    response = getattr(f.client, method)(PREFIX, **({"json": body()} if method == "post" else {}))
+    assert response.status_code == 403
+    assert "刷新" in response.json()["detail"]
+    assert f.db.scalar(select(PersonalNote)) is None
+
+
+@pytest.mark.parametrize("mode", ["iframe", "knowledge"])
+def test_existing_kb_identity_contract_remains_usable_without_portal_pin(note_client, mode):
+    f = note_client
+    f.client.headers.pop("X-Notes-Portal-Identity")
+    if mode == "knowledge":
+        headers = {
+            "Origin": notes.settings.KNOWLEDGE_NOTES_ORIGIN,
+            "X-Notes-Issuer": notes.settings.casdoor_issuer,
+            "X-Notes-Subject": "author",
+        }
+    else:
+        headers = {
+            "X-Notes-Identity": hashlib.sha256(
+                json.dumps(
+                    [notes.settings.casdoor_issuer, "author"],
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                ).encode()
+            ).hexdigest()
+        }
+    assert f.client.get(PREFIX, headers=headers).status_code == 200
+    assert (
+        f.client.post(PREFIX, json=body(source_app="knowledge"), headers=headers).status_code == 201
+    )
+    assert f.client.get(PREFIX, headers=headers).json()["total"] == 1
+    f.login("another-person")
+    f.client.headers.pop("X-Notes-Portal-Identity")
+    assert f.client.get(PREFIX, headers=headers).status_code == 403
+    assert f.client.post(PREFIX, json=body(), headers=headers).status_code == 403
+
+
+@pytest.mark.parametrize(
+    "method,suffix,payload",
+    [
+        ("get", "", None),
+        ("get", "/{id}", None),
+        ("put", "/{id}", "save"),
+        ("post", "/{id}/trash", {"revision": 1}),
+        ("post", "/{id}/restore", {"revision": 1}),
+        ("post", "/{id}/wisdom", {"revision": 1, "enabled": True}),
+    ],
+)
+def test_portal_identity_mismatch_rejects_all_note_operations(
+    note_client, monkeypatch, method, suffix, payload
+):
+    f = note_client
+    monkeypatch.setattr(notes.note_sync, "require_editor", lambda _: None)
+    monkeypatch.setattr(notes.note_sync, "configured", lambda: True)
+    row = create(f)
+    kwargs = {"headers": {"X-Notes-Portal-Identity": "stale-account"}}
+    if payload:
+        kwargs["json"] = save_body(row) if payload == "save" else payload
+    response = getattr(f.client, method)(PREFIX + suffix.format(id=row["id"]), **kwargs)
+    assert response.status_code == 403
+    assert f.client.get(f"{PREFIX}/{row['id']}").json() == row
 
 
 def test_knowledge_cors_is_limited_to_notes():

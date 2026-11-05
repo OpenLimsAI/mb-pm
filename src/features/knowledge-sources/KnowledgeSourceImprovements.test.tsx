@@ -7,6 +7,7 @@ import PaperActions from './PaperActions'
 import { solutionApi } from '../solutions/api'
 import type { KnowledgeSourceSnapshot } from './api'
 vi.mock('../solutions/api',()=>({solutionApi:{list:vi.fn(),get:vi.fn(),save:vi.fn(),create:vi.fn()}}))
+vi.mock('../../components/portal/context', () => ({ usePortalContext: () => ({ user: { id: 'person' }, identityNamespace: 'portal-person', preview: false }) }))
 const data:KnowledgeSourceSnapshot={papers:[],folders:[{id:'a',name:'主题',kind:'topic'},{id:'b',name:'ICH',kind:'source'}],sources:[],jobs:[],documents:[],catalogRevision:4,canManage:true,canOrganize:true,starred:[],integration:{status:'ready',message:''}}
 const job={id:'j',sourceId:'ich',folderId:'a',parse:true,status:'paused',createdAt:'2026-11-02T10:00:00Z',updatedAt:'2026-11-02T10:00:00Z',total:2,processed:1,saved:1,failed:0,pending:1,items:[{documentId:'d',status:'pending',phase:'index',versionId:'v'}]}
 describe('knowledge source workflow improvements',()=>{
