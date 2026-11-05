@@ -1,11 +1,14 @@
-import { useState } from 'react'
-import { notesApi } from '../notes/client'
+import { useMemo, useState } from 'react'
+import { usePortalContext } from '../../components/portal/context'
+import { createPortalNotesApi, createPreviewNotesClient } from '../notes/client'
 import NoteEditor from '../notes/NoteEditor'
 import { newNote, type NoteDraft } from '../notes/draft'
 import { solutionApi } from '../solutions/api'
 import type { Solution, SolutionInput } from '../solutions/types'
 import type { SourcePaper } from './api'
 export default function PaperActions({ paper, quote = '', quoteOffset }: { paper: SourcePaper; quote?: string; quoteOffset?: number }) {
+  const { user, identityNamespace, preview } = usePortalContext()
+  const notesClient = useMemo(() => preview ? createPreviewNotesClient(`${identityNamespace || user.id}:${user.id}`) : createPortalNotesApi(identityNamespace), [identityNamespace, preview, user.id])
   const [note,setNote]=useState<NoteDraft | null>(null), [reports,setReports]=useState<Solution[] | null>(null), [target,setTarget]=useState('new'), [busy,setBusy]=useState(false), [message,setMessage]=useState(''), [link,setLink]=useState('')
   const url=paper.originalUrl || paper.kbUrl || '', version=paper.versionId || '知识库当前版本，未提供原件版本号'
   const citation=`资料：${paper.title}\n来源：${paper.sourceName || '知识库'}\n原文：${url}\n原件版本：${version}\n收录时间：${paper.createdAt || '未提供'}\n\n`
@@ -21,5 +24,5 @@ export default function PaperActions({ paper, quote = '', quoteOffset }: { paper
       setReports(null);setMessage('已加入研究报告，原文链接和版本已保留。');setLink(`/solutions?report=${encodeURIComponent(result.id)}`)
     } catch(e){setMessage(e instanceof Error ? e.message : '报告保存失败，请重试')} finally{setBusy(false)}
   }
-  return <section className="kso-inspector-section"><h3>继续研究</h3><div className="kso-actions"><button className="kso-btn" disabled={busy} onClick={()=>setNote(newNote({title:`阅读笔记：${paper.title}`.slice(0,200),content:citation+excerpt+'我的笔记：\n',sourceApp:'knowledge',sourceTitle:paper.title.slice(0,500),sourceUrl:url}))}>{quote ? '将选段写入笔记' : '基于此资料写笔记'}</button><button className="kso-btn" disabled={busy} onClick={()=>void chooseReport()}>添加到研究报告</button></div>{reports && <div className="kso-field"><label>目标研究报告<select value={target} onChange={e=>setTarget(e.target.value)}><option value="new">新建研究报告草稿</option>{reports.map(r=><option key={r.id} value={r.id}>{r.title}</option>)}</select></label><button className="kso-btn primary" disabled={busy} onClick={()=>void addReport()}>加入资料与版本链接</button><button className="kso-btn quiet" disabled={busy} onClick={()=>setReports(null)}>取消</button></div>}{message && <p role="status">{message}{link && <a href={link}>打开研究报告</a>}</p>}{note && <NoteEditor client={notesApi} draft={note} onClose={()=>setNote(null)} onSaved={()=>{setNote(null);setLink('');setMessage('已保存到我的笔记。')}}/>}</section>
+  return <section className="kso-inspector-section"><h3>继续研究</h3><div className="kso-actions"><button className="kso-btn" disabled={busy} onClick={()=>setNote(newNote({title:`阅读笔记：${paper.title}`.slice(0,200),content:citation+excerpt+'我的笔记：\n',sourceApp:'knowledge',sourceTitle:paper.title.slice(0,500),sourceUrl:url}))}>{quote ? '将选段写入笔记' : '基于此资料写笔记'}</button><button className="kso-btn" disabled={busy} onClick={()=>void chooseReport()}>添加到研究报告</button></div>{reports && <div className="kso-field"><label>目标研究报告<select value={target} onChange={e=>setTarget(e.target.value)}><option value="new">新建研究报告草稿</option>{reports.map(r=><option key={r.id} value={r.id}>{r.title}</option>)}</select></label><button className="kso-btn primary" disabled={busy} onClick={()=>void addReport()}>加入资料与版本链接</button><button className="kso-btn quiet" disabled={busy} onClick={()=>setReports(null)}>取消</button></div>}{message && <p role="status">{message}{link && <a href={link}>打开研究报告</a>}</p>}{note && <NoteEditor key={note.id} client={notesClient} draft={note} onClose={()=>setNote(null)} onSaved={()=>{setNote(null);setLink('');setMessage('已保存到我的笔记。')}}/>}</section>
 }

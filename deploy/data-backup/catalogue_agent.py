@@ -5,6 +5,7 @@ import argparse
 import ast
 from contextlib import contextmanager
 import datetime as dt
+import errno
 import fcntl
 import hashlib
 import hmac
@@ -18,6 +19,7 @@ import secrets
 import shlex
 import shutil
 import signal
+import socket
 import sqlite3
 import stat
 import subprocess
@@ -60,7 +62,7 @@ def config_read(filename):
     path = private(filename)
     if path.stat().st_size > MAX_BODY: raise ValueError('Configuration too large')
     data = json.loads(path.read_text())
-    if not isinstance(data, dict) or set(data) - {'bind','port','secretFile','stateDirectory','keyFile','roots','lockDirectory','planScript','requestsPerMinute'}:
+    if not isinstance(data, dict) or set(data) - {'bind','port','unixSocket','secretFile','stateDirectory','keyFile','roots','lockDirectory','planScript','requestsPerMinute'}:
         raise ValueError('Unknown configuration')
     for key in ('secretFile','keyFile'): data[key] = private(data[key])
     for key in ('stateDirectory','lockDirectory'): data[key] = private(data[key], directory=True)
@@ -68,6 +70,8 @@ def config_read(filename):
     if data['secretFile'].stat().st_size > 4096: raise ValueError('Secret size')
     data['secret'] = data['secretFile'].read_bytes().strip()
     if len(data['secret']) < 32: raise ValueError('Secret too short')
+    data.setdefault('unixSocket',False)
+    if type(data['unixSocket']) is not bool: raise ValueError('Invalid Unix socket configuration')
     address = ipaddress.ip_address(data.setdefault('bind','127.0.0.1'))
     if address.version != 4 or not(address.is_private or address.is_loopback) or address.is_unspecified or address.is_multicast or address.is_link_local:
         raise ValueError('Explicit private address required')
@@ -476,6 +480,8 @@ def deletion_out(row):
 class Server(ThreadingHTTPServer):
     daemon_threads=True
     def __init__(self,address,app): self.app=app;self.slots=threading.BoundedSemaphore(16);super().__init__(address,Handler)
+    def get_request(self):
+        request,address=super().get_request();request.settimeout(5);return request,address
     def process_request(self,request,address):
         if not self.slots.acquire(False): request.close();return
         try: super().process_request(request,address)
@@ -483,6 +489,60 @@ class Server(ThreadingHTTPServer):
     def process_request_thread(self,request,address):
         try: super().process_request_thread(request,address)
         finally: self.slots.release()
+
+@contextmanager
+def singleton(directory):
+    directory=private(directory,directory=True)
+    fd=os.open(directory/'catalogue.lock',os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW,0o600)
+    try:
+        info=os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid!=os.geteuid() or info.st_mode&0o077 or info.st_nlink!=1: raise ValueError('Unsafe catalogue lock')
+        fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        yield fd
+    finally: os.close(fd)
+
+def unix_socket_path(directory,lock_fd):
+    directory=private(directory,directory=True);lock=private(directory/'catalogue.lock');info=os.fstat(lock_fd)
+    if not stat.S_ISREG(info.st_mode) or info.st_nlink!=1 or identity(info)!=identity(lock.stat()): raise ValueError('Catalogue singleton lock required')
+    # The same descriptor remains open for the server lifetime. Another process
+    # holding the singleton prevents all socket replacement before unlink.
+    fcntl.flock(lock_fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    transport=directory/'transport';transport.mkdir(mode=0o700,exist_ok=True);private(transport,directory=True)
+    path=transport/'catalogue.sock'
+    if path.exists() or path.is_symlink():
+        info=path.lstat()
+        if not stat.S_ISSOCK(info.st_mode) or info.st_uid!=os.geteuid() or info.st_mode&0o077 or info.st_nlink!=1: raise ValueError('Unsafe catalogue socket')
+        with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as probe:
+            probe.settimeout(.2)
+            try: probe.connect(str(path))
+            except OSError as exc:
+                if exc.errno!=errno.ECONNREFUSED: raise ValueError('Cannot establish stale socket') from None
+            else: raise ValueError('Catalogue socket is already active')
+        if identity(path.lstat())!=identity(info): raise ValueError('Catalogue socket changed')
+        path.unlink()
+    return path
+
+class UnixServer(Server):
+    address_family=socket.AF_UNIX
+    def __init__(self,directory,app,lock_fd):
+        self.socket_path=unix_socket_path(directory,lock_fd);self.socket_identity=None
+        super().__init__(str(self.socket_path),app)
+    def server_bind(self):
+        self.socket.bind(self.server_address)
+        os.chmod(self.socket_path,0o600,follow_symlinks=False)
+        self.socket_identity=identity(self.socket_path.lstat())
+        self.server_name='localhost';self.server_port=0
+    def server_close(self):
+        super().server_close()
+        if self.socket_identity is not None:
+            try:
+                private(self.socket_path.parent,directory=True)
+                info=self.socket_path.lstat()
+                if stat.S_ISSOCK(info.st_mode) and info.st_uid==os.geteuid() and identity(info)==self.socket_identity: self.socket_path.unlink()
+            except (OSError,ValueError): pass
+
+def create_server(config,app,lock_fd):
+    return UnixServer(config['stateDirectory'],app,lock_fd) if config.get('unixSocket',False) else Server((config['bind'],config['port']),app)
 
 class Handler(BaseHTTPRequestHandler):
     def setup(self): super().setup();self.connection.settimeout(5)
@@ -520,12 +580,13 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--config',required=True,type=Path);args=parser.parse_args();os.umask(0o077)
-    config=config_read(args.config);fd=os.open(config['stateDirectory']/'catalogue.lock',os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW,0o600);fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
-    app=Catalogue(config);server=Server((config['bind'],config['port']),app);thread=threading.Thread(target=app.worker,daemon=True);thread.start()
-    def stop(signum,frame): app.stop.set();threading.Thread(target=server.shutdown,daemon=True).start()
-    signal.signal(signal.SIGTERM,stop);signal.signal(signal.SIGINT,stop)
-    try: server.serve_forever(poll_interval=.25)
-    finally: app.stop.set();server.server_close();os.close(fd)
+    config=config_read(args.config)
+    with singleton(config['stateDirectory']) as fd:
+        app=Catalogue(config);server=create_server(config,app,fd);thread=threading.Thread(target=app.worker,daemon=True);thread.start()
+        def stop(signum,frame): app.stop.set();threading.Thread(target=server.shutdown,daemon=True).start()
+        signal.signal(signal.SIGTERM,stop);signal.signal(signal.SIGINT,stop)
+        try: server.serve_forever(poll_interval=.25)
+        finally: app.stop.set();server.server_close()
 
 if __name__=='__main__':
     try: main()

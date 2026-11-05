@@ -32,6 +32,12 @@ def identity(request: Request, db: Session = Depends(get_db)):
         require_same_origin(request, origin=settings.portal_origin)
     claims = portal.session_claims(request, db)
     password_policy.enforce(db, claims["sub"], request.url.path)
+    expected_portal_identity = request.headers.get("x-notes-portal-identity")
+    if (
+        expected_portal_identity is not None
+        and expected_portal_identity != portal.identity_namespace(claims)
+    ):
+        raise HTTPException(403, "登录账号已变化，请保留当前草稿并使用原账号重新登录")
     expected_identity = request.headers.get("x-notes-identity")
     actual_identity = hashlib.sha256(
         json.dumps(
@@ -40,11 +46,22 @@ def identity(request: Request, db: Session = Depends(get_db)):
     ).hexdigest()
     if expected_identity is not None and expected_identity != actual_identity:
         raise HTTPException(403, "知识库和工作台登录的账号不一致，请重新登录")
-    if knowledge_request and (
-        request.headers.get("x-notes-issuer") != claims["iss"]
-        or request.headers.get("x-notes-subject") != claims["sub"]
+    expected_issuer = request.headers.get("x-notes-issuer")
+    expected_subject = request.headers.get("x-notes-subject")
+    if (knowledge_request or expected_issuer is not None or expected_subject is not None) and (
+        expected_issuer != claims["iss"] or expected_subject != claims["sub"]
     ):
         raise HTTPException(403, "知识库和工作台登录的账号不一致，请重新登录")
+    if all(
+        value is None
+        for value in (
+            expected_portal_identity,
+            expected_identity,
+            expected_issuer,
+            expected_subject,
+        )
+    ):
+        raise HTTPException(403, "无法确认当前笔记所属账号，请刷新页面并重新确认登录账号")
     return claims
 
 

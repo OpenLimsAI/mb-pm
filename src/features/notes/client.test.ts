@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { HttpResponse, http } from 'msw'
 import { server } from '../../test/setup'
-import { createPreviewNotesClient, notesApi, noteSourceUrl } from './client'
+import { createNotesApi, createPortalNotesApi, createPreviewNotesClient, noteSourceUrl } from './client'
 import { newNote } from './draft'
 
 beforeEach(() => localStorage.clear())
@@ -57,6 +57,37 @@ describe('independent personal notes', () => {
       expect(request.credentials).toBe('include')
       return HttpResponse.json({ ...body as object, revision: 1, created_at: '2026-10-25T00:00:00Z', updated_at: '2026-10-25T00:00:00Z', deleted_at: null }, { status: 201 })
     }))
-    expect(await notesApi.create(id, draft)).toMatchObject({ sourceApp: 'information', revision: 1 })
+    expect(await createPortalNotesApi('portal-a').create(id, draft)).toMatchObject({ sourceApp: 'information', revision: 1 })
+  })
+  it.each(['portal', 'knowledge'] as const)('pins every %s operation to the opening identity', async mode => {
+    const input = newNote({ title: '私人观察', content: '正文' })
+    const note = { ...input, revision: 1, createdAt: '2026-11-04T00:00:00Z', updatedAt: '2026-11-04T00:00:00Z', deletedAt: null }
+    const requests: string[] = []
+    const ownHeader = mode === 'portal' ? 'X-Notes-Portal-Identity' : 'X-Notes-Identity'
+    const otherHeader = mode === 'portal' ? 'X-Notes-Identity' : 'X-Notes-Portal-Identity'
+    server.use(http.all(/\/api\/v1\/notes(?:[/?].*)?$/, ({ request }) => {
+      expect(request.headers.get(ownHeader)).toBe('opening-identity')
+      expect(request.headers.has(otherHeader)).toBe(false)
+      expect(request.credentials).toBe('include')
+      requests.push(request.method)
+      return HttpResponse.json(request.method === 'GET' && new URL(request.url).pathname.endsWith('/notes') ? { items: [], total: 0 } : note)
+    }))
+    const api = mode === 'portal' ? createPortalNotesApi('opening-identity') : createNotesApi('opening-identity')
+    await api.list()
+    await api.get!(input.id)
+    await api.create(input.id, input)
+    await api.save(note, input)
+    await api.trash(note)
+    await api.restore(note)
+    await api.share!(note, true)
+    expect(requests).toEqual(['GET', 'GET', 'POST', 'PUT', 'POST', 'POST', 'POST'])
+  })
+  it('never sends an unbound portal request when the verified identity is missing', async () => {
+    server.use(http.post('*/api/v1/notes', ({ request }) => {
+      expect(request.headers.get('X-Notes-Portal-Identity')).toBe('invalid')
+      return HttpResponse.json({ detail: 'identity missing' }, { status: 403 })
+    }))
+    const draft = newNote({ title: '未确定身份的草稿', content: '保留正文' })
+    await expect(createPortalNotesApi(undefined).create(draft.id, draft)).rejects.toThrow('登录账号已变化')
   })
 })

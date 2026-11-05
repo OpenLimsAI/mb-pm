@@ -26,25 +26,36 @@ export function validateNote(input: NoteInput): void {
   if (!input.content.trim() || input.content.length > 50000) throw new Error('请输入 1–50,000 字的笔记正文。')
   if (!Object.hasOwn(noteSourceNames, input.sourceApp) || input.sourceTitle.length > 500 || input.sourceUrl.length > 2000 || input.sourceUrl && !noteSourceUrl(input.sourceUrl)) throw new Error('笔记来源信息无效，请检查后重试。')
 }
-export function createNotesApi(expectedIdentity?: string): NotesClient {
-const http = axios.create({ baseURL: `${API_BASE}/notes`, withCredentials: true, timeout: 20000 })
-http.interceptors.request.use(config => { if (expectedIdentity) config.headers.set('X-Notes-Identity', expectedIdentity); if (config.data) config.data = snakeize(config.data); if (config.params) config.params = snakeize(config.params); return config })
-http.interceptors.response.use(response => { response.data = camelize(response.data); return response }, (error: unknown) => {
-  const status = axios.isAxiosError(error) ? error.response?.status : undefined
-  if (status === 401) window.dispatchEvent(new Event('portal:unauthorized'))
-  return Promise.reject(Object.assign(new Error(status === 409 ? '笔记已在其他页面更新，请保留当前内容并重新打开核对。' : status === 401 ? '登录已失效，请重新登录。' : status === 403 && expectedIdentity ? '工作台和知识库登录的账号不一致，请重新登录。' : status === 422 ? '笔记未通过校验，请检查标题、正文长度及来源链接。' : '笔记操作未完成，请检查连接后重试。'), { status }))
-})
-return {
-  get: async id => (await http.get(`/${encodeURIComponent(id)}`)).data,
-  list: async query => (await http.get('', { params: query })).data,
-  create: async (id, input) => { validateNote(input); return (await http.post('', { ...input, id })).data },
-  save: async (note, input) => { validateNote(input); return (await http.put(`/${encodeURIComponent(note.id)}`, { ...input, revision: note.revision })).data },
-  trash: async note => (await http.post(`/${encodeURIComponent(note.id)}/trash`, { revision: note.revision })).data,
-  share: async (note, enabled) => (await http.post(`/${encodeURIComponent(note.id)}/wisdom`, { revision: note.revision, enabled })).data,
-  restore: async note => (await http.post(`/${encodeURIComponent(note.id)}/restore`, { revision: note.revision })).data,
+function createIdentityNotesApi(identityHeader: string, expectedIdentity: string, mismatchMessage: string): NotesClient {
+  const http = axios.create({ baseURL: `${API_BASE}/notes`, withCredentials: true, timeout: 20000 })
+  http.interceptors.request.use(config => {
+    config.headers.set(identityHeader, expectedIdentity || 'invalid')
+    if (config.data) config.data = snakeize(config.data)
+    if (config.params) config.params = snakeize(config.params)
+    return config
+  })
+  http.interceptors.response.use(response => { response.data = camelize(response.data); return response }, (error: unknown) => {
+    const status = axios.isAxiosError(error) ? error.response?.status : undefined
+    if (status === 401) window.dispatchEvent(new Event('portal:unauthorized'))
+    return Promise.reject(Object.assign(new Error(status === 409 ? '笔记已在其他页面更新，请保留当前内容并重新打开核对。' : status === 401 ? '登录已失效，请重新登录。' : status === 403 ? mismatchMessage : status === 422 ? '笔记未通过校验，请检查标题、正文长度及来源链接。' : '笔记操作未完成，请检查连接后重试。'), { status }))
+  })
+  return {
+    get: async id => (await http.get(`/${encodeURIComponent(id)}`)).data,
+    list: async query => (await http.get('', { params: query })).data,
+    create: async (id, input) => { validateNote(input); return (await http.post('', { ...input, id })).data },
+    save: async (note, input) => { validateNote(input); return (await http.put(`/${encodeURIComponent(note.id)}`, { ...input, revision: note.revision })).data },
+    trash: async note => (await http.post(`/${encodeURIComponent(note.id)}/trash`, { revision: note.revision })).data,
+    share: async (note, enabled) => (await http.post(`/${encodeURIComponent(note.id)}/wisdom`, { revision: note.revision, enabled })).data,
+    restore: async note => (await http.post(`/${encodeURIComponent(note.id)}/restore`, { revision: note.revision })).data,
+  }
 }
+export function createNotesApi(expectedIdentity: string): NotesClient {
+  return createIdentityNotesApi('X-Notes-Identity', expectedIdentity, '工作台和知识库登录的账号不一致，请重新登录。')
 }
-export const notesApi = createNotesApi()
+
+export function createPortalNotesApi(identityNamespace: string | undefined): NotesClient {
+  return createIdentityNotesApi('X-Notes-Portal-Identity', identityNamespace || 'invalid', '登录账号已变化，请保留当前草稿并使用原账号重新登录。')
+}
 
 export function createPreviewNotesClient(namespace: string, storage: Storage = localStorage): NotesClient {
   const key = `mberp:personal-notes:preview:v1:${encodeURIComponent(namespace)}`
