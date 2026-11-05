@@ -54,7 +54,7 @@ it('shows actual cron plan and distinguishes logical sizes, allocated archive sp
   show(); await ready()
   expect(screen.getByText('每日 02:17 执行完整业务备份。')).toBeVisible()
   expect(screen.getByText('保留最近 11 份完整业务备份。')).toBeVisible()
-  expect(screen.getByText('备份归档 2.0 GiB · 其他备份材料 1.0 GiB')).toBeVisible()
+  expect(screen.getByText('归档文件大小 2.0 GiB · 其他材料占盘 1.0 GiB')).toBeVisible()
   expect(screen.getByText('90.0 GiB')).toBeVisible()
   expect(screen.getByText('2.0 KiB')).toBeVisible()
   expect(screen.getAllByText('占磁盘 4.0 KiB')).toHaveLength(3)

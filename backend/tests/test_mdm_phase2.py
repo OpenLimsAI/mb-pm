@@ -3,8 +3,10 @@
 import time
 from copy import deepcopy
 from uuid import uuid4
+
 import pytest
 from jose import jwt
+
 from app.core.config import settings
 from app.core.security import digest, seal
 from app.db.session import SessionLocal
@@ -362,6 +364,7 @@ def test_global_logout_uses_server_token_and_reports_partial_failure(
                     "url": url,
                     "global": params == {"logoutAll": "true"},
                     "has_bearer": headers.get("Authorization", "").startswith("Bearer "),
+                    "cookie_suppressed": headers.get("Cookie") == "",
                 }
             )
             return httpx.Response(
@@ -382,6 +385,7 @@ def test_global_logout_uses_server_token_and_reports_partial_failure(
             "url": settings.casdoor_internal_url + "/api/sso-logout",
             "global": True,
             "has_bearer": True,
+            "cookie_suppressed": True,
         }
     ]
     location = response.headers["location"]
@@ -397,6 +401,7 @@ def test_global_logout_uses_server_token_and_reports_partial_failure(
 def test_audit_failure_rolls_back_project_and_creation_receipt(client, creation):
     from sqlalchemy import event
     from sqlalchemy.exc import IntegrityError
+
     from app.models import AuditLog
     from app.models.mdm_integration import MDMProjectReceipt
 
@@ -418,6 +423,7 @@ def test_audit_failure_rolls_back_project_and_creation_receipt(client, creation)
 
 def test_callback_access_logs_do_not_include_authorization_code():
     import logging
+
     from app.core.auth_logging import CallbackQueryFilter
 
     record = logging.LogRecord(
@@ -471,7 +477,7 @@ def test_pm_subject_logout_also_revokes_old_pm_delegate(
 def test_disabled_global_mode_logout_never_places_tokens_in_url(
     portal, client, iam_user, token_factory, monkeypatch
 ):
-    from urllib.parse import urlsplit, parse_qs
+    from urllib.parse import parse_qs, urlsplit
 
     monkeypatch.setattr(settings, "OIDC_GLOBAL_LOGOUT_ENABLED", False)
     uid = iam_user("p2-old-logout", "cmc_lead")

@@ -39,6 +39,11 @@ def create_session_payload(tokens: dict, claims: dict, identity: dict) -> tuple[
     access, identifier = tokens["access_token"], tokens["id_token"]
     expiry = min(int(claims["exp"]), int(identity["exp"]), now + settings.IAM_SESSION_SECONDS)
     data = {"access_token": access, "id_token": identifier}
+    if settings.OIDC_DEVICE_LOGOUT_ENABLED and identity.get("sid"):
+        sid = identity["sid"]
+        if not isinstance(sid, str) or len(sid) > 255 or claims.get("sid") not in (None, "", sid):
+            raise ValueError("inconsistent verified session identity")
+        data["authenticated_sid"] = sid
     refresh = _refresh_token(tokens.get("refresh_token"))
     if refresh:
         data.update(
@@ -46,7 +51,7 @@ def create_session_payload(tokens: dict, claims: dict, identity: dict) -> tuple[
             started_at=now,
             last_seen_at=now,
             authenticated_iat=claims.get("iat", now),
-            authenticated_sid=claims.get("sid", ""),
+            authenticated_sid=data.get("authenticated_sid", claims.get("sid", "")),
         )
         expiry = now + settings.IAM_SESSION_ABSOLUTE_SECONDS
     return seal(data), expiry
@@ -59,6 +64,28 @@ def _decode(token, *, portal: bool, allow_expired: bool = False):
         jwks_url=settings.PORTAL_JWKS_URL or None if portal else None,
         allow_expired=allow_expired,
     )
+
+
+def verified_session_sid(data: dict, claims: dict, *, portal: bool = False) -> str:
+    """Only encrypted login metadata or a re-verified stored ID token; no URL input."""
+    sid = data.get("authenticated_sid") or claims.get("sid")
+    if not sid and data.get("id_token"):
+        audience = settings.portal_client_id if portal else settings.CASDOOR_CLIENT_ID
+        identity = decode_access_token(
+            data["id_token"],
+            audience=audience,
+            jwks_url=settings.PORTAL_JWKS_URL or None if portal else None,
+            allow_expired=True,
+            access_token=data["access_token"],
+        )
+        if identity.get("sub") != claims.get("sub") or identity.get("iss") != claims.get("iss"):
+            raise ValueError("stored identity mismatch")
+        sid = identity.get("sid")
+    if sid is None or sid == "":
+        return ""
+    if not isinstance(sid, str) or len(sid) > 255:
+        raise ValueError("invalid verified session id")
+    return sid
 
 
 def _bound_identity(claims, audience, request, *, previous=None):
@@ -237,6 +264,11 @@ def session_claims(request: Request, db: Session, *, portal: bool = False) -> di
             raise auth_failure(request, "decrypt_failed", "登录会话已失效，请重新登录") from None
         claims = _checked_decode(access, request, portal=portal, allow_expired=bool(refresh))
         _bound_identity(claims, audience, request)
+        if settings.OIDC_DEVICE_LOGOUT_ENABLED:
+            try:
+                claims["sid"] = verified_session_sid(data, claims, portal=portal)
+            except (ValueError, HTTPException):
+                raise auth_failure(request, "identity_mismatch", "原始登录会话无法核验") from None
         changed = False
         if refresh:
             started, last_seen = data.get("started_at"), data.get("last_seen_at")
