@@ -12,6 +12,14 @@
 
 知识库仍负责每个功能、文献和工具的授权。模型网关不检索文献、不执行模型请求的工具，不替代知识库的编辑／管理权限。
 
+## 持久化部署配置（尚未应用到线上）
+
+仅更新镜像不能修复缺失的环境配置。PM 根目录、后端和并行部署 Compose 模板均显式传递网关开关及知识库 audience；已有生产链可使用 `deploy/parallel-test/compose.shared-ai.yml`，追加到完整的既有 Compose 链，并保留该文件路径用于以后的发布。该覆盖文件只声明 `app` 和 `app-direct` 的环境变量，不改变镜像、卷或网络。
+
+在生产 PM 的持久 `.env` 中，经既有 IAM 自查验收后设 `KNOWLEDGE_AI_ENABLED=true`、`KNOWLEDGE_AI_CLIENT_ID=<知识库 DIKW_WEB_OIDC_CLIENT_ID 的精确值>`。同时保留已经验收的 `OIDC_GLOBAL_LOGOUT_ENABLED=true` 和 `CASDOOR_ACCOUNT_STATUS_VISIBLE=true`；这两个前置条件不能仅为让接口可用而绕过。在知识库的持久 `.env` 中设 `DIKW_WEB_AI_GATEWAY_URL=https://www.openlims.ai`，其 Compose 已显式传递该值。知识库客户端 ID 不是用户名称，也不要复制客户端密钥到 PM。
+
+发布前用干净环境和指定的完整 Compose 链渲染配置，分别确认 PM 两个实例的四项及 KB 的网关地址。保留当前全部 IAM／模型／数据环境值和挂载，只添加经过审核的配置差异；新建临时容器或仅在运行中 `export` 不能作为持久修复。真实启用、备份、迁移与供应商验收仍是后续独立部署步骤，本地改动未操作线上。
+
 ## 模型目录
 
 `GET /api/v1/integration/knowledge/ai/models` 返回：
@@ -19,8 +27,7 @@
 ```json
 {
   "models": [
-    {"id":"shared:profile-1","name":"共享研究模型","provider":"deepseek","model":"configured-model","key_set":true,"available":true},
-    {"id":"system","name":"工作台系统默认","provider":"deepseek","model":"configured-system-model","key_set":true,"available":true}
+    {"id":"shared:profile-1","name":"共享研究模型","provider":"deepseek","model":"configured-model","key_set":true,"available":true}
   ],
   "default_model_id":"shared:profile-1",
   "revision":1,
