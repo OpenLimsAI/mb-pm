@@ -1,16 +1,22 @@
 """Synthetic filesystem/crypto-protocol tests; never touches production or Docker."""
 import datetime as dt
+from contextlib import contextmanager
 import hashlib
 import hmac
+import http.client
 import importlib.util
 import io
 import json
 import os
 from pathlib import Path
 import sqlite3
+import socket
+import stat
 import tarfile
 import tempfile
 import time
+import threading
+from types import SimpleNamespace
 import unittest
 import uuid
 from unittest.mock import patch, Mock
@@ -35,7 +41,7 @@ def bundle(changes=None, extra=None):
 
 class Fixture(unittest.TestCase):
     def setUp(self):
-        self.old_umask=os.umask(0o077);self.tmp=tempfile.TemporaryDirectory();self.base=Path(self.tmp.name).resolve()
+        self.old_umask=os.umask(0o077);self.tmp=tempfile.TemporaryDirectory(dir=getattr(self,'temp_directory',None));self.base=Path(self.tmp.name).resolve()
         for name in ('root','other','state','locks'): (self.base/name).mkdir(mode=0o700)
         for name in ('.daily-backup.lock','.backup.lock'): (self.base/'locks'/name).write_text('')
         (self.base/'secret').write_text('s'*48);(self.base/'key').write_text('synthetic-key')
@@ -83,6 +89,12 @@ class ConfigurationTests(Fixture):
     def test_unknown_configuration_rejected(self):
         self.raw['shellCommand']='bad';self.write_config()
         with self.assertRaises(ValueError): a.config_read(self.path)
+    def test_unix_socket_flag_requires_boolean_and_defaults_to_tcp(self):
+        self.assertFalse(self.cfg['unixSocket'])
+        for value in ('true',1,None,{}):
+            self.raw['unixSocket']=value;self.write_config()
+            with self.assertRaises(ValueError): a.config_read(self.path)
+        self.raw['unixSocket']=True;self.write_config();self.assertTrue(a.config_read(self.path)['unixSocket'])
     def test_group_write_root_can_be_catalogued_but_not_deleted(self):
         old,new=self.pair();(self.base/'root').chmod(0o775);a.config_read(self.path)
         self.assertTrue(all(i['protected'] for i in self.app.catalog()[0].values()))
@@ -357,5 +369,119 @@ class HandlerTests(Fixture):
         old,_=self.pair();items,_,revision=self.app.catalog();data={'archiveIds':[self.item(old)['id']],'catalogRevision':revision,'actor':'admin'}
         code,preview=self.handle('POST','/v1/delete-preview',json.dumps(data).encode());self.assertEqual(code,200)
         code,result=self.handle('POST','/v1/deletions',json.dumps(self.request(preview)).encode());self.assertEqual(code,200);self.assertEqual(result['status'],'succeeded');self.assertFalse(old.exists())
+
+
+class UnixTransportTests(Fixture):
+    # Keep AF_UNIX paths below the tighter macOS sockaddr_un path limit too.
+    temp_directory='/tmp'
+    @contextmanager
+    def serving(self,unix=True):
+        config={**self.cfg,'unixSocket':unix,'port':0}
+        with a.singleton(config['stateDirectory']) as fd:
+            server=a.create_server(config,self.app,fd)
+            thread=threading.Thread(target=server.serve_forever,kwargs={'poll_interval':.01},daemon=True);thread.start()
+            try: yield server
+            finally: server.shutdown();thread.join(timeout=3);server.server_close()
+    def exchange(self,server,method='GET',path='/v1/snapshot',body=b'',headers=None):
+        connection=http.client.HTTPConnection('localhost',timeout=3)
+        connection.sock=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM);connection.sock.settimeout(3);connection.sock.connect(server.server_address)
+        try:
+            connection.request(method,path,body=body,headers=self.signature(method,path,body) if headers is None else headers)
+            response=connection.getresponse();return response.status,dict(response.getheaders()),json.loads(response.read())
+        finally: connection.close()
+    def raw_http(self,server,request):
+        with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as peer:
+            peer.settimeout(3);peer.connect(server.server_address);peer.sendall(request)
+            response=http.client.HTTPResponse(peer);response.begin();return response.status,json.loads(response.read())
+    def stale_socket(self):
+        folder=self.cfg['stateDirectory']/'transport';folder.mkdir(mode=0o700,exist_ok=True);path=folder/'catalogue.sock'
+        sock=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM);sock.bind(str(path));sock.close();path.chmod(0o600);return path
+    def test_actual_unix_http_hmac_snapshot_replay_and_permissions(self):
+        with self.serving() as server:
+            self.assertEqual(server.address_family,socket.AF_UNIX)
+            self.assertEqual(Path(server.server_address),self.cfg['stateDirectory']/'transport'/'catalogue.sock')
+            self.assertEqual(stat.S_IMODE(Path(server.server_address).stat().st_mode),0o600)
+            self.assertEqual(stat.S_IMODE(Path(server.server_address).parent.stat().st_mode),0o700)
+            headers=self.signature();status,response,value=self.exchange(server,headers=headers)
+            self.assertEqual(status,200);self.assertTrue(value['connected']);self.assertEqual(response['Cache-Control'],'no-store')
+            status,_,value=self.exchange(server,headers=headers);self.assertEqual(status,409);self.assertEqual(value['error']['code'],'replay')
+            self.assertEqual(self.exchange(server,headers={})[0],401)
+        self.assertFalse(Path(server.server_address).exists())
+    def test_actual_unix_http_rejects_malformed_requests(self):
+        with self.serving() as server:
+            self.assertEqual(self.raw_http(server,b'POST /v1/deletions HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\nContent-Length: 0\r\n\r\n')[0],400)
+            self.assertEqual(self.raw_http(server,b'POST /v1/deletions HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n')[0],400)
+            self.assertEqual(self.raw_http(server,b'POST /v1/deletions HTTP/1.1\r\nHost: localhost\r\nContent-Length: 65537\r\n\r\n')[0],413)
+            body=b'\xff';headers={**self.signature('POST','/v1/deletions',body),'Content-Type':'application/json'}
+            self.assertEqual(self.exchange(server,'POST','/v1/deletions',body,headers)[0],400)
+    def test_tcp_transport_remains_compatible(self):
+        with self.serving(unix=False) as server:
+            self.assertEqual(server.address_family,socket.AF_INET)
+            connection=http.client.HTTPConnection(*server.server_address,timeout=3)
+            try:
+                connection.request('GET','/v1/snapshot',headers=self.signature());response=connection.getresponse()
+                self.assertEqual(response.status,200);self.assertTrue(json.loads(response.read())['connected'])
+            finally: connection.close()
+        self.assertFalse((self.cfg['stateDirectory']/'transport').exists())
+    def test_safe_stale_socket_replaced_after_singleton_lock(self):
+        path=self.stale_socket()
+        with self.serving() as server: self.assertEqual(self.exchange(server)[0],200)
+        self.assertFalse(path.exists())
+    def test_live_socket_not_removed(self):
+        path=self.stale_socket();path.unlink()
+        with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as peer:
+            peer.bind(str(path));peer.listen(1);path.chmod(0o600)
+            with a.singleton(self.cfg['stateDirectory']) as fd:
+                with self.assertRaises(ValueError): a.UnixServer(self.cfg['stateDirectory'],self.app,fd)
+            self.assertTrue(path.exists())
+    def test_regular_file_and_symlink_not_removed(self):
+        folder=self.cfg['stateDirectory']/'transport';folder.mkdir(mode=0o700);path=folder/'catalogue.sock';path.write_bytes(b'keep')
+        with a.singleton(self.cfg['stateDirectory']) as fd:
+            with self.assertRaises(ValueError): a.UnixServer(self.cfg['stateDirectory'],self.app,fd)
+            self.assertEqual(path.read_bytes(),b'keep');path.unlink();path.symlink_to(self.base/'secret')
+            with self.assertRaises(ValueError): a.UnixServer(self.cfg['stateDirectory'],self.app,fd)
+            self.assertTrue(path.is_symlink());self.assertEqual((self.base/'secret').read_text(),'s'*48)
+    def test_unsafe_transport_directory_not_accepted(self):
+        folder=self.cfg['stateDirectory']/'transport';folder.mkdir(mode=0o755);folder.chmod(0o755)
+        with a.singleton(self.cfg['stateDirectory']) as fd:
+            with self.assertRaises(ValueError): a.UnixServer(self.cfg['stateDirectory'],self.app,fd)
+            folder.rmdir();folder.symlink_to(self.base/'other',target_is_directory=True)
+            with self.assertRaises(ValueError): a.UnixServer(self.cfg['stateDirectory'],self.app,fd)
+    def test_shared_or_foreign_socket_not_removed(self):
+        path=self.stale_socket();path.chmod(0o660)
+        with a.singleton(self.cfg['stateDirectory']) as fd:
+            with self.assertRaises(ValueError): a.UnixServer(self.cfg['stateDirectory'],self.app,fd)
+            self.assertTrue(path.exists());path.chmod(0o600);info=path.lstat();real=Path.lstat
+            def foreign(value,*args,**kwargs):
+                return SimpleNamespace(st_mode=info.st_mode,st_uid=os.geteuid()+1,st_nlink=1) if value==path else real(value,*args,**kwargs)
+            with patch.object(Path,'lstat',foreign):
+                with self.assertRaises(ValueError): a.UnixServer(self.cfg['stateDirectory'],self.app,fd)
+            self.assertTrue(path.exists())
+    def test_hardlinked_socket_not_removed(self):
+        path=self.stale_socket();os.link(path,path.with_suffix('.other'))
+        with a.singleton(self.cfg['stateDirectory']) as fd:
+            with self.assertRaises(ValueError): a.UnixServer(self.cfg['stateDirectory'],self.app,fd)
+        self.assertTrue(path.exists())
+    def test_wrong_or_unavailable_singleton_lock_does_not_remove_socket(self):
+        path=self.stale_socket()
+        with a.singleton(self.cfg['stateDirectory']) as fd:
+            with (self.base/'secret').open('rb') as wrong:
+                with self.assertRaises(ValueError): a.UnixServer(self.cfg['stateDirectory'],self.app,wrong.fileno())
+            with (self.cfg['stateDirectory']/'catalogue.lock').open('r+') as another:
+                with self.assertRaises(BlockingIOError): a.UnixServer(self.cfg['stateDirectory'],self.app,another.fileno())
+        self.assertTrue(path.exists())
+    def test_cleanup_never_unlinks_replacement_file(self):
+        with a.singleton(self.cfg['stateDirectory']) as fd:
+            server=a.UnixServer(self.cfg['stateDirectory'],self.app,fd);path=Path(server.server_address)
+            path.unlink();path.write_bytes(b'replacement');server.server_close();self.assertEqual(path.read_bytes(),b'replacement')
+    def test_accepted_socket_has_timeout(self):
+        with a.singleton(self.cfg['stateDirectory']) as fd:
+            server=a.UnixServer(self.cfg['stateDirectory'],self.app,fd)
+            try:
+                with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as peer:
+                    peer.connect(server.server_address);request,_=server.get_request()
+                    try: self.assertEqual(request.gettimeout(),5)
+                    finally: request.close()
+            finally: server.server_close()
 
 if __name__=='__main__': unittest.main()
