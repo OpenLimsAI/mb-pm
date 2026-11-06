@@ -34,5 +34,19 @@ it('sends token confirmation and idempotency key to selected deletion only', asy
   expect(fetcher.mock.calls[0][0]).toBe('/api/v1/data-backup/deletions')
   expect(fetcher.mock.calls[0][1].method).toBe('POST')
   expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual(body)
-  expect(Object.keys(backupApi)).toEqual(['snapshot', 'previewDeletion', 'deleteArchives'])
+  expect(Object.keys(backupApi)).toEqual(['snapshot', 'previewDeletion', 'deleteArchives', 'updatePlan'])
+})
+
+it('saves only the bounded daily plan fields with the expected subject and checks the read-back result', async () => {
+  const body = { dailyTime: '04:45', enabled: true, revision: 'a'.repeat(64) }
+  const result = { ...previewSnapshot.plan, status: 'active', editable: true, dailyTime: '04:45', revision: 'b'.repeat(64), timezone: 'Asia/Shanghai', summary: '每日 04:45' }
+  const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify(result), { status: 200 }))
+  vi.stubGlobal('fetch', fetcher)
+  expect(await backupApi.updatePlan('admin', body, new AbortController().signal)).toEqual(result)
+  expect(fetcher).toHaveBeenCalledWith('/api/v1/data-backup/plan', expect.objectContaining({ method: 'POST', headers: expect.objectContaining({ 'X-Backup-Expected-Identity': 'admin' }) }))
+  expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual(body)
+})
+it('requires reading the plan again if the save response does not confirm the requested schedule', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ ...previewSnapshot.plan, status: 'active', dailyTime: '03:00', revision: 'b'.repeat(64) }), { status: 200 })))
+  await expect(backupApi.updatePlan('admin', { dailyTime: '04:45', enabled: false, revision: 'a'.repeat(64) }, new AbortController().signal)).rejects.toThrow('保存结果尚未确认')
 })

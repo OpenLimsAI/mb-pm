@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Passive private backup catalogue: inspect metadata and explicitly delete selected archives only."""
+"""Private backup catalogue, selected deletion and existing daily cron settings."""
 from __future__ import annotations
 import argparse
 import ast
@@ -11,6 +11,7 @@ import hashlib
 import hmac
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import ipaddress
+import importlib.util
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -28,11 +29,15 @@ import time
 import uuid
 from zoneinfo import TZPATH, ZoneInfo
 
+_health_spec = importlib.util.spec_from_file_location('backup_health', Path(__file__).with_name('health.py'))
+_health = importlib.util.module_from_spec(_health_spec)
+_health_spec.loader.exec_module(_health)
+
 UTC = dt.timezone.utc
 NAME = re.compile(r'maibo-(\d{8}T\d{6}Z)\.tar\.gz\.gpg\Z')
 HEX = re.compile(r'[0-9a-f]{64}\Z')
 MAX_BODY = 65536
-ERRORS = {'invalid_request':'请求参数无效','unauthorized':'请求认证失败','replay':'请求已使用，请重试','rate_limited':'请求过于频繁','revision_conflict':'备份清单已变化，请刷新','request_conflict':'请求标识已用于其他操作','archive_changed':'备份文件已变化，请刷新','protected':'选中的备份受到保护，不能删除','backup_busy':'备份或发布正在进行，请稍后重试','selection_changed':'所选备份已变化，请重新预览','expired_request':'删除预览已过期，请重新确认','operation_failed':'操作未完成，请查看删除记录'}
+ERRORS = {'plan_readonly':'当前计划不可编辑','plan_changed':'备份计划已变化，请重新读取','plan_write_failed':'计划保存未确认，请刷新实际计划','invalid_request':'请求参数无效','unauthorized':'请求认证失败','replay':'请求已使用，请重试','rate_limited':'请求过于频繁','revision_conflict':'备份清单已变化，请刷新','request_conflict':'请求标识已用于其他操作','archive_changed':'备份文件已变化，请刷新','protected':'选中的备份受到保护，不能删除','backup_busy':'备份或发布正在进行，请稍后重试','selection_changed':'所选备份已变化，请重新预览','expired_request':'删除预览已过期，请重新确认','operation_failed':'操作未完成，请查看删除记录'}
 DB_NAMES = {'mb-pm-v2-pms-db-1':'项目管理数据库','mb-pm-v2-iam-db-1':'统一身份数据库','dikw-postgres':'知识库数据库','cmab-mdm-maibo-postgres-1':'主数据数据库'}
 APP_NAMES = {'mb-pm-v2-app-1':'项目管理','mb-pm-v2-app-direct-1':'项目管理','dikw-core':'知识库 Core','dikw-mbweb':'知识库应用','dikw-web':'知识库中台','mb-pm-v2-casdoor-1':'统一身份','mb-pm-v2-direct-proxy-1':'访问代理','iam-proxy':'身份代理','dikw-caddy':'知识库代理','cmab-mdm-maibo-web-1':'主数据管理','cmab-mdm-maibo-backend-1':'主数据管理','cmab-mdm-maibo-redis-1':'主数据缓存'}
 
@@ -62,7 +67,7 @@ def config_read(filename):
     path = private(filename)
     if path.stat().st_size > MAX_BODY: raise ValueError('Configuration too large')
     data = json.loads(path.read_text())
-    if not isinstance(data, dict) or set(data) - {'bind','port','unixSocket','secretFile','stateDirectory','keyFile','roots','lockDirectory','planScript','requestsPerMinute'}:
+    if not isinstance(data, dict) or set(data) - {'bind','port','unixSocket','secretFile','stateDirectory','keyFile','roots','lockDirectory','planScript','requestsPerMinute','allowPlanChanges'}:
         raise ValueError('Unknown configuration')
     for key in ('secretFile','keyFile'): data[key] = private(data[key])
     for key in ('stateDirectory','lockDirectory'): data[key] = private(data[key], directory=True)
@@ -70,6 +75,8 @@ def config_read(filename):
     if data['secretFile'].stat().st_size > 4096: raise ValueError('Secret size')
     data['secret'] = data['secretFile'].read_bytes().strip()
     if len(data['secret']) < 32: raise ValueError('Secret too short')
+    data.setdefault('allowPlanChanges',False)
+    if type(data['allowPlanChanges']) is not bool: raise ValueError('Invalid schedule configuration')
     data.setdefault('unixSocket',False)
     if type(data['unixSocket']) is not bool: raise ValueError('Invalid Unix socket configuration')
     address = ipaddress.ip_address(data.setdefault('bind','127.0.0.1'))
@@ -110,13 +117,16 @@ class Store:
 CREATE TABLE IF NOT EXISTS nonces(nonce TEXT PRIMARY KEY,created REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS scans(id TEXT PRIMARY KEY,identity TEXT NOT NULL,status TEXT NOT NULL,contents TEXT NOT NULL,full INTEGER NOT NULL,verified REAL,sha TEXT);
 CREATE TABLE IF NOT EXISTS previews(token TEXT PRIMARY KEY,actor TEXT NOT NULL,revision TEXT NOT NULL,items TEXT NOT NULL,expires REAL NOT NULL);
-CREATE TABLE IF NOT EXISTS deletions(id TEXT PRIMARY KEY,actor TEXT NOT NULL,request_id TEXT NOT NULL,payload_hash TEXT NOT NULL,created REAL NOT NULL,status TEXT NOT NULL,count INTEGER NOT NULL,bytes INTEGER NOT NULL,error TEXT,UNIQUE(actor,request_id));''')
+CREATE TABLE IF NOT EXISTS deletions(id TEXT PRIMARY KEY,actor TEXT NOT NULL,request_id TEXT NOT NULL,payload_hash TEXT NOT NULL,created REAL NOT NULL,status TEXT NOT NULL,count INTEGER NOT NULL,bytes INTEGER NOT NULL,error TEXT,UNIQUE(actor,request_id));
+CREATE TABLE IF NOT EXISTS plan_changes(id TEXT PRIMARY KEY,actor TEXT NOT NULL,created REAL NOT NULL,before_revision TEXT NOT NULL,after_revision TEXT NOT NULL,before_text TEXT NOT NULL,after_text TEXT NOT NULL,status TEXT NOT NULL);''')
         path.chmod(0o600)
         with self.connect() as db:
             if 'items' not in {row[1] for row in db.execute('PRAGMA table_info(deletions)')}:
                 db.execute("ALTER TABLE deletions ADD COLUMN items TEXT NOT NULL DEFAULT '[]'")
         # A process can be killed between unlink and receipt update. Never silently replay that request.
-        with self.connect() as db: db.execute("UPDATE deletions SET status='partial',error='operation_failed' WHERE status='running'")
+        with self.connect() as db:
+            db.execute("UPDATE deletions SET status='partial',error='operation_failed' WHERE status='running'")
+            db.execute("UPDATE plan_changes SET status='interrupted' WHERE status='running'")
     @contextmanager
     def connect(self):
         db=sqlite3.connect(self.path,timeout=10);db.row_factory=sqlite3.Row
@@ -282,42 +292,170 @@ def retention_read(script):
     except (OSError,ValueError,SyntaxError): pass
     return '未能可靠解析现有保留规则；本应用不修改规则'
 
-def plan_read(config):
-    zone=timezone_read();status='unknown';summary='暂时无法读取现有自动备份计划'
-    try:
-        result=subprocess.run(['crontab','-l'],capture_output=True,text=True,timeout=5)
-        if len(result.stdout)>1024**2: raise ValueError()
-        entries=[];tz=zone
-        for line in result.stdout.splitlines():
-            line=line.strip()
-            if not line or line.startswith('#'): continue
-            if line.startswith('CRON_TZ='):
-                value=line.partition('=')[2].strip('"\'');ZoneInfo(value);tz=value;continue
-            if re.match(r'[A-Za-z_][A-Za-z0-9_]*=',line): continue
-            tokens=shlex.split(line)
-            if not any(Path(token).name=='daily_backup.py' for token in tokens): continue
-            command=tokens[1:] if tokens and tokens[0].startswith('@') else tokens[5:]
-            matches=bool(command) and (command[0]==str(config['planScript']) or len(command)>1 and re.fullmatch(r'python(?:3(?:\.[0-9]+)?)?',Path(command[0]).name) and command[1]==str(config['planScript']))
-            entries.append((tokens,matches,tz))
-        if result.returncode==1 and not result.stdout.strip() and 'no crontab for' in result.stderr.lower(): status,summary='disabled','当前用户没有启用的备份 cron 计划'
-        elif result.returncode!=0: pass
-        elif len(entries)>1: status,summary='conflict','发现多条每日备份计划，请管理员核对；本应用不会修改它们'
-        elif not entries: status,summary='disabled','未发现对应的自动备份计划'
-        elif not entries[0][1]: status,summary='unknown','存在其他备份脚本，需管理员核对'
+DISABLED_PLAN_PREFIX = '# maibo-backup-disabled: '
+DAILY_TIME = re.compile(r'(?:[01][0-9]|2[0-3]):[0-5][0-9]\Z')
+CRON_LINE = re.compile(r'^\s*(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.+)$')
+
+
+def crontab_read():
+    result = subprocess.run(['crontab', '-l'], capture_output=True, text=True, timeout=5)
+    if len(result.stdout) > 1024 ** 2 or '\0' in result.stdout:
+        raise ValueError('Invalid crontab')
+    if result.returncode == 1 and not result.stdout.strip() and 'no crontab for' in result.stderr.lower():
+        return ''
+    if result.returncode != 0:
+        raise ValueError('Crontab unavailable')
+    return result.stdout
+
+
+def plan_revision(text):
+    return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
+
+def next_daily_run(daily_time, zone, now=None):
+    """Return only an unambiguous next time away from a DST offset transition.
+
+    Cron daemons differ in DST compensation. Leave such windows unconfirmed
+    rather than claiming that wall-clock arithmetic proves a real execution.
+    """
+    timezone = ZoneInfo(zone)
+    current = dt.datetime.now(UTC) if now is None else now.astimezone(UTC)
+    local = current.astimezone(timezone)
+    hour, minute = map(int, daily_time.split(':'))
+    for offset in range(2):
+        day = local.date() + dt.timedelta(days=offset)
+        wall = dt.datetime.combine(day, dt.time(hour, minute))
+        occurrences = set()
+        for fold in (0, 1):
+            candidate = wall.replace(tzinfo=timezone, fold=fold).astimezone(UTC)
+            if candidate.astimezone(timezone).replace(tzinfo=None) == wall:
+                occurrences.add(candidate)
+        if len(occurrences) != 1:
+            return None
+        candidate = occurrences.pop()
+        if candidate > current:
+            return candidate.isoformat() if candidate.astimezone(timezone).utcoffset() == local.utcoffset() else None
+    return None
+
+
+def plan_from_text(config, text):
+    zone = timezone_read()
+    entries = []
+    for index, original in enumerate(text.splitlines(keepends=True)):
+        disabled = original.startswith(DISABLED_PLAN_PREFIX)
+        raw = (original[len(DISABLED_PLAN_PREFIX):] if disabled else original).rstrip('\r\n')
+        line = raw.strip()
+        if not line or line.startswith('#'):
+            continue
+        match = re.fullmatch(r'CRON_TZ\s*=\s*(.+)', line)
+        if match:
+            values = shlex.split(match[1])
+            if len(values) != 1:
+                raise ValueError('Invalid timezone')
+            ZoneInfo(values[0]); zone = values[0]
+            continue
+        if re.match(r'[A-Za-z_][A-Za-z0-9_]*\s*=', line):
+            continue
+        tokens = shlex.split(line)
+        if not any(token == str(config['planScript']) or Path(token).name == 'daily_backup.py' for token in tokens):
+            continue
+        fields = CRON_LINE.fullmatch(raw)
+        command = shlex.split(fields[6]) if fields else tokens[1:] if tokens and tokens[0].startswith('@') else []
+        matches = bool(command) and (command[0] == str(config['planScript']) or len(command) > 1 and re.fullmatch(r'python(?:3(?:\.[0-9]+)?)?', Path(command[0]).name) and command[1] == str(config['planScript']))
+        daily = bool(fields and fields.groups()[2:5] == ('*', '*', '*') and fields[1].isdigit() and fields[2].isdigit() and 0 <= int(fields[1]) < 60 and 0 <= int(fields[2]) < 24)
+        entries.append({'index': index, 'matches': matches, 'daily': daily, 'fields': fields, 'zone': zone, 'disabled': disabled})
+    plan = {'status': 'unknown', 'source': 'cron', 'timezone': zone, 'summary': '暂时无法读取现有自动备份计划', 'retentionSummary': retention_read(config['planScript']), 'checkedAt': stamp(), 'editable': False, 'dailyTime': None, 'revision': plan_revision(text), 'nextRunAt': None, 'editReason': ''}
+    entry = entries[0] if len(entries) == 1 else None
+    if len(entries) > 1:
+        plan.update(status='conflict', summary='发现多条每日备份计划，请管理员核对')
+        reason = '存在多条备份计划，需管理员先排除冲突。'
+    elif not entry:
+        plan.update(status='disabled', summary='未发现对应的自动备份计划')
+        reason = '没有可识别的现有每日任务，请管理员先配置任务。'
+    elif not entry['matches']:
+        plan.update(summary='存在其他备份脚本，需管理员核对')
+        reason = '计划指向的脚本与已批准脚本不一致。'
+    else:
+        plan['timezone'] = entry['zone']
+        plan['status'] = 'disabled' if entry['disabled'] else 'active'
+        if entry['daily']:
+            plan['dailyTime'] = f"{int(entry['fields'][2]):02d}:{int(entry['fields'][1]):02d}"
+            plan['summary'] = f"每日 {plan['dailyTime']} 执行现有自动备份" if not entry['disabled'] else f"每日 {plan['dailyTime']} 的自动备份计划已暂停"
+            reason = ''
         else:
-            tokens,_,zone=entries[0]
-            if len(tokens)>=7 and tokens[2:5]==['*','*','*'] and tokens[0].isdigit() and tokens[1].isdigit() and 0<=int(tokens[0])<60 and 0<=int(tokens[1])<24:
-                status='active';summary=f'每日 {int(tokens[1]):02d}:{int(tokens[0]):02d} 执行现有自动备份'
-            else: status,summary='active','已启用现有自定义 cron 计划'
-            if zone=='unknown': status='unknown';summary='发现备份计划，但尚无法确认服务器时区'
-    except (OSError,ValueError,KeyError,subprocess.SubprocessError): pass
-    return {'status':status,'source':'cron','timezone':zone,'summary':summary,'retentionSummary':retention_read(config['planScript']),'checkedAt':stamp()}
+            plan['summary'] = '已暂停现有自定义 cron 计划' if entry['disabled'] else '已启用现有自定义 cron 计划'
+            reason = '自定义 Cron 表达式暂不支持在界面编辑。'
+        if entry['zone'] == 'unknown':
+            plan.update(status='unknown', summary='发现备份计划，但尚无法确认服务器时区')
+            reason = '尚无法确认执行时区，请管理员核对服务器配置。'
+        elif entry['daily'] and not entry['disabled']:
+            plan['nextRunAt'] = next_daily_run(plan['dailyTime'], entry['zone'])
+    if not reason and not config.get('allowPlanChanges', False):
+        reason = '服务器尚未开放计划修改，请管理员启用计划管理。'
+    plan['editable'] = not bool(reason)
+    plan['editReason'] = reason
+    return plan, entry
+
+
+def plan_read(config):
+    try:
+        return plan_from_text(config, crontab_read())[0]
+    except (OSError, ValueError, KeyError, subprocess.SubprocessError):
+        return {'status': 'unknown', 'source': 'cron', 'timezone': 'unknown', 'summary': '暂时无法读取现有自动备份计划', 'retentionSummary': retention_read(config['planScript']), 'checkedAt': stamp(), 'editable': False, 'dailyTime': None, 'revision': None, 'nextRunAt': None, 'editReason': '无法可靠读取计划，请管理员检查服务权限与时区。'}
+
 
 class Catalogue:
     def __init__(self,config):
         self.config=config; self.stop=threading.Event();self.mutex=threading.RLock();self.scanning=None
         (config['stateDirectory']/'gnupg').mkdir(mode=0o700,exist_ok=True);private(config['stateDirectory']/'gnupg',directory=True)
         self.store=Store(config['stateDirectory']/'catalogue.sqlite3')
+    def update_plan(self, data):
+        if not isinstance(data, dict) or set(data) != {'dailyTime', 'enabled', 'revision', 'actor'} or not actor_valid(data['actor']) or not isinstance(data['dailyTime'], str) or not DAILY_TIME.fullmatch(data['dailyTime']) or type(data['enabled']) is not bool or not isinstance(data['revision'], str) or not HEX.fullmatch(data['revision']):
+            raise Error('invalid_request')
+        if not self.config.get('allowPlanChanges', False):
+            raise Error('plan_readonly', 409)
+        with self.mutex, locks(self.config['lockDirectory']):
+            before = crontab_read()
+            plan, entry = plan_from_text(self.config, before)
+            if plan['revision'] != data['revision']:
+                raise Error('plan_changed', 409)
+            if not plan['editable'] or entry is None:
+                raise Error('plan_readonly', 409)
+            # Read the complete crontab again before installing; never overwrite a
+            # known concurrent edit, including edits to unrelated jobs or variables.
+            if crontab_read() != before:
+                raise Error('plan_changed', 409)
+            hour, minute = map(int, data['dailyTime'].split(':'))
+            lines = before.splitlines(keepends=True)
+            newline = '\r\n' if lines[entry['index']].endswith('\r\n') else '\n'
+            replacement = f'{minute} {hour} * * * {entry["fields"][6]}'
+            lines[entry['index']] = ('' if data['enabled'] else DISABLED_PLAN_PREFIX) + replacement + newline
+            after = ''.join(lines)
+            if after == before:
+                return plan
+            identifier = uuid.uuid4().hex
+            with self.store.connect() as db:
+                db.execute('INSERT INTO plan_changes VALUES (?,?,?,?,?,?,?,?)', (identifier, data['actor'], time.time(), plan_revision(before), plan_revision(after), before, after, 'running'))
+            try:
+                result = subprocess.run(['crontab', '-'], input=after, capture_output=True, text=True, timeout=5)
+                actual = crontab_read()
+                if actual != after:
+                    # A different writer may have installed newer settings. Do not
+                    # roll back over their update; return a failure and refresh.
+                    raise Error('plan_write_failed', 503)
+                saved, _ = plan_from_text(self.config, actual)
+                if saved['dailyTime'] != data['dailyTime'] or saved['status'] != ('active' if data['enabled'] else 'disabled'):
+                    raise Error('plan_write_failed', 503)
+                if result.returncode != 0:
+                    raise Error('plan_write_failed', 503)
+            except (OSError, ValueError, KeyError, subprocess.SubprocessError, Error):
+                with self.store.connect() as db:
+                    db.execute("UPDATE plan_changes SET status='failed' WHERE id=?", (identifier,))
+                raise Error('plan_write_failed', 503) from None
+            with self.store.connect() as db:
+                db.execute("UPDATE plan_changes SET status='succeeded' WHERE id=?", (identifier,))
+            return saved
+
     def authenticate(self,method,path,headers,body,now=None):
         now=time.time() if now is None else now;ts,nonce,sig=(headers.get(k,'') for k in ('X-Backup-Time','X-Backup-Nonce','X-Backup-Signature'))
         if not re.fullmatch(r'\d{10}',ts) or abs(now-int(ts))>60 or not re.fullmatch(r'[a-f0-9]{32}',nonce) or not HEX.fullmatch(sig): raise Error('unauthorized',401)
@@ -358,7 +496,7 @@ class Catalogue:
                         other+=allocated if unique else 0;continue
                     relative=str(Path(path).relative_to(root['path'])/name)
                     identifier=hashlib.sha256((root['id']+'\0'+relative).encode()).hexdigest()
-                    archives[identifier]={'id':identifier,'name':name,'rootLabel':root['label'],'createdAt':created.isoformat() if created else None,'_sort':created.timestamp() if created else info.st_mtime,'_gpg':created is not None,'sizeBytes':info.st_size,'diskBytes':allocated,'identity':identity(info),'_root':root['path'],'_relative':relative,'_private':directory_safe and info.st_uid==os.geteuid() and not info.st_mode&0o022}
+                    archives[identifier]={'id':identifier,'name':name,'rootLabel':root['label'],'rootId':root['id'],'createdAt':created.isoformat() if created else None,'_sort':created.timestamp() if created else info.st_mtime,'_gpg':created is not None,'sizeBytes':info.st_size,'diskBytes':allocated,'identity':identity(info),'_root':root['path'],'_relative':relative,'_private':directory_safe and info.st_uid==os.geteuid() and not info.st_mode&0o022}
                     archive_count+=1
             roots.append({'id':root['id'],'label':root['label'],'archiveCount':archive_count,'sizeBytes':logical,'diskBytes':physical,'otherBytes':other})
         return archives,roots
@@ -371,7 +509,7 @@ class Catalogue:
         full=[]
         for item in items.values():
             scan=self.store.scan(item)
-            item.update(status=scan['status'] if scan else 'pending' if item['_gpg'] else 'unknown',contents=json.loads(scan['contents']) if scan else [],verifiedAt=stamp(scan['verified']) if scan and scan['verified'] else None)
+            item.update(_full=bool(scan and scan['full']),status=scan['status'] if scan else 'pending' if item['_gpg'] else 'unknown',contents=json.loads(scan['contents']) if scan else [],verifiedAt=stamp(scan['verified']) if scan and scan['verified'] else None)
             if scan and scan['status']=='verified' and scan['full'] and item['identity'][4]==1 and item['_private']: full.append(item)
         latest=max(full,key=lambda x:(x['_sort'],x['id']))['id'] if full else None
         families={}
@@ -389,10 +527,11 @@ class Catalogue:
         with self.mutex: items,roots,revision=self.catalog()
         usage=shutil.disk_usage(self.config['lockDirectory'])
         with self.store.connect() as db: receipts=[deletion_out(row) for row in db.execute('SELECT * FROM deletions ORDER BY created DESC LIMIT 100')]
-        alerts=[]
-        if not any(item['protectionReason']=='最新已核验的完整恢复副本' for item in items.values()): alerts.append('尚未建立已核验的完整恢复副本，删除功能保持保护')
+        plan=plan_read(self.config)
+        alerts=_health.backup_alerts(plan,items,usage)
+        if any(item.get('_full') and item['status']=='verified' for item in items.values()) and not any(item['protectionReason']=='最新已核验的完整恢复副本' for item in items.values()): alerts.append('完整副本当前未满足安全删除条件，删除功能保持保护')
         if len(items)>1000: alerts.append('仅展示最近1000份归档，容量统计包含全部受管理文件')
-        return {'connected':True,'generatedAt':stamp(),'catalogRevision':revision,'plan':plan_read(self.config),'storage':{'totalBytes':usage.total,'freeBytes':usage.free,'backupBytes':sum(r['diskBytes'] for r in roots),'archiveBytes':sum(i['sizeBytes'] for i in items.values()),'otherBytes':sum(r['otherBytes'] for r in roots)},'roots':roots,'archives':[{key:value for key,value in item.items() if not key.startswith('_') and key!='identity'} for item in sorted(items.values(),key=lambda x:x['_sort'],reverse=True)[:1000]],'deletions':receipts,'alerts':alerts}
+        return {'connected':True,'generatedAt':stamp(),'catalogRevision':revision,'plan':plan,'storage':{'totalBytes':usage.total,'freeBytes':usage.free,'backupBytes':sum(r['diskBytes'] for r in roots),'archiveBytes':sum(i['sizeBytes'] for i in items.values()),'otherBytes':sum(r['otherBytes'] for r in roots)},'roots':roots,'archives':[{key:value for key,value in item.items() if not key.startswith('_') and key!='identity'} for item in sorted(items.values(),key=lambda x:x['_sort'],reverse=True)[:1000]],'deletions':receipts,'alerts':alerts}
     def preview(self,data):
         if not isinstance(data,dict) or set(data)!={'archiveIds','catalogRevision','actor'} or not actor_valid(data['actor']) or not isinstance(data['archiveIds'],list) or not 1<=len(data['archiveIds'])<=100 or any(not isinstance(i,str) or not HEX.fullmatch(i) for i in data['archiveIds']) or len(set(data['archiveIds']))!=len(data['archiveIds']): raise Error('invalid_request')
         with self.mutex, locks(self.config['lockDirectory']):
@@ -408,7 +547,7 @@ class Catalogue:
             with self.store.connect() as db:
                 db.execute('DELETE FROM previews WHERE expires<?',(time.time(),))
                 db.execute('INSERT INTO previews VALUES (?,?,?,?,?)',(hashlib.sha256(token.encode()).hexdigest(),data['actor'],revision,compact([{key:item[key] for key in ('id','identity')} for item in chosen]),expires))
-            return {'token':token,'itemCount':len(chosen),'sizeBytes':sum(i['sizeBytes'] for i in chosen),'diskBytes':sum(i['diskBytes'] for i in chosen),'items':[{key:item[key] for key in ('id','name','rootLabel','sizeBytes','diskBytes')} for item in chosen],'expiresAt':stamp(expires)}
+            return {'token':token,'itemCount':len(chosen),'sizeBytes':sum(i['sizeBytes'] for i in chosen),'diskBytes':sum(i['diskBytes'] for i in chosen),'items':[{key:item[key] for key in ('id','name','rootLabel','rootId','sizeBytes','diskBytes')} for item in chosen],'expiresAt':stamp(expires)}
     def delete(self,data):
         if not isinstance(data,dict) or set(data)!={'token','confirmation','requestId','actor'} or not actor_valid(data['actor']) or not isinstance(data['token'],str) or not re.fullmatch(r'[A-Za-z0-9_-]{32,256}',data['token']): raise Error('invalid_request')
         try: request_id=str(uuid.UUID(data['requestId']))
@@ -551,7 +690,7 @@ class Handler(BaseHTTPRequestHandler):
         body=compact(value).encode();self.send_response(status);self.send_header('Content-Type','application/json');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(body)));self.send_header('Connection','close');self.end_headers();self.wfile.write(body);self.close_connection=True
     def handle_request(self):
         try:
-            if (self.command,self.path) not in {('GET','/v1/snapshot'),('POST','/v1/delete-preview'),('POST','/v1/deletions')} or self.headers.get('Transfer-Encoding'): raise Error('invalid_request')
+            if (self.command,self.path) not in {('GET','/v1/snapshot'),('POST','/v1/delete-preview'),('POST','/v1/deletions'),('POST','/v1/plan')} or self.headers.get('Transfer-Encoding'): raise Error('invalid_request')
             lengths=self.headers.get_all('Content-Length',[])
             if len(lengths)>1 or self.command=='POST' and not lengths: raise Error('invalid_request')
             length=lengths[0] if lengths else '0'
@@ -571,7 +710,7 @@ class Handler(BaseHTTPRequestHandler):
                     return result
                 try: data=json.loads(body,object_pairs_hook=pairs)
                 except (ValueError,UnicodeDecodeError): raise Error('invalid_request') from None
-                result=self.server.app.preview(data) if self.path=='/v1/delete-preview' else self.server.app.delete(data)
+                result=self.server.app.preview(data) if self.path=='/v1/delete-preview' else self.server.app.update_plan(data) if self.path=='/v1/plan' else self.server.app.delete(data)
             self.reply(200,result)
         except Error as exc: self.reply(exc.status,{'error':{'code':exc.code,'message':ERRORS[exc.code]}})
         except (OSError,ValueError,sqlite3.Error,TypeError,KeyError): self.reply(503,{'error':{'code':'operation_failed','message':ERRORS['operation_failed']}})

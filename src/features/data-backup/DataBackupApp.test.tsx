@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import DataBackupApp, { BackupWorkspace } from './DataBackupApp'
@@ -32,6 +33,7 @@ beforeEach(() => {
   context.current.user = { id: 'admin-a', username: 'admin-a', displayName: '管理员甲' }; context.current.identityNamespace = 'namespace-a'
   vi.spyOn(backupApi, 'snapshot').mockResolvedValue(snapshot())
   vi.spyOn(backupApi, 'previewDeletion').mockImplementation(async (_, ids) => deletionPreview(ids))
+  vi.spyOn(backupApi, 'updatePlan').mockRejectedValue(new Error('Unexpected plan save'))
   vi.spyOn(backupApi, 'deleteArchives').mockResolvedValue({ id: 'delete-1', actor: 'admin-a', createdAt: '2026-11-04T12:00:00Z', status: 'succeeded', deletedCount: 1, deletedBytes: 2048 })
 })
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers() })
@@ -211,4 +213,181 @@ it('limits one deletion selection to the server limit of one hundred archives', 
   fireEvent.click(screen.getByRole('checkbox', { name: '选择 old-100.gpg' }))
   expect(screen.getByRole('checkbox', { name: '选择 old-100.gpg' })).not.toBeChecked()
   expect(screen.getByText('每次最多选择 100 份备份，请分批操作。')).toBeVisible()
+})
+
+function groupedSnapshot() {
+  const data = snapshot()
+  data.roots.push({ id: 'configuration', label: '配置备份', archiveCount: 1, sizeBytes: 512, diskBytes: 4096, otherBytes: 0 }, { id: 'empty', label: '助手连接备份', archiveCount: 0, sizeBytes: 0, diskBytes: 0, otherBytes: 0 })
+  data.archives.forEach(item => { item.rootId = 'business' })
+  data.archives.push({ ...data.archives[1], id: '4'.repeat(64), name: 'config-old.tar.gz', rootId: 'configuration', rootLabel: '配置备份' })
+  return data
+}
+function editableSnapshot() {
+  const data = snapshot()
+  data.plan = { ...data.plan, editable: true, dailyTime: '02:17', revision: 'a'.repeat(64), nextRunAt: '2026-11-05T18:17:00Z', editReason: '' }
+  return data
+}
+it('filters files by a category card and keyboard activation, with an explicit empty category', async () => {
+  vi.mocked(backupApi.snapshot).mockResolvedValue(groupedSnapshot())
+  show(); await ready()
+  const category = screen.getByRole('button', { name: '筛选分类：配置备份' })
+  category.focus(); await userEvent.keyboard('{Enter}')
+  expect(category).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.getByText('config-old.tar.gz')).toBeVisible()
+  expect(screen.queryByText('business-old-a.tar.gz.gpg')).not.toBeInTheDocument()
+  expect(screen.getByRole('combobox', { name: '分类' })).toHaveValue('configuration')
+  expect(screen.getByText('当前分类：配置备份 · 显示 1 份，共 4 份备份。')).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: '筛选分类：助手连接备份' }))
+  expect(screen.getByText('“助手连接备份”分类暂无备份文件。')).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: '查看全部备份' }))
+  expect(screen.getByText('business-old-a.tar.gz.gpg')).toBeVisible()
+  expect(screen.getByText('config-old.tar.gz')).toBeVisible()
+})
+it('clears hidden selections and confirmations, and bulk-selects only visible unprotected files', async () => {
+  vi.mocked(backupApi.snapshot).mockResolvedValue(groupedSnapshot())
+  show(); await ready()
+  fireEvent.click(screen.getByRole('checkbox', { name: '选择 business-old-a.tar.gz.gpg' }))
+  fireEvent.click(screen.getByRole('button', { name: '筛选分类：配置备份' }))
+  expect(screen.getByRole('button', { name: '删除所选' })).toBeDisabled()
+  fireEvent.click(screen.getByRole('checkbox', { name: '选择所有可删除备份' }))
+  expect(screen.getByRole('button', { name: '删除所选（1）' })).toBeEnabled()
+  fireEvent.click(screen.getByRole('button', { name: '删除所选（1）' })); await screen.findByRole('dialog')
+  fireEvent.change(screen.getByRole('searchbox', { name: '搜索备份' }), { target: { value: 'not-found' } })
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '删除所选' })).toBeDisabled()
+  expect(screen.getByText('没有符合筛选条件的备份文件。')).toBeVisible()
+  expect(backupApi.deleteArchives).not.toHaveBeenCalled()
+})
+it('combines content search and verification status without selecting protected matches', async () => {
+  show(); await ready()
+  fireEvent.change(screen.getByRole('searchbox', { name: '搜索备份' }), { target: { value: '任务和成员' } })
+  fireEvent.change(screen.getByRole('combobox', { name: '验证状态' }), { target: { value: 'verified' } })
+  expect(screen.getByText('business-latest.tar.gz.gpg')).toBeVisible()
+  expect(screen.queryByText('business-old-a.tar.gz.gpg')).not.toBeInTheDocument()
+  expect(screen.getByRole('checkbox', { name: '选择所有可删除备份' })).toBeDisabled()
+  fireEvent.click(screen.getByRole('button', { name: '清除筛选' }))
+  expect(screen.getByRole('searchbox', { name: '搜索备份' })).toHaveValue('')
+  expect(screen.getByRole('combobox', { name: '验证状态' })).toHaveValue('')
+  expect(screen.getByText('business-old-a.tar.gz.gpg')).toBeVisible()
+})
+it('uses stable category identifiers for duplicate labels and does not guess the category of old ambiguous records', async () => {
+  const data = groupedSnapshot(); data.roots[1].label = data.roots[0].label; data.archives[3].rootLabel = data.roots[0].label
+  delete data.archives[1].rootId
+  vi.mocked(backupApi.snapshot).mockResolvedValue(data)
+  show(); await ready()
+  fireEvent.change(screen.getByRole('combobox', { name: '分类' }), { target: { value: 'configuration' } })
+  expect(screen.getByText('config-old.tar.gz')).toBeVisible()
+  expect(screen.queryByText('business-old-a.tar.gz.gpg')).not.toBeInTheDocument()
+  expect(screen.getByText(/部分旧记录缺少分类标识/)).toBeVisible()
+})
+it('edits the actual daily time, explains the execution timezone, and displays the confirmed next run', async () => {
+  const data = editableSnapshot()
+  vi.mocked(backupApi.snapshot).mockResolvedValue(data)
+  vi.mocked(backupApi.updatePlan).mockImplementation(async (_, body) => {
+    const updated = { ...data, plan: { ...data.plan, status: 'active' as const, dailyTime: body.dailyTime, revision: 'b'.repeat(64), summary: '每日 04:45 执行完整业务备份。', nextRunAt: '2026-11-05T20:45:00Z' } }
+    vi.mocked(backupApi.snapshot).mockResolvedValue(updated)
+    return updated.plan
+  })
+  show(); await ready()
+  expect(screen.getByText('预计下次执行：2026/11/6 02:17:00（Asia/Shanghai）')).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: '修改每日计划' }))
+  expect(screen.getByLabelText('每日执行时间')).toHaveValue('02:17')
+  expect(screen.getByRole('button', { name: '保存计划' })).toBeDisabled()
+  expect(screen.getByText(/备份期间可能短暂暂停业务写入/)).toBeVisible()
+  fireEvent.change(screen.getByLabelText('每日执行时间'), { target: { value: '04:45' } })
+  fireEvent.click(screen.getByRole('button', { name: '保存计划' }))
+  await waitFor(() => expect(backupApi.updatePlan).toHaveBeenCalledWith('admin-a', { dailyTime: '04:45', enabled: true, revision: 'a'.repeat(64) }, expect.any(AbortSignal)))
+  expect(await screen.findByText('每日备份计划已保存，服务器将按新计划执行。')).toBeVisible()
+  expect(screen.queryByRole('form', { name: '编辑每日备份计划' })).not.toBeInTheDocument()
+  expect(screen.getByText('预计下次执行：2026/11/6 04:45:00（Asia/Shanghai）')).toBeVisible()
+})
+it('cancels a draft without writing and supports pausing the existing daily schedule', async () => {
+  const data = editableSnapshot()
+  vi.mocked(backupApi.snapshot).mockResolvedValue(data)
+  vi.mocked(backupApi.updatePlan).mockImplementation(async (_, body) => {
+    const updated = { ...data, plan: { ...data.plan, status: 'disabled' as const, revision: 'b'.repeat(64), nextRunAt: null } }
+    vi.mocked(backupApi.snapshot).mockResolvedValue(updated)
+    expect(body.enabled).toBe(false)
+    return updated.plan
+  })
+  show(); await ready()
+  fireEvent.click(screen.getByRole('button', { name: '修改每日计划' }))
+  fireEvent.change(screen.getByLabelText('每日执行时间'), { target: { value: '05:00' } })
+  fireEvent.click(screen.getByRole('button', { name: '取消修改' }))
+  expect(backupApi.updatePlan).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: '修改每日计划' }))
+  expect(screen.getByLabelText('每日执行时间')).toHaveValue('02:17')
+  fireEvent.click(screen.getByRole('checkbox', { name: '启用每日备份' }))
+  expect(screen.getByText('暂停后不会自动创建每日备份，已有备份仍会保留。')).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: '保存计划' }))
+  expect(await screen.findByText('每日备份计划已暂停。')).toBeVisible()
+  expect(screen.getByText('预计下次执行：计划已暂停')).toBeVisible()
+})
+it('keeps the draft after a failed save, and requires refreshing before retrying', async () => {
+  vi.mocked(backupApi.snapshot).mockResolvedValue(editableSnapshot())
+  vi.mocked(backupApi.updatePlan).mockRejectedValue(new BackupApiError(504, '保存结果待确认，请刷新。'))
+  show(); await ready()
+  fireEvent.click(screen.getByRole('button', { name: '修改每日计划' }))
+  fireEvent.change(screen.getByLabelText('每日执行时间'), { target: { value: '04:45' } })
+  fireEvent.click(screen.getByRole('button', { name: '保存计划' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('保存结果待确认')
+  expect(screen.getByLabelText('每日执行时间')).toHaveValue('04:45')
+  expect(screen.getByRole('button', { name: '保存计划' })).toBeDisabled()
+  fireEvent.click(screen.getByRole('button', { name: '重新读取状态' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: '保存计划' })).toBeEnabled())
+})
+it('invalidates a draft when the actual plan changes, and never saves with the old revision', async () => {
+  const data = editableSnapshot(); vi.mocked(backupApi.snapshot).mockResolvedValue(data)
+  show(); await ready()
+  fireEvent.click(screen.getByRole('button', { name: '修改每日计划' }))
+  fireEvent.change(screen.getByLabelText('每日执行时间'), { target: { value: '04:45' } })
+  vi.mocked(backupApi.snapshot).mockResolvedValue({ ...data, plan: { ...data.plan, revision: 'c'.repeat(64), dailyTime: '05:00' } })
+  fireEvent.click(screen.getByRole('button', { name: '刷新状态' }))
+  expect(await screen.findByText('备份计划已更新，请重新打开编辑并核对计划。')).toBeVisible()
+  expect(screen.queryByRole('button', { name: '保存计划' })).not.toBeInTheDocument()
+  expect(backupApi.updatePlan).not.toHaveBeenCalled()
+})
+it('revokes loaded backup data and the plan editor when a plan write detects lost access', async () => {
+  vi.mocked(backupApi.snapshot).mockResolvedValue(editableSnapshot())
+  vi.mocked(backupApi.updatePlan).mockRejectedValue(new BackupApiError(403, '权限已撤销'))
+  show(); await ready()
+  fireEvent.click(screen.getByRole('button', { name: '修改每日计划' }))
+  fireEvent.change(screen.getByLabelText('每日执行时间'), { target: { value: '04:45' } })
+  fireEvent.click(screen.getByRole('button', { name: '保存计划' }))
+  await screen.findByRole('heading', { name: '仅系统管理员可管理数据备份' })
+  expect(screen.queryByText('business-old-a.tar.gz.gpg')).not.toBeInTheDocument()
+  expect(screen.queryByLabelText('每日执行时间')).not.toBeInTheDocument()
+})
+it('refreshes the real schedule after a concurrent plan conflict instead of retrying the stale draft', async () => {
+  const data = editableSnapshot(); vi.mocked(backupApi.snapshot).mockResolvedValue(data)
+  vi.mocked(backupApi.updatePlan).mockImplementation(async () => {
+    vi.mocked(backupApi.snapshot).mockResolvedValue({ ...data, plan: { ...data.plan, dailyTime: '05:15', revision: 'c'.repeat(64), summary: '每日 05:15 执行完整业务备份。' } })
+    throw new BackupApiError(409, '计划已被其他管理员更改', 'revision_conflict')
+  })
+  show(); await ready()
+  fireEvent.click(screen.getByRole('button', { name: '修改每日计划' }))
+  fireEvent.change(screen.getByLabelText('每日执行时间'), { target: { value: '04:45' } })
+  fireEvent.click(screen.getByRole('button', { name: '保存计划' }))
+  expect(await screen.findByText('每日 05:15 执行完整业务备份。')).toBeVisible()
+  expect(backupApi.updatePlan).toHaveBeenCalledTimes(1)
+  fireEvent.click(screen.getByRole('button', { name: '修改每日计划' }))
+  expect(screen.getByLabelText('每日执行时间')).toHaveValue('05:15')
+})
+it('aborts an in-flight plan write and ignores its response after switching portal identities', async () => {
+  const data = editableSnapshot(); vi.mocked(backupApi.snapshot).mockResolvedValue(data)
+  let resolve!: (value: BackupSnapshot['plan']) => void
+  vi.mocked(backupApi.updatePlan).mockReturnValueOnce(new Promise(done => { resolve = done }))
+  const view = render(<MemoryRouter><DataBackupApp /></MemoryRouter>); await ready()
+  fireEvent.click(screen.getByRole('button', { name: '修改每日计划' }))
+  fireEvent.change(screen.getByLabelText('每日执行时间'), { target: { value: '04:45' } })
+  fireEvent.click(screen.getByRole('button', { name: '保存计划' }))
+  const signal = vi.mocked(backupApi.updatePlan).mock.calls[0][2]
+  context.current.user = { id: 'admin-b', username: 'admin-b', displayName: '管理员乙' }; context.current.identityNamespace = 'namespace-b'
+  vi.mocked(backupApi.snapshot).mockResolvedValue({ ...data, plan: { ...data.plan, summary: '另一账号读取的计划' }, archives: [] })
+  view.rerender(<MemoryRouter><DataBackupApp /></MemoryRouter>)
+  await act(async () => resolve({ ...data.plan, dailyTime: '04:45', summary: '旧账号保存结果' }))
+  expect(signal.aborted).toBe(true)
+  expect(await screen.findByText('另一账号读取的计划')).toBeVisible()
+  expect(screen.queryByText('旧账号保存结果')).not.toBeInTheDocument()
+  expect(screen.queryByText('每日备份计划已保存，服务器将按新计划执行。')).not.toBeInTheDocument()
 })
