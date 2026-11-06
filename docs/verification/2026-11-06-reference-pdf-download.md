@@ -1,6 +1,6 @@
 # 参考资料 PDF 下载修复验证
 
-日期：2026-11-06。基于 main `1512401b92360c0ae11935cb39337b0335e4cce8`，本记录描述本地代码验证，尚未合并或部署生产。
+日期：2026-11-06。基于 main `1512401b92360c0ae11935cb39337b0335e4cce8`，本记录描述当时的本地代码验证；后续已合并并部署，实际结果见[发布记录](../../deploy/parallel-test/releases/20261106-reference-pdf-download.md)。
 
 ## 问题与修复
 
@@ -16,6 +16,6 @@
 - 后端 5 个测试文件，125 项通过：`test_reference_download.py`、`test_knowledge_source_references.py`、`test_knowledge_source_acquisition_v3.py`、`test_knowledge_sources.py`、`test_information_live.py`。
 - 前端参考资料导入与知识源 12 个测试文件，94 项通过；包括失败原因直接可见、展开状态、来源链接、未下载与已保存原件的区别及历史版本索引状态。
 - TypeScript 检查与前端构建通过；所改前端文件 ESLint、后端 Ruff 格式与检查、`git diff --check` 通过。
-- 后端测试使用隔离 SQLite 数据库与受控 HTTP、IAM、知识库响应；没有调用真实模型、下载真实论文或修改客户数据。PostgreSQL CI、合并和生产验收未执行。
+- 后端测试使用隔离 SQLite 数据库与受控 HTTP、IAM、知识库响应；没有调用真实模型、下载真实论文或修改客户数据。本地阶段未执行 PostgreSQL CI；后续 PR 的 PostgreSQL CI、合并和发布后只读验收已完成，范围见发布记录。
 
 保持原有公网 HTTPS、DNS 固定、TLS、robots、容量与时限限制；不增加数据库迁移或外部服务配置。操作说明见[参考资料导入](../reference-paper-import.md)。
