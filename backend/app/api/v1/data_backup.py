@@ -13,7 +13,7 @@ from app.api.deps import require_same_origin
 from app.api.v1 import portal
 from app.core.config import settings
 from app.db.session import get_db
-from app.schemas.data_backup import DeletePreviewInput, DeletionInput
+from app.schemas.data_backup import DeletePreviewInput, DeletionInput, PlanInput
 from app.services import accounts, data_backup, password_policy
 from app.services.iam_admin import IAMError
 
@@ -92,3 +92,8 @@ def delete_preview(body: DeletePreviewInput, claims: Admin):
 @router.post("/deletions")
 def delete_archives(body: DeletionInput, claims: Admin):
     return data_backup.delete_archives(body, claims["sub"])
+
+
+@router.post("/plan")
+def update_plan(body: PlanInput, claims: Admin):
+    return data_backup.update_plan(body, claims["sub"])

@@ -13,7 +13,7 @@ from fastapi import HTTPException
 
 from app.api.v1 import data_backup, portal
 from app.core.config import settings
-from app.schemas.data_backup import DeletePreviewInput, DeletionInput
+from app.schemas.data_backup import DeletePreviewInput, DeletionInput, PlanInput
 from app.services import accounts, iam_admin, password_policy
 from app.services import data_backup as service
 
@@ -119,6 +119,10 @@ def selection(**changes):
     return dict(archiveIds=[ARCHIVE], catalogRevision=REVISION) | changes
 
 
+def plan_change(**changes):
+    return dict(dailyTime="04:23", enabled=True, revision=REVISION) | changes
+
+
 def deletion(**changes):
     return dict(token=TOKEN, confirmation="删除 1 份备份", requestId=str(uuid4())) | changes
 
@@ -148,6 +152,8 @@ def backup_client(solution_client, monkeypatch):
             return snapshot()
         if path == "/v1/delete-preview":
             return preview()
+        if path == "/v1/plan":
+            return snapshot()["plan"] | dict(editable=True, dailyTime=body["dailyTime"], revision="c" * 64, status="active" if body["enabled"] else "disabled")
         return receipt(actor=body["actor"])
 
     monkeypatch.setattr(service, "request", agent)
@@ -163,6 +169,7 @@ def test_live_admin_only_and_revocation(backup_client):
             ("get", "/snapshot", None),
             ("post", "/delete-preview", selection()),
             ("post", "/deletions", deletion()),
+            ("post", "/plan", plan_change()),
         ]:
             response = getattr(f.client, method)(PREFIX + path, **({"json": body} if body else {}))
             assert response.status_code == 403 and response.headers["cache-control"] == "no-store"
@@ -172,7 +179,7 @@ def test_live_admin_only_and_revocation(backup_client):
 
 
 @pytest.mark.parametrize(
-    "path,body", [("/delete-preview", selection()), ("/deletions", deletion())]
+    "path,body", [("/delete-preview", selection()), ("/deletions", deletion()), ("/plan", plan_change())]
 )
 def test_account_switch_blocks_both_mutations(backup_client, path, body):
     for value in ["another-admin", ""]:
@@ -210,7 +217,7 @@ def test_portal_session_identity_and_password_guard(backup_client, monkeypatch):
 def test_write_requires_exact_portal_origin(backup_client, origin):
     f = backup_client
     f.client.headers.pop("Origin")
-    for path, body in [("/delete-preview", selection()), ("/deletions", deletion())]:
+    for path, body in [("/delete-preview", selection()), ("/deletions", deletion()), ("/plan", plan_change())]:
         response = f.client.post(
             PREFIX + path, json=body, headers={} if origin is None else {"Origin": origin}
         )
@@ -230,12 +237,16 @@ def test_iam_failure_fails_closed_without_leaking_errors(backup_client, monkeypa
 
 def test_explicit_deletion_actor_binding_and_no_cache(backup_client):
     f = backup_client
-    for path, body in [("/delete-preview", selection()), ("/deletions", deletion())]:
+    for path, body in [("/delete-preview", selection()), ("/deletions", deletion()), ("/plan", plan_change())]:
         response = f.client.post(PREFIX + path, json=body)
         assert response.status_code == 200, response.text
         assert response.headers["cache-control"] == "no-store"
         assert f.calls[-1] == ("POST", "/v1" + path, body | {"actor": "author"})
-    assert response.json() == receipt()
+        if path == "/deletions":
+            assert response.json() == receipt()
+    assert f.calls[-1][1] == "/v1/plan"
+    assert response.json()["dailyTime"] == "04:23"
+    assert response.json()["editable"] is True
 
 
 @pytest.mark.parametrize(
@@ -377,7 +388,9 @@ def test_hmac_uses_exact_body_path_and_fresh_nonce(transport):
     service.delete_preview(DeletePreviewInput.model_validate(selection()), "author")
     f.reply["json"] = receipt()
     service.delete_archives(DeletionInput.model_validate(deletion()), "author")
-    assert len(f.seen) == 3
+    f.reply["json"] = snapshot()["plan"] | dict(editable=True, dailyTime="04:23", revision=REVISION)
+    service.update_plan(PlanInput.model_validate(plan_change()), "author")
+    assert len(f.seen) == 4
     for request in f.seen:
         headers = request.headers
         canonical = "\n".join(
@@ -394,7 +407,7 @@ def test_hmac_uses_exact_body_path_and_fresh_nonce(transport):
         assert len(headers["x-backup-nonce"]) == 32
         assert SECRET not in str(request.url) and SECRET.encode() not in request.content
     assert f.seen[0].content == b""
-    assert len({r.headers["x-backup-nonce"] for r in f.seen}) == 3
+    assert len({r.headers["x-backup-nonce"] for r in f.seen}) == 4
     assert all(json.loads(r.content)["actor"] == "author" for r in f.seen[1:])
     assert all(
         o["trust_env"] is False
@@ -591,3 +604,45 @@ def test_elapsed_deadline_is_enforced(transport, monkeypatch):
     with pytest.raises(HTTPException) as caught:
         service.snapshot()
     assert caught.value.status_code == 504
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"dailyTime": "24:00"},
+        {"dailyTime": "7:03"},
+        {"dailyTime": "02:17\n* * * * * evil"},
+        {"dailyTime": 217},
+        {"enabled": "false"},
+        {"enabled": 1},
+        {"revision": ""},
+        {"actor": "forged-admin"},
+        {"command": "evil"},
+        {"timezone": "UTC"},
+        {"retentionDays": 2},
+    ],
+)
+def test_plan_update_has_strict_bounded_input(backup_client, change):
+    response = backup_client.client.post(PREFIX + "/plan", json=plan_change(**change))
+    assert response.status_code == 422 and response.headers["cache-control"] == "no-store"
+    assert not backup_client.calls
+
+
+def test_plan_compatibility_with_previous_agent_is_readonly(transport):
+    result = service.snapshot()
+    assert result["plan"]["editable"] is False
+    assert result["plan"]["dailyTime"] is None
+    assert result["plan"]["revision"] is None
+    assert result["plan"]["nextRunAt"] is None
+    assert result["archives"][0]["rootId"] == ""
+
+
+def test_plan_write_safe_response_strips_private_audit(transport):
+    transport.reply["json"] = snapshot()["plan"] | dict(
+        editable=True, dailyTime="04:23", revision=REVISION, nextRunAt="2026-11-07T20:23:00Z",
+        before_text="private cron", after_text="secret --key /private/key", actor="admin",
+    )
+    result = service.update_plan(PlanInput.model_validate(plan_change()), "author")
+    assert result["editable"] is True and result["dailyTime"] == "04:23"
+    assert "private" not in json.dumps(result) and "secret" not in json.dumps(result)
+    assert json.loads(transport.seen[0].content) == plan_change() | {"actor": "author"}

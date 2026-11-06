@@ -332,6 +332,111 @@ class PlanTests(Fixture):
         self.cfg['planScript'].write_text('keep = variable');self.assertIn('未能可靠解析',self.plan('')['retentionSummary'])
 
 
+class PlanEditTests(Fixture):
+    def setUp(self):
+        super().setUp()
+        self.cfg['allowPlanChanges'] = True
+        self.current = '# existing jobs\nCRON_TZ=Asia/Shanghai\nMAILTO=admin@example.invalid\n17 2 * * * /usr/bin/python3 ' + str(self.cfg['planScript']) + ' --directory /private/backups --key /private/sensitive-key >> /private/backup.log 2>&1\n*/5 * * * * /usr/bin/health-check\n'
+        self.zone = patch.object(a, 'timezone_read', return_value='UTC'); self.zone.start()
+        self.run = patch.object(a.subprocess, 'run', side_effect=self.cron); self.mock_run = self.run.start()
+        self.addCleanup(self.run.stop); self.addCleanup(self.zone.stop)
+    def cron(self, command, **kwargs):
+        if command == ['crontab', '-l']:
+            return Mock(stdout=self.current, stderr='', returncode=0)
+        self.assertEqual(command, ['crontab', '-'])
+        self.assertNotIn('shell', kwargs)
+        self.current = kwargs['input']
+        return Mock(stdout='', stderr='', returncode=0)
+    def body(self, **changes):
+        return {'dailyTime': '04:23', 'enabled': True, 'revision': a.plan_revision(self.current), 'actor': 'admin'} | changes
+    def test_updates_real_crontab_preserving_command_environment_and_other_jobs(self):
+        original = self.current
+        result = self.app.update_plan(self.body())
+        self.assertEqual(self.current, original.replace('17 2 * * *', '23 4 * * *'))
+        self.assertTrue(result['editable']); self.assertEqual(result['dailyTime'], '04:23')
+        self.assertEqual(result['timezone'], 'Asia/Shanghai'); self.assertEqual(result['status'], 'active')
+        self.assertIsNotNone(result['nextRunAt']); self.assertNotIn('sensitive', json.dumps(result))
+        with self.app.store.connect() as db:
+            row = db.execute('SELECT * FROM plan_changes').fetchone()
+        self.assertEqual(row['actor'], 'admin'); self.assertEqual(row['before_text'], original)
+        self.assertEqual(row['after_text'], self.current); self.assertEqual(row['status'], 'succeeded')
+    def test_pause_keeps_command_and_can_resume_after_agent_restart(self):
+        result = self.app.update_plan(self.body(enabled=False))
+        self.assertEqual(result['status'], 'disabled'); self.assertIsNone(result['nextRunAt'])
+        self.assertTrue(result['editable']); self.assertIn(a.DISABLED_PLAN_PREFIX + '23 4 * * *', self.current)
+        self.app = a.Catalogue(self.cfg)
+        result = self.app.update_plan(self.body(dailyTime='01:05'))
+        self.assertEqual(result['status'], 'active'); self.assertNotIn(a.DISABLED_PLAN_PREFIX, self.current)
+        self.assertIn('5 1 * * *', self.current)
+    def test_unchanged_request_does_not_write_or_add_audit(self):
+        self.app.update_plan(self.body(dailyTime='02:17'))
+        self.assertFalse(any(call.args[0] == ['crontab', '-'] for call in self.mock_run.call_args_list))
+    def test_unknown_custom_conflicting_or_disabled_management_never_write(self):
+        original = self.current
+        for value in ('', original + original, original.replace('17 2 * * *', '17 */2 * * *'), original.replace(str(self.cfg['planScript']), '/other/daily_backup.py')):
+            self.current = value
+            self.code('plan_readonly', lambda: self.app.update_plan(self.body()))
+            self.assertEqual(self.current, value)
+        self.current = original; self.cfg['allowPlanChanges'] = False
+        self.code('plan_readonly', lambda: self.app.update_plan(self.body()))
+        self.assertFalse(any(call.args[0] == ['crontab', '-'] for call in self.mock_run.call_args_list))
+    def test_unknown_timezone_never_writes(self):
+        self.current = self.current.replace('CRON_TZ=Asia/Shanghai\n', '')
+        with patch.object(a, 'timezone_read', return_value='unknown'):
+            self.code('plan_readonly', lambda: self.app.update_plan(self.body()))
+    def test_stale_revision_or_last_moment_external_edit_never_overwrites(self):
+        body = self.body(); self.current += '# concurrent change\n'
+        self.code('plan_changed', lambda: self.app.update_plan(body))
+        body = self.body(); calls = 0
+        def concurrent(command, **kwargs):
+            nonlocal calls
+            calls += 1
+            if calls == 2: self.current += '# edit before install\n'
+            return self.cron(command, **kwargs)
+        self.mock_run.side_effect = concurrent
+        self.code('plan_changed', lambda: self.app.update_plan(body))
+        self.assertTrue(self.current.endswith('# edit before install\n'))
+        self.assertFalse(any(call.args[0] == ['crontab', '-'] for call in self.mock_run.call_args_list))
+    def test_running_backup_blocks_plan_change(self):
+        with a.locks(self.cfg['lockDirectory']):
+            self.code('backup_busy', lambda: self.app.update_plan(self.body()))
+        self.assertFalse(any(call.args[0] == ['crontab', '-'] for call in self.mock_run.call_args_list))
+    def test_invalid_payloads_cannot_inject_command_or_modify_other_settings(self):
+        for change in ({'dailyTime': '24:00'}, {'dailyTime': '1:00'}, {'dailyTime': '02:17\n* * * * * evil'}, {'enabled': 1}, {'revision': 'x'}, {'actor': 'admin\nroot'}, {'command': 'evil'}, {'timezone': 'UTC'}, {'retentionDays': 2}):
+            self.code('invalid_request', lambda: self.app.update_plan(self.body(**change)))
+        self.assertFalse(any(call.args[0] == ['crontab', '-'] for call in self.mock_run.call_args_list))
+    def test_failed_install_is_audited_and_does_not_claim_success(self):
+        original = self.current
+        def fail(command, **kwargs):
+            return self.cron(command, **kwargs) if command[-1] == '-l' else Mock(returncode=1, stderr='private secret', stdout='')
+        self.mock_run.side_effect = fail
+        self.code('plan_write_failed', lambda: self.app.update_plan(self.body()))
+        self.assertEqual(self.current, original)
+        with self.app.store.connect() as db:
+            self.assertEqual(db.execute('SELECT status FROM plan_changes').fetchone()[0], 'failed')
+    def test_readback_different_from_write_does_not_rollback_external_change(self):
+        def external(command, **kwargs):
+            result = self.cron(command, **kwargs)
+            if command == ['crontab', '-']: self.current += '# later user change\n'
+            return result
+        self.mock_run.side_effect = external
+        self.code('plan_write_failed', lambda: self.app.update_plan(self.body()))
+        self.assertTrue(self.current.endswith('# later user change\n'))
+        self.assertEqual(sum(call.args[0] == ['crontab', '-'] for call in self.mock_run.call_args_list), 1)
+    def test_interrupted_audit_survives_restart(self):
+        self.app.update_plan(self.body())
+        with self.app.store.connect() as db: db.execute("UPDATE plan_changes SET status='running'")
+        self.app = a.Catalogue(self.cfg)
+        with self.app.store.connect() as db: self.assertEqual(db.execute('SELECT status FROM plan_changes').fetchone()[0], 'interrupted')
+    def test_next_execution_is_zone_aware_and_dst_transition_is_unconfirmed(self):
+        now = dt.datetime(2026, 11, 6, 20, 0, tzinfo=dt.timezone.utc)
+        self.assertEqual(a.next_daily_run('03:30', 'Asia/Shanghai', now), '2026-11-07T19:30:00+00:00')
+        now = dt.datetime(2026, 3, 8, 6, 0, tzinfo=dt.timezone.utc)
+        self.assertIsNone(a.next_daily_run('02:30', 'America/New_York', now))
+        now = dt.datetime(2026, 11, 1, 5, 45, tzinfo=dt.timezone.utc)
+        self.assertIsNone(a.next_daily_run('01:30', 'America/New_York', now))
+
+
 class AdditionalSafetyTests(Fixture):
     def test_different_nested_application_same_name_not_replacements(self):
         self.verified();pm=self.file('pm/data.dump');iam=self.file('iam/data.dump');self.code('protected',lambda:self.preview(pm));self.code('protected',lambda:self.preview(iam))

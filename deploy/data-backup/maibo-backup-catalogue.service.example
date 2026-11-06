@@ -12,7 +12,7 @@ RestartSec=15
 UMask=0077
 NoNewPrivileges=true
 # User services may not support mount namespaces. Do not copy system-unit sandbox flags blindly.
-# The service has no Docker membership requirement and never invokes Docker or mutates cron.
+# The service never invokes Docker; approved daily cron edits require allowPlanChanges.
 MemoryMax=384M
 CPUQuota=50%
 TasksMax=32
