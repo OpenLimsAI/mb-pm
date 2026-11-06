@@ -399,6 +399,142 @@ def test_tools_and_followup_results_are_forwarded_without_execution(gateway):
     }
 
 
+@pytest.mark.parametrize("provider", ["deepseek", "kimi"])
+@pytest.mark.parametrize("metadata_level", ["index", "call", "function", "both"])
+def test_provider_tool_metadata_is_projected_before_strict_validation(
+    gateway, provider, metadata_level
+):
+    f = gateway
+    f.save(provider=provider, revision=1)
+    tool = {"type": "function", "function": {"name": "read_page", "parameters": {"type": "object"}}}
+    expected = {
+        "id": "call_1",
+        "type": "function",
+        "function": {"name": "read_page", "arguments": '{"path":"synthetic"}'},
+    }
+    supplied = copy.deepcopy(expected)
+    if metadata_level in {"index", "call", "both"}:
+        # Compatible providers may include index even in a non-streaming reply.
+        supplied["index"] = 0
+    if metadata_level in {"call", "both"}:
+        supplied["provider_metadata"] = SECRET
+    if metadata_level in {"function", "both"}:
+        supplied["function"]["provider_metadata"] = SECRET
+    f.state.result = {
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "reasoning_content": "synthetic reasoning",
+                    "tool_calls": [supplied],
+                },
+                "finish_reason": "tool_calls",
+            }
+        ]
+    }
+    response = ask(f, tools=[tool], tool_choice="auto")
+    assert response.status_code == 200
+    assert SECRET not in response.text
+    message = response.json()["choices"][0]["message"]
+    assert message["tool_calls"] == [expected]
+    assert message["reasoning_content"] == "synthetic reasoning"
+    f.state.result = None
+    followup = ask(
+        f,
+        tools=[tool],
+        messages=[
+            {"role": "user", "content": "synthetic prompt"},
+            message,
+            {"role": "tool", "tool_call_id": "call_1", "content": "authorized synthetic result"},
+        ],
+    )
+    assert followup.status_code == 200
+    assert f.state.model_calls[-1][3]["messages"][1]["tool_calls"] == [expected]
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        "not_object",
+        "no_id",
+        "invalid_type",
+        "no_function",
+        "no_name",
+        "no_arguments",
+        "object_arguments",
+        "long_arguments",
+        "undeclared",
+        "disabled",
+        "wrong_finish",
+        "secret",
+    ],
+)
+def test_tool_metadata_projection_preserves_validation_boundaries(gateway, invalid):
+    tool = {"type": "function", "function": {"name": "read_page", "parameters": {"type": "object"}}}
+    call = {
+        "id": "call_1",
+        "type": "function",
+        "index": 0,
+        "function": {"name": "read_page", "arguments": "{}", "provider_metadata": "ignored"},
+    }
+    if invalid == "not_object":
+        call = None
+    elif invalid == "no_id":
+        del call["id"]
+    elif invalid == "invalid_type":
+        call["type"] = "custom"
+    elif invalid == "no_function":
+        del call["function"]
+    elif invalid == "no_name":
+        del call["function"]["name"]
+    elif invalid == "no_arguments":
+        del call["function"]["arguments"]
+    elif invalid == "object_arguments":
+        call["function"]["arguments"] = {}
+    elif invalid == "long_arguments":
+        call["function"]["arguments"] = "x" * 200_001
+    elif invalid == "undeclared":
+        call["function"]["name"] = "undeclared_tool"
+    elif invalid == "secret":
+        call["function"]["arguments"] = SECRET
+    gateway.state.result = {
+        "choices": [
+            {
+                "message": {"role": "assistant", "content": None, "tool_calls": [call]},
+                "finish_reason": "stop" if invalid == "wrong_finish" else "tool_calls",
+            }
+        ]
+    }
+    response = ask(gateway, tools=[tool], tool_choice="none" if invalid == "disabled" else "auto")
+    assert response.status_code == 503
+    assert response.headers["x-assistant-error-code"] == "model_invalid_response"
+    assert SECRET not in response.text
+
+
+@pytest.mark.parametrize("metadata_level", ["call", "function"])
+def test_provider_response_projection_does_not_relax_client_request_schema(gateway, metadata_level):
+    call = {
+        "id": "call_1",
+        "type": "function",
+        "function": {"name": "read_page", "arguments": "{}"},
+    }
+    if metadata_level == "call":
+        call["index"] = 0
+    else:
+        call["function"]["provider_metadata"] = "not accepted from the client"
+    response = ask(
+        gateway,
+        messages=[
+            {"role": "user", "content": "synthetic prompt"},
+            {"role": "assistant", "tool_calls": [call]},
+            {"role": "tool", "tool_call_id": "call_1", "content": "synthetic result"},
+        ],
+    )
+    assert response.status_code == 422
+    assert not gateway.state.model_calls
+
+
 @pytest.mark.parametrize(
     "patch",
     [

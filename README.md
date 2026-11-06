@@ -63,7 +63,7 @@ deploy/    部署配置及历史发布记录
 项目协同、交付验收、联动排期、全任务基线及台账见[项目执行与协同](docs/pm-execution-improvements.md)。
 Excel 回导、模板升级、进度权重及 AI 行动见[项目计划工具](docs/pm-planning-tools.md)。
 入口与边界见 [功能说明](docs/features.md)、[AI 助手](docs/ai-assistant.md)、[知识源](docs/knowledge-sources.md)、[研究报告工作台](docs/research-report-workbench.md) 和 [研究报告体验升级](docs/research-report-experience.md)。
-工作台 `/model-settings` 是组织共享模型统一入口，供知识库问答、翻译、摘要和标签复用。配置与授权边界见[知识库统一模型接口](docs/knowledge-ai-integration.md)，环境发布状态见[发布契约](deploy/parallel-test/releases/20261104-knowledge-unified-ai.md)。
+工作台 `/model-settings` 是组织共享模型统一入口，供知识库问答、翻译、摘要和标签复用；统一接口兼容供应商工具调用的附加元数据。配置与授权边界见[知识库统一模型接口](docs/knowledge-ai-integration.md)，环境发布状态见[发布契约](deploy/parallel-test/releases/20261104-knowledge-unified-ai.md)。
 
 ## 配置与权限
 
