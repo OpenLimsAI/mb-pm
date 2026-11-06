@@ -25,6 +25,8 @@ from app.services.knowledge_source_status import (
     job_revision,
     public_jobs,
     public_source,
+    reference_document_state,
+    reference_download_outcomes,
     resources,
     version_state,
 )
@@ -344,6 +346,9 @@ def snapshot(
     read_documents = prefs.get("knowledgeSourceRead", {})
     docs = store.documents()
     versions = store.records("version")
+    jobs = public_jobs(store, actor["subject"])
+    reference_outcomes = reference_download_outcomes(store.records("job"))
+    source_by_id = {source["id"]: source for source in sources}
     source_scopes = {source["id"]: set(source.get("scopes", [])) for source in sources}
     for doc in docs:
         doc.pop("description", None)
@@ -354,6 +359,7 @@ def snapshot(
             store.public_version(v) for v in versions if v["documentId"] == doc["id"]
         ]
         doc["versionStatus"] = version_state(doc, doc["versions"])
+        reference_document_state(doc, source_by_id.get(doc["sourceId"]), reference_outcomes)
         doc["unread"] = bool(
             doc.get("firstNewAt") and doc.get("firstNewAt", "") > read_documents.get(doc["id"], "")
         )
@@ -361,7 +367,6 @@ def snapshot(
             version["originalUrl"] = (
                 f'/api/v1/knowledge-sources/documents/{doc["id"]}/versions/{version["id"]}/original'
             )
-    jobs = public_jobs(store, actor["subject"])
     papers = [] if summary else paper_snapshot(store, actor, result)
     known_folders = {folder["id"] for folder in result.get("folders", [])}
     for paper in papers:
@@ -619,7 +624,7 @@ def import_reference(
             if body.download:
                 raise
     if body.download and not can_download:
-        raise HTTPException(403, "已登录账号可导入论文来源；下载和建立分类需要知识库负责人权限")
+        raise HTTPException(403, "已登录账号可导入资料来源；下载和建立分类需要知识库负责人权限")
     if body.download:
         require_worker()
     store = Store(db, actor["tenant"])
@@ -628,7 +633,7 @@ def import_reference(
         "sourceId": source["id"],
         "documentId": document["id"],
         "folderId": source.get("folderId"),
-        "category": references.CATEGORIES[body.origin_app],
+        "category": public_source(source)["name"],
         "alreadyImported": existing,
         "canDownload": can_download,
         "status": "imported",

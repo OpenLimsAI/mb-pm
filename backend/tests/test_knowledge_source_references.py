@@ -80,7 +80,7 @@ def saved_answer(
 
 
 @pytest.mark.parametrize(
-    "origin,category", [("solutions", "研究报告参考论文"), ("assistant", "个人AI助手参考论文")]
+    "origin,category", [("solutions", "研究报告参考资料"), ("assistant", "个人AI助手参考资料")]
 )
 def test_durable_import_dedup_no_download_or_private_text(ks, origin, category):
     client, db, session, role, _, calls = ks
@@ -103,6 +103,8 @@ def test_durable_import_dedup_no_download_or_private_text(ks, origin, category):
     snap = client.get(ROOT + "/snapshot", headers=session()).json()
     doc = next(d for d in snap["documents"] if d["id"] == result["documentId"])
     assert doc["title"] == "Public study" and doc["url"] == "https://paper.example.org/article"
+    assert doc["format"] == "待核验" and doc["documentType"] == "参考资料"
+    assert doc["downloadStatus"] == "not_requested"
     assert "PRIVATE" not in str(snap) and "private answer" not in str(snap)
     assert any(s["adapter"] == "reference" for s in snap["sources"])
 
@@ -170,7 +172,7 @@ def test_download_category_and_active_job_reused(ks):
     assert response.status_code == 201, response.text
     first = response.json()
     assert first["canDownload"] and first["status"] == "queued" and first["jobId"]
-    assert any(f["name"] == "研究报告参考论文" for f in state["folders"])
+    assert any(f["name"] == "研究报告参考资料" for f in state["folders"])
     repeat = client.post(ROOT + "/references", headers=headers(session), json=body).json()
     assert repeat["jobId"] == first["jobId"] and repeat["alreadyImported"]
     assert len(records(db).records("job")) == 1 and not any(c[0] == "import" for c in calls)
@@ -378,3 +380,254 @@ def test_concurrent_first_category_import_does_not_reset_existing_folder(ks, mon
     result, _, duplicate = knowledge_source_references.ensure_reference(s, body, ref)
     assert result["folderId"] == "existing-folder" and duplicate
     assert len(s.records("source")) == 1
+
+
+@pytest.mark.parametrize("code", ["no_pdf", "source_forbidden"])
+def test_permanent_pdf_failure_is_visible_and_not_automatically_retried(ks, monkeypatch, code):
+    from app.services.reference_download import ReferenceDownloadError, no_pdf
+
+    client, db, session, _, _, _ = ks
+    body, _, _ = saved_answer(db)
+    result = client.post(
+        ROOT + "/references", headers=headers(session), json={**body, "download": True}
+    ).json()
+    s = records(db)
+    monkeypatch.setattr(worker, "authority", lambda *a: None)
+    error = (
+        no_pdf()
+        if code == "no_pdf"
+        else ReferenceDownloadError("无法下载：来源网站不允许下载。已保留来源链接。", code=code)
+    )
+    downloader = Mock()
+    downloader.pdf.side_effect = error
+    parser = Mock()
+    connector = Mock(return_value={"canWrite": True})
+    worker.run_step(
+        s,
+        downloader,
+        extract=parser,
+        connector=connector,
+        job_id=result["jobId"],
+        app="knowledge-sources",
+    )
+    job = s.get("job", result["jobId"])
+    item = job["items"][0]
+    assert job["status"] == "failed" and job["saved"] == 0 and job["failed"] == 1
+    assert item["attempts"] == 1 and item["errorCode"] == code and not item["retryable"]
+    assert "nextAttemptAt" not in item and not s.records("version")
+    parser.assert_not_called()
+    assert all(call.args[0] == "library" for call in connector.call_args_list)
+    snap = client.get(ROOT + "/snapshot", headers=session()).json()
+    doc = next(d for d in snap["documents"] if d["id"] == result["documentId"])
+    assert doc["downloadStatus"] == "unavailable" and doc["downloadErrorCode"] == code
+    assert "无法下载" in doc["error"] and doc["url"] == "https://paper.example.org/article"
+    assert doc["format"] == "待核验" and doc["versions"] == []
+
+
+def test_retry_clears_old_unavailable_status_and_success_confirms_pdf(ks, monkeypatch):
+    from app.services.reference_download import no_pdf
+
+    client, db, session, _, _, _ = ks
+    body, _, _ = saved_answer(db)
+    result = client.post(
+        ROOT + "/references", headers=headers(session), json={**body, "download": True}
+    ).json()
+    s = records(db)
+    monkeypatch.setattr(worker, "authority", lambda *a: None)
+    downloader = Mock()
+    downloader.pdf.side_effect = no_pdf()
+
+    def connector(operation, *args, **kwargs):
+        return {"canWrite": True} if operation == "library" else {"indexStatus": "ready"}
+
+    worker.run_step(
+        s, downloader, connector=connector, job_id=result["jobId"], app="knowledge-sources"
+    )
+    retry = client.post(
+        ROOT + f'/jobs/{result["jobId"]}/control',
+        headers=headers(session),
+        json={"action": "retry"},
+    )
+    assert retry.status_code == 200, retry.text
+    item = s.get("job", result["jobId"])["items"][0]
+    assert not any(k in item for k in ("errorCode", "retryable", "failurePhase"))
+    snap = client.get(ROOT + "/snapshot", headers=session()).json()
+    doc = next(d for d in snap["documents"] if d["id"] == result["documentId"])
+    assert doc["downloadStatus"] == "not_requested" and doc["error"] is None
+    downloader.pdf.side_effect = None
+    downloader.pdf.return_value = b"%PDF-recovered"
+    worker.run_step(
+        s,
+        downloader,
+        extract=lambda _: "paper text",
+        connector=connector,
+        job_id=result["jobId"],
+        app="knowledge-sources",
+    )
+    doc = s.get("document", result["documentId"])
+    assert doc["downloadStatus"] == "available" and doc["format"] == "PDF"
+    assert (
+        doc["downloadError"] is None and doc["downloadErrorCode"] is None and doc["error"] is None
+    )
+    item = s.get("job", result["jobId"])["items"][0]
+    assert item["status"] == "saved" and not any(
+        k in item for k in ("errorCode", "retryable", "failurePhase")
+    )
+
+
+def test_transient_reference_errors_use_bounded_worker_retry(ks, monkeypatch):
+    from app.services.reference_download import ReferenceDownloadError
+
+    client, db, session, _, _, _ = ks
+    body, _, _ = saved_answer(db)
+    result = client.post(
+        ROOT + "/references", headers=headers(session), json={**body, "download": True}
+    ).json()
+    s = records(db)
+    monkeypatch.setattr(worker, "authority", lambda *a: None)
+    downloader = Mock()
+    downloader.pdf.side_effect = ReferenceDownloadError(
+        "来源暂时不可用", code="http_error", retryable=True
+    )
+    for attempt in range(1, 4):
+        worker.run_step(
+            s,
+            downloader,
+            connector=lambda *a, **kw: {"canWrite": True},
+            job_id=result["jobId"],
+            app="knowledge-sources",
+        )
+        job = s.get("job", result["jobId"])
+        item = job["items"][0]
+        assert item["attempts"] == attempt
+        assert item["status"] == ("pending" if attempt < 3 else "failed")
+        if attempt < 3:
+            assert item["nextAttemptAt"] > worker.time.time()
+            item["nextAttemptAt"] = 0
+            s.put("job", job)
+            db.commit()
+    assert (
+        downloader.pdf.call_count == 3 and job["status"] == "failed" and s.records("version") == []
+    )
+
+
+def test_unverified_html_bytes_never_create_a_pdf_archive(ks, monkeypatch):
+    client, db, session, _, _, _ = ks
+    body, _, _ = saved_answer(db)
+    result = client.post(
+        ROOT + "/references", headers=headers(session), json={**body, "download": True}
+    ).json()
+    s = records(db)
+    monkeypatch.setattr(worker, "authority", lambda *a: None)
+    downloader = Mock()
+    downloader.pdf.return_value = b"<html>news, not a paper</html>"
+    worker.run_step(
+        s,
+        downloader,
+        connector=lambda *a, **kw: {"canWrite": True},
+        job_id=result["jobId"],
+        app="knowledge-sources",
+    )
+    assert (
+        s.records("version") == []
+        and s.get("job", result["jobId"])["items"][0]["errorCode"] == "no_pdf"
+    )
+
+
+def test_legacy_failed_reference_projection_retains_record_and_folder_identity(ks):
+    client, db, session, _, _, _ = ks
+    body, _, _ = saved_answer(db)
+    result = client.post(ROOT + "/references", headers=headers(session), json=body).json()
+    s = records(db)
+    source = s.get("source", result["sourceId"])
+    source.update(name="研究报告参考论文", folderId="existing-category")
+    s.put("source", source)
+    doc = s.get("document", result["documentId"])
+    doc.update(format="PDF", documentType="参考论文", error=None)
+    doc.pop("downloadStatus", None)
+    s.put("document", doc)
+    job = {
+        "id": "legacy-failed",
+        "sourceId": source["id"],
+        "app": "knowledge-sources",
+        "kind": "import",
+        "status": "failed",
+        "createdAt": "2026-11-01T00:00:00Z",
+        "updatedAt": "2026-11-01T00:00:00Z",
+        "items": [
+            {
+                "documentId": doc["id"],
+                "status": "failed",
+                "failurePhase": "download",
+                "error": "未找到可公开下载的 PDF 原文；已保留论文来源，请通过原文入口查看",
+            }
+        ],
+        "processed": 1,
+        "total": 1,
+        "saved": 0,
+        "failed": 1,
+        "folderId": "existing-category",
+    }
+    s.put("job", job)
+    from app.services.knowledge_source_status import public_jobs
+
+    projected_job = next(j for j in public_jobs(s) if j["id"] == job["id"])
+    assert projected_job["items"][0]["errorCode"] == "no_pdf"
+    assert "无法下载" in projected_job["items"][0]["error"]
+    assert "errorCode" not in s.get("job", job["id"])["items"][0]
+    for n in range(101):
+        s.put(
+            "job",
+            {
+                **job,
+                "id": f"newer-{n}",
+                "createdAt": "2026-11-02T00:00:00Z",
+                "updatedAt": "2026-11-02T00:00:00Z",
+                "items": [],
+            },
+        )
+    db.commit()
+    snap = client.get(ROOT + "/snapshot", headers=session()).json()
+    projected = next(d for d in snap["documents"] if d["id"] == doc["id"])
+    assert projected["format"] == "待核验" and projected["documentType"] == "参考资料"
+    assert projected["downloadStatus"] == "unavailable" and "无法下载" in projected["error"]
+    category = next(s for s in snap["sources"] if s["id"] == source["id"])
+    assert category["name"] == "研究报告参考资料" and category["folderId"] == "existing-category"
+    persisted = s.get("document", doc["id"])
+    assert persisted["format"] == "PDF" and persisted["error"] is None
+    assert s.get("source", source["id"])["name"] == "研究报告参考论文"
+    source["name"] = "我的研究资料"
+    s.put("source", source)
+    db.commit()
+    repeat = client.post(ROOT + "/references", headers=headers(session), json=body).json()
+    assert repeat["category"] == "我的研究资料" and repeat["folderId"] == "existing-category"
+
+
+def test_saved_pdf_with_parse_failure_is_still_downloadable(ks, monkeypatch):
+    client, db, session, _, _, _ = ks
+    body, _, _ = saved_answer(db)
+    result = client.post(
+        ROOT + "/references", headers=headers(session), json={**body, "download": True}
+    ).json()
+    s = records(db)
+    monkeypatch.setattr(worker, "authority", lambda *a: None)
+    downloader = Mock()
+    downloader.pdf.return_value = b"%PDF-original-needs-ocr"
+    parser = Mock(side_effect=ValueError("PDF requires OCR"))
+    worker.run_step(
+        s,
+        downloader,
+        extract=parser,
+        connector=lambda *a, **kw: {"canWrite": True},
+        job_id=result["jobId"],
+        app="knowledge-sources",
+    )
+    snap = client.get(ROOT + "/snapshot", headers=session()).json()
+    doc = next(d for d in snap["documents"] if d["id"] == result["documentId"])
+    assert (
+        doc["downloadStatus"] == "available"
+        and doc["format"] == "PDF"
+        and len(doc["versions"]) == 1
+    )
+    assert doc["error"] == "PDF requires OCR" and doc["downloadError"] is None
+    assert snap["jobs"][-1]["items"][0]["failurePhase"] == "parse"

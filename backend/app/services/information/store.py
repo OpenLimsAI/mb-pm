@@ -521,6 +521,8 @@ class Store:
                         item.pop("phase", None)
                     item.pop("attempts", None)
                     item.pop("nextAttemptAt", None)
+                    for key in ("errorCode", "retryable", "failurePhase"):
+                        item.pop(key, None)
             job["status"] = "queued"
             job["error"] = None
         else:

@@ -143,7 +143,7 @@ it('shows imported reference papers with empty ICH scopes and submits the select
   data.sources = [{ ...data.sources[0], id:'report-refs', name:'研究报告参考论文', adapter:'reference', scopes:[], folderId:null }]
   data.documents = [doc('ref-1',{sourceId:'report-refs',title:'从报告找到的论文',scopes:[],url:'https://example.org/paper'})]
   mount()
-  expect(screen.getByRole('region',{name:'研究报告参考论文来源与论文'})).toBeInTheDocument()
+  expect(screen.getByRole('region',{name:'研究报告参考论文来源与资料'})).toBeInTheDocument()
   expect(screen.queryByRole('button',{name:'再次搜索'})).not.toBeInTheDocument()
   expect(screen.queryByText('该来源等待适配')).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('checkbox',{name:'选择 从报告找到的论文'}))
@@ -157,5 +157,37 @@ it('allows readers to view imported metadata without offering a download or ICH 
   mount()
   expect(screen.getByText('助手找到的论文')).toBeInTheDocument()
   expect(screen.queryByRole('button',{name:/下载所选/})).not.toBeInTheDocument()
-  expect(screen.getByText(/下载原文由具备知识库写入权限/)).toBeInTheDocument()
+  expect(screen.getByText(/下载 PDF 由具备知识库写入权限/)).toBeInTheDocument()
+})
+
+it('distinguishes saved links, unavailable PDFs and saved PDFs whose indexing failed',()=>{
+  data.sources=[{...data.sources[0],id:'assistant-refs',name:'个人AI助手参考资料',adapter:'reference',scopes:[],folderId:null}]
+  data.documents=[
+    doc('news',{sourceId:'assistant-refs',title:'普通新闻链接',format:'PDF',scopes:[]}),
+    doc('no-pdf',{sourceId:'assistant-refs',title:'只有摘要的页面',format:'待核验',scopes:[],downloadStatus:'unavailable',downloadErrorCode:'no_pdf',error:'无法下载：未找到可公开下载的 PDF，已保留来源链接。'}),
+    doc('indexed-fail',{sourceId:'assistant-refs',title:'已下载的监管指南',scopes:[],versions:[{...version,id:'old-ready',createdAt:'2026-10-31T10:00:00Z'},{...version,indexStatus:'failed',error:'索引失败'}],error:'问答索引失败'}),
+  ]
+  mount()
+  const news=within(screen.getByRole('article',{name:'普通新闻链接'}))
+  expect(news.getByText('仅保存来源链接')).toBeVisible()
+  expect(news.getByText('PDF 待核验 · 未加入问答索引')).toBeVisible()
+  expect(news.queryByText('已下载 PDF')).not.toBeInTheDocument()
+  const noPDF=within(screen.getByRole('article',{name:'只有摘要的页面'}))
+  expect(noPDF.getByText('无法下载')).toBeVisible()
+  expect(noPDF.getByText(/未找到可公开下载的 PDF/)).toBeVisible()
+  expect(noPDF.getByRole('link',{name:'查看原始链接'})).toHaveAttribute('href',data.documents[1].url)
+  const saved=within(screen.getByRole('article',{name:'已下载的监管指南'}))
+  expect(saved.getByText('已下载 PDF')).toBeVisible()
+  expect(saved.getByText('索引失败 · PDF 已保留')).toBeVisible()
+  expect(saved.queryByText('无法下载')).not.toBeInTheDocument()
+  expect(saved.queryByText('可用于知识库问答')).not.toBeInTheDocument()
+})
+it('uses the verified PDF version when a source reverts to an older saved file',()=>{
+  data.sources=[{...data.sources[0],id:'assistant-refs',name:'个人AI助手参考资料',adapter:'reference',scopes:[],folderId:null}]
+  data.documents=[doc('reverted',{sourceId:'assistant-refs',title:'已核验的 PDF',scopes:[],verifiedSha256:'a'.repeat(64),versions:[{...version,id:'newer',sha256:'b'.repeat(64),indexStatus:'failed',error:'旧版本索引失败'},{...version,id:'verified',createdAt:'2026-10-31T10:00:00Z'}]})]
+  mount()
+  const row=within(screen.getByRole('article',{name:'已核验的 PDF'}))
+  expect(row.getByText('可用于知识库问答')).toBeVisible()
+  expect(row.queryByText('索引失败 · PDF 已保留')).not.toBeInTheDocument()
+  expect(row.queryByText('旧版本索引失败')).not.toBeInTheDocument()
 })

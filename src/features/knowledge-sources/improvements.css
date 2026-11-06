@@ -12,3 +12,6 @@
 #knowledge-source-app.kso-density-standard .kso-table td{padding-block:14px}
 #knowledge-source-app .kso-inspector-section .kso-actions{flex-direction:column;align-items:stretch}
 #knowledge-source-app .kso-inline-status small{margin-left:12px}
+
+#knowledge-source-app .kso-task-chevron{flex:none;transition:transform .15s}#knowledge-source-app details.kso-job[open]>.kso-task-summary>.kso-task-chevron{transform:rotate(90deg)}
+#knowledge-source-app .kso-job-row>div:first-child{min-width:0;text-align:left;overflow-wrap:anywhere}#knowledge-source-app .kso-job-row .kso-job-source{display:inline-flex;align-items:center;gap:4px;margin-top:6px;color:var(--kso-blue);font-size:12px}

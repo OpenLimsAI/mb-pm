@@ -15,6 +15,22 @@ HTML_BYTES = 2 * 1024 * 1024
 BUDGET_SECONDS = 75
 
 
+class ReferenceDownloadError(ValueError):
+    """Safe download outcome; never include URLs, credentials or response bodies."""
+
+    def __init__(self, message, *, code, retryable=False):
+        super().__init__(message)
+        self.code = code
+        self.retryable = retryable
+
+
+def no_pdf():
+    return ReferenceDownloadError(
+        "无法下载：未找到可公开下载的 PDF。已保留来源链接，可打开原始链接查看。",
+        code="no_pdf",
+    )
+
+
 def reference_url(value):
     if not web_search.safe_url(value) or "\\" in value:
         raise ValueError("参考论文地址必须是不含凭据的公网 HTTPS 地址")
@@ -75,7 +91,9 @@ class ReferenceClient:
     def _remaining(self):
         remaining = self.deadline - time.monotonic()
         if remaining <= 0:
-            raise ValueError("参考论文下载超时，请稍后重试")
+            raise ReferenceDownloadError(
+                "PDF 下载超时，请稍后重试；来源链接已保留。", code="timeout", retryable=True
+            )
         return min(30, remaining)
 
     def _robots_allowed(self, url):
@@ -90,7 +108,10 @@ class ReferenceClient:
                 parser.parse(data.decode("utf8", errors="replace").splitlines())
             self.robots[origin] = parser
         if not self.robots[origin].can_fetch(USER_AGENT, url):
-            raise ValueError("来源网站不允许下载此公开资料，请使用原文入口查看")
+            raise ReferenceDownloadError(
+                "无法下载：来源网站不允许下载此公开资料。已保留来源链接，请打开原始链接查看。",
+                code="source_forbidden",
+            )
 
     def _fetch(self, url, *, robots=True, limit=MAX_BYTES):
         for _ in range(5):
@@ -118,8 +139,10 @@ class ReferenceClient:
                 if not robots and response.status in (404, 410):
                     return b"", "", url, response.status
                 if response.status != 200:
-                    raise ValueError(
-                        f"论文来源 HTTP {response.status}，未下载；请通过原文入口核对访问权限"
+                    raise ReferenceDownloadError(
+                        f"无法下载：来源网站返回 HTTP {response.status}。已保留来源链接。",
+                        code="source_forbidden" if response.status in (401, 403) else "http_error",
+                        retryable=response.status in (429, 500, 502, 503, 504),
                     )
                 content_type = response.getheader("Content-Type", "").lower()
                 bound = min(limit, HTML_BYTES) if "text/html" in content_type else limit
@@ -140,8 +163,12 @@ class ReferenceClient:
                         raise ValueError("参考论文文件超过 25 MB 下载上限")
                     chunks.append(chunk)
                 return b"".join(chunks), content_type, url, response.status
-            except (OSError, http.client.HTTPException):
-                raise ValueError("参考论文来源连接失败或超时，请稍后重试") from None
+            except (OSError, http.client.HTTPException) as exc:
+                raise ReferenceDownloadError(
+                    "PDF 来源连接失败或超时，请稍后重试；来源链接已保留。",
+                    code="timeout" if isinstance(exc, TimeoutError) else "network_error",
+                    retryable=True,
+                ) from None
             finally:
                 conn.close()
         raise ValueError("参考论文地址重定向次数过多")
@@ -153,7 +180,7 @@ class ReferenceClient:
         if data.startswith(b"%PDF-"):
             return data
         if "html" not in content_type and not data.lstrip().startswith(b"<"):
-            raise ValueError("来源没有返回 PDF 原文，未将网页保存为论文")
+            raise no_pdf()
         if len(data) > HTML_BYTES:
             raise ValueError("参考论文页面超过解析上限")
         parser = PDFLinks()
@@ -168,14 +195,23 @@ class ReferenceClient:
                 candidates.append(candidate)
             if len(candidates) == 3:
                 break
-        last_error = None
+        errors = []
         for candidate in candidates:
             try:
                 body, _, _, _ = self._fetch(candidate)
                 if body.startswith(b"%PDF-"):
                     return body
             except ValueError as exc:
-                last_error = exc
-        if last_error:
-            raise last_error
-        raise ValueError("未找到可公开下载的 PDF 原文；已保留论文来源，请通过原文入口查看")
+                errors.append(exc)
+        if errors:
+            # A temporary failure may still hide the only downloadable PDF. Do not
+            # let a later permanent candidate denial suppress its bounded retry.
+            raise next(
+                (
+                    exc
+                    for exc in errors
+                    if isinstance(exc, ReferenceDownloadError) and exc.retryable
+                ),
+                errors[-1],
+            )
+        raise no_pdf()

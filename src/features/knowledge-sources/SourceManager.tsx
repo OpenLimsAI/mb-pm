@@ -21,7 +21,7 @@ export default function SourceManager({ data, busy, mutate, onAdd, onDownloads, 
     <div className="kso-head"><div><div className="kso-breadcrumb">获取论文<ChevronRight />来源管理</div><h1>从来源下载</h1><p>搜索来源中的官方资料，选择后下载到服务器，再归入论文文件夹。</p></div><div className="kso-actions">{onDensityChange && <label className="kso-small">列表密度 <select className="kso-select" aria-label="来源列表密度" value={density} onChange={event => onDensityChange(event.target.value as 'compact' | 'standard')}><option value="compact">紧凑</option><option value="standard">标准</option></select></label>}{data.canManage && <button type="button" className="kso-btn" onClick={onAdd}><Plus />添加搜索源</button>}</div></div>
     {[...data.sources].sort((a,b) => Number(b.id === focusSource) - Number(a.id === focusSource)).map(source => source.adapter === 'reference' ? <ReferenceSourceSection key={source.id} {...{source, data, busy, mutate, onDownloads}} focusDocument={source.id === focusSource ? focusDocument : undefined} /> : <SourceSection key={`${storageKey || ''}:${source.id}:${source.folderId}:${source.scopes.join(',')}`} {...{ source, data, busy, mutate, onDownloads, storageKey, density }} />)}
     {!data.sources.length && <div className="kso-empty"><Radar /><h3>先添加一个论文搜索源</h3><p>添加 ICH 官网来源后，在此页搜索、选择和下载，默认归入同名文件夹。</p>{data.canManage && <button type="button" className="kso-btn primary" onClick={onAdd}><Plus />添加搜索源</button>}</div>}
-    <p className="kso-bottom-caption">再次搜索只更新官方来源目录；参考论文从应用检索结果导入后，可按需下载公开 PDF。</p>
+    <p className="kso-bottom-caption">再次搜索只更新官方来源目录；参考资料从应用检索结果导入后，仅保存来源链接；可按需查找并下载公开 PDF。</p>
   </>
 }
 
