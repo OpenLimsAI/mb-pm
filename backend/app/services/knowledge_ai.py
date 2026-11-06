@@ -153,6 +153,17 @@ def ollama_result(result):
     }
 
 
+def response_tool_call(raw):
+    """Discard provider metadata without relaxing the shared request schema."""
+    if not isinstance(raw, dict):
+        raise ValueError("invalid tool call")
+    call = {key: raw[key] for key in ("id", "type", "function") if key in raw}
+    function = call.get("function")
+    if isinstance(function, dict):
+        call["function"] = {key: function[key] for key in ("name", "arguments") if key in function}
+    return call
+
+
 def response_data(result, cfg, payload):
     choices = result.get("choices")
     if not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], dict):
@@ -162,16 +173,13 @@ def response_data(result, cfg, payload):
     if not isinstance(raw, dict) or raw.get("role", "assistant") != "assistant":
         raise ValueError("invalid assistant turn")
     # Drop unrecognized upstream fields instead of forwarding arbitrary provider payloads.
-    message = Message.model_validate(
-        {
-            "role": "assistant",
-            **{
-                key: raw[key]
-                for key in ("content", "tool_calls", "reasoning_content")
-                if key in raw
-            },
-        }
-    )
+    data = {
+        "role": "assistant",
+        **{key: raw[key] for key in ("content", "tool_calls", "reasoning_content") if key in raw},
+    }
+    if isinstance(data.get("tool_calls"), list):
+        data["tool_calls"] = [response_tool_call(call) for call in data["tool_calls"]]
+    message = Message.model_validate(data)
     tools = {tool.function.name for tool in payload.tools or []}
     if any(call.function.name not in tools for call in message.tool_calls or []):
         raise ValueError("provider selected an undeclared tool")

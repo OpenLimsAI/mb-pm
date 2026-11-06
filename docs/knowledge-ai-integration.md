@@ -43,6 +43,8 @@
 
 支持文本 `messages`、`tools`、`tool_choice`、`parallel_tool_calls`、`response_format`、有限采样选项及输出预算。assistant 的 `tool_calls` 与相应 tool 消息必须成对；支持供应商后续工具轮需要的 `reasoning_content`。该字段只供服务端继续工具对话，不应用作用户可见正文。返回 OpenAI `choices`、`finish_reason`、工具调用和有报告的 `usage`。知识库的共享 Agent 继续负责工具执行、任务事件与 NDJSON 输出。
 
+2026-11-05 的响应兼容修复先将供应商工具调用投影为 `id/type/function`，其中 `function` 只保留 `name/arguments`，再执行原有校验。因此非流式响应中的 `index` 等附加元数据不会把合法工具调用误判为格式错误；客户端请求仍拒绝未知字段，缺失或无效工具字段、未声明工具、禁用工具、长度限制、结束原因与密钥泄漏检查继续生效。合成测试覆盖 DeepSeek／Kimi 的工具调用与后续结果往返；本次修复的生产部署及真实模型验收另记，未保存供应商原始回答用于排查。
+
 - 请求最多 1 MiB、128 条消息、32 个工具；单条文本／工具参数／reasoning 最多 200,000 字符，文本分段最多 64 项，JSON 嵌套最多 32 层。
 - `max_tokens` 或 `max_completion_tokens` 二选一，上限 65,536，默认 8,192。Kimi 沿用工作台采样与输出参数规则，上限 16,384；功能层仍需分段翻译，并处理 `finish_reason=length`。
 - 上游使用既有 DNS 固定、安全地址审批、不使用环境代理、不跟随重定向的连接；单轮 120 秒，响应最多 2 MB。
@@ -61,6 +63,6 @@ cd backend
 python -m pytest -q tests/test_knowledge_ai_gateway.py tests/test_solution_ai.py tests/test_solution_ai_transport.py tests/test_model_network_policy.py tests/test_oidc_status.py tests/test_request_limits.py
 ```
 
-覆盖身份／受众隔离、当前角色和密码失效、共享默认与显式系统选择、设置变更、工具往返、压缩／翻译文本、Ollama 转换、请求大小、凭据和错误脱敏。真实环境启用前核对精确知识库受众、实时 IAM 状态校验与配套知识库运行时；测试结果不代替客户账号和真实供应商验收。
+覆盖身份／受众隔离、当前角色和密码失效、共享默认与显式系统选择、设置变更、工具往返及供应商附加元数据兼容、非法工具响应与严格客户端请求边界、压缩／翻译文本、Ollama 转换、请求大小、凭据和错误脱敏。真实环境启用前核对精确知识库受众、实时 IAM 状态校验与配套知识库运行时；测试结果不代替客户账号和真实供应商验收。
 
 定点及全量回归覆盖统一模型与笔记接口；配套知识库 `tests/e2e/workspace-ai.spec.ts` 用合成 HTTP 验证普通用户统一入口无密钥框、模型选择传到问答请求、页面重新获得焦点时同步默认模型，以及换账号／会话结束后的选择隔离；未调用真实模型。桌面和窄屏界面已保存本地截图检查。
