@@ -138,7 +138,7 @@ class RelayTest(unittest.TestCase):
                 self.assertIsNone(received['headers'].get('Cookie'))
                 self.assertIsNone(received['headers'].get('Authorization'))
                 self.assertEqual(received['headers']['Connection'], 'close')
-            self.assertEqual(len(upstream.received), 3)
+            self.assertEqual(len(upstream.received), len(relay.OPERATIONS))
 
     def test_fixed_method_and_exact_path_only(self):
         with fixture() as (server, upstream):

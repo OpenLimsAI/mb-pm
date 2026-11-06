@@ -23,6 +23,8 @@ from app.schemas.data_backup import (
     DeletePreviewInput,
     Deletion,
     DeletionInput,
+    Plan,
+    PlanInput,
     Snapshot,
 )
 
@@ -32,8 +34,12 @@ OPERATIONS = {
     ("GET", "/v1/snapshot"),
     ("POST", "/v1/delete-preview"),
     ("POST", "/v1/deletions"),
+    ("POST", "/v1/plan"),
 }
 ERRORS = {
+    "plan_readonly": (409, "当前备份计划暂不可编辑，请刷新并查看计划说明"),
+    "plan_changed": (409, "备份计划已变化，请重新读取后再保存"),
+    "plan_write_failed": (503, "备份计划保存未确认，请刷新实际计划并联系管理员检查"),
     "archive_changed": (409, "备份文件已变化，请刷新列表后重新选择"),
     "protected": (409, "所选备份受到保护，不能删除"),
     "backup_busy": (409, "备份或发布操作正在进行，请稍后重试"),
@@ -41,7 +47,7 @@ ERRORS = {
     "expired_request": (409, "删除确认已过期，请重新选择备份"),
     "revision_conflict": (409, "备份列表已更新，请刷新后重新选择"),
     "request_conflict": (409, "此请求已用于其他删除操作，请刷新后重试"),
-    "invalid_request": (422, "删除参数无效，请重新选择并确认"),
+    "invalid_request": (422, "备份操作参数无效，请检查后重新提交"),
     "rate_limited": (429, "请求过于频繁，请稍后重试"),
     "replay": (409, "请求已使用，请刷新后重试"),
     "operation_failed": (503, "删除操作未完成，请刷新备份记录并联系管理员检查"),
@@ -153,7 +159,7 @@ def request(method, path, payload=None):
                 return parsed
     except httpx.TimeoutException:
         raise HTTPException(
-            504, "服务器备份代理响应超时，请先刷新备份记录，避免重复提交删除"
+            504, "服务器备份代理响应超时，请先刷新实际状态，避免重复提交操作"
         ) from None
     except httpx.HTTPError:
         raise HTTPException(503, "无法连接服务器备份代理，请联系管理员检查服务状态") from None
@@ -208,6 +214,17 @@ def delete_archives(body: DeletionInput, subject: str):
         request(
             "POST",
             "/v1/deletions",
+            {**body.model_dump(mode="json", by_alias=True), "actor": subject},
+        ),
+    )
+
+
+def update_plan(body: PlanInput, subject: str):
+    return _public(
+        Plan,
+        request(
+            "POST",
+            "/v1/plan",
             {**body.model_dump(mode="json", by_alias=True), "actor": subject},
         ),
     )

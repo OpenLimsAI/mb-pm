@@ -21,7 +21,7 @@ MAX_BODY = 64 * 1024
 MAX_RESPONSE = 2 * 1024 * 1024
 TIMEOUT = 12
 HMAC_HEADERS = ('X-Backup-Time', 'X-Backup-Nonce', 'X-Backup-Signature')
-OPERATIONS = {('GET', '/v1/snapshot'), ('POST', '/v1/delete-preview'), ('POST', '/v1/deletions')}
+OPERATIONS = {('GET', '/v1/snapshot'), ('POST', '/v1/delete-preview'), ('POST', '/v1/deletions'), ('POST', '/v1/plan')}
 
 
 def socket_path(value):

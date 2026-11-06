@@ -18,6 +18,7 @@
   ],
   "lockDirectory": "/home/prometheus/backups/daily",
   "planScript": "/home/prometheus/security-hardening-20261102/daily_backup.py",
+  "allowPlanChanges": true,
   "requestsPerMinute": 120,
   "unixSocket": false
 }

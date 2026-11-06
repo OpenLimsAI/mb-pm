@@ -1,4 +1,4 @@
-"""Bounded inventory and selected-archive deletion; no backup execution or policy input."""
+"""Bounded inventory, selected deletion and typed daily schedule settings."""
 
 from typing import Annotated, Literal
 from uuid import UUID
@@ -28,6 +28,12 @@ class DeletePreviewInput(Input):
         return value
 
 
+class PlanInput(Input):
+    daily_time: str = Field(pattern=r"^(?:[01][0-9]|2[0-3]):[0-5][0-9]$")
+    enabled: StrictBool
+    revision: OpaqueId
+
+
 class DeletionInput(Input):
     token: PreviewToken
     confirmation: str = Field(pattern=r"^删除 ([1-9][0-9]?|100) 份备份$")
@@ -46,6 +52,11 @@ class Plan(PublicMetadata):
     summary: str = Field(max_length=1000)
     retention_summary: str = Field(max_length=1000)
     checked_at: Timestamp | None = None
+    editable: StrictBool = False
+    daily_time: str | None = Field(default=None, pattern=r"^(?:[01][0-9]|2[0-3]):[0-5][0-9]$")
+    revision: OpaqueId | None = None
+    next_run_at: Timestamp | None = None
+    edit_reason: str = Field(default="", max_length=1000)
 
 
 class Storage(PublicMetadata):
@@ -75,6 +86,7 @@ class PreviewItem(PublicMetadata):
     id: OpaqueId
     name: str = Field(min_length=1, max_length=255)
     root_label: str = Field(max_length=120)
+    root_id: str = Field(default="", max_length=80)
     size_bytes: Bytes
     disk_bytes: Bytes
 
