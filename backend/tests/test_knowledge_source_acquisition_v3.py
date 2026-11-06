@@ -114,6 +114,8 @@ def test_import_source_preserves_folder_and_deduplicates_doi(ks):
         adapters.record("One", "https://doi.org/10.1234/abc", "manual", doi="10.1234/abc"),
     )
     assert not existing
+    assert first["format"] == "待核验" and first["documentType"] == "参考资料"
+    assert first["downloadStatus"] == "not_requested"
     again = imports.ensure_source(store, "manual", "手动收录")
     assert again["folderId"] == "existing-folder"
     other = imports.ensure_source(store, "pubmed", "PubMed")

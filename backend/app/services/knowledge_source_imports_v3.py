@@ -83,17 +83,20 @@ def ensure_document(store, source, item):
         "title": str(item["title"]).strip()[:1000] or url,
         "url": url,
         "scopes": [],
-        "format": "PDF",
+        "format": "待核验",
         "language": "来源未标注",
         "documentType": "指导原则"
         if source.get("templateId") in {"fda", "ema", "cde"}
-        else "参考论文",
+        else "参考论文"
+        if source.get("templateId") == "pubmed"
+        else "参考资料",
         "officialStatus": "",
         "officialDate": str(metadata.get("year") or "")[:40],
         "description": str(metadata.get("abstract") or metadata.get("description") or "")[:16000],
         "metadata": metadata,
         "status": "discovered",
         "error": None,
+        "downloadStatus": "not_requested",
         "discoveredAt": iso(),
         "firstNewAt": iso(),
         "newInScopes": [],

@@ -35,7 +35,7 @@ it('preserves unmatched history without pairing an answer with a different quest
 it('offers the personal-assistant reference category for a saved message in its own task', () => {
   render(<Conversation taskId="task-own" userName="研究员" messages={[{...message('a-web','request-web','assistant','公开研究结果'),answerMode:'web',webReferences:[{id:'source-web',title:'原始论文',url:'https://example.org/paper',publishedAt:null,retrievedAt:'',excerpt:''}]}]} artifacts={[]} onCopy={()=>{}} onArtifact={()=>{}} />)
   fireEvent.click(screen.getByRole('button',{name:'导入知识源'}))
-  expect(within(screen.getByRole('dialog')).getByText('个人AI助手参考论文')).toBeInTheDocument()
+  expect(within(screen.getByRole('dialog')).getByText('个人AI助手参考资料')).toBeInTheDocument()
   expect(within(screen.getByRole('dialog')).getByRole('link',{name:'https://example.org/paper'})).toHaveAttribute('href','https://example.org/paper')
 })
 

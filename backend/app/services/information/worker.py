@@ -19,6 +19,7 @@ from app.services.information import bridge
 from app.services.information.extract import extract_pdf
 from app.services.information.ich import SCOPE_SLUGS, OfficialClient
 from app.services.information.store import Store, iso
+from app.services.reference_download import ReferenceDownloadError, no_pdf
 
 logger = logging.getLogger("cmc-pms.information")
 MANAGERS = {"admin", "kb_manager"}
@@ -74,11 +75,14 @@ def run_step(store, official, *, extract=extract_pdf, connector=bridge.call, job
     if job is None:
         return False
     jobid = job["id"]
+    reference_job = (
+        app == "knowledge-sources" and store.source(job["sourceId"])["adapter"] == "reference"
+    )
     try:
         authority(db, job["actorSubject"])
-        if app == "knowledge-sources" and store.source(job["sourceId"])["adapter"] == "reference":
+        if reference_job:
             if not connector("library", job["actorSubject"], imports=[]).get("canWrite"):
-                raise HTTPException(403, "参考论文下载需要有效的知识库写入权限，任务已暂停")
+                raise HTTPException(403, "参考资料下载需要有效的知识库写入权限，任务已暂停")
     except Exception as exc:
         job["status"] = "paused"
         job["error"] = safe_error(exc)
@@ -104,6 +108,9 @@ def run_step(store, official, *, extract=extract_pdf, connector=bridge.call, job
     store.put("job", job)
     db.commit()
     item = copy.deepcopy(pending)
+    for key in ("errorCode", "retryable", "failurePhase"):
+        item.pop(key, None)
+    item["error"] = None
 
     def phase(value):
         item["phase"] = value
@@ -157,6 +164,8 @@ def run_step(store, official, *, extract=extract_pdf, connector=bridge.call, job
             else:
                 phase("download")
                 content = official.pdf(doc["url"])
+                if reference_job and not content.startswith(b"%PDF-"):
+                    raise no_pdf()
                 sha = hashlib.sha256(content).hexdigest()
                 item["result"] = (
                     "reused"
@@ -172,6 +181,15 @@ def run_step(store, official, *, extract=extract_pdf, connector=bridge.call, job
                 if app == "knowledge-sources":
                     doc = store.get("document", doc["id"])
                     doc.update(verifiedSha256=sha, verifiedAt=iso())
+                    if reference_job:
+                        doc.update(
+                            format="PDF",
+                            downloadStatus="available",
+                            downloadError=None,
+                            downloadErrorCode=None,
+                            downloadRetryable=False,
+                            error=None,
+                        )
                     store.put("document", doc)
                 db.commit()
             item["versionId"] = version["id"]
@@ -261,6 +279,14 @@ def run_step(store, official, *, extract=extract_pdf, connector=bridge.call, job
             )
             doc["status"] = "ready" if version["indexStatus"] == "ready" else "archived"
             doc["error"] = version.get("error")
+            if reference_job:
+                doc.update(
+                    format="PDF",
+                    downloadStatus="available",
+                    downloadError=None,
+                    downloadErrorCode=None,
+                    downloadRetryable=False,
+                )
             store.put("document", doc)
         db.commit()
     except Exception as exc:
@@ -268,14 +294,36 @@ def run_step(store, official, *, extract=extract_pdf, connector=bridge.call, job
         item.update(
             status="failed", failurePhase=item.get("phase", "download"), error=safe_error(exc)
         )
-        transient = isinstance(exc, httpx.TimeoutException | httpx.NetworkError) or (
-            isinstance(exc, httpx.HTTPStatusError)
-            and exc.response.status_code in (429, 500, 502, 503, 504)
+        if isinstance(exc, ReferenceDownloadError):
+            item.update(errorCode=exc.code, retryable=exc.retryable)
+        transient = (
+            isinstance(exc, httpx.TimeoutException | httpx.NetworkError)
+            or (
+                isinstance(exc, httpx.HTTPStatusError)
+                and exc.response.status_code in (429, 500, 502, 503, 504)
+            )
+            or (isinstance(exc, ReferenceDownloadError) and exc.retryable)
         )
         attempts = item.get("attempts", 0) + 1
         item["attempts"] = attempts
         if transient and attempts < 3:
             item.update(status="pending", nextAttemptAt=time.time() + 15 * (2 ** (attempts - 1)))
+        if reference_job and item["failurePhase"] == "download":
+            doc = store.lock("document", item["documentId"])
+            saved = any(v["documentId"] == doc["id"] for v in store.records("version"))
+            doc.update(
+                downloadStatus="available"
+                if saved
+                else "unavailable"
+                if item.get("errorCode") in {"no_pdf", "source_forbidden"}
+                else "failed",
+                downloadError=item["error"],
+                downloadErrorCode=item.get("errorCode", "download_error"),
+                downloadRetryable=transient,
+            )
+            if not saved:
+                doc["error"] = item["error"]
+            store.put("document", doc)
     # Re-read control state so a pause/cancel made during network I/O is never overwritten.
     current = store.lock("job", jobid)
     index = next(

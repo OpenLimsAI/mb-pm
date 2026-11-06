@@ -12,7 +12,8 @@ from app.models.solution import KnowledgeSolution, SolutionAnswer, SolutionTopic
 from app.services.information.store import iso
 from app.services.reference_download import reference_url
 
-CATEGORIES = {"solutions": "研究报告参考论文", "assistant": "个人AI助手参考论文"}
+CATEGORIES = {"solutions": "研究报告参考资料", "assistant": "个人AI助手参考资料"}
+LEGACY_CATEGORIES = {"solutions": "研究报告参考论文", "assistant": "个人AI助手参考论文"}
 
 
 def saved_reference(db, claims, body):
@@ -62,7 +63,7 @@ def saved_reference(db, claims, body):
             else None
         )
     if answer is None:
-        raise HTTPException(404, "原回答不存在或无权访问，请从本人已保存的回答选择论文")
+        raise HTTPException(404, "原回答不存在或无权访问，请从本人已保存的回答选择参考资料")
     ref = next(
         (
             item
@@ -72,7 +73,7 @@ def saved_reference(db, claims, body):
         None,
     )
     if not ref or not isinstance(ref.get("title"), str) or not ref["title"].strip():
-        raise HTTPException(404, "论文检索来源不存在，请重新选择")
+        raise HTTPException(404, "参考资料来源不存在，请重新选择")
     try:
         url = reference_url(ref.get("url"))
     except ValueError as exc:
@@ -132,14 +133,15 @@ def ensure_reference(store, body, ref):
             "title": ref["title"],
             "url": ref["url"],
             "scopes": [],
-            "format": "PDF",
+            "format": "待核验",
             "language": "来源未标注",
-            "documentType": "参考论文",
+            "documentType": "参考资料",
             "officialStatus": "",
             "officialDate": ref["publishedAt"],
             "description": "",
             "status": "discovered",
             "error": None,
+            "downloadStatus": "not_requested",
             "discoveredAt": iso(),
             "firstNewAt": iso(),
             "newInScopes": [],

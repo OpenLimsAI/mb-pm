@@ -5,7 +5,7 @@ from unittest.mock import Mock
 import pytest
 
 from app.services import reference_download as module
-from app.services.reference_download import ReferenceClient, reference_url
+from app.services.reference_download import ReferenceClient, ReferenceDownloadError, reference_url
 
 
 class Response:
@@ -155,7 +155,7 @@ def test_robots_and_size_limits(monkeypatch):
 
 
 def test_http_errors_and_non_pdf():
-    for value, message in [({"status": 403}, "HTTP 403"), ({"body": b"plain"}, "没有返回 PDF")]:
+    for value, message in [({"status": 403}, "HTTP 403"), ({"body": b"plain"}, "未找到可公开下载")]:
         client, _, _ = wire({("paper.example.org", "/paper.pdf"): value})
         with pytest.raises(ValueError, match=message):
             client.pdf("https://paper.example.org/paper.pdf")
@@ -201,5 +201,93 @@ def test_bridge_incompatible_domains_rejected_before_download(url):
 @pytest.mark.parametrize("body", [b" %PDF-1.7", b"\n%PDF-1.7", b"\xef\xbb\xbf%PDF-1.7"])
 def test_pdf_magic_must_start_at_first_byte_without_mutating_original(body):
     client, _, _ = wire({("paper.example.org", "/paper.pdf"): {"body": body}})
-    with pytest.raises(ValueError, match="没有返回 PDF"):
+    with pytest.raises(ValueError, match="未找到可公开下载"):
         client.pdf("https://paper.example.org/paper.pdf")
+
+
+def test_news_html_is_not_a_pdf_even_with_pdf_content_type_or_suffix():
+    client, calls, sockets = wire(
+        {
+            ("paper.example.org", "/news.pdf"): {
+                "body": b"<html><h1>API news</h1></html>",
+                "headers": {"Content-Type": "application/pdf"},
+            }
+        }
+    )
+    with pytest.raises(
+        ReferenceDownloadError, match="无法下载.*未找到可公开下载的 PDF.*已保留来源链接"
+    ) as error:
+        client.pdf("https://paper.example.org/news.pdf")
+    assert error.value.code == "no_pdf" and not error.value.retryable
+    assert len(calls) == 2 and all(s.closed for s in sockets)
+
+
+def test_html_candidate_is_not_stored_as_pdf_and_denial_is_explicit():
+    client, _, _ = wire(
+        {
+            ("paper.example.org", "/article"): {
+                "body": b'<a href="/full.pdf">PDF</a>',
+                "headers": {"Content-Type": "text/html"},
+            },
+            ("paper.example.org", "/full.pdf"): {"body": b"<html>Sign in</html>"},
+        }
+    )
+    with pytest.raises(ReferenceDownloadError) as error:
+        client.pdf("https://paper.example.org/article")
+    assert error.value.code == "no_pdf" and not error.value.retryable
+    client, calls, sockets = wire(
+        {
+            ("paper.example.org", "/robots.txt"): {"body": b"User-agent: *\nDisallow: /\n"},
+        }
+    )
+    with pytest.raises(ReferenceDownloadError) as error:
+        client.pdf("https://paper.example.org/article")
+    assert error.value.code == "source_forbidden" and not error.value.retryable
+    assert len(calls) == 1 and all(s.closed for s in sockets)
+
+
+@pytest.mark.parametrize("status,retryable", [(403, False), (404, False), (429, True), (503, True)])
+def test_reference_http_retry_classification_preserves_safe_status_only(status, retryable):
+    client, _, sockets = wire(
+        {("paper.example.org", "/paper.pdf?secret=do-not-show"): {"status": status}}
+    )
+    with pytest.raises(ReferenceDownloadError) as error:
+        client.pdf("https://paper.example.org/paper.pdf?secret=do-not-show")
+    assert error.value.retryable is retryable
+    assert f"HTTP {status}" in str(error.value) and "do-not-show" not in str(error.value)
+    assert all(s.closed for s in sockets)
+
+
+def test_reference_network_errors_are_retryable_and_sockets_close():
+    client, _, sockets = wire({})
+    original = client.connection
+
+    def connection(*args, **kwargs):
+        value = original(*args, **kwargs)
+        value.getresponse = Mock(side_effect=TimeoutError("secret connection context"))
+        return value
+
+    client.connection = connection
+    with pytest.raises(ReferenceDownloadError) as error:
+        client.pdf("https://paper.example.org/paper.pdf")
+    assert error.value.code == "timeout" and error.value.retryable
+    assert "secret connection context" not in str(error.value)
+    assert all(s.closed for s in sockets)
+
+
+@pytest.mark.parametrize("statuses", [(503, 403), (403, 503)])
+def test_candidate_order_does_not_mask_a_retryable_pdf_failure(statuses):
+    client, _, sockets = wire(
+        {
+            ("paper.example.org", "/article"): {
+                "body": b'<a href="/first.pdf">PDF 1</a><a href="/second.pdf">PDF 2</a>',
+                "headers": {"Content-Type": "text/html"},
+            },
+            ("paper.example.org", "/first.pdf"): {"status": statuses[0]},
+            ("paper.example.org", "/second.pdf"): {"status": statuses[1]},
+        }
+    )
+    with pytest.raises(ReferenceDownloadError) as error:
+        client.pdf("https://paper.example.org/article")
+    assert error.value.retryable and "HTTP 503" in str(error.value)
+    assert all(s.closed for s in sockets)

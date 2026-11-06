@@ -8,9 +8,9 @@ export interface SourcePaper {
   indexStatus: string; size?: number; createdAt?: string; type?: string; language?: string
   error?: string | null; documentId?: string; versionId?: string; parseStatus?: string; officialDate?: string; officialStatus?: string; versionStatus?: string; sourceUrl?: string; latest?: boolean
 }
-export interface SourceDocument extends InformationDocument { isNew?: boolean; unread?: boolean; versionStatus?: 'not_saved' | 'unverified' | 'current' | 'update_available'; verifiedAt?: string }
+export interface SourceDocument extends InformationDocument { isNew?: boolean; unread?: boolean; versionStatus?: 'not_saved' | 'unverified' | 'current' | 'update_available'; verifiedAt?: string; downloadStatus?: 'not_requested' | 'available' | 'unavailable' | 'failed'; downloadErrorCode?: string; currentVersionId?: string; verifiedSha256?: string }
 export interface SourceDefinition extends InformationSource { archiveFolderId?: string; schedule?: { frequency: 'off' | 'daily' | 'weekly'; downloadUpdates: boolean; indexUpdates: boolean; nextCheckAt?: string } }
-export type SourceJob = Omit<InformationJob, 'items'> & { kind?: string; app?: string; summary?: Record<string, number>; canUndoRuleFiling?: boolean; ruleFiling?: {status:string;ruleApplications?:number;undoTokens?:string[];error?:string}; items: (InformationJob['items'][number] & { phase?: string; failurePhase?: string; result?: string; scope?: string })[] }
+export type SourceJob = Omit<InformationJob, 'items'> & { kind?: string; app?: string; summary?: Record<string, number>; canUndoRuleFiling?: boolean; ruleFiling?: {status:string;ruleApplications?:number;undoTokens?:string[];error?:string}; items: (InformationJob['items'][number] & { phase?: string; failurePhase?: string; result?: string; scope?: string; errorCode?: string; retryable?: boolean })[] }
 export interface SourceFolder { id: string; name: string; writable?: boolean; kind?: 'topic' | 'source'; parentId?: string | null }
 export interface KnowledgeSourceSnapshot {
   papers: SourcePaper[]; folders: SourceFolder[]; sources: SourceDefinition[]
