@@ -1,0 +1,112 @@
+{
+  "completed_at": "2026-11-06 12:08 EST",
+  "source": "d8114423d2b9512f1e0e8e5d00600108c0a713e1",
+  "image": "sha256:9918b9a52fb43594bc28a6b36314b35551790bea96ec576bfc197571982284a6",
+  "previous_source": "9fe91e95f40cfbe8e63835315e13c495a79bdbf7",
+  "previous_image": "sha256:59d6c422dcb991adb19ae7dded69cad3d3747acff0015f34b0fdba229394ea22",
+  "deployed": true,
+  "healthy": true,
+  "data_retained": true,
+  "kb_unchanged": true,
+  "shared_settings_unchanged": true,
+  "database_migration": false,
+  "production_database_restore": false,
+  "reference_readonly": {
+    "read_only": true,
+    "source_links_retained": true,
+    "unverified_not_labelled_pdf": true,
+    "old_failures_visible": true,
+    "checked": 2,
+    "outcomes": {
+      "source_forbidden": 1,
+      "no_pdf": 1
+    }
+  },
+  "public_checks": {
+    "read_only": true,
+    "source": "d8114423d2b9512f1e0e8e5d00600108c0a713e1",
+    "checks": [
+      {
+        "host": "www.openlims.ai",
+        "name": "build",
+        "expected_status": 200,
+        "required": true,
+        "status": 200,
+        "source": "d8114423d2b9512f1e0e8e5d00600108c0a713e1",
+        "source_matches": true,
+        "passed": true
+      },
+      {
+        "host": "www.openlims.ai",
+        "name": "health",
+        "expected_status": 200,
+        "required": true,
+        "status": 200,
+        "passed": true
+      },
+      {
+        "host": "www.openlims.ai",
+        "name": "auth",
+        "expected_status": 401,
+        "required": false,
+        "status": 401,
+        "passed": true
+      },
+      {
+        "host": "pm.openlims.ai",
+        "name": "build",
+        "expected_status": 200,
+        "required": true,
+        "status": 200,
+        "source": "d8114423d2b9512f1e0e8e5d00600108c0a713e1",
+        "source_matches": true,
+        "passed": true
+      },
+      {
+        "host": "pm.openlims.ai",
+        "name": "health",
+        "expected_status": 200,
+        "required": true,
+        "status": 200,
+        "passed": true
+      },
+      {
+        "host": "pm.openlims.ai",
+        "name": "auth",
+        "expected_status": 401,
+        "required": false,
+        "status": 401,
+        "passed": true
+      }
+    ],
+    "passed": true,
+    "anonymous_auth_verified": true
+  },
+  "containers": {
+    "mb-pm-v2-app-1": {
+      "source": "d8114423d2b9512f1e0e8e5d00600108c0a713e1",
+      "image": "sha256:9918b9a52fb43594bc28a6b36314b35551790bea96ec576bfc197571982284a6",
+      "healthy": true,
+      "compose_files": 37
+    },
+    "mb-pm-v2-app-direct-1": {
+      "source": "d8114423d2b9512f1e0e8e5d00600108c0a713e1",
+      "image": "sha256:9918b9a52fb43594bc28a6b36314b35551790bea96ec576bfc197571982284a6",
+      "healthy": true,
+      "compose_files": 37
+    },
+    "dikw-mbweb": {
+      "source": "3f7f41a52f541ad5f1dbf6ad8513e43d8af37b31",
+      "image": "sha256:d33aa80412e12ada82ce4ca6f4de9a2b7cc4e1030c2ccc680e7f453d0937a5a9",
+      "healthy": true,
+      "compose_files": 16
+    }
+  },
+  "backup": {
+    "archive": "/home/prometheus/mb-pm-v2/releases/reference-pdf-20261106-d8114423/online-backup/maibo-online-20261106T170410Z-563d58.tar.gz.gpg",
+    "database_count": 3,
+    "mount_count": 21,
+    "sha256": "ccdea8a097f0ffd8c748efe2d6033d2b9ebe8caf710cc33059ab7af908f08a8d",
+    "sqlite_count": 11
+  }
+}
