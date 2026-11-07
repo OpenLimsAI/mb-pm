@@ -7,7 +7,7 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -352,7 +352,14 @@ async def prevent_auth_response_caching(request, call_next):
     # API 响应均依赖登录身份：禁止缓存，且不向外泄露 Referer。
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["Referrer-Policy"] = "no-referrer"
+    # Only the SPA entry document opts in: native form POST navigation under
+    # no-referrer sends Origin: null. Never relax the exact-Origin CSRF check.
+    spa_document = (
+        getattr(request.state, "spa_entry_document", False)
+        and response.status_code == 200
+        and response.headers.get("content-type", "").split(";", 1)[0].strip() == "text/html"
+    )
+    response.headers["Referrer-Policy"] = "same-origin" if spa_document else "no-referrer"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     response.headers["Content-Security-Policy"] = (
         "object-src 'none'; base-uri 'self'; frame-ancestors "
@@ -425,6 +432,12 @@ class _HashedAssets(StaticFiles):
         return response
 
 
+def _spa_entry_response(request: Request, static_root: Path) -> FileResponse:
+    # Server-owned marker; arbitrary HTML responses and client headers cannot opt in.
+    request.state.spa_entry_document = True
+    return FileResponse(static_root / "index.html", headers=_REVALIDATE)
+
+
 def mount_spa(target: FastAPI, static_root: Path) -> None:
     """同源托管前端产物：/assets 长期缓存；其余路径命中真实文件则返回，否则回退 index.html。"""
     assets = static_root / "assets"
@@ -432,7 +445,7 @@ def mount_spa(target: FastAPI, static_root: Path) -> None:
         target.mount("/assets", _HashedAssets(directory=assets), name="assets")
 
     @target.get("/{full_path:path}", include_in_schema=False)
-    def spa_fallback(full_path: str):
+    def spa_fallback(full_path: str, request: Request):
         # API / 文档保持 JSON 404，不被 SPA 兜底吞掉
         if full_path.startswith(("api/", "api", "docs", "redoc", "openapi.json", "health")):
             raise HTTPException(status_code=404, detail="Not Found")
@@ -442,17 +455,19 @@ def mount_spa(target: FastAPI, static_root: Path) -> None:
         try:
             candidate = (static_root / full_path).resolve()
         except (OSError, RuntimeError, ValueError):
-            return FileResponse(static_root / "index.html", headers=_REVALIDATE)
+            return _spa_entry_response(request, static_root)
         if full_path and candidate.is_file() and static_root in candidate.parents:
+            if candidate == static_root / "index.html":
+                return _spa_entry_response(request, static_root)
             return FileResponse(candidate, headers=_REVALIDATE)
-        return FileResponse(static_root / "index.html", headers=_REVALIDATE)
+        return _spa_entry_response(request, static_root)
 
 
 @app.get("/", include_in_schema=False)
-def root():
+def root(request: Request):
     # 托管前端时根路径返回 SPA；纯 API 模式返回服务元信息。
     if _HAS_SPA:
-        return FileResponse(_STATIC / "index.html", headers=_REVALIDATE)
+        return _spa_entry_response(request, _STATIC)
     return {
         "name": "CMC-PMS Backend (CTO Lite)",
         "version": "0.1.0",
