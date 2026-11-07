@@ -12,3 +12,7 @@
 - 仅本地修复及验证，未推送、未创建 PR、未部署生产。
 
 规范依据：https://fetch.spec.whatwg.org/#append-a-request-origin-header 。原生 form 导航不是 CORS 模式，no-referrer 可令 POST Origin 为 null；不得通过接受 null 或删除 CSRF 校验来规避。
+
+## PR 安全检查补充
+
+PR #199 首轮容器扫描（Security run 42381001139）报告 zlib1g 的 CVE-2026-76844 与 CVE-2026-85091 为可修复 HIGH；镜像安装版本 `1:1.3.dfsg+really1.3.1-1+b1`，扫描给出的 Debian 修复版本为 `1:1.3.dfsg+really1.3.1-1+deb13u1`。因此沿原有官方 APT 步骤加入 zlib1g 升级及版本下限断言，不修改镜像 digest、软件源或扫描门槛。不接受忽略扫描的合并，须等待新提交全部 CI 通过。
