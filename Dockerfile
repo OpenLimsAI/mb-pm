@@ -43,11 +43,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /code
 
-# Debian security update for CVE-2026-109518; retain the pinned Python runtime.
+# Debian security updates (APT and zlib); retain the pinned Python runtime.
 RUN apt-get update \
-    && apt-get install --only-upgrade --no-install-recommends -y apt libapt-pkg7.0 \
+    && apt-get install --only-upgrade --no-install-recommends -y apt libapt-pkg7.0 zlib1g \
     && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' apt)" ge 3.0.4 \
     && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' libapt-pkg7.0)" ge 3.0.4 \
+    && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' zlib1g)" ge 1:1.3.dfsg+really1.3.1-1+deb13u1 \
     && rm -rf /var/lib/apt/lists/*
 
 # psycopg[binary] 自带 libpq，无需系统级编译依赖，镜像保持精简

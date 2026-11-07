@@ -414,7 +414,7 @@ def test_logout_requires_origin_and_removes_local_sessions(
     )
     db.commit()
     client.cookies.set(security.SESSION_COOKIE, "pm-session", domain="pms.test", path="/")
-    for origin in [None, "http://evil.test", settings.pms_origin + ":9000"]:
+    for origin in [None, "null", "http://evil.test", settings.pms_origin + ":9000"]:
         headers = {"Origin": origin} if origin else {}
         assert client.post("/api/v1/portal/logout", headers=headers).status_code == 403
         assert db.query(PortalSession).count() == 1
