@@ -1,13 +1,21 @@
-.application-actions { display: flex; align-items: center; gap: 14px; min-width: 0; }
-.application-account { display: flex; align-items: center; gap: 9px; color: #fff; text-decoration: none; min-width: 0; border-radius: 6px; padding: 3px; }
+.application-actions { display: flex; align-items: center; gap: 10px; min-width: 0; flex-shrink: 0; }
+.application-action-divider { height: 28px; width: 1px; flex-shrink: 0; margin-inline: 2px; background: var(--workbench-line); }
+.application-account { display: flex; align-items: center; gap: 9px; color: var(--workbench-ink); text-decoration: none; min-width: 0; border-radius: 6px; padding: 3px; }
 .application-account:hover, .application-theme-toggle:hover { background: rgba(255,255,255,.12); }
-.application-avatar { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 50%; border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.14); color: #fff; font-weight: 600; }
+.application-avatar { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 50%; border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.14); color: var(--workbench-brand-strong); font-weight: 600; }
 .application-account-copy { display: grid; gap: 2px; min-width: 0; line-height: 1.2; }
-.application-account-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 110px; font-size: 13px; }
+.application-account-copy strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px; font-size: 13px; }
 .application-account-copy small { color: #c9dcef; font-size: 10px; white-space: nowrap; }
-.application-theme-toggle { display: grid; place-items: center; flex: none; width: 34px; height: 34px; color: #e6f1ff; border: 0; border-radius: 6px; background: transparent; }
+.application-theme-toggle { display: grid; place-items: center; flex: none; width: 34px; height: 34px; color: var(--workbench-muted); border: 0; border-radius: 6px; background: transparent; }
 .application-account:focus-visible, .application-theme-toggle:focus-visible { outline: 2px solid #bfeaff; outline-offset: 2px; }
 html[data-application-theme="dark"] { filter: invert(1) hue-rotate(180deg) brightness(1.35); background: #fff; }
 html[data-application-theme="dark"] :is(.aa-topbar, .pn-app-header, .ks-topbar, .if-header, .kso-source-header) { filter: brightness(.74) hue-rotate(180deg) invert(1); }
 html[data-application-theme="dark"] :is(img, video, iframe, canvas):not(header *) { filter: invert(1) hue-rotate(180deg); }
-@media (max-width: 650px) { .application-actions { gap: 5px; } .application-account-copy { display: none; } .application-avatar { width: 30px; height: 30px; } }
+.app-sidebar-logout { display: flex; align-items: center; gap: 10px; margin: 8px 12px; padding: 9px 12px; border-radius: 6px; color: var(--workbench-muted); font-size: 13px; }
+.app-sidebar-logout:hover { color: var(--workbench-brand-strong); background: var(--workbench-soft); }
+@media (max-width: 650px) { .application-actions { gap: 6px; } .application-account-copy strong { max-width: 70px; font-size: 12px; } .application-avatar { width: 28px; height: 28px; } .application-account { gap: 6px; } .application-action-divider { margin-inline: 0; } }
+@media (max-width: 380px) { .application-actions { gap: 4px; } .application-account-copy strong { max-width: 44px; } }
+
+@media (max-width: 650px) {
+  .application-actions { flex-shrink: 1; flex-wrap: wrap; justify-content: flex-end; row-gap: 6px; }
+}

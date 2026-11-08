@@ -214,3 +214,33 @@ html[data-application-theme="dark"]:root :is(.aa-topbar, .pn-app-header, .ks-top
   :root .mb-login-intro { min-height: 0; padding: 26px; }
   :root .mb-login-panel { padding: 26px; }
 }
+
+/* Keep shared header actions legible across portal and project layouts. */
+:root .efficient-portal .workspace-header-inner { gap: 16px; }
+:root .efficient-portal .workspace-account { min-width: 0; }
+:root .application-account-copy { display: block; }
+:root .application-account-copy strong { color: var(--workbench-ink); }
+@media (max-width: 760px) {
+  :root .app-topbar { height: auto; min-height: 56px; flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
+  :root .app-topbar .application-actions { margin-left: auto; }
+  :root .app-sidebar-logout { justify-content: center; padding-inline: 0; }
+}
+@media (max-width: 650px) {
+  :root .efficient-portal { grid-template-rows: auto 1fr auto; }
+  :root .efficient-portal .workspace-header-inner { height: auto; min-height: 56px; flex-wrap: wrap; padding-block: 8px; gap: 8px; }
+  :root .efficient-portal .workspace-brand { min-width: 0; }
+  :root .efficient-portal .workspace-account { margin-left: auto; }
+}
+
+@media (max-width: 760px) {
+  :root .efficient-portal .workspace-sidebar-footer--session { display: flex; justify-content: flex-end; margin: 0; padding: 8px 0 0; border: 0; }
+  :root .efficient-portal .workspace-sidebar-footer--session > :is(strong, span) { display: none; }
+}
+:root #knowledge-source-app .application-actions .app-workbench-entry { color: #fff; }
+@media (max-width: 700px) {
+  :root :is(.aa-topbar, .pn-app-header), :root .ks-app .ks-topbar,
+  :root .information-app .if-header, :root #knowledge-source-app .kso-source-header {
+    height: auto; min-height: 56px; flex-wrap: wrap; padding-block: 8px; row-gap: 8px;
+  }
+  :root #knowledge-source-app .kso-header-actions { flex: 1 0 100%; justify-content: flex-end; }
+}

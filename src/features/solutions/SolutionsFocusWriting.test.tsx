@@ -97,7 +97,7 @@ describe('focus writing workspace', () => {
       expect(within(header).queryByRole('switch', { name: '专注模式', hidden: true })).not.toBeInTheDocument()
       const platformLink = within(header).getByRole('link', { name: '应用工作台' })
       expect(platformLink).toBeVisible()
-      expect(platformLink).toHaveTextContent('应用工作台')
+      expect(platformLink).toHaveTextContent('工作台')
       expect(platformLink).toHaveAttribute('href', preview ? '/?preview=1' : '/')
       expect(platformLink).toHaveClass('app-workbench-link')
       expect(within(header).queryByRole('button', { name: '提交评审' })).not.toBeInTheDocument()
