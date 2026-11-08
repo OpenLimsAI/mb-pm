@@ -16,7 +16,7 @@
 
 ## 应用边界
 
-应用返回按钮由 `src/components/ui/workbenchLink.css` 统一知识报告、项目管理与信息获取的颜色、边框、字号及悬停 / 焦点样式；独立 KB 仓库在 `maibo.css` 对齐相同色值。文案均为「应用工作台」。知识报告只移除草稿提交评审的界面入口，已有状态、历史、接口和数据模型保留。
+顶部操作由 `src/components/application/ApplicationActions.tsx` 在工作台、项目管理及门户独立应用中复用，统一反馈来源、账号设置链接和主题切换。`src/components/ui/workbenchLink.css` 的 `app-workbench-entry` 单独提供深色返回工作台按钮，不改变研究报告主页等复用基础类的局部操作；独立 KB 仓库在 `maibo.css` 对齐相同色值。文案均为「应用工作台」。知识报告只移除草稿提交评审的界面入口，已有状态、历史、接口和数据模型保留。
 
 知识报告在门户 `/solutions/*` 按需加载，复用门户登录，接口为 `/api/v1/solutions`。正文、配方、引用、评审与会话保存在应用数据库；个人知识资料与企业 DIKW 只读适配分开。资料浏览嵌入原 KB 的 `?embed=library` 视图，由 KB 自身会话管理上传、文件夹、标签和阅读；父页面只接收校验来源窗口及 origin 的版本化资料路径消息，引用或问答前仍通过报告后端重新读取授权资料。外部资料访问实时检查 IAM KB 角色，企业来源的权限随采用内容保留；详见[知识报告](knowledge-solutions.md)。
 

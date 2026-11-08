@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, FolderKanban, ListChecks, GanttChartSquare, Gauge, Wallet, ChevronDown,
-  SlidersHorizontal, type LucideIcon,
+  SlidersHorizontal, LogOut, type LucideIcon,
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { can, type PermKey } from '../../lib/permissions'
 import { useAuth } from '../../store/auth'
+import { useDataStore } from '../../store/data'
 
 interface NavItem {
   to: string
@@ -47,6 +48,8 @@ function loadCollapsed(): string[] {
 
 export function Sidebar() {
   const role = useAuth((s) => s.currentUser?.role)
+  const logout = useAuth((s) => s.logout)
+  const online = useDataStore((s) => s.mode === 'api')
   const { pathname } = useLocation()
   const [collapsed, setCollapsed] = useState<string[]>(loadCollapsed)
   const allowed = (it: NavItem) => !it.perms || it.perms.some((p) => can(role, p))
@@ -115,6 +118,7 @@ export function Sidebar() {
         })}
       </nav>
 
+      {online && <button type="button" onClick={logout} className="app-sidebar-logout" aria-label="登出" title="登出"><LogOut size={16} aria-hidden="true" /><span className="app-nav-label">登出</span></button>}
       {/* Footer */}
       <div className="app-sidebar-footer px-5 py-4 border-t border-ink-300/40 text-xs text-ink-500">
         <div>数字化工作空间</div>

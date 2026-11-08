@@ -137,9 +137,9 @@
   .app-nav-children, .app-nav-children[hidden] { display: block; margin: 4px 0; padding: 0; border: 0; }
   .app-nav-children .app-nav-link { min-height: 38px; }
   .app-topbar { padding: 0 14px; gap: 8px; }
-  .app-topbar :is(.app-feedback-link > span, .app-workbench-link > span, .app-account-copy, .app-logout-label, .app-sync-status button > span) { display: none; }
+  .app-topbar :is(.app-account-copy, .app-logout-label, .app-sync-status button > span) { display: none; }
   .app-search { display: none; }
-  .app-workspace-name { display: block; font-size: 12px; }
+  .app-workspace-name { display: none; }
   .app-account-role { display: none; }
   .app-account { padding: 4px; gap: 6px; }
   .app-main > .p-6 { padding: 20px 16px; }

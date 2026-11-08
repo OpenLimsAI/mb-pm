@@ -39,7 +39,7 @@ export default function PortalSettings() {
           onDone={() => window.location.assign('/login?signed_out=1&password_changed=1')}
           description="登录密码在门户、项目管理和知识库中同时生效；修改后所有设备均需重新登录。" />
       </div>
-      <aside className="workspace-help"><div><strong>退出说明</strong><p>退出工作台会结束当前门户会话并请求 IAM 退出。已经打开的项目管理或知识库，请分别使用应用内的退出功能结束会话。</p></div></aside>
+      <aside className="workspace-help"><div><strong>退出说明</strong><p>工作台侧栏底部可退出当前门户会话并请求 IAM 退出；项目管理的登出入口位于其侧栏底部。各应用会继续独立验证登录状态。</p></div></aside>
     </div>
   </PortalLayout>
 }

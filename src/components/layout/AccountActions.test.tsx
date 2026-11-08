@@ -2,6 +2,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { TopBar } from './TopBar'
+import { Sidebar } from './Sidebar'
 import PortalLayout from '../portal/PortalLayout'
 
 const state = vi.hoisted(() => ({
@@ -16,12 +17,15 @@ vi.mock('./GlobalSearch', () => ({ GlobalSearch: () => null }))
 
 afterEach(() => { vi.unstubAllEnvs(); vi.clearAllMocks() })
 
-test('PM retains identity and logout but never offers current-device logout even if its old flag is enabled', () => {
+test('PM uses shared header actions and retains logout in the sidebar', () => {
   vi.stubEnv('VITE_DEVICE_LOGOUT_ENABLED', 'true')
-  render(<MemoryRouter><TopBar /></MemoryRouter>)
+  render(<MemoryRouter><TopBar /><Sidebar /></MemoryRouter>)
   expect(screen.getByText('测试同事')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: /退出当前设备/ })).not.toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: '登出' }))
+  const logout = screen.getByRole('button', { name: '登出' })
+  expect(logout.closest('header')).toBeNull()
+  expect(screen.getByRole('button', { name: '切换主题' })).toBeInTheDocument()
+  fireEvent.click(logout)
   expect(state.logout).toHaveBeenCalledOnce()
 })
 
@@ -29,6 +33,8 @@ test('the portal retains working logout without a current-device action', () => 
   vi.stubEnv('VITE_DEVICE_LOGOUT_ENABLED', 'true')
   render(<MemoryRouter><PortalLayout user={state.user} logout={state.logout}><p>合成工作台</p></PortalLayout></MemoryRouter>)
   expect(screen.queryByRole('button', { name: /退出当前设备/ })).not.toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: '退出工作台' }))
+  const logout = screen.getByRole('button', { name: '退出工作台' })
+  expect(logout.closest('aside')).not.toBeNull()
+  fireEvent.click(logout)
   expect(state.logout).toHaveBeenCalledOnce()
 })
