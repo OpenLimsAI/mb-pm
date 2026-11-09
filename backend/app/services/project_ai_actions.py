@@ -9,8 +9,8 @@ from typing import Literal
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.api.v1.planning import schedule_state
-from app.api.v1.task_collaboration import invalidate_acceptance, record_activity
+from app.api.v1.planning import apply_schedule_changes, schedule_state
+from app.api.v1.task_collaboration import record_activity
 from app.models import AuditLog, SubProject, Task, User
 from app.models.pm_management import PMRegisterEntry
 from app.models.project_ai_work import ProjectAIAction
@@ -229,29 +229,9 @@ def apply_action(db, project, user, report, payload):
         )
     else:
         tasks, _, _ = schedule_state(db, user, project.id, lock=True)
-        by_id = {t.id: t for t in tasks}
-        for change in result["changes"]:
-            task = by_id[change["task_id"]]
-            task.planned_start, task.planned_end = (
-                date.fromisoformat(change["new_start"]),
-                date.fromisoformat(change["new_end"]),
-            )
-            record_activity(
-                db,
-                task,
-                user,
-                "change",
-                f"采纳 AI 排期建议：{draft.reason}",
-                {
-                    "planned_start": {"before": change["old_start"], "after": change["new_start"]},
-                    "planned_end": {"before": change["old_end"], "after": change["new_end"]},
-                },
-            )
-            invalidate_acceptance(db, task, user)
-            task.updated_at = datetime.now(UTC)
-        db.flush()
-        for sub_id in {t.sub_project_id for t in tasks}:
-            recompute_subproject(db, sub_id)
+        apply_schedule_changes(
+            db, user, tasks, result["changes"], f"采纳 AI 排期建议：{draft.reason}"
+        )
         target_id = draft.task_id
     db.flush()
     recompute_project(db, project.id)

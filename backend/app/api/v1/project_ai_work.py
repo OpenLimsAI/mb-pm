@@ -1,6 +1,7 @@
 """Project-only background analysis, searchable history and explicit action confirmation."""
 
-from datetime import UTC, datetime
+import json
+from datetime import UTC, date, datetime
 from typing import Annotated
 from uuid import uuid4
 
@@ -9,13 +10,17 @@ from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.api.v1.planning import apply_schedule_changes, schedule_state
 from app.db.session import get_db
-from app.models import Project, ProjectAIAnalysis, User
+from app.models import AuditLog, Project, ProjectAIAnalysis, SubProject, Task, User
 from app.models.project_ai_work import ProjectAIAction, ProjectAIJob
 from app.schemas.ai import AnalysisInput
 from app.services import ai
+from app.services import project_schedule_assist as schedule_assist
+from app.services.planning import preview_schedule, state_fingerprint
 from app.services.project_ai_actions import ActionInput, apply_action, preview_action, proposals
 from app.services.project_ai_jobs import effective_user
+from app.services.rollup import recompute_project
 from app.services.scope import visible_project_ids_for
 
 router = APIRouter(prefix="/project-ai/projects", tags=["project-ai"])
@@ -29,14 +34,116 @@ def current_analyst(db: DB, user: Annotated[User, Depends(get_current_user)]):
 Analyst = Annotated[User, Depends(current_analyst)]
 
 
-def project_access(db, user, project_id, write=False):
+def project_access(db, user, project_id, write=False, *, lock=True):
     query = db.query(Project).filter_by(id=project_id)
-    project = (query.with_for_update() if write else query).first()
+    project = (query.with_for_update().populate_existing() if write and lock else query).first()
     if not project or project_id not in visible_project_ids_for(user, db):
         raise HTTPException(404, "项目不存在或无权访问")
     if write and user.role == "project_lead" and project.owner_id != user.id:
         raise HTTPException(403, "仅项目负责人可确认执行建议")
     return project
+
+
+@router.post("/{project_id}/schedule-assist/preview")
+def preview_schedule_assist(
+    project_id: str, payload: schedule_assist.ScheduleAssistRequest, db: DB, user: Analyst
+):
+    project_access(db, user, project_id, write=True, lock=False)
+    selected = (
+        db.query(Task)
+        .join(SubProject)
+        .filter(Task.id == payload.task_id, SubProject.project_id == project_id)
+        .all()
+    )
+    schedule_assist.selected_task(selected, payload.task_id)
+    user_id = user.id
+    config = ai.load_settings(db)
+    db.rollback()
+    intent = schedule_assist.interpret_delay(config, payload.instruction, user_id)
+    user = effective_user(db, user_id)
+    project_access(db, user, project_id, write=True, lock=False)
+    tasks, deps, calendar = schedule_state(db, user, project_id)
+    task = schedule_assist.selected_task(tasks, payload.task_id)
+    start, end, locked, result = schedule_assist.build_preview(tasks, deps, calendar, task, intent)
+    token = expires = None
+    if result["changes"] and not result["conflicts"]:
+        token, expires = schedule_assist.issue_confirmation(
+            user.id, project_id, task.id, intent, locked, start, end, result, config
+        )
+    return {
+        "delay_workdays": intent.delay_workdays,
+        "locked_milestones": locked,
+        "schedule": result,
+        "confirmation_token": token,
+        "expires_at": expires,
+    }
+
+
+@router.post("/{project_id}/schedule-assist/apply")
+def apply_schedule_assist(
+    project_id: str, payload: schedule_assist.ScheduleAssistConfirmation, db: DB, user: Analyst
+):
+    project_access(db, user, project_id, write=True)
+    approval = schedule_assist.read_confirmation(payload.confirmation_token, user.id, project_id)
+    receipt_id = approval["receipt_id"]
+    old = db.get(AuditLog, receipt_id)
+    if old:
+        if (
+            old.actor_id != user.id
+            or old.target_id != project_id
+            or old.action != schedule_assist.AUDIT_ACTION
+        ):
+            raise HTTPException(409, "排期确认无效，请重新预览")
+        return {
+            "receipt_id": receipt_id,
+            "replayed": True,
+            "schedule": json.loads(old.detail)["schedule"],
+        }
+    if approval["expires"] <= datetime.now(UTC).timestamp():
+        raise HTTPException(409, "排期预览已过期，请重新预览")
+    tasks, deps, calendar = schedule_state(db, user, project_id, lock=True)
+    if approval["fingerprint"] != state_fingerprint(tasks, deps, calendar):
+        raise HTTPException(409, "计划、任务状态或工作日历已变化，请重新预览")
+    result = preview_schedule(
+        tasks,
+        deps,
+        calendar,
+        approval["task_id"],
+        date.fromisoformat(approval["new_start"]),
+        date.fromisoformat(approval["new_end"]),
+        approval["locked_ids"],
+    )
+    if (
+        result["conflicts"]
+        or not result["changes"]
+        or approval["review_fingerprint"] != schedule_assist.review_fingerprint(result)
+    ):
+        raise HTTPException(409, "排期已无法应用，请重新预览")
+    apply_schedule_changes(db, user, tasks, result["changes"], f"AI 辅助排期：{payload.reason}")
+    recompute_project(db, project_id)
+    db.add(
+        AuditLog(
+            id=receipt_id,
+            actor_id=user.id,
+            action=schedule_assist.AUDIT_ACTION,
+            target="项目计划",
+            target_id=project_id,
+            detail=json.dumps(
+                {
+                    "reason": payload.reason,
+                    "task_id": approval["task_id"],
+                    "delay_workdays": approval["delay_workdays"],
+                    "locked_ids": approval["locked_ids"],
+                    "source": approval["source"],
+                    "schedule": result,
+                },
+                ensure_ascii=False,
+            ),
+            created_at=datetime.now(UTC),
+        )
+    )
+    db.commit()
+    return {"receipt_id": receipt_id, "replayed": False, "schedule": result}
 
 
 def job_view(job):
