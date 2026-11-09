@@ -18,6 +18,7 @@ import { can } from '../../lib/permissions'
 import { taskRequestError } from '../../api/taskCollaboration'
 import { clearProgressDraft, draftFromTask, loadProgressDraft, progressFingerprint, progressPatch, storeProgressDraft, type ProgressDraft } from './progressDraft'
 import { TaskCollaborationPanel } from './TaskCollaborationPanel'
+import { ScheduleAssist } from './ScheduleAssist'
 
 interface Props {
   task: Task | null
@@ -26,7 +27,9 @@ interface Props {
 
 export function TaskDrawer({ task, onClose }: Props) {
   const [editorDirty, setEditorDirty] = useState(false)
-  const currentUserId = useAuth(s => s.currentUser?.id) ?? 'offline'
+  const currentUser = useAuth(s => s.currentUser)
+  const currentUserId = currentUser?.id ?? 'offline'
+  const online = useDataStore(s => s.mode) === 'api'
   const requestClose = (event?: { preventDefault: () => void }) => {
     if (editorDirty && !window.confirm('有未保存的进展，确定放弃修改并关闭？')) { event?.preventDefault(); return }
     if (task) clearProgressDraft(currentUserId, task.id)
@@ -45,6 +48,8 @@ export function TaskDrawer({ task, onClose }: Props) {
   const owner = findUser(task.ownerId)
   const sub = findSubProject(task.subProjectId)
   const project = sub ? findProject(sub.projectId) : null
+  const canAssist = online && (currentUser?.role === 'admin' || currentUser?.role === 'cmc_lead'
+    || (currentUser?.role === 'project_lead' && currentUser.id === project?.ownerId))
   const collaborators = task.collaboratorIds?.map(findUser).filter(Boolean) || []
 
   // 统一排程口径：已完成任务按「实际 vs 计划」判定，不再误报「逾期」。
@@ -97,6 +102,8 @@ export function TaskDrawer({ task, onClose }: Props) {
         <div className="flex-1 px-5 py-4 space-y-5">
           {/* 进展录入（核心：可编辑，写入后端并自动汇总到子项目/项目） */}
           <ProgressEditor key={task.id} task={task} onDirtyChange={setEditorDirty} />
+          {canAssist && project && <ScheduleAssist key={`${currentUserId}:${project.id}:${task.id}`}
+            userId={currentUserId} projectId={project.id} task={task} editorDirty={editorDirty} />}
 
           {/* 状态流转 */}
           <Section title="状态流转" icon={<GitBranch className="w-3.5 h-3.5" />}>

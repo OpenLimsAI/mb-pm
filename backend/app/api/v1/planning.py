@@ -169,19 +169,9 @@ def apply(
         raise HTTPException(409, "计划、任务状态或工作日历已变化，请重新预览后应用")
     if result["conflicts"]:
         raise HTTPException(409, "存在锁定节点或依赖冲突，未修改任何任务")
-    by_id = {task.id: task for task in tasks}
-    for change in result["changes"]:
-        task = by_id[change["task_id"]]
-        task.planned_start = date.fromisoformat(change["new_start"])
-        task.planned_end = date.fromisoformat(change["new_end"])
-        changes = {
-            "planned_start": {"before": change["old_start"], "after": change["new_start"]},
-            "planned_end": {"before": change["old_end"], "after": change["new_end"]},
-        }
-        record_activity(db, task, user, "change", f"联动排期：{payload.reason.strip()}", changes)
-        invalidate_acceptance(db, task, user)
-        # Explicit timestamp also invalidates structure-editor snapshots.
-        task.updated_at = datetime.now(UTC)
+    apply_schedule_changes(
+        db, user, tasks, result["changes"], f"联动排期：{payload.reason.strip()}"
+    )
     audit(
         db,
         user,
@@ -189,12 +179,29 @@ def apply(
         project_id,
         {"reason": payload.reason.strip(), "changes": result["changes"]},
     )
-    db.flush()
-    for sub_id in {task.sub_project_id for task in tasks}:
-        recompute_subproject(db, sub_id)
     recompute_project(db, project_id)
     db.commit()
     return result
+
+
+def apply_schedule_changes(db, user, tasks, schedule_changes, activity_note):
+    """Apply a verified plan under the caller's transaction and task locks."""
+    by_id = {task.id: task for task in tasks}
+    for change in schedule_changes:
+        task = by_id[change["task_id"]]
+        task.planned_start = date.fromisoformat(change["new_start"])
+        task.planned_end = date.fromisoformat(change["new_end"])
+        changes = {
+            "planned_start": {"before": change["old_start"], "after": change["new_start"]},
+            "planned_end": {"before": change["old_end"], "after": change["new_end"]},
+        }
+        record_activity(db, task, user, "change", activity_note, changes)
+        invalidate_acceptance(db, task, user)
+        # Explicit timestamp also invalidates structure-editor snapshots.
+        task.updated_at = datetime.now(UTC)
+    db.flush()
+    for sub_id in {task.sub_project_id for task in tasks}:
+        recompute_subproject(db, sub_id)
 
 
 class CapacityInput(BaseModel):

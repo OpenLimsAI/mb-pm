@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { parseISO, startOfWeek } from 'date-fns'
+import { format, parseISO, startOfWeek } from 'date-fns'
 import { users, tasks, subProjects, TODAY } from '../mock'
 import type { Task, User } from '../types'
 import { computeCPM } from './cpm'
@@ -22,7 +22,7 @@ describe('working calendars and resource planning', () => {
     expect(result.byId.get(a.id)?.durationDays).toBe(2)
   })
   it('splits remaining effort between unique collaborators without counting actual work twice', () => {
-    const current = TODAY.toISOString().slice(0, 10)
+    const current = format(TODAY, 'yyyy-MM-dd')
     const value = task({ plannedStart: current, plannedEnd: current, actualEffort: 6, collaboratorIds: ['planning-helper', 'planning-helper'] })
     const week = startOfWeek(TODAY, { weekStartsOn: 1 })
     expect(remainingTaskHours(value)).toBe(32)

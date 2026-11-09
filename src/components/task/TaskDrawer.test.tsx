@@ -3,12 +3,16 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, expect, test, vi } from 'vitest'
 import { TaskDrawer } from './TaskDrawer'
 import { tasks, users } from '../../mock'
-import { updateTaskProgress } from '../../data/bootstrap'
+import { refreshAllData, updateTaskProgress } from '../../data/bootstrap'
+import { applyScheduleAssist, previewScheduleAssist, type ScheduleAssistPreview } from '../../api/projectAIWork'
+import { listTasks } from '../../api/tasks'
 import { useDataStore } from '../../store/data'
 import { useAuth } from '../../store/auth'
 import type { Task } from '../../types'
 
 vi.mock('../../data/bootstrap', () => ({ updateTaskProgress: vi.fn(), refreshAllData: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('../../api/projectAIWork', () => ({ applyScheduleAssist: vi.fn(), previewScheduleAssist: vi.fn() }))
+vi.mock('../../api/tasks', async (original) => ({ ...await original<typeof import('../../api/tasks')>(), listTasks: vi.fn() }))
 vi.mock('../../api/taskCollaboration', async (original) => ({
   ...await original<typeof import('../../api/taskCollaboration')>(),
   getTaskCollaboration: vi.fn().mockResolvedValue({ activities: [], deliverables: [], acceptance: null }),
@@ -18,6 +22,10 @@ const baseTask: Task = { ...tasks[0], status: '未开始', progress: 0, actualSt
 
 beforeEach(() => {
   vi.mocked(updateTaskProgress).mockReset().mockResolvedValue(undefined)
+  vi.mocked(refreshAllData).mockReset().mockResolvedValue(undefined)
+  vi.mocked(previewScheduleAssist).mockReset()
+  vi.mocked(applyScheduleAssist).mockReset()
+  vi.mocked(listTasks).mockReset()
   sessionStorage.clear()
   useDataStore.setState({ mode: 'mock' })
   useAuth.setState({ currentUser: null })
@@ -126,4 +134,106 @@ test('取消关闭时保留草稿并阻止抽屉内部项目链接导航', () =>
   expect(fireEvent.click(screen.getByRole('link', { name: / · / }))).toBe(false)
   expect(onClose).not.toHaveBeenCalled()
   confirm.mockRestore()
+})
+
+const assistantPreview = (): ScheduleAssistPreview => ({
+  delayWorkdays: 5,
+  lockedMilestones: [{ taskId: 'submit', name: '申报', code: 'M01', startDate: '2026-12-24', date: '2026-12-25' }],
+  schedule: {
+    fingerprint: 'preview-version',
+    changes: [{ taskId: baseTask.id, name: baseTask.name, code: baseTask.code,
+      oldStart: baseTask.plannedStart, oldEnd: baseTask.plannedEnd,
+      newStart: '2026-12-01', newEnd: '2026-12-04', isMilestone: false }],
+    conflicts: [],
+    previousFinish: '2026-12-25',
+    newFinish: '2026-12-25',
+  },
+  confirmationToken: 'reviewed-proposal',
+  expiresAt: new Date(Date.now() + 60_000).toISOString(),
+})
+
+function openScheduleAssist() {
+  useAuth.setState({ currentUser: users.find(user => user.role === 'admin')! })
+  useDataStore.setState({ mode: 'api' })
+  const view = openTask(baseTask)
+  fireEvent.click(screen.getByText('AI 排期推演'))
+  fireEvent.change(screen.getByLabelText('延期要求'), { target: { value: '延迟 5 个工作日，申报不动' } })
+  return view
+}
+
+test('AI 排期只在确认后写入，关闭抽屉仍能读取回执并重试核验', async () => {
+  const preview = assistantPreview()
+  vi.mocked(previewScheduleAssist).mockResolvedValueOnce(preview)
+  vi.mocked(applyScheduleAssist).mockResolvedValueOnce({ receiptId: 'applied-1', replayed: false, schedule: preview.schedule })
+  vi.mocked(listTasks).mockRejectedValueOnce(new Error('read unavailable'))
+  const view = openScheduleAssist()
+  fireEvent.click(screen.getByRole('button', { name: '预览排期影响' }))
+  expect(await screen.findByRole('table', { name: '排期调整前后对比' })).toHaveTextContent('2026-12-04')
+  expect(screen.getByRole('link', { name: 'M01 · 申报' })).toHaveAttribute('href', expect.stringContaining('task=submit'))
+  const confirm = screen.getByRole('button', { name: '确认应用 1 项调整' })
+  expect(confirm).toBeDisabled()
+  expect(applyScheduleAssist).not.toHaveBeenCalled()
+  fireEvent.change(screen.getByLabelText('调整原因'), { target: { value: '供应商延期' } })
+  fireEvent.click(confirm)
+  view.unmount()
+  await waitFor(() => expect(listTasks).toHaveBeenCalledTimes(1))
+  openTask(baseTask)
+  fireEvent.click(screen.getByText('AI 排期推演'))
+  expect(await screen.findByText('调整已应用 · 回执 applied-1')).toBeInTheDocument()
+  expect(applyScheduleAssist).toHaveBeenCalledWith(expect.any(String), 'reviewed-proposal', '供应商延期')
+
+  const dates = { collaboratorIds: null, actualStart: null, actualEnd: null, actualEffort: null, notes: null, tags: null }
+  vi.mocked(listTasks).mockResolvedValueOnce({
+    items: [
+      { ...baseTask, ...dates, plannedStart: '2026-12-01', plannedEnd: '2026-12-04' },
+      { ...baseTask, ...dates, id: 'submit', plannedStart: '2026-12-24', plannedEnd: '2026-12-25' },
+    ],
+    meta: { page: 1, pageSize: 5000, total: 2 },
+  })
+  fireEvent.click(await screen.findByRole('button', { name: '重新核验并同步' }))
+  expect(await screen.findByText('已核验受影响任务和锁定里程碑的日期。')).toBeInTheDocument()
+  expect(applyScheduleAssist).toHaveBeenCalledTimes(1)
+  expect(refreshAllData).toHaveBeenCalledTimes(2)
+  fireEvent.click(screen.getByRole('button', { name: '开始新的推演' }))
+  expect(screen.getByLabelText('延期要求')).toHaveValue('')
+  expect(screen.queryByText('调整已应用 · 回执 applied-1')).not.toBeInTheDocument()
+})
+
+test('AI 排期显示锁定冲突，保留未保存的进展并禁用推演', async () => {
+  const preview = assistantPreview()
+  preview.schedule.conflicts = [{ taskId: 'submit', name: '申报', reason: '锁定节点无法满足依赖' }]
+  vi.mocked(previewScheduleAssist).mockResolvedValueOnce({ ...preview, confirmationToken: null, expiresAt: null })
+  openScheduleAssist()
+  fireEvent.click(screen.getByRole('button', { name: '预览排期影响' }))
+  expect(await screen.findByText('申报：锁定节点无法满足依赖')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /确认应用/ })).not.toBeInTheDocument()
+  fireEvent.change(screen.getByLabelText('本次进展说明'), { target: { value: '待保存的进展' } })
+  expect(screen.getByRole('button', { name: '预览排期影响' })).toBeDisabled()
+  expect(screen.getByLabelText('本次进展说明')).toHaveValue('待保存的进展')
+  expect(applyScheduleAssist).not.toHaveBeenCalled()
+})
+
+test('确认请求未收到回执时，重新打开抽屉仍使用原确认记录重试', async () => {
+  const preview = assistantPreview()
+  vi.mocked(previewScheduleAssist).mockResolvedValueOnce(preview)
+  vi.mocked(applyScheduleAssist)
+    .mockRejectedValueOnce(new Error('request timed out'))
+    .mockResolvedValueOnce({ receiptId: 'applied-2', replayed: true, schedule: preview.schedule })
+  vi.mocked(listTasks).mockRejectedValue(new Error('read unavailable'))
+  const view = openScheduleAssist()
+  fireEvent.click(screen.getByRole('button', { name: '预览排期影响' }))
+  fireEvent.change(await screen.findByLabelText('调整原因'), { target: { value: '供应商延期' } })
+  fireEvent.click(screen.getByRole('button', { name: '确认应用 1 项调整' }))
+  await screen.findByRole('button', { name: '重试本次确认' })
+  view.unmount()
+  openTask(baseTask)
+  fireEvent.click(screen.getByText('AI 排期推演'))
+  const retry = screen.getByRole('button', { name: '重试本次确认' })
+  expect(screen.getByLabelText('延期要求')).toBeDisabled()
+  expect(screen.getByLabelText('调整原因')).toBeDisabled()
+  fireEvent.click(retry)
+  expect(await screen.findByText('调整已应用 · 回执 applied-2')).toBeInTheDocument()
+  expect(vi.mocked(applyScheduleAssist).mock.calls[1]).toEqual(vi.mocked(applyScheduleAssist).mock.calls[0])
+  expect(screen.queryByRole('button', { name: /确认应用|重试本次确认/ })).not.toBeInTheDocument()
+  expect(previewScheduleAssist).toHaveBeenCalledTimes(1)
 })
