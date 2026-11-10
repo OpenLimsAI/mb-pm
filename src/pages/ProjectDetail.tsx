@@ -27,6 +27,7 @@ import { refreshAllData } from '../data/bootstrap'
 import { TeamPanel } from '../components/project/TeamPanel'
 import { ProjectStructureEditor } from '../components/project/ProjectStructureEditor'
 import { TaskDrawer } from '../components/task/TaskDrawer'
+import { PMAssistant } from '../components/project/PMAssistant'
 import { EmptyState } from '../components/ui'
 import { cn } from '../lib/cn'
 import { recordProjectVisit } from '../lib/projectNavigation'
@@ -133,6 +134,8 @@ export default function ProjectDetail() {
           </button>
         </div>
       )}
+
+      <PMAssistant key={`${userId}:${project.id}`} projectId={project.id} />
 
       {/* Tabs */}
       <div className="flex items-center flex-wrap gap-1 border-b border-ink-300/60 -mb-px">

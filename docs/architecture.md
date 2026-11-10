@@ -4,6 +4,12 @@
 
 [返回 README](../README.md) · [配置与权限](configuration.md) · [部署交接](部署交接简明.md)
 
+## 项目 AI 分析与执行
+
+`pm_ai_context` 按当前 IAM 身份构建有界上下文及证据；`pm_ai_runs` 通过数据库领取分析任务，在模型调用前后复核权限。模型沿用组织共享配置。运行状态与结果存入 `pm_ai_runs`。
+
+`pm_ai_changes` 将经过编辑的任务及台账草稿转为预览，确认令牌绑定身份、版本和差异。业务写入复用任务校验及汇总逻辑，批次同事务写入，`pm_ai_change_receipts` 保留幂等回执。MCP 适配层复用读取与生成接口，业务确认入口保留在应用中。接口范围见[项目 AI 助手](pm-ai-assistant.md)。
+
 ## 研究报告工作台数据流程（2026-11-02）
 
 `RichBodySegment` 使用 TipTap 编辑，`reportMarkup` 清理粘贴 HTML 并转换 Markdown；报告 JSON 继续以 Markdown 保存正文，图片为受限的内嵌数据。`parent_id` 在既有章节 JSON 内表达最多 6 层结构，前后端同时检查不存在的父级、循环及整体大小。正文选择位置与 Markdown 偏移互相转换，异步 AI 采纳以报告、章节和文本版本校验，避免覆盖已经修改的选区。

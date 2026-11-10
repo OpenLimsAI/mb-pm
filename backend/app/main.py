@@ -33,6 +33,9 @@ from app.api.v1 import (
     mdm_integration,
     notes,
     planning,
+    pm_ai,
+    pm_ai_changes,
+    pm_ai_tools,
     pm_management,
     pm_views,
     portal,
@@ -263,6 +266,9 @@ async def lifespan(_: FastAPI):
     from app.services.project_ai_jobs import start_worker as start_project_ai_worker
 
     project_ai_worker = start_project_ai_worker()
+    from app.services.pm_ai_runs import start_worker as start_pm_ai_worker
+
+    pm_ai_worker = start_pm_ai_worker()
     if settings.ASSISTANT_REQUEST_WORKER_ENABLED:
         from app.services.assistant_requests import start_worker as start_assistant_worker
 
@@ -284,6 +290,9 @@ async def lifespan(_: FastAPI):
         if project_ai_worker:
             project_ai_worker[0].set()
             project_ai_worker[1].join(timeout=5)
+        if pm_ai_worker:
+            pm_ai_worker[0].set()
+            pm_ai_worker[1].join(timeout=5)
         if assistant_worker:
             assistant_worker[0].set()
             assistant_worker[1].join(timeout=5)
@@ -403,6 +412,9 @@ app.include_router(progress_policy.router, prefix=API_PREFIX)
 app.include_router(project_ai_work.router, prefix=API_PREFIX)
 app.include_router(pm_views.router, prefix=API_PREFIX)
 app.include_router(planning.router, prefix=API_PREFIX)
+app.include_router(pm_ai.router, prefix=API_PREFIX)
+app.include_router(pm_ai_changes.router, prefix=API_PREFIX)
+app.include_router(pm_ai_tools.router, prefix=API_PREFIX)
 app.include_router(pm_management.router, prefix=API_PREFIX)
 app.include_router(task_collaboration.router, prefix=API_PREFIX)
 app.include_router(mdm_integration.router, prefix=API_PREFIX)

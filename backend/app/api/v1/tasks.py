@@ -136,6 +136,14 @@ def create_task(
     db: Session = Depends(get_db),
     user: User = Depends(require_role("admin", "cmc_lead", "project_lead")),
 ):
+    obj = apply_task_create(db, user, payload)
+    db.commit()
+    db.refresh(obj)
+    return TaskOut.model_validate(obj)
+
+
+def apply_task_create(db: Session, user: User, payload: TaskCreate) -> Task:
+    """Validate and create within the caller's transaction."""
     if not payload.id:
         payload.id = f"tk-{uuid4().hex[:10]}"
 
@@ -157,9 +165,7 @@ def create_task(
     # 新增任务（含里程碑）后，重算所属子项目/项目进度，保持汇总一致。
     db.flush()
     rollup_for_task(db, obj)
-    db.commit()
-    db.refresh(obj)
-    return TaskOut.model_validate(obj)
+    return obj
 
 
 @router.get("/{task_id}", response_model=TaskOut)
@@ -185,6 +191,14 @@ def update_task(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    task = apply_task_update(db, user, task_id, payload)
+    db.commit()
+    db.refresh(task)
+    return TaskOut.model_validate(task)
+
+
+def apply_task_update(db: Session, user: User, task_id: str, payload: TaskUpdate) -> Task:
+    """Validate and update within the caller's transaction."""
     task = lock_task_for_update(db, task_id)
     if not task:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
@@ -301,9 +315,7 @@ def update_task(
     db.flush()
     rollup_for_task(db, task)
 
-    db.commit()
-    db.refresh(task)
-    return TaskOut.model_validate(task)
+    return task
 
 
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)

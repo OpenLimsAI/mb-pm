@@ -19,6 +19,7 @@ import { taskRequestError } from '../../api/taskCollaboration'
 import { clearProgressDraft, draftFromTask, loadProgressDraft, progressFingerprint, progressPatch, storeProgressDraft, type ProgressDraft } from './progressDraft'
 import { TaskCollaborationPanel } from './TaskCollaborationPanel'
 import { ScheduleAssist } from './ScheduleAssist'
+import { PMAssistant } from '../project/PMAssistant'
 
 interface Props {
   task: Task | null
@@ -104,6 +105,8 @@ export function TaskDrawer({ task, onClose }: Props) {
           <ProgressEditor key={task.id} task={task} onDirtyChange={setEditorDirty} />
           {canAssist && project && <ScheduleAssist key={`${currentUserId}:${project.id}:${task.id}`}
             userId={currentUserId} projectId={project.id} task={task} editorDirty={editorDirty} />}
+
+          {project && <PMAssistant projectId={project.id} taskId={task.id} disabled={editorDirty} />}
 
           {/* 状态流转 */}
           <Section title="状态流转" icon={<GitBranch className="w-3.5 h-3.5" />}>

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PMAssistant } from '../project/PMAssistant'
 import { Link } from 'react-router-dom'
 import { ArrowRight, ArrowUpRight, ClipboardList, Diamond } from 'lucide-react'
 import type { Project } from '../../types'
@@ -24,6 +25,7 @@ export function ProjectWorkspace({ projects, items, userId, navigation, onChange
   const recent = recentProjectIds(userId).flatMap((id) => projects.find((p) => p.id === id) ?? [])
   const shortcuts = (recent.length ? recent : projects).slice(0, 4)
   return <section className="project-workbench" aria-label="跨项目工作台">
+    <PMAssistant />
     <div className="project-section-heading"><h2>{recent.length ? '最近访问' : '项目快捷入口'}</h2><button type="button" onClick={() => onChange({ page: 'projects' })} className="project-text-link">全部项目 <ArrowRight size={14} /></button></div>
     {shortcuts.length ? <div className="project-shortcuts">{shortcuts.map((p) => <Link key={p.id} to={`/projects/${p.id}`}><span>{p.name}</span><ArrowUpRight size={14} /></Link>)}</div> : <p className="project-empty">暂无活跃项目，可在全部项目中查看其他状态。</p>}
     <div className="project-section-heading project-workbench-controls"><div><h2>项目事项</h2><p>{projects.length} 个可见活跃项目 · {ownerScope === 'mine' ? '仅我负责的任务' : '团队全部负责人'}</p></div><div className="project-control-row"><div className="project-view-switcher" role="group" aria-label="事项负责人">{(['team', 'mine'] as const).map((scope) => <button type="button" key={scope} aria-pressed={ownerScope === scope} onClick={() => onChange({ ownerScope: scope })}>{scope === 'team' ? '团队事项' : '我的事项'}</button>)}</div><select aria-label="事项时间范围" value={horizon} onChange={(e) => onChange({ horizon: Number(e.target.value) as 7 | 30 })}><option value={7}>未来 7 天</option><option value={30}>未来 30 天</option></select></div></div>
