@@ -49,6 +49,12 @@ export default function ProjectDetail() {
   const online = useDataStore((s) => s.mode) === 'api'
   const project = findProject(id || '')
   const requestedTab = params.get('tab')
+  const agentReportKey = params.get('agent_report')
+  const closeAgentReport = () => {
+    const next = new URLSearchParams(params)
+    next.delete('agent_report')
+    setParams(next, { replace: true })
+  }
   const tab: Tab = ['overview', 'milestones', 'wbs', 'delay', 'baseline', 'team', 'ai', 'management', 'tools'].includes(requestedTab || '') ? requestedTab as Tab : 'overview'
   const [toolMode, setToolMode] = useState<'template' | 'progress'>('template')
   const setTab = (value: Tab) => { const next = new URLSearchParams(params); next.set('tab', value); setParams(next) }
@@ -194,7 +200,8 @@ export default function ProjectDetail() {
       </div>}
 
       {tab === 'ai' && canAnalyze && (
-        <ProjectAIAnalysis key={project.id} projectId={project.id} projectName={project.name} />
+        <ProjectAIAnalysis key={project.id} projectId={project.id} projectName={project.name}
+          agentReportKey={agentReportKey} onCloseAgentReport={closeAgentReport} />
       )}
 
       {tab !== 'wbs' && <TaskDrawer

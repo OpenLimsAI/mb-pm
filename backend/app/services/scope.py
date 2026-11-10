@@ -11,6 +11,8 @@
     stmt = select(Project).where(Project.id.in_(visible_project_ids))
 """
 
+import json
+
 from sqlalchemy import String, cast, or_, select
 from sqlalchemy.orm import Session
 
@@ -26,11 +28,13 @@ def is_full_access(user: User) -> bool:
 
 def _own_task_clause(user: User):
     """本人负责或协作的任务。"""
+    quoted = json.dumps(user.id)
+    literal = quoted.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     return or_(
         Task.owner_id == user.id,
         # collaborator_ids 是通用 JSON 列；用对带引号 token 的文本 LIKE 做成员判断，
         # 在 SQLite / PostgreSQL 均可（避免 JSON.contains 在 SQLite 上失效）。
-        cast(Task.collaborator_ids, String).like(f'%"{user.id}"%'),
+        cast(Task.collaborator_ids, String).like(f"%{literal}%", escape="\\"),
     )
 
 

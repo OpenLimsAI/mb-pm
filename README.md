@@ -55,13 +55,13 @@ deploy/    部署配置及历史发布记录
 | 任务与甘特 | 按项目结构查看任务，长名称悬浮全文、名称栏拖动调宽，甘特图固定日期与工具栏并支持缩放 |
 | 人员负荷 | 按工作日历、协作者分摊和每周容量计算剩余负荷，支持请假及任务改派 |
 | 财务 | 项目及任务预算、实际花费与费用明细对账及完工预测 |
-| 项目 AI | 项目后台分析、建议确认执行、甘特任务 AI 排期推演 |
+| 项目 AI | 项目后台分析、AI 排期推演及授权 Agent 的任务查询与报告核对 |
 | 模型与参考价 | 支持 Kimi，选择时展示已核实的单价、币种、计费档位和官方来源 |
 | 版本更新 | 在工作台查看功能说明与历史更新记录 |
 
 自动问答与搜索配置见[使用说明](docs/assistant-auto-search.md)；DeepSeek 官方搜索可复用当前模型密钥，须由管理员启用。
 项目协同、交付验收、联动排期、全任务基线及台账见[项目执行与协同](docs/pm-execution-improvements.md)。
-Excel 回导、模板升级、进度权重及 AI 行动见[项目计划工具](docs/pm-planning-tools.md)。
+Excel 回导、模板升级、进度权重及 AI 行动见[项目计划工具](docs/pm-planning-tools.md)；外部接入见 [Agent 命令行与 MCP](docs/agent-cli.md)。
 入口与边界见 [功能说明](docs/features.md)、[AI 助手](docs/ai-assistant.md)、[知识源](docs/knowledge-sources.md)、[研究报告工作台](docs/research-report-workbench.md) 和 [研究报告体验升级](docs/research-report-experience.md)。
 工作台 `/model-settings` 是组织共享模型统一入口，供知识库问答、翻译、摘要和标签复用；统一接口兼容供应商工具调用的附加元数据。配置与授权边界见[知识库统一模型接口](docs/knowledge-ai-integration.md)，环境发布状态见[发布契约](deploy/parallel-test/releases/20261104-knowledge-unified-ai.md)。
 
@@ -99,7 +99,7 @@ node scripts/test-portal-routing.mjs
 主数据管理：<https://www.openlims.ai/mdm/>；路径路由、独立鉴权及迁移验收见[发布记录](deploy/parallel-test/releases/20261102-mdm-www-path.md)。
 
 环境状态、备份、发版、验收与回滚以 [部署交接简明](docs/部署交接简明.md) 为准，
-历史发布材料见 [部署记录](deploy/parallel-test/README.md)。数据库结构变更需单独规划迁移。
+历史发布材料见 [部署记录](deploy/parallel-test/README.md)。运行手册包括[脱敏发布清单](deploy/security/README.md#脱敏发布清单)与[后台任务独立运行](docs/background-worker-runtime.md)。
 知识库工具调用兼容修复已部署，真实模型工具轮与公网验证范围见[本次发布记录](deploy/parallel-test/releases/20261105-knowledge-ai-tool-response.md)。
 安全控制、备份调度、最终镜像及剩余边界见 [2026-11 安全发布记录](deploy/parallel-test/releases/20261103-security-hardening.md)。
 生产前端使用 `SOURCE_REVISION=<固定完整提交> npm run build:production`；发布前校验最终产物及匿名登录表单，见[生产构建检查](docs/production-build.md)。

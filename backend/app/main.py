@@ -4,7 +4,7 @@
 """
 
 import logging
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -16,6 +16,7 @@ import app.models  # noqa: F401  确保所有 ORM 表注册到 Base.metadata
 from app.api.v1 import (
     account,
     accounts,
+    agent_projects,
     ai,
     assistant,
     auth,
@@ -58,6 +59,7 @@ from app.db.session import SessionLocal, engine
 from app.middleware.notes_embed import notes_frame_ancestors
 from app.middleware.request_limits import RequestLimitsMiddleware
 from app.models import User
+from app.services.background_workers import running_workers
 
 logging.basicConfig(level=settings.LOG_LEVEL)
 logging.getLogger("uvicorn.access").addFilter(CallbackQueryFilter())
@@ -230,6 +232,8 @@ def _backfill_team_members() -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    if settings.APP_PROCESS_ROLE == "worker":
+        raise RuntimeError("The worker role must use app.worker:app")
     # 建表（SQLite 首次运行即创建文件）
     if settings.AUTO_MIGRATE_SCHEMA:
         Base.metadata.create_all(bind=engine)
@@ -253,49 +257,9 @@ async def lifespan(_: FastAPI):
     if settings.AUTO_MIGRATE_SCHEMA:
         _backfill_task_order()
         _backfill_team_members()
-    worker = None
-    if settings.INFORMATION_APP_ENABLED and settings.INFORMATION_WORKER_ENABLED:
-        from app.services.information.worker import start_worker
-
-        worker = start_worker()
-    notes_worker = None
-    assistant_worker = None
-    from app.services.project_ai_jobs import start_worker as start_project_ai_worker
-
-    project_ai_worker = start_project_ai_worker()
-    if settings.ASSISTANT_REQUEST_WORKER_ENABLED:
-        from app.services.assistant_requests import start_worker as start_assistant_worker
-
-        assistant_worker = start_assistant_worker()
-    knowledge_source_worker = None
-    if settings.KNOWLEDGE_SOURCE_APP_ENABLED and settings.KNOWLEDGE_SOURCE_WORKER_ENABLED:
-        from app.services.knowledge_source_worker import (
-            start_worker as start_knowledge_source_worker,
-        )
-
-        knowledge_source_worker = start_knowledge_source_worker()
-    if settings.NOTES_WISDOM_WORKER_ENABLED:
-        from app.services.note_sync import start_worker
-
-        notes_worker = start_worker()
-    try:
+    workers = running_workers() if settings.APP_PROCESS_ROLE == "combined" else nullcontext()
+    with workers:
         yield
-    finally:
-        if project_ai_worker:
-            project_ai_worker[0].set()
-            project_ai_worker[1].join(timeout=5)
-        if assistant_worker:
-            assistant_worker[0].set()
-            assistant_worker[1].join(timeout=5)
-        if knowledge_source_worker:
-            knowledge_source_worker[0].set()
-            knowledge_source_worker[1].join(timeout=5)
-        if notes_worker:
-            notes_worker[0].set()
-            notes_worker[1].join(timeout=5)
-        if worker:
-            worker[0].set()
-            worker[1].join(timeout=5)
 
 
 app = FastAPI(
@@ -401,6 +365,8 @@ app.include_router(project_exchange.router, prefix=API_PREFIX)
 app.include_router(template_upgrade.router, prefix=API_PREFIX)
 app.include_router(progress_policy.router, prefix=API_PREFIX)
 app.include_router(project_ai_work.router, prefix=API_PREFIX)
+app.include_router(agent_projects.router, prefix=API_PREFIX)
+app.include_router(agent_projects.review_router, prefix=API_PREFIX)
 app.include_router(pm_views.router, prefix=API_PREFIX)
 app.include_router(planning.router, prefix=API_PREFIX)
 app.include_router(pm_management.router, prefix=API_PREFIX)

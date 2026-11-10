@@ -13,8 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import Project, SubProject, Task
-
-_DONE = ("已完成", "已验证")
+from app.services.task_deadlines import COMPLETED_STATUSES, is_overdue
 
 
 def effective_weight(
@@ -67,13 +66,10 @@ def _derive_health(tasks: list[Task], today: date | None = None) -> str:
     today = today or date.today()
 
     def incomplete(t: Task) -> bool:
-        return t.status not in _DONE
+        return t.status not in COMPLETED_STATUSES
 
-    overdue_ms = any(t.is_milestone and incomplete(t) and t.planned_end < today for t in tasks)
-    overdue_task = any(
-        (not t.is_milestone) and incomplete(t) and t.progress < 100 and t.planned_end < today
-        for t in tasks
-    )
+    overdue_ms = any(t.is_milestone and is_overdue(t, today) for t in tasks)
+    overdue_task = any(not t.is_milestone and is_overdue(t, today) for t in tasks)
     near_ms = any(
         t.is_milestone and incomplete(t) and 0 <= (t.planned_end - today).days <= 14 for t in tasks
     )

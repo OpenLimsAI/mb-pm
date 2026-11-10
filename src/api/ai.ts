@@ -6,7 +6,7 @@ export const providerLabels: Record<AIProvider, string> = {
   deepseek: 'DeepSeek', minimax: 'MiniMax', kimi: 'Kimi / 月之暗面', ollama: 'Ollama 本地模型',
 }
 /** 历史报告可能来自已下线的服务商，显示时兜底 */
-export const providerLabel = (p: string) => providerLabels[p as AIProvider] ?? p
+export const providerLabel = (p: string) => p === 'rules' ? '项目数据规则' : providerLabels[p as AIProvider] ?? p
 /** 分析提示词长度上限（与后端 MAX_PROMPT_LENGTH 一致） */
 export const MAX_PROMPT_LENGTH = 4000
 export interface ProviderConfig {
@@ -51,7 +51,7 @@ export interface AIAnalysis {
   /** 项目分析才有 */
   projectId?: string
   createdAt: string
-  provider: AIProvider
+  provider: AIProvider | 'rules'
   model: string
   focus: string
   /** 本次实际使用的分析提示词 */

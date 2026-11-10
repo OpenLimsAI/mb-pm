@@ -75,6 +75,7 @@ class Settings(BaseSettings):
 
     # —— 应用 —— #
     APP_ENV: str = "development"
+    APP_PROCESS_ROLE: Literal["combined", "web", "worker"] = "combined"
     # 同时作为 IAM 会话令牌的加密密钥：须为 ≥32 字符的随机值，否则 IAM 登录返回 503。
     APP_SECRET: str = "change-me"
     # CTO Lite 前端默认跑在 5175，并经同源代理访问 API。会话 cookie 会随跨域凭据请求发送，
@@ -107,6 +108,7 @@ class Settings(BaseSettings):
     # Explicit MDM root including deployment path; blank disables launch. No identity in URL.
     MDM_PUBLIC_URL: str = ""
     MDM_DELEGATION_CLIENT_ID: str = ""
+    AGENT_DELEGATION_CLIENT_ID: str = ""  # 独立用户委托受众；空值关闭 Agent 接口。
     MDM_SOURCE_NAMESPACE: str = "mdm"
     OIDC_GLOBAL_LOGOUT_ENABLED: bool = False
     CASDOOR_ACCOUNT_STATUS_VISIBLE: bool = False
