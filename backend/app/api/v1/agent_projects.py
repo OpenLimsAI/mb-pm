@@ -2,7 +2,7 @@
 
 import json
 from datetime import UTC, date, datetime
-from typing import Annotated, Literal
+from typing import Annotated, Generic, Literal, TypeVar
 from urllib.parse import urlencode
 from uuid import uuid4
 
@@ -17,6 +17,8 @@ from app.core.config import settings
 from app.core.security import SESSION_COOKIE, decode_access_token, resolve_identity
 from app.db.session import get_db
 from app.models import AuditLog, ProjectAIAnalysis, User
+from app.models.enums import TaskStatus
+from app.schemas.task import TaskDependencyOut
 from app.services import agent_projects, ai, oidc_logout, oidc_status, password_policy
 from app.services.iam_admin import IAMError
 
@@ -57,11 +59,66 @@ class TaskEvidence(BaseModel):
     url: str
 
 
+class TaskSummary(TaskEvidence):
+    owner_id: str
+    sub_project_id: str
+    priority: str
+
+
+class TaskDetail(TaskSummary):
+    sub_project_name: str
+    owner_name: str
+    actual_start: date | None
+    is_critical_path: bool
+    notes: str | None
+    notes_truncated: bool
+
+
 class PageMeta(BaseModel):
     page: int
     page_size: int
     total: int
     has_more: bool
+
+
+Evidence = TypeVar("Evidence")
+
+
+class EvidencePage(BaseModel, Generic[Evidence]):
+    items: list[Evidence]
+    meta: PageMeta
+
+
+class SubProjectEvidence(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    name: str
+    stage: str
+    module: str
+
+
+class MemberEvidence(BaseModel):
+    id: str
+    display_name: str
+    is_project_owner: bool
+
+
+class ProjectCapabilities(BaseModel):
+    proposal_actions: list[str]
+    task_capabilities_at_detail: bool
+    can_assign_members: bool
+    review_risk_report: bool
+
+
+class ProjectContext(BaseModel):
+    as_of: datetime
+    business_date: date
+    timezone: str
+    project: ProjectEvidence
+    sub_projects: EvidencePage[SubProjectEvidence]
+    members: EvidencePage[MemberEvidence]
+    capabilities: ProjectCapabilities
+    task_statuses: dict[str, str]
 
 
 class ProjectPage(BaseModel):
@@ -73,7 +130,7 @@ class ProjectPage(BaseModel):
 class TaskPage(BaseModel):
     as_of: datetime
     as_of_date: date
-    items: list[TaskEvidence]
+    items: list[TaskSummary]
     meta: PageMeta
 
 
@@ -81,6 +138,65 @@ class TaskResult(BaseModel):
     as_of: datetime
     as_of_date: date
     task: TaskEvidence
+
+
+class ActivityEvidence(BaseModel):
+    id: str
+    actor_id: str
+    kind: str
+    body: str
+    changes: dict[str, dict[str, str | int | bool | None]]
+    created_at: datetime
+
+
+class DeliverableEvidence(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    author_id: str
+    title: str
+    version: int
+    filename: str | None
+    link: str | None
+    notes: str
+    created_at: datetime
+
+
+class AcceptanceEvidence(BaseModel):
+    reviewer_id: str
+    required_count: int
+    state: str
+    comment: str
+    updated_at: datetime
+    submitted_deliverable_ids: list[str]
+
+
+class TaskDetailResult(TaskResult):
+    task: TaskDetail
+    dependencies: EvidencePage[TaskDependencyOut]
+    activities: EvidencePage[ActivityEvidence]
+    deliverables: EvidencePage[DeliverableEvidence]
+    acceptance: AcceptanceEvidence | None
+    proposal_actions: list[str]
+
+
+class RegisterEvidence(BaseModel):
+    id: str
+    project_id: str
+    kind: str
+    title: str
+    owner_id: str
+    due_date: date
+    severity: str
+    status: str
+    mitigation: str
+    closure: str
+    revision: int
+    updated_at: datetime
+
+
+class RegisterResult(EvidencePage[RegisterEvidence]):
+    as_of: datetime
+    project: ProjectEvidence
 
 
 class BaselineSource(BaseModel):
@@ -161,6 +277,7 @@ def agent_user(request: Request, db: DB, credential: AgentToken) -> User:
     if password_policy.observe_identity(db, claims):
         db.commit()
     password_policy.enforce(db, claims["sub"], request.url.path)
+    request.state.agent_subject = claims["sub"]
     return user
 
 
@@ -172,31 +289,84 @@ def projects(db: DB, user: AgentUser, page: PageNumber = 1, page_size: PageSize 
     return {"as_of": datetime.now(UTC), **agent_projects.project_page(db, user, page, page_size)}
 
 
+@router.get("/projects/{project_id}/context", response_model=ProjectContext)
+def project_context(
+    project_id: IDPath, db: DB, user: AgentUser, page: PageNumber = 1, page_size: PageSize = 20
+):
+    project = agent_projects.permitted_project(db, user, project_id)
+    now = datetime.now().astimezone()
+    return {
+        "as_of": now,
+        "business_date": now.date(),
+        "timezone": str(now.tzinfo),
+        **agent_projects.project_context(db, user, project, page, page_size),
+    }
+
+
+@router.get("/projects/{project_id}/register", response_model=RegisterResult)
+def register(
+    project_id: IDPath,
+    db: DB,
+    user: AgentUser,
+    kind: Literal["risk", "issue", "decision"] | None = None,
+    status: Literal["open", "closed"] | None = None,
+    page: PageNumber = 1,
+    page_size: PageSize = 20,
+):
+    project = agent_projects.permitted_project(db, user, project_id)
+    return {
+        "as_of": datetime.now(UTC),
+        **agent_projects.register_page(db, project, kind, status, page, page_size),
+    }
+
+
 @router.get("/tasks", response_model=TaskPage)
 def tasks(
     db: DB,
     user: AgentUser,
     project_id: IDQuery = None,
+    sub_project_id: IDQuery = None,
+    owner_id: IDQuery = None,
+    status: TaskStatus | None = None,
+    due_from: date | None = None,
+    due_to: date | None = None,
     overdue: bool | None = None,
     page: PageNumber = 1,
     page_size: PageSize = 20,
 ):
+    if due_from is not None and due_to is not None and due_from > due_to:
+        raise HTTPException(422, "计划完成日期范围起点不能晚于终点")
     today = date.today()
     return {
         "as_of": datetime.now(UTC),
         "as_of_date": today,
-        **agent_projects.task_page(db, user, project_id, overdue, page, page_size, today),
+        **agent_projects.task_page(
+            db,
+            user,
+            project_id,
+            overdue,
+            page,
+            page_size,
+            today,
+            sub_project_id=sub_project_id,
+            owner_id=owner_id,
+            status=status,
+            due_from=due_from,
+            due_to=due_to,
+        ),
     }
 
 
-@router.get("/tasks/{task_id}", response_model=TaskResult)
-def task_detail(task_id: IDPath, db: DB, user: AgentUser):
+@router.get("/tasks/{task_id}", response_model=TaskDetailResult)
+def task_detail(
+    task_id: IDPath, db: DB, user: AgentUser, page: PageNumber = 1, page_size: PageSize = 20
+):
     task, project = agent_projects.find_task(db, user, task_id)
     today = date.today()
     return {
         "as_of": datetime.now(UTC),
         "as_of_date": today,
-        "task": agent_projects.task_evidence(task, project, today),
+        **agent_projects.task_context(db, user, task, project, today, page, page_size),
     }
 
 

@@ -6,7 +6,8 @@ from datetime import date
 from uuid import uuid4
 
 from app.db.session import SessionLocal
-from app.models import AuditLog, SubProject, Task, TaskDependency
+from app.models import AuditLog, SubProject, Task, TaskDependency, User
+from app.services import agent_events
 
 
 def url(pid: str) -> str:
@@ -139,6 +140,31 @@ def test_save_adds_updates_deletes_in_one_go(client, auth_headers, project_facto
         log = db.query(AuditLog).filter_by(action="项目结构变更", target_id=pid[:40]).one()
         detail = json.loads(log.detail)
         assert detail["summary"] == "补充下游里程碑" and detail["deleted_task_codes"] == ["T-2"]
+
+
+def test_wbs_plan_extension_is_reported_in_agent_delay_feed(
+    client, auth_headers, admin_user, project_factory
+):
+    pid = project_factory(admin_user)
+    snapshot = client.get(url(pid), headers=auth_headers).json()
+    body = payload_from(snapshot)
+    first = body["sub_projects"][0]["tasks"][0]
+    first["planned_end"] = "2026-07-10"
+    changed = client.put(url(pid), json=body, headers=auth_headers)
+    assert changed.status_code == 200, changed.text
+
+    with SessionLocal() as db:
+        feed = agent_events.changes(db, db.get(User, admin_user), pid, None, "delay", 20, 7)
+    (item,) = feed["items"]
+    assert item["task_id"] == first["id"] and item["kind"] == "delay"
+    assert item["changes"] == {"planned_end": {"before": "2026-06-30", "after": "2026-07-10"}}
+    unchanged = client.put(url(pid), json=payload_from(changed.json()), headers=auth_headers)
+    assert unchanged.status_code == 200, unchanged.text
+    with SessionLocal() as db:
+        latest = agent_events.changes(
+            db, db.get(User, admin_user), pid, feed["next_cursor"], "delay", 20, 7
+        )
+    assert latest["items"] == []
 
 
 def test_stale_version_is_rejected_and_nothing_changes(client, auth_headers, project_factory):
@@ -455,6 +481,7 @@ def test_combined_save_rolls_back_on_finance_write_failure(
     client, auth_headers, project_factory, monkeypatch
 ):
     from fastapi import HTTPException
+
     from app.services import structure
 
     pid = project_factory("t-admin")

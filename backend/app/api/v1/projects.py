@@ -334,7 +334,8 @@ def replace_members(
     user: User = Depends(get_current_user),
 ):
     """全量替换项目团队成员。"""
-    project = db.query(Project).filter_by(id=project_id).first()
+    # Team changes must serialize with task creation and reassignment.
+    project = db.query(Project).filter_by(id=project_id).with_for_update().first()
     if not project:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
     if user.role not in ("admin", "cmc_lead") and project.owner_id != user.id:

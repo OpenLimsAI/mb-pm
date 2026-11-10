@@ -42,10 +42,36 @@ class AgentTransportTest(unittest.TestCase):
 
         handshake, catalogue, answer = map(json.loads, outgoing.getvalue().splitlines())
         self.assertEqual(handshake["result"]["protocolVersion"], "2025-11-25")
-        self.assertEqual(
-            {tool["name"] for tool in catalogue["result"]["tools"]},
-            {"projects", "tasks", "task", "baseline", "risk_report"},
+        tools = {tool["name"]: tool for tool in catalogue["result"]["tools"]}
+        self.assertTrue(
+            {
+                "projects",
+                "tasks",
+                "task",
+                "baseline",
+                "risk_report",
+                "project_context",
+                "register",
+                "schedule_preview",
+                "propose",
+                "proposals",
+                "proposal",
+                "cancel_proposal",
+                "retry_proposal",
+                "knowledge_search",
+                "knowledge_read",
+                "changes",
+                "start_analysis",
+                "analysis_jobs",
+                "analysis_job",
+                "analysis_result",
+                "cancel_analysis",
+                "retry_analysis",
+            }
+            <= tools.keys()
         )
+        self.assertTrue(tools["schedule_preview"]["annotations"]["readOnlyHint"])
+        self.assertFalse(tools["propose"]["annotations"]["readOnlyHint"])
         self.assertEqual(answer["result"]["structuredContent"]["items"], [{"name": "逾期任务"}])
         connection.request.assert_called_once_with(
             "GET",
@@ -67,6 +93,36 @@ class AgentTransportTest(unittest.TestCase):
         self.assertEqual(json.loads(result.stderr)["error"]["code"], "configuration_error")
         self.assertNotIn(TOKEN.encode(), result.stderr)
 
+    def test_mutating_tool_submits_only_a_typed_draft_and_stable_request_id(self):
+        http, connection, response = self.connection(201)
+        response.read.return_value = b'{"id":"proposal-1","state":"pending_confirmation"}'
+        body = {
+            "request_id": "proposal-repeat-key",
+            "reason": "实验延期",
+            "action": {
+                "kind": "update_progress",
+                "task_id": "t1",
+                "expected_revision": 2,
+                "progress": 40,
+            },
+        }
+        with http:
+            client = agent["Client"]("https://maibo.example", TOKEN)
+            tool = agent["TOOLS"]["propose"]
+            with self.assertRaises(agent["AgentError"]):
+                client.call(
+                    tool,
+                    {"project_id": "p1", **body, "action": {**body["action"], "approve": True}},
+                )
+            connection.request.assert_not_called()
+            self.assertEqual(
+                client.call(tool, {"project_id": "p1", **body})["state"], "pending_confirmation"
+            )
+        self.assertEqual(
+            connection.request.call_args.args, ("POST", "/api/v1/agent/projects/p1/proposals")
+        )
+        self.assertEqual(json.loads(connection.request.call_args.kwargs["body"]), body)
+
     def test_token_is_not_forwarded_on_redirect_or_path_injection(self):
         http, connection, response = self.connection(302)
         with http:
@@ -84,6 +140,17 @@ class AgentTransportTest(unittest.TestCase):
                 "/api/v1/agent/projects/prj-2026.1/risk-report",
                 headers={"Authorization": f"Bearer {TOKEN}", "Accept": "application/json"},
             )
+
+    def test_model_job_requires_explicit_consent_and_embeds_both_ids_safely(self):
+        tools = agent["TOOLS"]
+        with self.assertRaises(agent["AgentError"]):
+            tools["start-analysis"].endpoint(
+                {"project_id": "p", "request_id": "r", "allow_model_processing": False}
+            )
+        endpoint = tools["analysis-result"].endpoint({"project_id": "P&1", "job_id": "job-2"})
+        self.assertEqual(endpoint, "/api/v1/agent/projects/P%261/analysis-jobs/job-2/result")
+        with self.assertRaises(agent["AgentError"]):
+            tools["analysis-result"].endpoint({"project_id": "p", "job_id": ".."})
 
     @staticmethod
     def connection(status=200):

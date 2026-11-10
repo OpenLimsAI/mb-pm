@@ -37,6 +37,7 @@ from app.schemas.ai import AISettingsInput, ProviderConfig
 from app.services import assistant_diagnostics as diagnostics
 from app.services.finance import finance_view, task_cost_totals
 from app.services.rollup import live_health, live_span
+from app.services.task_deadlines import is_overdue
 
 DEFAULTS = {
     "deepseek": {"base_url": "https://api.deepseek.com", "model": "deepseek-v4-pro"},
@@ -451,11 +452,7 @@ def project_context(db: Session, project: Project) -> tuple[dict, dict]:
     )
     users = db.scalars(select(User).where(User.id.in_(user_ids)).order_by(User.id)).all()
     today = date.today()
-    overdue = [
-        t.id
-        for t in tasks
-        if t.planned_end < today and t.status not in ("已完成", "已验证") and t.progress < 100
-    ]
+    overdue = [task.id for task in tasks if is_overdue(task, today)]
     source = {
         "as_of": today.isoformat(),
         "task_count": len(tasks),

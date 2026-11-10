@@ -16,6 +16,8 @@ import app.models  # noqa: F401  确保所有 ORM 表注册到 Base.metadata
 from app.api.v1 import (
     account,
     accounts,
+    agent_actions,
+    agent_knowledge_events,
     agent_projects,
     ai,
     assistant,
@@ -367,6 +369,9 @@ app.include_router(progress_policy.router, prefix=API_PREFIX)
 app.include_router(project_ai_work.router, prefix=API_PREFIX)
 app.include_router(agent_projects.router, prefix=API_PREFIX)
 app.include_router(agent_projects.review_router, prefix=API_PREFIX)
+app.include_router(agent_actions.router, prefix=API_PREFIX)
+app.include_router(agent_actions.browser_router, prefix=API_PREFIX)
+app.include_router(agent_knowledge_events.router, prefix=API_PREFIX)
 app.include_router(pm_views.router, prefix=API_PREFIX)
 app.include_router(planning.router, prefix=API_PREFIX)
 app.include_router(pm_management.router, prefix=API_PREFIX)
