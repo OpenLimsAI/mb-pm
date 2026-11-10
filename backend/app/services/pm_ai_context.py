@@ -40,6 +40,11 @@ MAX_EVENTS = 300
 MANAGERS = {"admin", "cmc_lead", "project_lead"}
 
 
+class ContextBudgetExceeded(HTTPException):
+    def __init__(self):
+        super().__init__(422, "当前分析资料较多，请缩小项目、任务或时间范围")
+
+
 class ContextRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
@@ -534,5 +539,5 @@ def build_context(db, user, request):
     )
     context["source"] = source
     if len(json.dumps(context, ensure_ascii=False, default=str)) > 120000:
-        raise HTTPException(422, "当前分析资料较多，请缩小项目、任务或时间范围")
+        raise ContextBudgetExceeded()
     return context

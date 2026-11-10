@@ -11,6 +11,8 @@ import { asAPIError } from '../../api/client'
 import { refreshAllData } from '../../data/bootstrap'
 import {
   getProjectTasks,
+  findProject,
+  findTask,
   taskDependencies,
   tasks,
   users,
@@ -34,21 +36,23 @@ export function PMAIScheduleCompare({
   userId,
   context,
   disabled,
+  initialDelays,
 }: {
   projectId: string
   taskId?: string
   userId: string
   context: PMAIContext | null
   disabled: boolean
+  initialDelays?: number[]
 }) {
   const [pickedId, setPickedId] = useState(taskId ?? '')
   const user = useAuth((state) => state.currentUser)
+  const ownerId = context?.projects.find((project) => project.id === projectId)?.ownerId
+    ?? findProject(projectId)?.ownerId
   const allowed =
     user?.role === 'admin' ||
     user?.role === 'cmc_lead' ||
-    (user?.role === 'project_lead' &&
-      context?.projects.find((project) => project.id === projectId)?.ownerId ===
-        user.id)
+    (user?.role === 'project_lead' && ownerId === user.id)
   const options =
     context?.tasks.filter((task) => task.projectId === projectId) ?? []
   const selected = taskId || pickedId || options[0]?.id || ''
@@ -64,6 +68,9 @@ export function PMAIScheduleCompare({
           disabled={!!taskId || disabled}
           onChange={(event) => setPickedId(event.target.value)}
         >
+          {taskId && !options.some((task) => task.id === taskId) && (
+            <option value={taskId}>{findTask(taskId)?.name ?? '已选定任务'}</option>
+          )}
           {options.map((task) => (
             <option key={task.id} value={task.id}>
               {task.code} · {task.name}
@@ -78,6 +85,7 @@ export function PMAIScheduleCompare({
           taskId={selected}
           userId={userId}
           disabled={disabled}
+          initialDelays={initialDelays}
         />
       )}
     </div>
@@ -116,16 +124,18 @@ function ScheduleOptions({
   taskId,
   userId,
   disabled,
+  initialDelays,
 }: {
   projectId: string
   taskId: string
   userId: string
   disabled: boolean
+  initialDelays?: number[]
 }) {
   const dataVersion = useDataStore((state) => state.version)
   const key = `pm-ai-comparison:${userId}:${projectId}:${taskId}`
   const [saved] = useState(() => readPending(key))
-  const [delayText, setDelayText] = useState('1,3,5')
+  const [delayText, setDelayText] = useState(() => initialDelays?.length ? initialDelays.join(',') : '1,3,5')
   const [lockedIds, setLockedIds] = useState<string[]>([])
   const [plans, setPlans] = useState<ScheduleAssistPreview[]>(
     saved ? [saved.plan] : [],

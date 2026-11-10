@@ -3,6 +3,7 @@
 import json
 from datetime import UTC, datetime
 from typing import Annotated
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.encoders import jsonable_encoder
@@ -13,11 +14,15 @@ from starlette.concurrency import run_in_threadpool
 
 from app.api.deps import get_current_user
 from app.api.v1.planning import schedule_state
+from app.api.v1.pm_ai import CurrentUser as ProjectAIUser
 from app.api.v1.project_ai_work import current_analyst, project_access
 from app.core.config import settings
 from app.db.session import get_db
 from app.models import User
 from app.services import project_schedule_assist
+from app.services.pm_ai_agent import PlanRequest, plan_question
+from app.services.pm_ai_context import MANAGERS, ContextRequest, recheck_user
+from app.services.pm_ai_triage import TriageRequest, build_triage
 
 router = APIRouter(prefix="/pm-ai", tags=["pm-ai-tools"])
 DB = Annotated[Session, Depends(get_db)]
@@ -40,8 +45,14 @@ class ScheduleComparison(BaseModel):
 
 @router.post("/schedule/compare")
 def compare_schedules(payload: ScheduleComparison, db: DB, user: Analyst):
-    project_access(db, user, payload.project_id, write=True)
-    tasks, dependencies, calendar = schedule_state(db, user, payload.project_id, lock=True)
+    return schedule_comparison(payload, db, user, confirmable=True)
+
+
+def schedule_comparison(payload, db, user, *, confirmable):
+    if user.role not in MANAGERS:
+        raise HTTPException(403, "排期比较需要项目管理权限")
+    project_access(db, user, payload.project_id, write=True, lock=confirmable)
+    tasks, dependencies, calendar = schedule_state(db, user, payload.project_id, lock=confirmable)
     task = project_schedule_assist.selected_task(tasks, payload.task_id)
     locked = [
         {
@@ -64,37 +75,45 @@ def compare_schedules(payload: ScheduleComparison, db: DB, user: Analyst):
         schedule = preview_schedule(
             tasks, dependencies, calendar, task.id, start, end, payload.locked_ids
         )
-        token = expires = None
-        if schedule["changes"] and not schedule["conflicts"]:
-            token, expires = project_schedule_assist.issue_confirmation(
-                user.id,
-                payload.project_id,
-                task.id,
-                project_schedule_assist.DelayIntent(delay_workdays=days, fixed_milestones=[]),
-                locked,
-                start,
-                end,
-                schedule,
-                {
-                    "provider": "rules",
-                    "providers": {"rules": {"model": "project-calendar-v1"}},
-                    "revision": calendar["revision"],
-                },
-            )
-        plans.append(
-            {
-                "delay_workdays": days,
-                "locked_milestones": locked,
-                "schedule": schedule,
-                "confirmation_token": token,
-                "expires_at": expires,
-            }
-        )
+        plan = {"delay_workdays": days, "locked_milestones": locked, "schedule": schedule}
+        if confirmable:
+            token = expires = None
+            if schedule["changes"] and not schedule["conflicts"]:
+                token, expires = project_schedule_assist.issue_confirmation(
+                    user.id,
+                    payload.project_id,
+                    task.id,
+                    project_schedule_assist.DelayIntent(delay_workdays=days, fixed_milestones=[]),
+                    locked,
+                    start,
+                    end,
+                    schedule,
+                    {
+                        "provider": "rules",
+                        "providers": {"rules": {"model": "project-calendar-v1"}},
+                        "revision": calendar["revision"],
+                    },
+                )
+            plan.update(confirmation_token=token, expires_at=expires)
+        plans.append(plan)
     return {
         "as_of": datetime.now(UTC),
         "calendar": {"weekdays": calendar["weekdays"], "revision": calendar["revision"]},
         "plans": plans,
+        "review_url": (
+            f"/projects/{quote(payload.project_id, safe='')}?tab=wbs&task={quote(task.id, safe='')}"
+        ),
     }
+
+
+@router.post("/agent/plan")
+def plan_agent(payload: PlanRequest, db: DB, user: ProjectAIUser):
+    return plan_question(db, user, payload)
+
+
+@router.post("/agent/triage")
+def triage_agent(payload: TriageRequest, db: DB, user: ProjectAIUser):
+    return build_triage(db, user, payload)
 
 
 class RunIdentifier(BaseModel):
@@ -111,13 +130,28 @@ class HistoryPage(BaseModel):
     model_config = ConfigDict(extra="forbid")
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=50)
+    project_id: str | None = Field(default=None, min_length=1, max_length=64)
+    task_id: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 def tool_definitions():
-    from app.services.pm_ai_context import ContextRequest
-
     tools = [
         ("pm_context", "读取有权查看的项目上下文与证据", ContextIdentifier, True, True),
+        (
+            "pm_agent_plan",
+            "识别问题的项目、任务与分析方式，返回可核对范围",
+            PlanRequest,
+            True,
+            True,
+        ),
+        ("pm_work_priorities", "按任务实际状态列出当前工作重点与来源", TriageRequest, True, True),
+        (
+            "pm_compare_schedule",
+            "按项目日历比较顺延方案和固定里程碑冲突，需要项目管理权限",
+            ScheduleComparison,
+            True,
+            True,
+        ),
         (
             "pm_analyze",
             "生成项目重点、异常解释、周报、会议草稿或措施跟踪；结果需本人复核",
@@ -163,13 +197,20 @@ def list_tools(user: CurrentUser):
 
 def call_tool(name, arguments, db, user):
     from app.api.v1 import pm_ai
-    from app.services.pm_ai_context import ContextRequest, recheck_user
 
     user = recheck_user(db, user.id)
 
     if name == "pm_context":
         value = ContextIdentifier.model_validate(arguments)
         return pm_ai.get_context(db, user, value.project_id)
+    if name == "pm_agent_plan":
+        return plan_question(db, user, PlanRequest.model_validate(arguments))
+    if name == "pm_work_priorities":
+        return build_triage(db, user, TriageRequest.model_validate(arguments))
+    if name == "pm_compare_schedule":
+        return schedule_comparison(
+            ScheduleComparison.model_validate(arguments), db, user, confirmable=False
+        )
     if name == "pm_analyze":
         return pm_ai.create_run(ContextRequest.model_validate(arguments), db, user)
     if name == "pm_run_status":
@@ -177,7 +218,7 @@ def call_tool(name, arguments, db, user):
         return pm_ai.get_run(value.run_id, db, user)
     if name == "pm_run_history":
         value = HistoryPage.model_validate(arguments)
-        return pm_ai.list_runs(db, user, value.page, value.page_size)
+        return pm_ai.list_runs(db, user, **value.model_dump())
     if name == "pm_cancel_analysis":
         value = RunIdentifier.model_validate(arguments)
         return pm_ai.cancel_run(value.run_id, db, user)

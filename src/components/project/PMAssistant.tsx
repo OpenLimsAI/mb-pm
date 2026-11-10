@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { format, parseISO, subDays } from 'date-fns'
 import { Sparkles } from 'lucide-react'
@@ -6,14 +6,17 @@ import {
   pmAI,
   type PMAIContext,
   type PMAIEvidence,
+  type PMAIRequest,
   type PMAIRun,
   type PMAIScenario,
+  type PMAIScope,
 } from '../../api/pmAI'
 import { asAPIError } from '../../api/client'
 import { useAuth } from '../../store/auth'
 import { useDataStore } from '../../store/data'
 import { findProject, findTask, TODAY } from '../../mock'
 import { Button } from '../ui'
+import { PMAgent, type AgentRequest } from './PMAgent'
 import { PMAIActions } from './PMAIActions'
 import { PMAIScheduleCompare } from './PMAIScheduleCompare'
 
@@ -42,6 +45,26 @@ const states: Record<PMAIRun['state'], string> = {
   succeeded: '已完成',
   failed: '未完成',
   cancelled: '已取消',
+}
+const scenarioNames = {
+  priorities: scenarios.priorities.name,
+  explain: scenarios.explain.name,
+  weekly: scenarios.weekly.name,
+  meeting: scenarios.meeting.name,
+  followup: scenarios.followup.name,
+  schedule: '排期比较',
+}
+
+function scopeLabel(scope: PMAIScope, context: PMAIContext | null) {
+  const projects = scope.projectIds.map((id) =>
+    context?.projects.find((project) => project.id === id)?.name ?? findProject(id)?.name ?? id,
+  )
+  const tasks = scope.taskIds.map((id) =>
+    context?.tasks.find((task) => task.id === id)?.name ?? findTask(id)?.name ?? id,
+  )
+  return [projects.length ? projects.join('、') : '全部可见项目', tasks.join('、')]
+    .filter(Boolean)
+    .join(' · ')
 }
 
 export function PMAssistant({
@@ -86,9 +109,7 @@ function AssistantPanel({
   const date =
     useDataStore((state) => state.businessDate) || format(TODAY, 'yyyy-MM-dd')
   const [open, setOpen] = useState(!!requestedRun)
-  const [scenario, setScenario] = useState<PMAIScenario | 'schedule'>(
-    taskId ? 'explain' : 'priorities',
-  )
+  const [scenario, setScenario] = useState<PMAIScenario | 'schedule' | 'agent'>('agent')
   const [question, setQuestion] = useState('')
   const [material, setMaterial] = useState('')
   const [startDate, setStartDate] = useState(() =>
@@ -98,48 +119,92 @@ function AssistantPanel({
   const [context, setContext] = useState<PMAIContext | null>(null)
   const [runs, setRuns] = useState<PMAIRun[]>([])
   const [run, setRun] = useState<PMAIRun | null>(null)
+  const [selection, setSelection] = useState({ id: requestedRun })
+  const [readingRun, setReadingRun] = useState(false)
+  const selectionRef = useRef(selection)
+  const loadVersion = useRef(0)
+  const [preparedScope, setPreparedScope] = useState<PMAIScope | null>(null)
+  const [scheduleDelays, setScheduleDelays] = useState<number[]>()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [loadError, setLoadError] = useState('')
   const [pollError, setPollError] = useState('')
   const matchesScope = useCallback(
     (value: PMAIRun) => {
-      const request = value.request
+      const scope = value.scope ?? value.request
       return (
-        (!projectId || request.projectIds.includes(projectId)) &&
-        (!taskId || request.taskIds.includes(taskId))
+        (!projectId || scope.projectIds.includes(projectId)) &&
+        (!taskId || scope.taskIds.includes(taskId))
       )
     },
     [projectId, taskId],
   )
-  const load = useCallback(async () => {
+  const selectId = useCallback((id: string | null, reading = false) => {
+    const next = { id }
+    selectionRef.current = next
+    setSelection(next)
+    setReadingRun(reading)
+    return next
+  }, [])
+  const readRun = useCallback(async (id: string | null, openScenario = false) => {
+    const attempt = selectId(id, !!id)
+    setRun((previous) => (previous?.id === id ? previous : null))
+    setPollError('')
+    setError('')
+    if (!id) return
     try {
-      const [current, history, requested] = await Promise.all([
-        pmAI.context(projectId),
-        pmAI.list(),
-        requestedRun ? pmAI.get(requestedRun) : Promise.resolve(null),
-      ])
-      if (requested && !matchesScope(requested))
-        throw new Error('这份分析不属于当前项目或任务，请从原分析入口查看。')
-      if (requested) setScenario(requested.scenario)
-      setError('')
-      setContext(current)
-      const scoped = history.items.filter(matchesScope)
-      setRuns(
-        requested && !scoped.some((item) => item.id === requested.id)
-          ? [requested, ...scoped]
-          : scoped,
+      const current = await pmAI.get(id)
+      if (selectionRef.current !== attempt) return
+      if (!matchesScope(current)) {
+        setRun(null)
+        setError('这份分析不属于当前项目或任务，请从原分析入口查看。')
+        return
+      }
+      if (openScenario) setScenario(current.scenario)
+      setRun(current)
+      setRuns((history) =>
+        history.some((item) => item.id === current.id)
+          ? history.map((item) => (item.id === current.id ? current : item))
+          : [current, ...history],
       )
-      setRun((previous) => requested ?? previous ?? scoped[0] ?? null)
     } catch (e) {
-      if (requestedRun) setRun(null)
-      setError(asAPIError(e).detail)
+      if (selectionRef.current !== attempt) return
+      const failure = asAPIError(e)
+      if (failure.status === 403 || failure.status === 404) {
+        setRun(null)
+        setRuns((history) => history.filter((item) => item.id !== id))
+      }
+      setError(failure.detail)
+    } finally {
+      if (selectionRef.current === attempt) setReadingRun(false)
     }
-  }, [projectId, matchesScope, requestedRun])
+  }, [matchesScope, selectId])
+  const load = useCallback(async (openLinkedRun = false) => {
+    const initialSelection = selectionRef.current
+    const version = ++loadVersion.current
+    const [current, history] = await Promise.allSettled([
+      pmAI.context(projectId),
+      pmAI.list(projectId, taskId),
+    ])
+    if (loadVersion.current !== version) return
+    setContext(current.status === 'fulfilled' ? current.value : null)
+    setLoadError(
+      current.status === 'rejected'
+        ? asAPIError(current.reason).detail
+        : history.status === 'rejected' ? asAPIError(history.reason).detail : '',
+    )
+    if (selectionRef.current !== initialSelection) return
+    const scoped = history.status === 'fulfilled'
+      ? history.value.items.filter(matchesScope)
+      : []
+    if (history.status === 'fulfilled') setRuns(scoped)
+    await readRun(initialSelection.id ?? scoped[0]?.id ?? null, openLinkedRun)
+  }, [projectId, taskId, matchesScope, readRun])
   useEffect(() => {
     let active = true
     if (requestedRun)
       void Promise.resolve().then(() => {
-        if (active) return load()
+        if (active) return load(true)
       })
     return () => {
       active = false
@@ -148,13 +213,13 @@ function AssistantPanel({
   const active = run?.state === 'queued' || run?.state === 'running'
   const runId = run?.id
   useEffect(() => {
-    if (!open || !runId || !active) return
+    if (!open || !runId || !active || readingRun) return
     let stopped = false
     let timer: ReturnType<typeof setTimeout>
     const poll = async () => {
       try {
         const current = await pmAI.get(runId)
-        if (stopped) return
+        if (stopped || selectionRef.current !== selection) return
         setRun(current)
         setPollError('')
         setRuns((history) =>
@@ -162,8 +227,15 @@ function AssistantPanel({
         )
         if (current.state === 'queued' || current.state === 'running')
           timer = setTimeout(poll, 2000)
-      } catch {
-        if (!stopped) {
+      } catch (e) {
+        if (!stopped && selectionRef.current === selection) {
+          const failure = asAPIError(e)
+          if (failure.status === 403 || failure.status === 404) {
+            setRun(null)
+            setRuns((history) => history.filter((item) => item.id !== runId))
+            setError(failure.detail)
+            return
+          }
           setPollError('暂未取得最新状态，正在重试。')
           timer = setTimeout(poll, 4000)
         }
@@ -174,40 +246,94 @@ function AssistantPanel({
       stopped = true
       clearTimeout(timer)
     }
-  }, [open, runId, active])
+  }, [open, runId, active, readingRun, selection])
 
-  async function generate() {
-    if (scenario === 'schedule' || disabled) return
+  const manualScope = preparedScope ?? {
+    projectIds: projectId ? [projectId] : [],
+    taskIds: taskId ? [taskId] : [],
+  }
+
+  async function submit(request: PMAIRequest) {
     setBusy(true)
     setError('')
     setPollError('')
     try {
-      const value = await pmAI.create({
-        scenario,
-        projectIds: projectId ? [projectId] : [],
-        taskIds: taskId ? [taskId] : [],
-        startDate,
-        endDate,
-        question: question.trim() || scenarios[scenario].prompt,
-        material: scenario === 'meeting' ? material : '',
-      })
+      const value = await pmAI.create(request)
+      selectId(value.id)
       setRun(value)
       setRuns((history) => [
         value,
         ...history.filter((item) => item.id !== value.id),
       ])
-    } catch (e) {
-      setError(asAPIError(e).detail)
     } finally {
       setBusy(false)
     }
   }
+
+  async function generate() {
+    if (scenario === 'agent' || scenario === 'schedule' || disabled || busy || active) return
+    try {
+      await submit({
+        scenario,
+        ...manualScope,
+        startDate,
+        endDate,
+        question: question.trim() || scenarios[scenario].prompt,
+        material: scenario === 'meeting' ? material : '',
+      })
+    } catch (e) {
+      setError(asAPIError(e).detail)
+    }
+  }
+
+  async function proceedAgent({
+    scenario, question, projectIds, taskIds, startDate, endDate, delays,
+  }: AgentRequest) {
+    if (disabled) return
+    if (scenario === 'meeting' || scenario === 'schedule') {
+      setPreparedScope({ projectIds, taskIds })
+      setQuestion(question)
+      setMaterial('')
+      setStartDate(startDate)
+      setEndDate(endDate)
+      setScheduleDelays(delays)
+      setScenario(scenario)
+      return
+    }
+    if (busy || active) return
+    await submit({ scenario, question, projectIds, taskIds, startDate, endDate, material: '' })
+  }
+
+  function reuseRun() {
+    if (!run || disabled || busy) return
+    const request = run.request
+    setScenario(request.scenario)
+    setPreparedScope(run.scope ?? { projectIds: request.projectIds, taskIds: request.taskIds })
+    setQuestion(request.question)
+    setMaterial(request.material)
+    setStartDate(request.startDate ?? format(subDays(parseISO(date), 7), 'yyyy-MM-dd'))
+    setEndDate(request.endDate ?? date)
+    setError('')
+  }
+
+  function changeScenario(next: typeof scenario) {
+    if (next === scenario) return
+    setPreparedScope(null)
+    setScheduleDelays(undefined)
+    setScenario(next)
+    setError('')
+  }
+
   async function cancel() {
     if (!run) return
+    const attempt = selectionRef.current
     setBusy(true)
     try {
       const value = await pmAI.cancel(run.id)
-      setRun(value)
+      if (selectionRef.current === attempt) {
+        selectId(value.id)
+        setRun(value)
+      }
       setRuns((history) =>
         history.map((item) => (item.id === value.id ? value : item)),
       )
@@ -217,11 +343,15 @@ function AssistantPanel({
       setBusy(false)
     }
   }
-  const scopeName = taskId
-    ? (findTask(taskId)?.name ?? '当前任务')
-    : projectId
-      ? (findProject(projectId)?.name ?? '当前项目')
-      : '全部可见项目'
+  const scopeName = preparedScope
+    ? scopeLabel(preparedScope, context)
+    : taskId
+      ? (findTask(taskId)?.name ?? '当前任务')
+      : projectId
+        ? (findProject(projectId)?.name ?? '当前项目')
+        : '全部可见项目'
+  const scheduleProjectId = scenario === 'schedule' ? manualScope.projectIds[0] : undefined
+  const scheduleTaskId = scenario === 'schedule' ? manualScope.taskIds[0] : undefined
   return (
     <details
       className="rounded-xl border border-brand-200 bg-white p-4"
@@ -256,44 +386,71 @@ function AssistantPanel({
               请先保存或放弃当前进展草稿，再生成或应用建议。
             </p>
           )}
+          {loadError && (
+            <p className="break-words rounded bg-amber-50 p-2 text-amber-900" role="status">
+              {loadError}
+            </p>
+          )}
           <div
             className="flex flex-wrap gap-2"
             role="group"
             aria-label="AI 使用场景"
           >
+            <Button
+              size="sm"
+              variant={scenario === 'agent' ? 'primary' : 'secondary'}
+              aria-pressed={scenario === 'agent'}
+              onClick={() => changeScenario('agent')}
+            >
+              项目 Agent
+            </Button>
             {Object.entries(scenarios).map(([value, item]) => (
               <Button
                 key={value}
                 size="sm"
                 variant={scenario === value ? 'primary' : 'secondary'}
-                onClick={() => {
-                  setScenario(value as PMAIScenario)
-                  setError('')
-                }}
+                aria-pressed={scenario === value}
+                onClick={() => changeScenario(value as PMAIScenario)}
               >
                 {item.name}
               </Button>
             ))}
-            {projectId && (
+            {(projectId || scheduleProjectId) && (
               <Button
                 size="sm"
                 variant={scenario === 'schedule' ? 'primary' : 'secondary'}
-                onClick={() => setScenario('schedule')}
+                aria-pressed={scenario === 'schedule'}
+                onClick={() => changeScenario('schedule')}
               >
                 排期比较
               </Button>
             )}
           </div>
-          {scenario === 'schedule' && projectId ? (
-            <PMAIScheduleCompare
+          <div hidden={scenario !== 'agent'}>
+            <PMAgent
               projectId={projectId}
               taskId={taskId}
+              context={context}
+              startDate={startDate}
+              endDate={endDate}
+              disabled={disabled}
+              analysisPending={active || busy}
+              scenarioNames={scenarioNames}
+              onProceed={proceedAgent}
+            />
+          </div>
+          {scheduleProjectId && (
+            <PMAIScheduleCompare
+              key={`${scheduleProjectId}:${scheduleTaskId ?? ''}`}
+              projectId={scheduleProjectId}
+              taskId={scheduleTaskId}
               userId={userId}
               context={context}
               disabled={disabled}
+              initialDelays={scheduleDelays}
             />
-          ) : (
-            <>
+          )}
+          {scenario !== 'agent' && scenario !== 'schedule' && (
               <fieldset
                 disabled={busy || disabled}
                 className="space-y-3 disabled:opacity-60"
@@ -326,7 +483,7 @@ function AssistantPanel({
                     rows={2}
                     value={question}
                     onChange={(event) => setQuestion(event.target.value)}
-                    placeholder={scenarios[scenario as PMAIScenario].prompt}
+                    placeholder={scenarios[scenario].prompt}
                   />
                 </label>
                 {scenario === 'meeting' && (
@@ -347,7 +504,7 @@ function AssistantPanel({
                   size="sm"
                   disabled={
                     active ||
-                    !context ||
+                    (!context && !preparedScope) ||
                     !startDate ||
                     !endDate ||
                     startDate > endDate ||
@@ -358,23 +515,16 @@ function AssistantPanel({
                   {busy ? '正在提交…' : '生成分析'}
                 </Button>
               </fieldset>
+          )}
               <div className="flex flex-wrap items-end gap-3 border-t border-ink-200 pt-3">
                 <label className="min-w-0 flex-1">
                   分析记录
                   <select
                     className="input mt-1"
-                    value={run?.id ?? ''}
+                    value={selection.id ?? ''}
+                    disabled={busy}
                     onChange={(event) => {
-                      const selected = runs.find(
-                        (item) => item.id === event.target.value,
-                      )
-                      setRun(selected ?? null)
-                      setPollError('')
-                      if (selected)
-                        void pmAI
-                          .get(selected.id)
-                          .then(setRun)
-                          .catch((error) => setError(asAPIError(error).detail))
+                      void readRun(event.target.value || null)
                     }}
                   >
                     <option value="">选择记录</option>
@@ -387,7 +537,7 @@ function AssistantPanel({
                     ))}
                   </select>
                 </label>
-                <Button size="sm" onClick={() => void load()}>
+                <Button size="sm" disabled={busy} onClick={() => void load()}>
                   刷新记录
                 </Button>
                 {active && (
@@ -399,12 +549,18 @@ function AssistantPanel({
                     取消本次分析
                   </Button>
                 )}
+                {run && !active && (
+                  <Button size="sm" disabled={disabled || busy} onClick={reuseRun}>
+                    沿用分析条件
+                  </Button>
+                )}
               </div>
               {pollError && (
                 <p role="status" className="text-amber-800">
                   {pollError}
                 </p>
               )}
+              {readingRun && !run && <p role="status">正在读取分析记录…</p>}
               {run && (
                 <div className="space-y-3">
                   <p role="status" className="font-medium">
@@ -412,14 +568,19 @@ function AssistantPanel({
                     <span>{states[run.state]}</span>
                     {run.model ? ` · ${run.model}` : ''}
                   </p>
+                  <p className="break-words text-xs text-ink-600">
+                    分析范围 {scopeLabel(run.scope ?? run.request, context)}
+                  </p>
                   {run.error && (
                     <p role="alert" className="text-red-700">
                       {run.error}
                     </p>
                   )}
-                  {run.stale && (
+                  {(run.stale || run.staleReason === 'context_budget') && (
                     <p className="rounded bg-amber-50 p-2 text-amber-900">
-                      分析后数据已有变化，应用建议前会重新核对当前版本。
+                      {run.staleReason === 'context_budget'
+                        ? '当前资料规模超过单次核对上限，暂时无法判断结果是否仍然有效。可缩小范围重新分析。'
+                        : '分析后数据已有变化，应用建议前会重新核对当前版本。'}
                     </p>
                   )}
                   {run.result && (
@@ -497,8 +658,6 @@ function AssistantPanel({
                   )}
                 </div>
               )}
-            </>
-          )}
           {error && (
             <p role="alert" className="break-words text-red-700">
               {error}

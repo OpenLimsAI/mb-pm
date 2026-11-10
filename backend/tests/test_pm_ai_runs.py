@@ -1,4 +1,5 @@
 import json
+from datetime import timedelta
 
 import pytest
 
@@ -258,6 +259,63 @@ def test_completed_run_is_marked_stale_after_task_change(
     assert client.get(url, headers=auth_headers).json()["stale"] is True
 
 
+def test_history_filters_effective_scope_before_pagination(client, auth_headers, project_factory):
+    pid = project_factory("t-admin")
+    other = project_factory("t-admin")
+    task_id = f"{pid}-t1"
+    first = queue(client, auth_headers, pid, project_ids=[], task_ids=[task_id])
+    assert first["scope"] == {"project_ids": [pid], "task_ids": [task_id]}
+    assert first["review_url"] == f"/projects/{pid}?aiRun={first['id']}"
+    with SessionLocal.begin() as db:
+        stored = db.get(PMAIRun, first["id"])
+        for index in range(31):
+            db.add(
+                PMAIRun(
+                    id=f"unrelated-history-{index}",
+                    created_by=stored.created_by,
+                    created_at=stored.created_at + timedelta(seconds=index + 1),
+                    state="cancelled",
+                    request={"scenario": "priorities", "project_ids": [other]},
+                    context={"scope": {"project_ids": [other], "task_ids": []}},
+                    source={},
+                )
+            )
+    url = "/api/v1/pm-ai/runs"
+    latest = client.get(url, headers=auth_headers, params={"page_size": 1}).json()
+    assert latest["items"][0]["id"] != first["id"]
+    for scope in (
+        {"project_id": pid},
+        {"project_id": pid, "task_id": task_id},
+        {"task_id": task_id},
+    ):
+        response = client.get(url, headers=auth_headers, params={"page_size": 1, **scope})
+        assert response.status_code == 200, response.text
+        assert response.json()["total"] == 1
+        assert [item["id"] for item in response.json()["items"]] == [first["id"]]
+
+
+def test_saved_run_remains_readable_if_new_context_exceeds_budget(
+    client, auth_headers, project_factory, monkeypatch
+):
+    from app.api.v1 import pm_ai
+    from app.services.pm_ai_context import ContextBudgetExceeded
+
+    pid = project_factory("t-admin")
+    monkeypatch.setattr(ai, "chat", lambda provider, config, messages, **kwargs: answer(messages))
+    run = queue(client, auth_headers, pid)
+    assert pm_ai_runs.process_one()
+
+    def too_large(*args):
+        raise ContextBudgetExceeded()
+
+    monkeypatch.setattr(pm_ai, "build_context", too_large)
+    response = client.get(f"/api/v1/pm-ai/runs/{run['id']}", headers=auth_headers)
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["result"]["summary"] == "先核对待办"
+    assert result["stale"] and result["stale_reason"] == "context_budget"
+
+
 @pytest.mark.parametrize("provider", ["ollama", "deepseek"])
 def test_generation_constrains_local_schema_and_bounds_hosted_output(
     client, auth_headers, project_factory, monkeypatch, provider
@@ -350,6 +408,31 @@ def test_task_draft_uses_snapshot_version_without_inventing_changed_fields():
         pm_ai_runs.validate_result(
             json.dumps({"summary": "待确认", "findings": [], "draft_actions": [draft]}), context
         )
+
+
+def test_meeting_update_requires_target_and_material_evidence():
+    context = {
+        "source": {"refs": [{"id": ref} for ref in ("task:t1", "task:t2", "material:1")]},
+        "projects": [],
+        "tasks": [{"id": "t1", "revision": 4}],
+        "sub_projects": [],
+        "members": [],
+        "register_entries": [],
+        "material": "将 T1 进度更新至 25%",
+    }
+    action = {"kind": "task_update", "task_id": "t1", "progress": 25, "reason": "会议确认进度"}
+    for refs, error in (
+        (["task:t2", "material:1"], "目标记录"),
+        (["task:t1"], "会议原文"),
+    ):
+        content = {"summary": "待确认", "draft_actions": [{**action, "evidence_ids": refs}]}
+        with pytest.raises(ai.AIError, match=error):
+            pm_ai_runs.validate_result(json.dumps(content), context)
+    content = {
+        "summary": "待确认",
+        "draft_actions": [{**action, "evidence_ids": ["task:t1", "material:1"]}],
+    }
+    assert pm_ai_runs.validate_result(json.dumps(content), context)["draft_actions"]
 
 
 @pytest.mark.parametrize("has_reference", [True, False])

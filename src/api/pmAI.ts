@@ -16,6 +16,47 @@ export interface PMAIRequest {
   question: string
   material: string
 }
+export interface PMAIScope {
+  projectIds: string[]
+  taskIds: string[]
+}
+export interface PMAgentTarget {
+  kind: 'project' | 'task'
+  id: string
+  projectId: string
+  code: string
+  name: string
+  projectName: string
+}
+export interface PMAgentPlan extends PMAIScope {
+  status: 'ready' | 'clarify'
+  scenario: PMAIScenario | 'schedule' | null
+  targets: PMAgentTarget[]
+  choices: PMAgentTarget[]
+  message: string
+  limit: number
+  mineOnly?: boolean
+  startDate?: string | null
+  endDate?: string | null
+  delays?: number[]
+}
+export interface PMAgentTriage {
+  businessDate: string
+  items: {
+    taskId: string
+    projectId: string
+    code: string
+    name: string
+    projectName: string
+    status: string
+    plannedEnd: string
+    ownerName: string
+    reasons: string[]
+    href: string
+  }[]
+  totalCandidates: number
+  limit: number
+}
 export interface PMAIEvidence {
   id: string
   type: string
@@ -62,6 +103,7 @@ export interface PMAIRun {
   id: string
   state: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
   request: PMAIRequest
+  scope?: PMAIScope
   scenario: PMAIScenario
   createdAt: string
   startedAt?: string | null
@@ -81,10 +123,11 @@ export interface PMAIRun {
   model?: string | null
   error: string
   stale?: boolean
+  staleReason?: 'context_budget'
 }
 export interface PMAIContext {
   schemaVersion: number
-  scope: { projectIds: string[]; taskIds: string[] }
+  scope: PMAIScope
   asOf: string
   timezone: string
   projects: { id: string; code: string; name: string; ownerId: string }[]
@@ -176,13 +219,29 @@ function actionPayload(action: PMAIAction) {
   )
 }
 export const pmAI = {
+  plan: async (question: string, projectId?: string, taskId?: string) =>
+    (
+      await api.post<PMAgentPlan>(`${root}/agent/plan`, {
+        question,
+        projectId,
+        taskId,
+      })
+    ).data,
+  triage: async (scope: PMAIScope, limit: number, mineOnly: boolean) =>
+    (
+      await api.post<PMAgentTriage>(`${root}/agent/triage`, {
+        ...scope,
+        limit,
+        mineOnly,
+      })
+    ).data,
   context: async (projectId?: string) =>
     (await api.get<PMAIContext>(`${root}/context`, { params: { projectId } }))
       .data,
-  list: async () =>
+  list: async (projectId?: string, taskId?: string) =>
     (
       await api.get<{ items: PMAIRun[]; total: number }>(`${root}/runs`, {
-        params: { pageSize: 30 },
+        params: { pageSize: 30, projectId, taskId },
       })
     ).data,
   create: async (request: PMAIRequest) =>

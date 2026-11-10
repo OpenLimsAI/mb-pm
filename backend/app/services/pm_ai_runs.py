@@ -55,6 +55,7 @@ meeting 场景要将建议放入 draft_actions，不清楚负责人、日期或�
 task_create 带 project_id、sub_project_id、owner_id、name、planned_start、planned_end。
 register_create 带 project_id、register_kind（risk/issue/decision）、title、owner_id、due_date、severity、mitigation。
 register_update 带 entry_id、expected_revision、status，以及 closure、mitigation。不要输出这些定义之外的字段。
+更新任务或跟进事项时，依据必须包含目标记录本身；提供会议原文时，还需引用对应原文。
 新信息只取自会议原文。无法判断的必填值留空，让用户补充，不要编造日期或人员。
 当前用户可能无法管理计划，仍可以提出草稿，由服务端和人工确认时检查实际权限。
 """
@@ -324,13 +325,18 @@ def validate_result(content, context):
             raise ai.AIError("操作草稿缺少有效依据，请重新生成")
         if len(json.dumps(action, ensure_ascii=False)) > 12000:
             raise ai.AIError("操作草稿过长，请重新生成")
-        entity_key, records = (
-            ("task_id", context["tasks"])
+        entity_key, records, reference_type = (
+            ("task_id", context["tasks"], "task")
             if action.get("kind") == "task_update"
-            else ("entry_id", context["register_entries"])
+            else ("entry_id", context["register_entries"], "register")
         )
         record = next((row for row in records if row["id"] == action.get(entity_key)), None)
         if record and action.get("kind") in {"task_update", "register_update"}:
+            target_ref = record.get("evidence_id") or f"{reference_type}:{record['id']}"
+            if target_ref not in refs:
+                raise ai.AIError("操作草稿缺少目标记录的依据，请重新生成")
+            if context.get("material") and not any(ref.startswith("material:") for ref in refs):
+                raise ai.AIError("操作草稿缺少会议原文依据，请重新生成")
             revision = record.get("revision")
             if action.get("expected_revision") is None:
                 action["expected_revision"] = revision
@@ -356,7 +362,8 @@ def authorize_run(db, user, run):
 
 
 def run_view(run):
-    projects = run.context.get("scope", {}).get("project_ids", [])
+    scope = run.context.get("scope", {})
+    projects = scope.get("project_ids", [])
     review_path = f"/projects/{quote(projects[0], safe='')}" if len(projects) == 1 else "/projects"
     return {
         "id": run.id,
@@ -364,6 +371,7 @@ def run_view(run):
         "state": run.state,
         "scenario": run.request["scenario"],
         "request": run.request,
+        "scope": scope,
         "created_at": run.created_at,
         "started_at": run.started_at,
         "finished_at": run.finished_at,
