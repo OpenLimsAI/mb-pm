@@ -27,6 +27,7 @@ WORKER_ENV_PREFIXES = (
     "INFORMATION_",
     "KNOWLEDGE_SOURCE_",
     "NOTES_WISDOM_",
+    "PM_AI_",
     "PROJECT_AI_",
     "SOLUTION_KB_",
 )

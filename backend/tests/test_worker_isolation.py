@@ -143,6 +143,7 @@ def test_worker_overlay_keeps_backend_access_without_publishing_an_http_service(
             "DATABASE_URL": "postgresql+psycopg://runtime:synthetic@db/mb_pm",
             "APP_SECRET": "synthetic$$application_secret",
             "SOLUTION_KB_TOKEN": "synthetic-private-knowledge-key",
+            "PM_AI_WORKER_ENABLED": "false",
             "PORTAL_CLIENT_SECRET": "synthetic-private-portal-key",
         },
     }
@@ -164,6 +165,7 @@ def test_worker_overlay_keeps_backend_access_without_publishing_an_http_service(
     assert "ports" not in executor and "127.0.0.1" in executor["command"]
     assert executor["environment"]["APP_SECRET"] == app["environment"]["APP_SECRET"]
     assert executor["environment"]["SOLUTION_KB_TOKEN"] == app["environment"]["SOLUTION_KB_TOKEN"]
+    assert executor["environment"]["PM_AI_WORKER_ENABLED"] == "false"
     assert executor["environment"]["APP_PROCESS_ROLE"] == "worker"
     assert executor["environment"]["AUTO_MIGRATE_SCHEMA"] == "false"
     assert "PORTAL_CLIENT_SECRET" not in executor["environment"]

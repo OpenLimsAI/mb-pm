@@ -26,7 +26,7 @@ def main():
         raise SystemExit("此脚本仅用于本地开发配置。")
     if config.get("PMS_PUBLIC_URL") != "http://localhost:1234":
         raise SystemExit("本地浏览器入口必须保持 http://localhost:1234。")
-    if config.get("APP_PROCESS_ROLE", "combined") != "combined":
+    if config.get("APP_PROCESS_ROLE") != "combined":
         raise SystemExit("本地单进程工作台需要 APP_PROCESS_ROLE=combined。")
     if config.get("ASSISTANT_REQUEST_WORKER_ENABLED", "").lower() != "true":
         raise SystemExit(
