@@ -82,6 +82,64 @@ def test_personal_router_uses_only_the_applications_needed(
     assert plan.mode == mode and plan.sources == used
 
 
+@pytest.mark.parametrize(
+    "question",
+    [
+        "目前有哪些任务是过期的？",
+        "目前有哪些任务逾期了？",
+        "哪些任务已经超期？",
+        "查看今天到期的任务",
+        "今天到期的任务",
+        "本周未完成任务清单",
+        "列出未完成任务",
+        "任务的状态和负责人有哪些？",
+        "查一下有哪些里程碑延期了",
+        "统计到期的待办事项",
+        "逾期任务清单",
+        "我的任务",
+        "我负责的任务有哪些",
+        "我参与的任务最新进度",
+        "列出逾期任务，再说如何处理",
+    ],
+)
+@pytest.mark.parametrize("requested", ["auto", "web"])
+def test_task_record_queries_stay_inside_selected_pm(question, requested):
+    plan = answer_modes.decide_personal(question, requested, data_sources=["projects"])
+    assert plan.mode == "application" and plan.sources == ("projects",)
+    with pytest.raises(HTTPException) as exc:
+        answer_modes.decide_personal(question, requested, data_sources=["knowledge"])
+    assert exc.value.status_code == 422 and "勾选项目管理" in exc.value.detail
+
+
+@pytest.mark.parametrize(
+    "question,mode,sources",
+    [
+        ("如何识别逾期任务？", "general", []),
+        ("任务逾期后怎样处理？", "general", []),
+        ("什么是任务完成度？", "general", []),
+        ("如何管理我的任务？", "general", []),
+        ("搜索网上有哪些任务延期处理的案例？", "web", []),
+        ("检索关于逾期任务的论文", "web", []),
+        ("查找任务进度管理的文献", "web", []),
+        ("NASA目前有哪些任务延期了？", "web", []),
+        ("最新月球探测任务有哪些？", "web", []),
+        ("知识库中有哪些关于逾期任务的论文？", "knowledge", ["knowledge"]),
+    ],
+)
+def test_task_advice_and_public_material_are_not_pm_records(question, mode, sources):
+    plan = answer_modes.decide_personal(question, "auto", data_sources=["projects", *sources])
+    assert plan.mode == mode and plan.sources == tuple(sources)
+
+
+@pytest.mark.parametrize("requested", ["general", "knowledge"])
+def test_task_records_preserve_explicit_non_pm_modes(requested):
+    plan = answer_modes.decide_personal(
+        "目前有哪些任务是过期的？", requested, data_sources=["projects", "knowledge"]
+    )
+    assert plan.mode == requested
+    assert plan.sources == (("knowledge",) if requested == "knowledge" else ())
+
+
 @pytest.mark.parametrize("requested", ["auto", "web"])
 def test_project_intent_and_followup_never_bypass_application_selection(requested):
     with pytest.raises(HTTPException) as exc:
@@ -569,6 +627,16 @@ def test_personal_unconfigured_web_preserves_task_and_has_diagnostic(assistant_c
     f = assistant_client
     monkeypatch.setattr(settings, "ASSISTANT_WEB_ENABLED", False)
     task = test_assistant.create(f)
+    preflight = f.client.post(
+        test_assistant.PREFIX + "/preflight",
+        json={"answer_mode": "auto", "question": "最新研究进展", "task_id": task["id"]},
+    )
+    assert preflight.status_code == 200 and preflight.json()["ready"] is False
+    assert preflight.json()["checks"][-1] == {
+        "key": "web",
+        "status": "blocked",
+        "message": "联网搜索未启用，请联系管理员在服务端开启。",
+    }
     response = test_assistant.question(f, task, answer_mode="auto", question="最新研究进展")
     assert (
         response.status_code == 503

@@ -7,7 +7,11 @@ interface Configuration { model: string; answerMode: AnswerMode; dataSources: Ap
 // A check belongs to a particular settings revision. Updating the ref together
 // with state also covers actions that change a setting and submit in one click.
 export default function useAssistantConfiguration(initial: () => Configuration) {
-  const [snapshot, setSnapshot] = useState(() => ({ revision: 0, value: initial() }))
+  const [snapshot, setSnapshot] = useState(() => {
+    const value = initial()
+    if (value.answerMode === 'knowledge') value.answerMode = 'auto'
+    return { revision: 0, value }
+  })
   const current = useRef(snapshot)
   const update = useCallback((change: (previous: Configuration) => Configuration) => {
     const previous = current.current, value = change(previous.value)
@@ -16,7 +20,7 @@ export default function useAssistantConfiguration(initial: () => Configuration) 
     setSnapshot(current.current)
   }, [])
   const setModel = useCallback((value: SetStateAction<string>) => update(previous => ({ ...previous, model: typeof value === 'function' ? value(previous.model) : value })), [update])
-  const setAnswerMode = useCallback((answerMode: AnswerMode) => update(previous => ({ ...previous, answerMode })), [update])
+  const setAnswerMode = useCallback((answerMode: AnswerMode) => update(previous => ({ ...previous, answerMode: answerMode === 'knowledge' ? 'auto' : answerMode })), [update])
   const setDataSources = useCallback((sources: ApplicationDataSource[]) => update(previous => ({ ...previous, dataSources: normalizeDataSources(sources) })), [update])
   const getSnapshot = useCallback(() => current.current, [])
   const invalidate = useCallback(() => {

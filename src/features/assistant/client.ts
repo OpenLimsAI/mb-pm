@@ -36,7 +36,7 @@ export interface AssistantRequest {
   createdAt: string
   updatedAt: string
 }
-export interface AssistantPreflight { ready: boolean; checks: { key: string; status: 'ready' | 'warning' | 'blocked'; message: string }[]; message?: string }
+export interface AssistantPreflight { ready: boolean; checks: { key: string; status: 'ready' | 'warning' | 'blocked'; message: string; action?: 'project-login' }[]; message?: string }
 export interface AssistantClient {
   getSource?(taskId: string, path: string, offset?: number): Promise<{ title: string; path: string; body: string; offset: number; totalChars: number; nextOffset: number | null }>
   preflight?(input: { modelProfileId?: string; answerMode: AnswerMode; dataSources: ApplicationDataSource[]; question?: string; taskId?: string; referenceMaterialAvailable?: boolean; baseArtifactId?: string }): Promise<AssistantPreflight>

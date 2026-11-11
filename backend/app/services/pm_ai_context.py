@@ -33,8 +33,9 @@ from app.models.planning import ProjectCalendar
 from app.services import accounts
 from app.services.planning import calendar_dict
 from app.services.scope import visible_project_ids_for, visible_task_ids_for
+from app.services.task_deadlines import COMPLETED_STATUSES, is_overdue, overdue_clause
 
-DONE = {"已完成", "已验证"}
+DONE = set(COMPLETED_STATUSES)
 MAX_TASKS = 600
 MAX_EVENTS = 300
 MANAGERS = {"admin", "cmc_lead", "project_lead"}
@@ -211,7 +212,7 @@ def build_context(db, user, request):
         item["notes"] = (row.notes or "")[:800]
         if len(row.notes or "") > 800:
             truncated.append(f"任务 {row.code} 的备注仅纳入前 800 字")
-        item["overdue"] = row.status not in DONE and row.planned_end < today
+        item["overdue"] = is_overdue(row, today)
         item["days_to_start"] = (row.planned_start - today).days
         item["days_to_end"] = (row.planned_end - today).days
         item["evidence_id"] = reference(
@@ -227,7 +228,7 @@ def build_context(db, user, request):
     stats = query.with_entities(
         func.count(Task.id),
         func.sum(case((Task.status.in_(DONE), 1), else_=0)),
-        func.sum(case((Task.status.notin_(DONE) & (Task.planned_end < today), 1), else_=0)),
+        func.sum(case((overdue_clause(today), 1), else_=0)),
         func.sum(case((Task.status.in_(["延迟", "阻塞"]), 1), else_=0)),
     ).one()
     metrics = {
@@ -513,7 +514,7 @@ def build_context(db, user, request):
         "material": request.material,
         "definitions": {
             "completed": "已完成或已验证",
-            "overdue": "计划结束早于业务日期且尚未完成",
+            "overdue": "计划结束早于业务日期、状态未完成或未验证；普通任务完成度不足100%，里程碑须状态完成",
             "money_unit": "万元人民币",
             "effort_unit": "人日",
             "days_to_start": "计划开始日期减业务日期的自然日差，负数表示开始日期已过",

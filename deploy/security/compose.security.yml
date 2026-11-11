@@ -2,7 +2,7 @@
 x-app-hardening: &app-hardening
   user: "10001:10001"
   cap_drop: [ALL]
-  security_opt: ["no-new-privileges:true"]
+  security_opt: !override ["no-new-privileges:true"]
   read_only: true
   tmpfs:
     - /tmp:rw,nosuid,nodev,noexec,size=128m,mode=1777

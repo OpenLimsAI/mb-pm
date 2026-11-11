@@ -11,6 +11,7 @@ from app.core import security
 from app.core.config import settings
 from app.models import IAMIdentity, Project, User
 from app.services import accounts, rollup, scope
+from app.services import assistant_diagnostics as diagnostics
 from app.services.iam_admin import IAMError
 
 MAX_PROJECTS = 50
@@ -40,9 +41,17 @@ def access(db, claims):
         raise HTTPException(403, "当前身份不能读取此项目管理系统的数据")
     db.expire_all()
     identity = db.get(IAMIdentity, (settings.casdoor_issuer, claims["sub"]))
-    member = db.get(User, identity.user_id) if identity else None
+    if identity is None:
+        status, message = diagnostics.PUBLIC_ERRORS["project_login_required"]
+        raise HTTPException(
+            status, message, headers={diagnostics.ERROR_HEADER: "project_login_required"}
+        )
+    member = db.get(User, identity.user_id)
     if member is None or not member.is_active:
-        raise HTTPException(403, "请先登录项目管理并关联有效账号，再使用项目管理数据")
+        status, message = diagnostics.PUBLIC_ERRORS["project_account_unavailable"]
+        raise HTTPException(
+            status, message, headers={diagnostics.ERROR_HEADER: "project_account_unavailable"}
+        )
     try:
         roles = accounts.live_roles(claims["sub"])
     except IAMError:

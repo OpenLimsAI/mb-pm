@@ -125,6 +125,13 @@ def create_register(
     db: DB,
     user: CurrentUser,
 ):
+    row = create_register_record(project_id, data, db, user)
+    db.commit()
+    db.refresh(row)
+    return register_view(row)
+
+
+def create_register_record(project_id: str, data: RegisterInput, db: Session, user: User):
     project = project_access(db, user, project_id, True)
     check_owner(db, project, data.owner_id)
     row = PMRegisterEntry(
@@ -141,9 +148,8 @@ def create_register(
         None,
         data.model_dump(exclude={"expected_revision"}),
     )
-    db.commit()
-    db.refresh(row)
-    return register_view(row)
+    db.flush()
+    return row
 
 
 def check_owner(db, project, owner_id):

@@ -13,11 +13,17 @@ import { ColumnResizer } from '../ui/ColumnResizer'
 import { Button } from '../ui'
 import SafeMarkdown from '../SafeMarkdown'
 import { AIReportActions } from './AIReportActions'
+import { AgentRiskReportReview } from './AgentRiskReportReview'
 
 const stateNames = { queued: '排队中', running: '生成中', succeeded: '已完成', failed: '失败', cancelled: '已取消' }
 const time = (value: string) => new Date(/Z$|[+-]\d\d:\d\d$/.test(value) ? value : value + 'Z').toLocaleString('zh-CN')
 
-export function ProjectAIWorkbench({ projectId, projectName }: { projectId: string; projectName: string }) {
+export function ProjectAIWorkbench({ projectId, projectName, agentReportKey, onCloseAgentReport }: {
+  projectId: string
+  projectName: string
+  agentReportKey?: string | null
+  onCloseAgentReport?: () => void
+}) {
   const online = useDataStore(s => s.mode) === 'api'
   const me = useAuth(s => s.currentUser)
   const canStart = me?.role === 'admin' || me?.role === 'cmc_lead' || (me?.role === 'project_lead' && findProject(projectId)?.ownerId === me.id)
@@ -91,12 +97,15 @@ export function ProjectAIWorkbench({ projectId, projectName }: { projectId: stri
   }
   async function viewJob(job: AnalysisJob) {
     if (!job.analysisId) { setError('该后台任务没有关联报告，请刷新后重试。'); return }
+    await openReport(job.analysisId)
+  }
+  async function openReport(reportId: string) {
     const sequence = ++reportRequest.current
-    requestedReport.current = job.analysisId
+    requestedReport.current = reportId
     if (keyword || page !== 1) setLoading(true)
     setSearch(''); setKeyword(''); setPage(1); setActive(null); setOpeningReport(true); setError('')
     try {
-      const report = await getProjectAnalysis(projectId, job.analysisId)
+      const report = await getProjectAnalysis(projectId, reportId)
       if (sequence === reportRequest.current) setActive(report)
     } catch (error) {
       if (sequence === reportRequest.current) { requestedReport.current = null; setError(asAPIError(error).detail) }
@@ -120,6 +129,14 @@ export function ProjectAIWorkbench({ projectId, projectName }: { projectId: stri
 
   if (!online) return <div className="card p-6 text-sm text-ink-500">连接后端后，可生成真实项目分析、检索历史及确认建议行动。</div>
   return <div ref={container} className="space-y-4">
+    {agentReportKey && onCloseAgentReport && /^[0-9a-f]{64}$/.test(agentReportKey) && (
+      <AgentRiskReportReview key={agentReportKey} projectId={projectId} expectedKey={agentReportKey}
+        onClose={onCloseAgentReport} onSaved={reportId => {
+          onCloseAgentReport()
+          void openReport(reportId)
+          refresh()
+        }} />
+    )}
     <section className="card p-5 space-y-4">
       <div className="flex justify-between gap-4"><div><h2 className="font-semibold flex gap-2 items-center"><Sparkles className="w-5 h-5 text-brand-600" />项目 AI 分析</h2><p className="text-sm text-ink-500 mt-2">后台分析项目快照，核对建议后再转为任务、风险或联动排期。</p></div><Link to="/ai-settings" className="text-sm text-brand-700 shrink-0">AI 设置</Link></div>
       <p className="text-xs text-ink-500">{status?.ready ? `${providerLabel(status.provider)} · ${status.model}` : '请先完成 AI 设置。'} 本次生成会将项目快照发送到已配置模型；结果保存在项目中。</p>
@@ -133,7 +150,7 @@ export function ProjectAIWorkbench({ projectId, projectName }: { projectId: stri
     {!loading && history.length === 0 && <div className="card p-8 text-center text-ink-500 text-sm">{keyword ? '没有匹配的报告。' : '还没有项目分析报告。'}</div>}
     {(active || history.length > 0) && <div className="grid xl:grid-cols-[var(--analysis-list-width)_minmax(0,1fr)] gap-4 items-start" style={{ '--analysis-list-width': `${column.width}px` } as CSSProperties}>
       <aside className="card p-3 relative min-w-0 space-y-2"><h3 className="text-sm font-medium px-2">分析记录</h3><div className="space-y-1 max-h-[600px] overflow-auto">{history.map(r => <button key={r.id} onClick={() => selectReport(r)} className={`w-full text-left rounded p-3 text-xs ${active?.id === r.id ? 'bg-brand-50 text-brand-800' : 'hover:bg-ink-50'}`}><div>{time(r.createdAt)}</div><p className="truncate mt-1" title={r.focus || '全面分析'}>{r.focus || '全面分析'}</p><p className="truncate mt-1 text-ink-500" title={r.model}>{r.model}</p></button>)}</div><div className="flex justify-between items-center text-xs"><Button size="sm" disabled={page === 1 || loading} onClick={() => { selectReport(null); setLoading(true); setPage(v => v - 1) }}>上一页</Button><span>{page}</span><Button size="sm" disabled={page * 20 >= total || loading} onClick={() => { selectReport(null); setLoading(true); setPage(v => v + 1) }}>下一页</Button></div><ColumnResizer label="调整分析记录栏宽度" width={column.width} minWidth={column.minWidth} maxWidth={column.maxWidth} onChange={column.setWidth} onReset={column.resetWidth} className="hidden xl:block" /></aside>
-      {active && <div className="space-y-4 min-w-0"><article className="card p-5 min-w-0"><div className="flex flex-wrap justify-between gap-3 border-b pb-3"><div><h3 className="font-semibold">{projectName} · 分析报告</h3><p className="text-xs text-ink-500 mt-2">{time(active.createdAt)} · {providerLabel(active.provider)} / {active.model} · 数据截至 {active.source.asOf}</p></div><div className="flex gap-2"><Button size="sm" onClick={() => setCompare(active)}>加入对比</Button><Button size="sm" icon={<Download className="w-4 h-4" />} onClick={() => download(active)}>导出</Button></div></div>{active.stale && <p className="my-3 text-sm bg-amber-50 text-amber-800 p-3 rounded">项目或分析日期已变化，此报告基于旧快照。执行建议前会按当前数据重新预览。</p>}{active.prompt && <details className="my-3 text-xs"><summary>本次分析提示词</summary><p className="whitespace-pre-wrap mt-2">{active.prompt}</p></details>}<div className="ai-report mt-4"><SafeMarkdown>{projectAnalysisText(active.content)}</SafeMarkdown></div></article><AIReportActions key={active.id} projectId={projectId} reportId={active.id} /></div>}
+      {active && <div className="space-y-4 min-w-0"><article className="card p-5 min-w-0"><div className="flex flex-wrap justify-between gap-3 border-b pb-3"><div><h3 className="font-semibold">{projectName} · 分析报告</h3><p className="text-xs text-ink-500 mt-2">{time(active.createdAt)} · {providerLabel(active.provider)} / {active.model} · 数据截至 {active.source.asOf}</p></div><div className="flex gap-2"><Button size="sm" onClick={() => setCompare(active)}>加入对比</Button><Button size="sm" icon={<Download className="w-4 h-4" />} onClick={() => download(active)}>导出</Button></div></div>{active.stale && <p className="my-3 text-sm bg-amber-50 text-amber-800 p-3 rounded">项目或分析日期已变化，此报告基于旧快照。执行建议前会按当前数据重新预览。</p>}{active.prompt && <details className="my-3 text-xs"><summary>本次分析提示词</summary><p className="whitespace-pre-wrap mt-2">{active.prompt}</p></details>}<div className="ai-report mt-4"><SafeMarkdown>{projectAnalysisText(active.content)}</SafeMarkdown></div></article>{active.provider !== 'rules' && <AIReportActions key={active.id} projectId={projectId} reportId={active.id} />}</div>}
     </div>}
     {compare && <section className="card p-5 space-y-3" aria-label="分析报告对比"><div className="flex justify-between"><h3 className="font-semibold">报告对比</h3><Button size="sm" onClick={() => setCompare(null)}>关闭对比</Button></div>{!active || active.id === compare.id ? <p className="text-sm text-ink-500">已选 {time(compare.createdAt)} 的报告，请从历史中选择另一份报告进行对比。</p> : <div className="grid lg:grid-cols-2 gap-5">{[compare, active].map(r => <article key={r.id} className="min-w-0 rounded border border-ink-200 p-4"><h4 className="text-sm font-medium mb-3">{time(r.createdAt)} · 数据截至 {r.source.asOf}</h4><div className="ai-report max-h-[700px] overflow-auto"><SafeMarkdown>{projectAnalysisText(r.content)}</SafeMarkdown></div></article>)}</div>}</section>}
   </div>

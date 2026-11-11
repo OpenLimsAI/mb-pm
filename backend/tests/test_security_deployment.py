@@ -233,10 +233,14 @@ def test_backup_covers_core_and_shared_volumes_once():
         backup.collect_mounts(list(info), info)
 
 
-def test_backup_restarts_all_originally_running_writers_after_dump_failure(monkeypatch, tmp_path):
+@pytest.mark.parametrize("split_workers", [False, True])
+def test_backup_restarts_all_originally_running_writers_after_dump_failure(
+    monkeypatch, tmp_path, split_workers
+):
     key = tmp_path / "key"
     key.write_text("not-a-real-key")
     key.chmod(0o600)
+    writers = ([backup.PM_WORKER] if split_workers else []) + backup.WRITERS
     items = {
         name: {
             "Name": "/" + name,
@@ -244,7 +248,7 @@ def test_backup_restarts_all_originally_running_writers_after_dump_failure(monke
             "State": {"Running": True},
             "Mounts": [],
         }
-        for name in [*backup.WRITERS, *backup.DATABASES]
+        for name in [*writers, *backup.DATABASES]
     }
     items["dikw-web"]["State"]["Running"] = False  # Preserve an intentionally stopped service.
     monkeypatch.setattr(
@@ -257,6 +261,9 @@ def test_backup_restarts_all_originally_running_writers_after_dump_failure(monke
     )
 
     def inspect(command):
+        if command[:2] == ["docker", "ps"]:
+            assert f"name=^/{backup.PM_WORKER}$" in command
+            return (backup.PM_WORKER + "\n").encode() if split_workers else b""
         assert command[:2] == ["docker", "inspect"]
         return json.dumps([items[name] for name in command[2:]]).encode()
 
@@ -277,7 +284,7 @@ def test_backup_restarts_all_originally_running_writers_after_dump_failure(monke
     monkeypatch.setattr(backup, "run", run)
     with pytest.raises(subprocess.CalledProcessError):
         backup.main()
-    assert restarted == list(reversed([name for name in backup.WRITERS if name != "dikw-web"]))
+    assert restarted == list(reversed([name for name in writers if name != "dikw-web"]))
     assert not items["dikw-web"]["State"]["Running"]
     assert not list((tmp_path / "backups").glob("*.gpg"))
     assert not list((tmp_path / "backups").glob("backup-stage-*"))

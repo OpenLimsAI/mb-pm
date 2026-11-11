@@ -5,8 +5,9 @@ import './answerTools.css'
 import ReferenceImport, { type ReferenceOrigin } from './ReferenceImport'
 
 const answerModeLabels = { auto: '自动', general: '通用回答', knowledge: '知识库回答', web: '联网检索', application: '应用数据回答' }
-export function AnswerModeControl({ value, onChange, disabled = false }: { value: AnswerMode; onChange: (value: AnswerMode) => void; disabled?: boolean }) {
-  return <label className="qa-mode-control"><Sparkles size={13} /><span>回答方式</span><select aria-label="回答方式" value={value} disabled={disabled} onChange={event => onChange(event.target.value as AnswerMode)}><option value="auto">自动 · 按问题判断</option><option value="general">通用回答 · 不联网</option><option value="knowledge">仅知识库</option><option value="web">联网检索</option></select><ChevronDown size={12} /></label>
+export function AnswerModeControl({ value, onChange, disabled = false, modes = ['auto', 'general', 'knowledge', 'web'] }: { value: AnswerMode; onChange: (value: AnswerMode) => void; disabled?: boolean; modes?: readonly AnswerMode[] }) {
+  const choices = { auto: '自动 · 按问题判断', general: '通用回答 · 不联网', knowledge: '仅知识库', web: '联网检索' }
+  return <label className="qa-mode-control"><Sparkles size={13} /><span>回答方式</span><select aria-label="回答方式" value={value} disabled={disabled} onChange={event => onChange(event.target.value as AnswerMode)}>{modes.map(mode => <option value={mode} key={mode}>{choices[mode]}</option>)}</select><ChevronDown size={12} /></label>
 }
 export function SearchCapability({ value, preview = false }: { value: AnswerCapabilities | null; preview?: boolean }) {
   const ready = !preview && value?.webSearch.configured

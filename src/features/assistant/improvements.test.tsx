@@ -16,7 +16,7 @@ async function setup() {
   const props = { client, modelClient: models, userName: '测试用户', preview: true, namespace: 'owner-a' }
   return { client, task, props }
 }
-async function opened(task: AssistantTask) { await screen.findByRole('heading', { name: task.title, level: 2 }); await waitFor(() => expect(composer()).toBeEnabled()) }
+async function opened(task: AssistantTask) { fireEvent.click(await screen.findByRole('button', { name: `打开任务：${task.title}` })); await screen.findByRole('heading', { name: task.title, level: 2 }); await waitFor(() => expect(composer()).toBeEnabled()) }
 beforeEach(() => localStorage.clear())
 
 describe('assistant recovery and curation', () => {

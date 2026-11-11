@@ -24,6 +24,14 @@ CURRENT = ContextVar("assistant_diagnostic", default=None)
 ERROR_HEADER = "X-Assistant-Error-Code"
 ID_HEADER = "X-Assistant-Diagnostic-ID"
 PUBLIC_ERRORS = {
+    "project_login_required": (
+        403,
+        "尚未连接项目管理账号，请先打开项目管理完成登录，再返回助手重试。",
+    ),
+    "project_account_unavailable": (
+        403,
+        "项目管理账号已停用或关联失效，请联系管理员检查账号。",
+    ),
     "web_not_configured": (503, "联网搜索尚未配置，请联系管理员配置后使用。问题已保留。"),
     "web_balance": (402, "联网搜索账户余额不足，请为当前搜索账户充值后重试。问题已保留。"),
     "web_invalid_query": (422, "请输入有效的搜索问题，问题不能为空。"),

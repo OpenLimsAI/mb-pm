@@ -11,6 +11,7 @@ from sqlalchemy import Text, cast, func, or_, select, text, update
 from app.core.config import settings
 from app.models.assistant import AssistantMessage, AssistantOperationsConfig, AssistantRequest
 from app.services import accounts, ai, answer_modes, solution_ai, solution_knowledge, web_search
+from app.services import assistant_diagnostics as diagnostics
 from app.services.iam_admin import IAMError
 
 
@@ -194,7 +195,13 @@ def preflight(db, claims, payload):
             message = action()
             checks.append({"key": key, "status": "ready", "message": message})
         except HTTPException as exc:
-            checks.append({"key": key, "status": "blocked", "message": str(exc.detail)})
+            result = {"key": key, "status": "blocked", "message": str(exc.detail)}
+            if (
+                key == "projects"
+                and (exc.headers or {}).get(diagnostics.ERROR_HEADER) == "project_login_required"
+            ):
+                result["action"] = "project-login"
+            checks.append(result)
 
     def model():
         selected = solution_ai.select_model(
@@ -271,7 +278,7 @@ def preflight(db, claims, payload):
             {
                 "key": "web",
                 "status": "ready" if capability["configured"] else "blocked",
-                "message": capability["message"] + "；本次检查不会发起搜索",
+                "message": capability["message"],
             }
         )
     ready = all(row["status"] != "blocked" for row in checks)

@@ -18,15 +18,19 @@ from decimal import Decimal
 from uuid import uuid4
 
 from fastapi import HTTPException, status
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.api.v1.task_collaboration import record_activity
 from app.models import AuditLog, Project, ProjectFinance, SubProject, Task, TaskDependency, User
 from app.models.task import TASK_WBS_ORDER
 from app.schemas.structure import StructureSaveIn
 from app.services.finance import finance_view, task_cost_totals, update_finance
 from app.services.rollup import live_span, recompute_project, recompute_subproject
 from app.services.team import ADD_FIRST, team_ids
+
+ACTIVITY_FIELDS = ("name", "owner_id", "planned_start", "planned_end")
 
 
 def _num(value) -> str | None:
@@ -382,6 +386,7 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
     key_to_task: dict[str, str] = {}
     created_tasks = updated_tasks = 0
     position: dict[str, int] = defaultdict(int)
+    activities = []
     for sub_key, task in payload_tasks:
         position[sub_key] += 1
         values = {
@@ -408,6 +413,13 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
             if obj.sub_project_id != values["sub_project_id"]:
                 touched_subs.update((obj.sub_project_id, values["sub_project_id"]))
             changed = any(getattr(obj, k) != v for k, v in values.items())
+            changes = {
+                key: {"before": getattr(obj, key), "after": values[key]}
+                for key in ACTIVITY_FIELDS
+                if getattr(obj, key) != values[key]
+            }
+            if changes:
+                activities.append((obj, "编辑项目结构", changes))
             for k, v in values.items():
                 setattr(obj, k, v)
             if sub_key in renumber:
@@ -424,10 +436,19 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
                 **values,
             )
             db.add(obj)
+            activities.append(
+                (
+                    obj,
+                    "从项目结构新增任务",
+                    {key: {"before": None, "after": values[key]} for key in ACTIVITY_FIELDS},
+                )
+            )
             created_tasks += 1
             touched_subs.add(values["sub_project_id"])
         key_to_task[task.key] = obj.id
     db.flush()
+    for task, description, changes in activities:
+        record_activity(db, task, actor, "change", description, jsonable_encoder(changes))
 
     # 删掉不再出现的子项目（其任务已删除或已移走）
     if removed_subs:

@@ -14,7 +14,6 @@ function models(defaultProfileId: string | null = null): ModelSettingsClient {
 async function mount(client = createPreviewAssistantClient('owner'), modelClient = models()) {
   const view = render(<AssistantApp client={client} modelClient={modelClient} userName="研究员" preview />)
   await waitFor(() => expect(screen.queryByText('读取任务…')).not.toBeInTheDocument())
-  await waitFor(() => expect(screen.getByRole('button', { name: '任务设置' })).toBeEnabled())
   return { ...view, client, modelClient }
 }
 const composer = () => screen.getByRole('textbox', { name: '给 AI 助手的任务' })
@@ -97,25 +96,27 @@ describe('AI assistant task workspace', () => {
     expect(composer()).toHaveValue('近期的研究进展')
   })
 
-  it('creates a named task without project grouping and saves changes through the task settings form', async () => {
+  it('starts with a blank conversation even with history and supports editing the resulting task', async () => {
     const { client } = await mount()
-    fireEvent.click(screen.getByRole('button', { name: '新建任务' }))
-    const dialog = screen.getByRole('dialog', { name: '新建任务' })
-    fireEvent.change(within(dialog).getByLabelText('任务名称'), { target: { value: '  本周研究梳理  ' } })
-    expect(within(dialog).queryByLabelText('项目')).not.toBeInTheDocument()
-    fireEvent.change(within(dialog).getByLabelText('任务指引'), { target: { value: '输出清晰的行动项。' } })
-    fireEvent.click(within(dialog).getByRole('button', { name: '保存任务' }))
+    const initialCount = (await client.list()).total
+    expect(initialCount).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: '任务设置' })).not.toBeInTheDocument()
+    expect(composer()).toBeEnabled()
+    fireEvent.change(composer(), { target: { value: '本周研究梳理' } })
+    expect((await client.list()).total).toBe(initialCount)
+    fireEvent.keyDown(composer(), { key: 'Enter' })
     await screen.findByRole('heading', { name: '本周研究梳理', level: 2 })
-    let saved = (await client.list({ search: '本周研究梳理' })).items[0]
-    expect(saved).toMatchObject({ title: '本周研究梳理', instructions: '输出清晰的行动项。' })
+    await within(chat()).findByRole('button', { name: '查看产物' })
+    expect((await client.list()).total).toBe(initialCount + 1)
     fireEvent.click(screen.getByRole('button', { name: '任务设置' }))
     const settings = screen.getByRole('dialog', { name: '任务设置' })
+    expect(within(settings).queryByLabelText('项目')).not.toBeInTheDocument()
     fireEvent.change(within(settings).getByLabelText('任务名称'), { target: { value: '本周研究进展与计划' } })
     fireEvent.change(within(settings).getByLabelText('任务指引'), { target: { value: '按进展、风险和下一步整理。' } })
     fireEvent.click(within(settings).getByRole('button', { name: '保存任务' }))
     await screen.findByRole('heading', { name: '本周研究进展与计划', level: 2 })
-    saved = (await client.list({ search: '本周研究进展与计划' })).items[0]
-    expect(saved).toMatchObject({ revision: 2, instructions: '按进展、风险和下一步整理。' })
+    const saved = (await client.list({ search: '本周研究进展与计划' })).items[0]
+    expect(saved).toMatchObject({ revision: 3, instructions: '按进展、风险和下一步整理。' })
   })
 
   it('confirms deletion and restores a task with its conversation from the recycle bin', async () => {
@@ -153,6 +154,7 @@ describe('AI assistant task workspace', () => {
     get.mockImplementation(id => id === target.id ? Promise.reject(Object.assign(new Error('无权读取这项任务的历史内容。'), { status: 403 })) : originalGet(id))
     const trash = vi.spyOn(client, 'trash'), restore = vi.spyOn(client, 'restore')
     const view = render(<AssistantApp client={client} modelClient={models()} userName="研究员" preview />)
+    fireEvent.click(await screen.findByRole('button', { name: `打开任务：${target.title}` }))
     await screen.findByText('无权读取这项任务的历史内容。')
     expect(view.container.querySelector('.aa-app')).toHaveClass('aa-sidebar-visible')
     expect(within(screen.getByRole('alert')).getByRole('button', { name: '任务列表' })).toBeInTheDocument()
@@ -389,14 +391,22 @@ describe('AI assistant task workspace', () => {
     expect(await within(chat()).findByText('通用回答')).toBeInTheDocument()
   })
 
-  it('explains the requirement when knowledge-only mode has no enabled knowledge source', async () => {
-    await mount()
-    fireEvent.change(screen.getByRole('combobox', { name: '回答方式' }), { target: { value: 'knowledge' } })
-    fireEvent.click(screen.getByRole('button', { name: /数据设置/ }))
-    const dialog = screen.getByRole('dialog', { name: '数据设置' })
-    expect(within(dialog).getByRole('note')).toHaveTextContent('当前为“仅知识库”，请勾选知识库后保存')
-    fireEvent.click(within(dialog).getByRole('checkbox', { name: /知识库/ }))
-    expect(within(dialog).queryByRole('note')).not.toBeInTheDocument()
+  it.each(['default', 'task'] as const)('restores a legacy %s knowledge-only preference as automatic while keeping the selected data source', async preference => {
+    const client = createPreviewAssistantClient('legacy-answer-mode'), task = await create(client, '旧回答偏好')
+    const send = vi.spyOn(client, 'send')
+    writePreferences('研究员:preview', preference === 'default' ? 'default' : task.id, { model: 'enterprise', answerMode: 'knowledge' })
+    localStorage.setItem('assistant-data-sources:研究员:preview', JSON.stringify({ version: 2, sources: ['knowledge'] }))
+    await mount(client)
+    if (preference === 'task') await open(task.title)
+    const modes = screen.getByRole('combobox', { name: '回答方式' })
+    expect(modes).toHaveValue('auto')
+    expect(within(modes).getAllByRole('option')).toHaveLength(3)
+    expect(within(modes).queryByRole('option', { name: '仅知识库' })).not.toBeInTheDocument()
+    expect(screen.getByLabelText('当前应用数据范围')).toHaveTextContent('应用数据：知识库')
+    fireEvent.change(composer(), { target: { value: '知识库里有哪些论文？' } })
+    fireEvent.keyDown(composer(), { key: 'Enter' })
+    await waitFor(() => expect(send).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ answerMode: 'auto', data_sources: ['knowledge'] })))
+    expect(await within(chat()).findByText('知识库回答')).toBeInTheDocument()
   })
 
   it('ignores a legacy project source selection and preserves knowledge selection', async () => {
@@ -515,7 +525,7 @@ describe('AI assistant task workspace', () => {
     const settings = await modelClient.get()
     modelClient.get = vi.fn(() => new Promise<ModelSettings>(resolve => { finish = resolve }))
     render(<AssistantApp client={client} modelClient={modelClient} userName="研究员" preview />)
-    await screen.findByRole('heading', { name: task.title, level: 2 })
+    await open(task.title)
     expect(screen.getByRole('combobox', { name: '助手回答模型' })).toHaveValue('enterprise')
     await act(async () => finish(settings))
     expect(screen.getByRole('combobox', { name: '助手回答模型' })).toHaveValue('enterprise')

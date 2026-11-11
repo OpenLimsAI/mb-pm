@@ -75,11 +75,12 @@ class Settings(BaseSettings):
 
     # —— 应用 —— #
     APP_ENV: str = "development"
+    APP_PROCESS_ROLE: Literal["combined", "web", "worker"] = "combined"
     # 同时作为 IAM 会话令牌的加密密钥：须为 ≥32 字符的随机值，否则 IAM 登录返回 503。
     APP_SECRET: str = "change-me"
-    # CTO Lite 前端默认跑在 5175，并经同源代理访问 API。会话 cookie 会随跨域凭据请求发送，
+    # 本地工作台固定使用 1234，并经同源代理访问 API。会话 cookie 会随跨域凭据请求发送，
     # 故只放行本系统自己的前端（localhost 的 cookie 不区分端口，勿加入其他本地应用的端口）。
-    APP_CORS_ORIGINS: str = "http://localhost:5175"
+    APP_CORS_ORIGINS: str = "http://localhost:1234"
 
     @property
     def cors_origin_list(self) -> list[str]:
@@ -103,10 +104,11 @@ class Settings(BaseSettings):
     # 用户在浏览器中访问本系统的 origin（协议 + 主机 + 端口，不带路径）。
     # 回调 {PMS_PUBLIC_URL}/api/v1/auth/callback 与登出回跳 {PMS_PUBLIC_URL}/login
     # 须登记在 Casdoor 应用的 redirectUris 中（localhost / 127.0.0.1 由 Casdoor 免登记放行）。
-    PMS_PUBLIC_URL: str = "http://localhost:5175"
+    PMS_PUBLIC_URL: str = "http://localhost:1234"
     # Explicit MDM root including deployment path; blank disables launch. No identity in URL.
     MDM_PUBLIC_URL: str = ""
     MDM_DELEGATION_CLIENT_ID: str = ""
+    AGENT_DELEGATION_CLIENT_ID: str = ""  # 独立用户委托受众；空值关闭 Agent 接口。
     MDM_SOURCE_NAMESPACE: str = "mdm"
     OIDC_GLOBAL_LOGOUT_ENABLED: bool = False
     CASDOOR_ACCOUNT_STATUS_VISIBLE: bool = False

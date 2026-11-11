@@ -1,7 +1,18 @@
-import { render, screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
-import { AnswerEvidence, SearchCapability } from './AnswerTools'
+import { fireEvent, render, screen, within } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { AnswerEvidence, AnswerModeControl, SearchCapability } from './AnswerTools'
 import { safeWebSourceUrl } from './sourceUrl'
+
+it('keeps all shared modes by default and supports the personal assistant selection', () => {
+  const onChange = vi.fn()
+  const { rerender } = render(<AnswerModeControl value="auto" onChange={onChange} />)
+  expect(screen.getByRole('option', { name: '仅知识库' })).toBeInTheDocument()
+  rerender(<AnswerModeControl value="auto" onChange={onChange} modes={['auto', 'general', 'web']} />)
+  expect(screen.getAllByRole('option')).toHaveLength(3)
+  expect(screen.queryByRole('option', { name: '仅知识库' })).not.toBeInTheDocument()
+  fireEvent.change(screen.getByRole('combobox', { name: '回答方式' }), { target: { value: 'web' } })
+  expect(onChange).toHaveBeenCalledWith('web')
+})
 
 describe('answer provenance', () => {
   it('summarizes a personal general answer from its actual mode and source usage', () => {

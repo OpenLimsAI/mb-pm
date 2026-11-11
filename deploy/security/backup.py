@@ -25,6 +25,7 @@ WRITERS = [
     "iam-proxy",
     "dikw-caddy",
 ]
+PM_WORKER = "mb-pm-v2-worker-1"
 DATABASES = {
     "mb-pm-v2-pms-db-1": "mb_pm",
     "mb-pm-v2-iam-db-1": "casdoor",
@@ -148,7 +149,11 @@ def main():
         raise SystemExit(
             "Less than 5 GiB available; backup aborted before stopping writers"
         )
-    writers = list(dict.fromkeys([*WRITERS, *args.writer]))
+    worker_names = sp.check_output(
+        ["docker", "ps", "--all", "--filter", f"name=^/{PM_WORKER}$", "--format", "{{.Names}}"]
+    ).decode().splitlines()
+    worker = [PM_WORKER] if PM_WORKER in worker_names else []
+    writers = list(dict.fromkeys([*worker, *WRITERS, *args.writer]))
     names = [*writers, *DATABASES]
     inspected = json.loads(sp.check_output(["docker", "inspect", *names]))
     info = {item["Name"].lstrip("/"): item for item in inspected}

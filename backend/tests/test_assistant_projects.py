@@ -106,8 +106,12 @@ def no_knowledge(monkeypatch):
     monkeypatch.setattr(assistant_tool_chat, "chat", unavailable)
 
 
+@pytest.mark.parametrize(
+    "question",
+    ["当前项目有哪些最新进展？", "目前有哪些任务是过期的？", "查看今天到期的任务"],
+)
 def test_project_question_without_selected_source_never_reads_or_searches(
-    assistant_client, monkeypatch
+    assistant_client, monkeypatch, question
 ):
     f = assistant_client
     task = test_assistant.create(f)
@@ -118,13 +122,50 @@ def test_project_question_without_selected_source_never_reads_or_searches(
     response = test_assistant.question(
         f,
         task,
-        question="当前项目有哪些最新进展？",
+        question=question,
         context="",
         answer_mode="auto",
         data_sources=[],
     )
     assert response.status_code == 422 and "勾选项目管理" in response.json()["detail"]
     assert f.calls == []
+
+
+@pytest.mark.parametrize("sources", [["projects"], ["projects", "knowledge"]])
+def test_overdue_task_preflight_and_answer_never_use_public_search(pm, monkeypatch, sources):
+    from app.services import web_search
+
+    f = pm
+    project(f)
+    task = test_assistant.create(f)
+    no_knowledge(monkeypatch)
+    monkeypatch.setattr(web_search, "answer", unavailable)
+    monkeypatch.setattr(web_search, "capabilities_for_model", unavailable)
+    question = "目前有哪些任务是过期的？"
+    checked = f.client.post(
+        PREFIX + "/preflight",
+        json={
+            "task_id": task["id"],
+            "question": question,
+            "model_profile_id": "enterprise",
+            "answer_mode": "auto",
+            "data_sources": sources,
+        },
+    )
+    assert checked.status_code == 200, checked.text
+    assert checked.json()["ready"] is True
+    assert [row["key"] for row in checked.json()["checks"]] == ["model", "projects"]
+    assert f.calls == []
+    response = test_assistant.question(
+        f, task, question=question, context="", answer_mode="auto", data_sources=sources
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["messages"][-1]["answer_mode"] == "application"
+    assert response.json()["messages"][-1]["used_sources"] == ["projects"]
+    # Fixing intent does not grant task-detail access or fabricate a task feed.
+    data = evidence(f)
+    assert list(data) == ["projects"]
+    assert "不含任务" in data["projects"]["note"]
 
 
 def test_project_permission_is_not_an_instruction_to_read_data(assistant_client, monkeypatch):
@@ -546,6 +587,42 @@ def test_unbound_named_account_is_never_bound_or_created_while_reading(
     assert f.db.scalar(select(func.count()).select_from(User)) == 1
     assert f.db.scalar(select(func.count()).select_from(IAMIdentity)) == 0
     assert f.calls == []
+    assert response.headers["X-Assistant-Error-Code"] == "project_login_required"
+    checked = f.client.post(
+        PREFIX + "/preflight",
+        json={
+            "question": "项目有哪些节点要过期？",
+            "model_profile_id": "enterprise",
+            "answer_mode": "auto",
+            "data_sources": ["projects"],
+        },
+    )
+    assert checked.status_code == 200, checked.text
+    blocked = next(row for row in checked.json()["checks"] if row["key"] == "projects")
+    assert blocked["status"] == "blocked"
+    assert blocked["action"] == "project-login"
+    assert "完成登录" in blocked["message"]
+    assert f.db.scalar(select(func.count()).select_from(IAMIdentity)) == 0
+
+
+def test_inactive_project_member_requires_admin_help_instead_of_login(pm):
+    f = pm
+    f.db.execute(update(User).where(User.id == "pm-author").values(is_active=False))
+    f.db.commit()
+    checked = f.client.post(
+        PREFIX + "/preflight",
+        json={
+            "question": "项目有哪些节点要过期？",
+            "model_profile_id": "enterprise",
+            "answer_mode": "auto",
+            "data_sources": ["projects"],
+        },
+    )
+    assert checked.status_code == 200, checked.text
+    blocked = next(row for row in checked.json()["checks"] if row["key"] == "projects")
+    assert blocked["status"] == "blocked"
+    assert "action" not in blocked
+    assert "联系管理员" in blocked["message"]
 
 
 def test_same_subject_from_another_issuer_cannot_resolve_pm_identity(pm, monkeypatch):

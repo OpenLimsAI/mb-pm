@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { Copy, LoaderCircle, Square } from 'lucide-react'
 import type { RequestProgress } from './useAssistantRequests'
 import MarkdownView from './MarkdownView'
+import { projectApplicationUrl } from '../../lib/site'
 
 const labels: Record<string, string> = { queued: '问题已保存，等待处理…', waiting_model: '正在等待模型响应…', recovering: '正在继续整理回答…', generating: '正在生成回答…', saving: '正在保存完整回答…' }
-export default function RequestProgressView({ progress, onCancel, onRetry, onContinue, onCopyDraft, onCopyDiagnostic, onSettings, onEditQuestion, preview }: { progress: RequestProgress; onCancel?: () => void | Promise<void>; onRetry?: () => void; onContinue?: () => void; onCopyDraft?: (text: string) => void; onCopyDiagnostic?: (text: string) => void; onSettings?: () => void; onEditQuestion?: () => void; preview?: boolean }) {
+export default function RequestProgressView({ progress, onCancel, onRetry, onContinue, onCopyDraft, onCopyDiagnostic, onSettings, onGeneral, onEditQuestion, preview }: { progress: RequestProgress; onCancel?: () => void | Promise<void>; onRetry?: () => void; onContinue?: () => void; onCopyDraft?: (text: string) => void; onCopyDiagnostic?: (text: string) => void; onSettings?: () => void; onGeneral?: () => void; onEditQuestion?: () => void; preview?: boolean }) {
   const [now, setNow] = useState(() => Date.now()), [cancelling, setCancelling] = useState(false)
   const job = progress.job, failed = progress.phase === 'failed', cancelled = job?.status === 'cancelled'
   useEffect(() => { if (failed) return; const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer) }, [failed])
@@ -14,7 +15,9 @@ export default function RequestProgressView({ progress, onCancel, onRetry, onCon
   const hasDraft = !!job?.partialContent.trim()
   const label = cancelled ? '已停止生成' : timedOut ? hasDraft ? '生成中断，草稿已保存' : '尚未收到回答' : failed ? '本次生成未完成' : progress.message || (job ? labels[job.stage] || '正在处理问题…' : '正在检查回答进度…')
   const needsModel = ['model_auth', 'model_rejected', 'model_rate_limit'].includes(code)
-  const needsScope = /^(web_|knowledge_|project_)/.test(code)
+  const needsScope = code.startsWith('knowledge_')
+  const needsProjectLogin = code === 'project_login_required'
+  const searchFailed = code.startsWith('web_')
   const tooLong = ['output_limit', 'response_too_large'].includes(code)
   const rawFailureReason = job?.error || progress.message || '未能读取这次回答的状态，请重新打开任务核对。'
   const diagnosticSuffix = job?.diagnosticId ? `（诊断编号：${job.diagnosticId}）` : ''
@@ -30,7 +33,9 @@ export default function RequestProgressView({ progress, onCancel, onRetry, onCon
     <div className="aa-request-actions">
       {!failed && job && ['queued', 'running'].includes(job.status) && onCancel && <button type="button" className="aa-button" disabled={cancelling} onClick={() => { setCancelling(true); void Promise.resolve(onCancel()).finally(() => setCancelling(false)) }}><Square size={13} />{cancelling ? '正在确认停止…' : '停止生成'}</button>}
       {failed && needsModel && <a className="aa-button" href={`/model-settings${preview ? '?preview=1' : ''}`} target="_blank" rel="noreferrer">检查模型设置</a>}
-      {failed && needsScope && onSettings && <button type="button" className="aa-button" onClick={onSettings}>检查数据与搜索设置</button>}
+      {failed && needsProjectLogin && <a className="aa-button" href={projectApplicationUrl('/dashboard')} target="_blank" rel="noreferrer">打开项目管理</a>}
+      {failed && needsScope && onSettings && <button type="button" className="aa-button" onClick={onSettings}>检查数据设置</button>}
+      {failed && searchFailed && onGeneral && <button type="button" className="aa-button" onClick={onGeneral}>改用通用回答</button>}
       {failed && tooLong && onEditQuestion && <button type="button" className="aa-button" onClick={onEditQuestion}>编辑问题</button>}
       {failed && !job?.payloadExpired && !!job?.question.trim() && onRetry && <button type="button" className="aa-button" onClick={onRetry}>重新生成</button>}
       {failed && !job?.payloadExpired && !!job?.question.trim() && job?.canContinue && onContinue && <button type="button" className="aa-button aa-primary" onClick={onContinue}>根据草稿重新整理</button>}

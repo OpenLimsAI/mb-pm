@@ -160,6 +160,37 @@ def test_triage_excludes_inactive_projects_and_unremarkable_backlog(admin_user, 
     }
 
 
+def test_triage_and_context_share_milestone_completion_and_overdue_rules(
+    admin_user, project_factory, monkeypatch
+):
+    from app.services import pm_ai_context
+    from app.services.pm_ai_context import ContextRequest, build_context
+
+    monkeypatch.setattr(pm_ai_context, "date", pm_ai_triage.date)
+    pid = project_factory(admin_user)
+    with SessionLocal.begin() as db:
+        ordinary = set_task(db, pid, 1, -3, "进行中", progress=100)
+        milestone = set_task(db, pid, 2, -2, "进行中", progress=100, is_milestone=True)
+        blocked = set_task(db, pid, 3, -5, "阻塞", progress=100)
+        delayed = set_task(db, pid, 4, 20, "延迟", progress=30)
+        future = set_task(db, pid, 5, 8, "未开始", progress=0)
+
+    with SessionLocal() as db:
+        user = db.get(User, admin_user)
+        context = build_context(db, user, ContextRequest(project_ids=[pid]))
+        result = build_triage(db, user, TriageRequest(project_ids=[pid], limit=20))
+    by_id = {task["id"]: task for task in context["tasks"]}
+    assert context["metrics"]["overdue_tasks"] == 1
+    assert by_id[milestone]["overdue"] is True
+    assert by_id[ordinary]["overdue"] is False
+    assert by_id[blocked]["overdue"] is False
+    reasons = {task["task_id"]: task["reasons"] for task in result["items"]}
+    assert ordinary not in reasons and future not in reasons
+    assert reasons[milestone] == ["逾期 2 天", "里程碑"]
+    assert reasons[blocked] == ["已阻塞"]
+    assert reasons[delayed] == ["标记延迟"]
+
+
 @pytest.mark.parametrize("limit", [0, 21, True, 2.5])
 def test_triage_rejects_invalid_limits(limit):
     with pytest.raises(ValidationError):

@@ -92,7 +92,7 @@ def query_limit(provider, cfg):
 
 def capabilities(*, provider=None, cfg=None):
     if not settings.ASSISTANT_WEB_ENABLED:
-        return _capability(False, None, "联网搜索未启用，请联系管理员开启；本次不会实际联网")
+        return _capability(False, None, "联网搜索未启用，请联系管理员在服务端开启。")
     if settings.ASSISTANT_WEB_PROVIDER == "tavily":
         ready = bool(settings.ASSISTANT_WEB_API_KEY.strip())
         return _capability(

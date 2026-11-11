@@ -88,6 +88,26 @@ def test_stopped_missing_and_candidates_cannot_look_healthy(run_monitor, capsys)
     assert "synthetic-private-value" not in output.read_text() + capsys.readouterr().out
 
 
+def test_worker_is_required_when_a_pm_web_service_runs_without_workers(run_monitor):
+    run, _, _ = run_monitor
+    app = container("mb-pm-v2-app-1")
+    expected = ["mb-pm-v2-app-1", monitor.PM_WORKER]
+    report, code, _ = run([app], expected=expected)
+    assert code == 0
+    assert not report["alerts"]
+
+    app["Config"]["Env"].append("APP_PROCESS_ROLE=web")
+    report, code, _ = run([app], expected=expected)
+    assert code == 1
+    assert monitor.PM_WORKER + ":missing" in report["alerts"]
+
+    worker = container(monitor.PM_WORKER)
+    worker["State"]["Health"]["Status"] = "unhealthy"
+    report, code, _ = run([app, worker], expected=expected)
+    assert code == 1
+    assert monitor.PM_WORKER + ":unhealthy" in report["alerts"]
+
+
 @pytest.mark.parametrize("mount,expected", [
     (None, False),
     ({"Type": "tmpfs", "Destination": "/tmp", "RW": True}, False),

@@ -38,7 +38,7 @@ def ensure_not_revoked(db: Session, claims: dict, audience: str):
     subject = claims.get("sub", "")
     sid = claims.get("sid", "")
     audiences = {audience}
-    if audience == settings.MDM_DELEGATION_CLIENT_ID:
+    if audience in {settings.MDM_DELEGATION_CLIENT_ID, settings.AGENT_DELEGATION_CLIENT_ID}:
         audiences.update({settings.CASDOOR_CLIENT_ID, settings.portal_client_id})
     markers = db.scalars(
         select(OIDCRevocation)

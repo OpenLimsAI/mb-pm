@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.models import Project, SubProject, Task, User
 from app.services.pm_ai_context import DONE, assert_current_scope
 from app.services.scope import _own_task_clause, visible_task_ids_for
+from app.services.task_deadlines import is_overdue, overdue_clause
 
 DEADLINE_HORIZON_DAYS = 7
 ScopeId = Annotated[str, Field(min_length=1, max_length=64)]
@@ -30,8 +31,10 @@ def build_triage(db: Session, user: User, payload: TriageRequest) -> dict:
     task_ids = selected_tasks or visible_task_ids_for(user, db)
     today = date.today()
     blocked = Task.status == "阻塞"
-    overdue_or_delayed = or_(Task.planned_end < today, Task.status == "延迟")
-    near_deadline = Task.planned_end <= today + timedelta(days=DEADLINE_HORIZON_DAYS)
+    overdue_or_delayed = or_(overdue_clause(today), Task.status == "延迟")
+    near_deadline = (Task.planned_end >= today) & (
+        Task.planned_end <= today + timedelta(days=DEADLINE_HORIZON_DAYS)
+    )
 
     candidates = (
         db.query(
@@ -41,6 +44,7 @@ def build_triage(db: Session, user: User, payload: TriageRequest) -> dict:
             Task.name,
             Project.name.label("project_name"),
             Task.status,
+            Task.progress,
             Task.planned_end,
             User.display_name.label("owner_name"),
             Task.is_milestone,
@@ -80,11 +84,11 @@ def build_triage(db: Session, user: User, payload: TriageRequest) -> dict:
             reasons.append("已阻塞")
         if row.status == "延迟":
             reasons.append("标记延迟")
-        if days < 0:
+        if is_overdue(row, today):
             reasons.append(f"逾期 {-days} 天")
         elif days == 0:
             reasons.append("今天到期")
-        elif days <= DEADLINE_HORIZON_DAYS:
+        elif 0 < days <= DEADLINE_HORIZON_DAYS:
             reasons.append(f"{days} 天后到期")
         if row.is_milestone:
             reasons.append("里程碑")
