@@ -30,9 +30,10 @@ async function mount(client = mockClient()) {
   await screen.findByRole('textbox', { name: '章节正文' })
   return client
 }
-function segments() { return screen.getAllByRole('textbox', { name: /^章节正文/ }) as HTMLTextAreaElement[] }
-function body() { return segments().map(input => input.value).join('') }
-function cards() { return screen.queryAllByRole('region', { name: '正文 AI 问答' }) }
+type ScopedQueries = Pick<typeof screen, 'getAllByRole' | 'queryAllByRole' | 'getByRole' | 'findByRole'>
+function segments(scope: ScopedQueries = screen) { return scope.getAllByRole('textbox', { name: /^章节正文/ }) as HTMLTextAreaElement[] }
+function body(scope: ScopedQueries = screen) { return segments(scope).map(input => input.value).join('') }
+function cards(scope: ScopedQueries = screen) { return scope.queryAllByRole('region', { name: '正文 AI 问答' }) }
 function insertCard(offset = prefix.length, segment = segments()[0]) {
   const value = segment.value.slice(0, offset) + '/' + segment.value.slice(offset)
   fireEvent.input(segment, { target: { value, selectionStart: offset + 1, selectionEnd: offset + 1 }, inputType: 'insertText', data: '/' })
@@ -54,11 +55,11 @@ function deferAnswer(client: SolutionClient) {
   vi.mocked(client.ask).mockImplementationOnce(() => new Promise(done => { resolve = done }))
   return async () => { const input = vi.mocked(client.ask).mock.calls[0][1]; await act(async () => resolve(answer(input))) }
 }
-async function saveNow(client: SolutionClient) {
+async function saveNow(client: SolutionClient, scope: ScopedQueries = screen) {
   const previous = vi.mocked(client.save).mock.calls.length
-  fireEvent.click(screen.getByRole('button', { name: '有修改 · 将自动保存' }))
+  fireEvent.click(scope.getByRole('button', { name: '有修改 · 将自动保存' }))
   await waitFor(() => expect(client.save).toHaveBeenCalledTimes(previous + 1))
-  await screen.findByRole('button', { name: '已保存到本机' })
+  await scope.findByRole('button', { name: '已保存到本机' })
 }
 
 beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-editor-mode', 'markdown'); localStorage.setItem('ks-writing-mode', 'split'); sessionStorage.clear() })
@@ -67,35 +68,37 @@ afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers() })
 describe('inline questions in the report editor', () => {
   it('requires edited confirmation at the card position and undoes acceptance without losing later typing', async () => {
     const client = await mount()
+    const editor = within(screen.getByRole('region', { name: '撰写报告' }))
     const card = insertCard()
-    expect(body()).toBe(original)
+    expect(body(editor)).toBe(original)
     fireEvent.click(within(card).getByRole('checkbox', { name: /附带本章正文/ }))
     askCard(card, '比较研究条件')
     await within(card).findByText('回答：比较研究条件')
     expect(client.ask).toHaveBeenCalledWith('one', expect.objectContaining({ question: '比较研究条件', sectionId: 's1', context: original }))
     expect(client.save).toHaveBeenCalledWith('one', expect.objectContaining({ sections: seed().sections, references: [] }))
-    expect(body()).toBe(original)
-    expect(screen.queryByRole('button', { name: '删除引用1' })).not.toBeInTheDocument()
+    expect(body(editor)).toBe(original)
+    expect(editor.queryByRole('button', { name: '删除引用1' })).not.toBeInTheDocument()
     fireEvent.click(within(card).getByRole('button', { name: '采纳到报告' }))
     const dialog = screen.getByRole('dialog', { name: /^确认采纳/ })
-    expect(body()).toBe(original)
+    expect(body(editor)).toBe(original)
     expect(within(dialog).getByRole('combobox', { name: '插入到本章问答卡片位置' })).toBeDisabled()
     fireEvent.change(within(dialog).getByRole('textbox', { name: '确认或改写内容' }), { target: { value: '专家核对后的结论' } })
     fireEvent.click(within(dialog).getByRole('button', { name: '确认插入并保留引用' }))
-    expect(cards()).toHaveLength(0)
-    expect(body().startsWith(prefix)).toBe(true)
-    expect(body().endsWith(suffix)).toBe(true)
-    expect(body()).toContain('专家核对后的结论')
-    expect(body()).toMatch(/\[\[cite:[^\]]+\]\]/)
-    expect(body()).not.toContain('回答：比较研究条件')
-    await saveNow(client)
+    expect(cards(editor)).toHaveLength(0)
+    const acceptedBody = body(editor)
+    expect(acceptedBody.startsWith(prefix)).toBe(true)
+    expect(acceptedBody.endsWith(suffix)).toBe(true)
+    expect(acceptedBody).toContain('专家核对后的结论')
+    expect(acceptedBody).toMatch(/\[\[cite:[^\]]+\]\]/)
+    expect(acceptedBody).not.toContain('回答：比较研究条件')
+    await saveNow(client, editor)
     expect(client.save).toHaveBeenLastCalledWith('one', expect.objectContaining({ references: [expect.objectContaining({ sourceId: source.id, sectionId: 's1', sourceVersion: '2', locator: '方法章节' })] }))
-    const textarea = segments()[0]
+    const textarea = segments(editor)[0]
     fireEvent.change(textarea, { target: { value: textarea.value + '\n人工后续判断' } })
     fireEvent.click(screen.getByRole('button', { name: '撤销插入' }))
-    expect(body()).toBe(original + '\n人工后续判断')
-    expect(screen.queryByRole('button', { name: '删除引用1' })).not.toBeInTheDocument()
-    await saveNow(client)
+    expect(body(editor)).toBe(original + '\n人工后续判断')
+    expect(editor.queryByRole('button', { name: '删除引用1' })).not.toBeInTheDocument()
+    await saveNow(client, editor)
     expect(client.save).toHaveBeenLastCalledWith('one', expect.objectContaining({ references: [], sections: expect.arrayContaining([expect.objectContaining({ id: 's1', content: original + '\n人工后续判断' })]) }))
   })
 
