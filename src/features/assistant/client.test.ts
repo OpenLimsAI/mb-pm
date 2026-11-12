@@ -42,11 +42,18 @@ describe('assistant preview persistence and private task conversations', () => {
 
   it('does not turn project questions into public web searches and honors explicit general restrictions', async () => {
     const client = createPreviewAssistantClient('no-project-access'), task = await client.create(taskInput())
-    for (const answerMode of ['auto', 'web'] as const) await expect(client.send(task, { ...question('项目最新进展是什么'), answerMode, data_sources: [], context: '' })).rejects.toMatchObject({ status: 422, message: expect.stringContaining('启用项目管理') })
+    for (const answerMode of ['auto', 'web'] as const) {
+      for (const text of ['项目最新进展是什么', '目前有哪些任务是过期的？']) {
+        await expect(client.send(task, { ...question(text), answerMode, data_sources: [], context: '' })).rejects.toMatchObject({ status: 422, message: expect.stringContaining('启用项目管理') })
+      }
+    }
     expect(await client.get(task.id)).toEqual(task)
     const general = await client.send(task, { ...question('项目管理是什么？'), answerMode: 'general', data_sources: ['projects'], context: '' })
     expect(general.messages.at(-1)).toMatchObject({ answerMode: 'general', usedSources: [] })
-    await expect(client.send(general, { ...question('项目目录'), answerMode: 'knowledge', data_sources: ['projects'], context: '' })).rejects.toMatchObject({ status: 422, message: expect.stringContaining('启用知识库') })
+    const overdue = await client.send(general, { ...question('目前有哪些任务是过期的？'), answerMode: 'auto', data_sources: ['projects'], context: '' })
+    expect(overdue.messages.at(-1)).toMatchObject({ answerMode: 'application', usedSources: ['projects'], webReferences: [] })
+    expect(overdue.messages.at(-1)?.content).toContain('任务明细和逾期清单请在项目管理中查看')
+    await expect(client.send(overdue, { ...question('项目目录'), answerMode: 'knowledge', data_sources: ['projects'], context: '' })).rejects.toMatchObject({ status: 422, message: expect.stringContaining('启用知识库') })
   })
 
   it('validates and normalizes source choices and rejects a replay whose permission scope changed', async () => {

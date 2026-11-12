@@ -20,6 +20,7 @@ import { BaselinePanel } from '../components/project/BaselinePanel'
 import { PMManagement } from '../components/management/PMManagement'
 import { DelayImpact } from '../components/project/DelayImpact'
 import { ProjectAIAnalysis } from '../components/project/ProjectAIAnalysis'
+import { AgentProposalReview } from '../components/project/AgentProposalReview'
 import { ProjectExchange } from '../components/project/ProjectExchange'
 import { TemplateUpgrade } from '../components/project/TemplateUpgrade'
 import { ProgressPolicy } from '../components/project/ProgressPolicy'
@@ -27,6 +28,7 @@ import { refreshAllData } from '../data/bootstrap'
 import { TeamPanel } from '../components/project/TeamPanel'
 import { ProjectStructureEditor } from '../components/project/ProjectStructureEditor'
 import { TaskDrawer } from '../components/task/TaskDrawer'
+import { PMAssistant } from '../components/project/PMAssistant'
 import { EmptyState } from '../components/ui'
 import { cn } from '../lib/cn'
 import { recordProjectVisit } from '../lib/projectNavigation'
@@ -49,7 +51,19 @@ export default function ProjectDetail() {
   const online = useDataStore((s) => s.mode) === 'api'
   const project = findProject(id || '')
   const requestedTab = params.get('tab')
-  const tab: Tab = ['overview', 'milestones', 'wbs', 'delay', 'baseline', 'team', 'ai', 'management', 'tools'].includes(requestedTab || '') ? requestedTab as Tab : 'overview'
+  const agentReportKey = params.get('agent_report')
+  const agentProposalId = params.get('agent_proposal')
+  const closeAgentProposal = () => {
+    const next = new URLSearchParams(params)
+    next.delete('agent_proposal')
+    setParams(next, { replace: true })
+  }
+  const closeAgentReport = () => {
+    const next = new URLSearchParams(params)
+    next.delete('agent_report')
+    setParams(next, { replace: true })
+  }
+  const tab: Tab = (requestedTab !== 'ai' || canAnalyze) && ['overview', 'milestones', 'wbs', 'delay', 'baseline', 'team', 'ai', 'management', 'tools'].includes(requestedTab || '') ? requestedTab as Tab : 'overview'
   const [toolMode, setToolMode] = useState<'template' | 'progress'>('template')
   const setTab = (value: Tab) => { const next = new URLSearchParams(params); next.set('tab', value); setParams(next) }
   const [wbsView, setWbsView] = useState<WbsView>('table')
@@ -117,6 +131,10 @@ export default function ProjectDetail() {
         editDisabledReason={online ? undefined : '离线演示模式不支持修改项目'}
       />
 
+      {online && agentProposalId && /^[a-zA-Z0-9_-]{1,64}$/.test(agentProposalId) && <AgentProposalReview
+        key={`${project.id}:${agentProposalId}`} projectId={project.id} proposalId={agentProposalId}
+        onClose={closeAgentProposal} onApplied={refreshAllData} />}
+
       <div className="flex flex-wrap gap-2 items-center">
       <ProjectExchange key={project.id} projectId={project.id} canManage={online && (role === 'admin' || role === 'cmc_lead' || (role === 'project_lead' && userId === project.ownerId))} onApplied={refreshAllData} />
       <button type="button" className="px-3 py-2 rounded-lg border text-sm" disabled={!online} onClick={() => {
@@ -133,6 +151,8 @@ export default function ProjectDetail() {
           </button>
         </div>
       )}
+
+      <PMAssistant key={`${userId}:${project.id}`} projectId={project.id} />
 
       {/* Tabs */}
       <div className="flex items-center flex-wrap gap-1 border-b border-ink-300/60 -mb-px">
@@ -194,7 +214,8 @@ export default function ProjectDetail() {
       </div>}
 
       {tab === 'ai' && canAnalyze && (
-        <ProjectAIAnalysis key={project.id} projectId={project.id} projectName={project.name} />
+        <ProjectAIAnalysis key={project.id} projectId={project.id} projectName={project.name}
+          agentReportKey={agentReportKey} onCloseAgentReport={closeAgentReport} />
       )}
 
       {tab !== 'wbs' && <TaskDrawer

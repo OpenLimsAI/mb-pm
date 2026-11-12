@@ -1,0 +1,95 @@
+/* Respond to the module width, including user-resized columns. */
+:root .ks-app .ks-editor-pane > .ks-pane-heading {
+  height: auto;
+  min-height: 44px;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 6px 12px;
+}
+:root .ks-app .ks-pane-heading .ks-writing-identity {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+:root .ks-app .ks-pane-heading .ks-writing-actions {
+  flex: 0 1 auto;
+  max-width: 100%;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+:root .ks-app .ks-pane-report-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The chapter wrapper participates in the paper's height allocation. Keep
+   continuous chapters natural-height, rather than adding a page of blank space. */
+:root .ks-app .ks-paper > .ks-writing-section:not(.ks-writing-continuous-section) {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+:root .ks-app .ks-writing-section:not(.ks-writing-continuous-section) > .ks-inline-editor {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+:root .ks-app .ks-writing-section > .ks-writing-toolbar {
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin-bottom: 4px;
+}
+:root .ks-app .ks-writing-section > .ks-chapter-heading {
+  flex-shrink: 0;
+  margin-bottom: 12px;
+}
+:root .ks-app .ks-writing-section > .ks-writing-footnote { flex-shrink: 0; }
+:root .ks-app .ks-evidence-empty { margin-top: 12px; padding: 8px 0; }
+:root .ks-app .ks-evidence-empty > summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  cursor: pointer;
+  list-style: none;
+  color: var(--workbench-text);
+}
+:root .ks-app .ks-evidence-empty > summary::-webkit-details-marker { display: none; }
+:root .ks-app .ks-evidence-empty > summary::after { content: '›'; margin-left: auto; }
+:root .ks-app .ks-evidence-empty[open] > summary::after { transform: rotate(90deg); }
+:root .ks-app .ks-evidence-empty > summary > span { color: var(--workbench-muted); font-size: 12px; }
+:root .ks-app .ks-evidence-empty > summary:focus-visible { outline: 2px solid var(--workbench-brand); outline-offset: 2px; }
+
+/* Truncate long chapter names without hiding the full accessible label/title
+   or squeezing the separate chapter actions target. */
+:root .ks-app .ks-custom-workspace .ks-outline-link {
+  align-items: center;
+  min-height: 36px;
+}
+:root .ks-app .ks-custom-workspace .ks-outline-label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:root .ks-app .ks-outline-item .ks-chapter-actions-button {
+  flex: 0 0 auto;
+  min-width: 28px;
+  min-height: 28px;
+}
+
+@container ks-module (max-width: 780px) {
+  :root .ks-app .ks-pane-heading .ks-writing-identity { flex-basis: 100%; }
+  :root .ks-app .ks-pane-heading .ks-writing-actions { flex: 1 1 100%; }
+}
+@container ks-module (max-width: 600px) {
+  :root .ks-app .ks-editor-pane > .ks-pane-heading { gap: 4px; padding: 6px 8px; }
+  :root .ks-app .ks-writing-actions > .ks-button { min-height: 28px; padding: 4px 6px; }
+}

@@ -9,10 +9,10 @@ const code = ts.transpileModule(source.replaceAll('import.meta.env', 'testEnviro
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
 }).outputText
 
-function site(hostname, DEV = false, VITE_APP_MODE = undefined, VITE_KNOWLEDGE_PORT = undefined) {
+function site(hostname, DEV = false, VITE_APP_MODE = undefined, VITE_KNOWLEDGE_PORT = undefined, origin = undefined, VITE_KNOWLEDGE_BASE_PATH = undefined) {
   const context = {
-    exports: {}, URL, URLSearchParams, testEnvironment: { DEV, VITE_APP_MODE, VITE_KNOWLEDGE_PORT },
-    window: { location: { hostname, origin: DEV ? `http://${hostname}:5176` : `https://${hostname}` } },
+    exports: {}, URL, URLSearchParams, testEnvironment: { DEV, VITE_APP_MODE, VITE_KNOWLEDGE_PORT, VITE_KNOWLEDGE_BASE_PATH },
+    window: { location: { hostname, origin: origin || (DEV ? `http://${hostname}:5176` : `https://${hostname}`) } },
   }
   vm.runInNewContext(code, context)
   return context.exports
@@ -67,10 +67,10 @@ assert.equal(local.projectApplicationUrl(), 'http://127.0.0.1:5176/api/v1/auth/l
 assert.equal(portal.knowledgePublicUrl, 'https://kb.openlims.ai')
 // 论文知识库独立部署在根地址，入口不再带 #mb-web。
 assert.equal(portal.knowledgeLaunchUrl, 'https://kb.openlims.ai/')
-// 只有本机开发跳到本地知识库，生产构建不会带入本地端口。
-assert.equal(local.knowledgeLaunchUrl, 'http://127.0.0.1:4322/')
+// 本机开发与显式 combined 构建都进入本机知识库，统一使用 localhost。
+assert.equal(local.knowledgeLaunchUrl, 'http://localhost:4322/')
 assert.equal(site('localhost', true).knowledgeLaunchUrl, 'http://localhost:4322/')
-assert.equal(site('[::1]', true).knowledgeLaunchUrl, 'http://[::1]:4322/')
+assert.equal(site('[::1]', true).knowledgeLaunchUrl, 'http://localhost:4322/')
 assert.equal(site('localhost', true, 'portal', '4321').knowledgeLaunchUrl, 'http://localhost:4321/')
 for (const port of ['invalid', '0', '-1', '65536', '4321.5']) {
   assert.equal(site('localhost', true, undefined, port).knowledgeLaunchUrl, 'http://localhost:4322/')
@@ -79,6 +79,14 @@ for (const host of ['localhost', '127.0.0.1', 'www.openlims.ai', 'pm.openlims.ai
   assert.equal(site(host, false, undefined, '4321').knowledgeLaunchUrl, 'https://kb.openlims.ai/')
 }
 assert.equal(site('www.openlims.ai', true, undefined, '4321').knowledgeLaunchUrl, 'https://kb.openlims.ai/')
+assert.equal(site('localhost', false, 'combined', '4322', 'http://localhost:1234').knowledgeLaunchUrl, 'http://localhost:4322/')
+assert.equal(site('127.0.0.1', false, 'combined').knowledgeLaunchUrl, 'http://localhost:4322/')
+assert.equal(site('[::1]', false, 'combined').knowledgeLaunchUrl, 'http://localhost:4322/')
+assert.equal(site('www.openlims.ai', false, 'combined', '4321').knowledgeLaunchUrl, 'https://kb.openlims.ai/')
+assert.equal(site('www.openlims.ai', true, 'combined', '4321').knowledgeLaunchUrl, 'https://kb.openlims.ai/')
+assert.equal(site('localhost', false, 'combined', undefined, 'http://localhost:1234', '/knowledge-base').knowledgeLaunchUrl, 'http://localhost:1234/knowledge-base/')
+assert.equal(site('127.0.0.1', false, 'combined', undefined, 'http://127.0.0.1:1234', '/knowledge-base').knowledgeLaunchUrl, 'http://localhost:1234/knowledge-base/')
+assert.equal(site('www.openlims.ai', false, 'combined', undefined, undefined, '/knowledge-base').knowledgeLaunchUrl, 'https://kb.openlims.ai/')
 const deep = '/projects/project-123?tab=tasks#task-1'
 assert.equal(new URL(portal.projectApplicationUrl(deep)).searchParams.get('return_to'), deep)
 assert.equal(portal.safeReturnPath('/launch/kb'), '/launch/kb')
@@ -96,7 +104,7 @@ console.log('Portal routing checks passed: domain modes, fixed app targets, deep
 // 门户匿名、PM 会话仍有效时，版本更新不可选用 PM 会话，否则会与 PortalGate 循环跳转。
 assert.equal(local.knowledgeSourcesUrl, '/knowledge-sources')
 assert.equal(pm.knowledgeSourcesUrl, 'https://www.openlims.ai/knowledge-sources')
-for (const route of ['/knowledge-sources', '/knowledge-sources/library', '/launch/knowledge-sources', '/feedback', '/assistant', '/assistant/?preview=1', '/assistant/tasks/example', '/notes', '/notes?preview=1', '/release-notes', '/release-notes/?x=1#latest', '/accounts', '/settings', '/help', '/launch/kb', '/information', '/information/sources', '/information/inbox?unread=1', '/launch/information', '/solutions', '/solutions/example?tab=knowledge', '/launch/solutions', '/launch/feedback']) {
+for (const route of ['/knowledge-base', '/knowledge-base/?paper=a', '/knowledge-base/web/auth/callback', '/knowledge-sources', '/knowledge-sources/library', '/launch/knowledge-sources', '/feedback', '/assistant', '/assistant/?preview=1', '/assistant/tasks/example', '/notes', '/notes?preview=1', '/release-notes', '/release-notes/?x=1#latest', '/accounts', '/settings', '/help', '/launch/kb', '/information', '/information/sources', '/information/inbox?unread=1', '/launch/information', '/solutions', '/solutions/example?tab=knowledge', '/launch/solutions', '/launch/feedback']) {
   assert.equal(local.loginUsesProjectSession(route), false)
   assert.equal(portal.loginUsesProjectSession(route), false)
   assert.equal(pm.loginUsesProjectSession(route), true)

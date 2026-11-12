@@ -17,8 +17,8 @@ export function libraryEmbedUrl(preview: boolean): string | null {
 
 /** Complete standard KB OAuth in a separate window without leaving an unsaved report. */
 export function libraryLoginUrl(): string {
-  const url = new URL('/web/auth/login', knowledgeLaunchUrl)
-  url.searchParams.set('returnTo', '/web/auth/report-return')
+  const url = new URL('web/auth/login', knowledgeLaunchUrl)
+  url.searchParams.set('returnTo', new URL('web/auth/report-return', knowledgeLaunchUrl).pathname)
   return url.href
 }
 

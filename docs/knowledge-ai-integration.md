@@ -37,11 +37,15 @@
 
 目录没有 `api_key` 或 `base_url`。默认选择与工作台同一份组织共享配置一致；`system` 兼容选择解析为该组织共享默认。共享配置不存在、缺密钥、被删除或上游失败时明确报错，不借用其他组织或成员的模型密钥。目录与修订号共享，会话和知识库资料权限仍按当前用户验证。
 
+支持原生 JSON 对象模式的 DeepSeek 官方 Chat Completions 配置带有 `supports_json_object: true`。字段缺省时，调用方不应据供应商名称推断该能力。
+
 ## 单轮生成与工具
 
 `POST /api/v1/integration/knowledge/ai/chat/completions` 接受非流式 OpenAI 格式。`model` 是上面返回的共享配置 ID 或 `system`，不是供应商模型名称；省略时使用当次工作台默认配置。可选 `settings_revision` 不匹配时返回 409。真实供应商、地址和密钥均由 PM 当前配置解析，输入不允许这些字段或 actor。
 
 支持文本 `messages`、`tools`、`tool_choice`、`parallel_tool_calls`、`response_format`、有限采样选项及输出预算。assistant 的 `tool_calls` 与相应 tool 消息必须成对；支持供应商后续工具轮需要的 `reasoning_content`。该字段只供服务端继续工具对话，不应用作用户可见正文。返回 OpenAI `choices`、`finish_reason`、工具调用和有报告的 `usage`。知识库的共享 Agent 继续负责工具执行、任务事件与 NDJSON 输出。
+
+无工具且要求 JSON 的请求走 DeepSeek 官方 JSON 对象模式，并关闭该轮默认推理，使输出预算用于正文。调用方仍须在提示中要求 JSON 并提供示例，在收到回答后检查实际结构、引用和结束原因。Ollama 仍使用原生 JSON Schema；普通文本与工具轮保留既有参数。
 
 2026-11-05 的响应兼容修复先将供应商工具调用投影为 `id/type/function`，其中 `function` 只保留 `name/arguments`，再执行原有校验。因此非流式响应中的 `index` 等附加元数据不会把合法工具调用误判为格式错误；客户端请求仍拒绝未知字段，缺失或无效工具字段、未声明工具、禁用工具、长度限制、结束原因与密钥泄漏检查继续生效。合成测试覆盖 DeepSeek／Kimi 的工具调用与后续结果往返；本次修复的生产部署及真实模型验收另记，未保存供应商原始回答用于排查。
 

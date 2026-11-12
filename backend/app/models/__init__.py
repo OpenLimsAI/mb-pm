@@ -4,6 +4,8 @@ CTO Lite 版仅保留组合管理所需的核心实体：用户 / 项目 / 子�
 任务依赖 / 模板 / 审计日志，以及 IAM 身份绑定与会话、项目 / 财务 AI 分析记录。生产、设备、预警等模块在 Lite 版中不启用。
 """
 
+from app.models.agent_proposal import AgentProposal  # noqa: F401
+from app.models.agent_events import AgentEventPublication  # noqa: F401
 from app.models.ai import FinanceAIAnalysis, ProjectAIAnalysis  # noqa: F401
 from app.models.assistant import AssistantMessage, AssistantRequest, AssistantTask  # noqa: F401
 from app.models.audit_log import AuditLog  # noqa: F401
@@ -25,6 +27,8 @@ from app.models.mdm_integration import (  # noqa: F401
 from app.models.note import PersonalNote  # noqa: F401
 from app.models.organization_ai import OrganizationAISettings  # noqa: F401
 from app.models.planning import ProjectCalendar, UserWeeklyCapacity  # noqa: F401
+from app.models.pm_ai import PMAIRun  # noqa: F401
+from app.models.pm_ai_changes import PMAIChangeReceipt  # noqa: F401
 from app.models.pm_management import (
     PMCostEntry,
     PMNotificationPreference,

@@ -1,5 +1,5 @@
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -82,6 +82,22 @@ def execute(client, headers, pid, rid, value, fingerprint):
         headers=headers,
         json={"draft": value, "fingerprint": fingerprint},
     )
+
+
+def test_project_analysis_uses_milestone_completion_status_for_overdue(project_factory, admin_user):
+    pid = project_factory(admin_user)
+    yesterday = date.today() - timedelta(days=1)
+    with SessionLocal() as db:
+        milestone, ordinary = (db.get(Task, f"{pid}-t{n}") for n in (1, 2))
+        for task in (milestone, ordinary):
+            task.planned_start = task.planned_end = yesterday
+            task.status, task.progress = "进行中", 100
+        milestone.is_milestone = True
+        db.commit()
+
+        context, source = ai.project_context(db, db.get(Project, pid))
+        assert context["overdue_task_ids"] == [milestone.id]
+        assert source["overdue_count"] == 1
 
 
 def test_background_snapshot_idempotence_and_history(

@@ -4,7 +4,7 @@
 """
 
 import logging
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -16,6 +16,9 @@ import app.models  # noqa: F401  确保所有 ORM 表注册到 Base.metadata
 from app.api.v1 import (
     account,
     accounts,
+    agent_actions,
+    agent_knowledge_events,
+    agent_projects,
     ai,
     assistant,
     auth,
@@ -25,6 +28,7 @@ from app.api.v1 import (
     finances,
     information,
     knowledge_ai,
+    knowledge_base,
     knowledge_source_acquisition_v3,
     knowledge_source_library_v3,
     knowledge_source_manual_index_v3,
@@ -33,6 +37,9 @@ from app.api.v1 import (
     mdm_integration,
     notes,
     planning,
+    pm_ai,
+    pm_ai_changes,
+    pm_ai_tools,
     pm_management,
     pm_views,
     portal,
@@ -58,6 +65,7 @@ from app.db.session import SessionLocal, engine
 from app.middleware.notes_embed import notes_frame_ancestors
 from app.middleware.request_limits import RequestLimitsMiddleware
 from app.models import User
+from app.services.background_workers import running_workers
 
 logging.basicConfig(level=settings.LOG_LEVEL)
 logging.getLogger("uvicorn.access").addFilter(CallbackQueryFilter())
@@ -230,6 +238,8 @@ def _backfill_team_members() -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    if settings.APP_PROCESS_ROLE == "worker":
+        raise RuntimeError("The worker role must use app.worker:app")
     # 建表（SQLite 首次运行即创建文件）
     if settings.AUTO_MIGRATE_SCHEMA:
         Base.metadata.create_all(bind=engine)
@@ -253,49 +263,9 @@ async def lifespan(_: FastAPI):
     if settings.AUTO_MIGRATE_SCHEMA:
         _backfill_task_order()
         _backfill_team_members()
-    worker = None
-    if settings.INFORMATION_APP_ENABLED and settings.INFORMATION_WORKER_ENABLED:
-        from app.services.information.worker import start_worker
-
-        worker = start_worker()
-    notes_worker = None
-    assistant_worker = None
-    from app.services.project_ai_jobs import start_worker as start_project_ai_worker
-
-    project_ai_worker = start_project_ai_worker()
-    if settings.ASSISTANT_REQUEST_WORKER_ENABLED:
-        from app.services.assistant_requests import start_worker as start_assistant_worker
-
-        assistant_worker = start_assistant_worker()
-    knowledge_source_worker = None
-    if settings.KNOWLEDGE_SOURCE_APP_ENABLED and settings.KNOWLEDGE_SOURCE_WORKER_ENABLED:
-        from app.services.knowledge_source_worker import (
-            start_worker as start_knowledge_source_worker,
-        )
-
-        knowledge_source_worker = start_knowledge_source_worker()
-    if settings.NOTES_WISDOM_WORKER_ENABLED:
-        from app.services.note_sync import start_worker
-
-        notes_worker = start_worker()
-    try:
+    workers = running_workers() if settings.APP_PROCESS_ROLE == "combined" else nullcontext()
+    with workers:
         yield
-    finally:
-        if project_ai_worker:
-            project_ai_worker[0].set()
-            project_ai_worker[1].join(timeout=5)
-        if assistant_worker:
-            assistant_worker[0].set()
-            assistant_worker[1].join(timeout=5)
-        if knowledge_source_worker:
-            knowledge_source_worker[0].set()
-            knowledge_source_worker[1].join(timeout=5)
-        if notes_worker:
-            notes_worker[0].set()
-            notes_worker[1].join(timeout=5)
-        if worker:
-            worker[0].set()
-            worker[1].join(timeout=5)
 
 
 app = FastAPI(
@@ -352,6 +322,17 @@ async def prevent_auth_response_caching(request, call_next):
     # API 响应均依赖登录身份：禁止缓存，且不向外泄露 Referer。
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
+    if getattr(request.state, "knowledge_base_response", False):
+        # The KB emits its own script hashes and frame policy for auth recovery.
+        # Do not replace that policy with the portal's broader SPA policy.
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        response.headers.setdefault(
+            "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
+        )
+        response.headers.setdefault(
+            "Content-Security-Policy", "object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
+        )
+        return response
     # Only the SPA entry document opts in: native form POST navigation under
     # no-referrer sends Origin: null. Never relax the exact-Origin CSRF check.
     spa_document = (
@@ -401,8 +382,16 @@ app.include_router(project_exchange.router, prefix=API_PREFIX)
 app.include_router(template_upgrade.router, prefix=API_PREFIX)
 app.include_router(progress_policy.router, prefix=API_PREFIX)
 app.include_router(project_ai_work.router, prefix=API_PREFIX)
+app.include_router(agent_projects.router, prefix=API_PREFIX)
+app.include_router(agent_projects.review_router, prefix=API_PREFIX)
+app.include_router(agent_actions.router, prefix=API_PREFIX)
+app.include_router(agent_actions.browser_router, prefix=API_PREFIX)
+app.include_router(agent_knowledge_events.router, prefix=API_PREFIX)
 app.include_router(pm_views.router, prefix=API_PREFIX)
 app.include_router(planning.router, prefix=API_PREFIX)
+app.include_router(pm_ai.router, prefix=API_PREFIX)
+app.include_router(pm_ai_changes.router, prefix=API_PREFIX)
+app.include_router(pm_ai_tools.router, prefix=API_PREFIX)
 app.include_router(pm_management.router, prefix=API_PREFIX)
 app.include_router(task_collaboration.router, prefix=API_PREFIX)
 app.include_router(mdm_integration.router, prefix=API_PREFIX)
@@ -416,6 +405,7 @@ app.include_router(baselines.router, prefix=API_PREFIX)
 app.include_router(ai.router, prefix=API_PREFIX)
 app.include_router(solutions.router, prefix=API_PREFIX)
 app.include_router(data_backup.router, prefix=API_PREFIX)
+app.include_router(knowledge_base.router)
 
 
 # 页面与文件名不带哈希的静态文件（index.html、release-notes.html 等）：每次向服务器确认是否有新版本，

@@ -19,6 +19,15 @@ from app.services import ai, oidc_status, solution_ai
 PREFIX = "/api/v1/integration/knowledge/ai"
 SECRET = "synthetic-shared-provider-key-never-return"
 SYSTEM_SECRET = "synthetic-system-provider-key-never-return"
+DEEPSEEK_ENDPOINT = "https://api.deepseek.com/v1"
+RESEARCH_SCHEMA = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "research_answer",
+        "strict": True,
+        "schema": {"type": "object", "properties": {"answer": {"type": "string"}}},
+    },
+}
 
 
 @pytest.fixture
@@ -138,6 +147,7 @@ def gateway(client, token_factory, monkeypatch):
         key=SECRET,
         revision=0,
         default="profile-1",
+        base_url="https://model.example.test/v1",
     ):
         with SessionLocal() as db:
             solution_ai.save_settings(
@@ -150,7 +160,7 @@ def gateway(client, token_factory, monkeypatch):
                                 "id": "profile-1",
                                 "name": "Shared research",
                                 "provider": provider,
-                                "base_url": "https://model.example.test/v1",
+                                "base_url": base_url,
                                 "model": model,
                                 "api_key": key,
                             }
@@ -624,6 +634,87 @@ def test_length_finish_and_unknown_usage_are_preserved_without_fabricated_cost(g
     assert response.status_code == 200
     assert response.json()["choices"][0]["finish_reason"] == "length"
     assert response.json()["usage"] == {}
+
+
+@pytest.mark.parametrize(
+    "base_url,capability",
+    [(DEEPSEEK_ENDPOINT, True), ("https://api.deepseek.com.example.test/v1", False)],
+)
+def test_structured_deepseek_uses_official_json_mode_only(gateway, base_url, capability):
+    f = gateway
+    f.save(model="deepseek-v4-pro", base_url=base_url, revision=1)
+    catalog = f.client.get(PREFIX + "/models", headers=f.headers())
+    assert catalog.status_code == 200
+    assert catalog.json()["models"][0].get("supports_json_object") is (True if capability else None)
+    assert base_url not in catalog.text and SECRET not in catalog.text
+
+    messages = [{"role": "user", "content": 'Return JSON like {"answer":"ok"}.'}]
+    response = ask(
+        f, response_format=RESEARCH_SCHEMA, max_completion_tokens=4096, messages=messages
+    )
+    assert response.status_code == 200
+    assert len(f.state.model_calls) == 1
+    _, _, path, body, _ = f.state.model_calls[-1]
+    assert path == "/chat/completions"
+    assert body["messages"] == messages
+    if capability:
+        assert body["response_format"] == {"type": "json_object"}
+        assert body["reasoning_effort"] == "none"
+        assert body["max_tokens"] == 4096 and "max_completion_tokens" not in body
+    else:
+        assert body["response_format"] == RESEARCH_SCHEMA
+        assert "reasoning_effort" not in body and body["max_completion_tokens"] == 4096
+
+
+@pytest.mark.parametrize("finish,content", [("length", None), ("stop", "  ")])
+def test_structured_deepseek_preserves_incomplete_reply_without_reasoning(gateway, finish, content):
+    f = gateway
+    f.save(model="deepseek-v4-pro", base_url=DEEPSEEK_ENDPOINT, revision=1)
+    f.state.result = {
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": content,
+                    "reasoning_content": "private provider reasoning",
+                },
+                "finish_reason": finish,
+            }
+        ],
+        "usage": {"completion_tokens_details": {"reasoning_tokens": 4096}},
+    }
+    response = ask(f, response_format=RESEARCH_SCHEMA)
+    assert response.status_code == 200
+    assert response.json()["choices"][0] == {
+        "index": 0,
+        "message": {"role": "assistant", "content": content or ""},
+        "finish_reason": finish,
+    }
+    assert response.json()["usage"] == {"completion_tokens_details": {"reasoning_tokens": 4096}}
+    assert len(f.state.model_calls) == 1
+
+
+def test_deepseek_tool_and_plain_turns_keep_their_existing_wire_contract(gateway):
+    f = gateway
+    f.save(model="deepseek-v4-pro", base_url=DEEPSEEK_ENDPOINT, revision=1)
+    assert ask(f, max_tokens=4096).status_code == 200
+    assert "reasoning_effort" not in f.state.model_calls[-1][3]
+    tool = {"type": "function", "function": {"name": "read_page", "parameters": {"type": "object"}}}
+    assert ask(f, tools=[tool], response_format={"type": "json_object"}).status_code == 200
+    body = f.state.model_calls[-1][3]
+    assert body["tools"] == [tool] and body["response_format"] == {"type": "json_object"}
+    assert "reasoning_effort" not in body
+
+
+def test_ollama_structured_turn_keeps_native_json_schema(gateway):
+    f = gateway
+    f.save(provider="ollama", model="synthetic-local", key="", revision=1)
+    f.state.result = {"message": {"role": "assistant", "content": "{}"}, "done_reason": "stop"}
+    assert ask(f, response_format=RESEARCH_SCHEMA, max_tokens=4096).status_code == 200
+    _, _, path, body, _ = f.state.model_calls[-1]
+    assert path == "/api/chat"
+    assert body["format"] == RESEARCH_SCHEMA["json_schema"]["schema"]
+    assert body["options"] == {"num_predict": 4096}
 
 
 def test_shared_default_ollama_tool_protocol_conversion(gateway):

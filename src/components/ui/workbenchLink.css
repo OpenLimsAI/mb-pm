@@ -11,8 +11,8 @@
   padding: 5px 9px;
   border: 1px solid var(--workbench-line);
   border-radius: 6px;
-  background: var(--workbench-soft);
-  color: var(--workbench-brand-strong);
+  background: var(--workbench-brand-strong);
+  color: var(--workbench-on-brand, #fff);
   font-size: 12px;
   font-weight: 600;
   line-height: 20px;
@@ -23,7 +23,7 @@
 }
 .app-workbench-link:hover,
 .ks-app .app-workbench-link:hover,
-.information-app .app-workbench-link:hover { background: #fff; color: var(--workbench-brand-strong); }
+.information-app .app-workbench-link:hover { background: var(--workbench-brand); color: var(--workbench-on-brand, #fff); }
 .app-workbench-link:focus-visible { outline: 2px solid var(--workbench-brand); outline-offset: 3px; }
 .app-workbench-link > svg { width: 16px; height: 16px; flex-shrink: 0; }
 @media(prefers-reduced-motion: reduce) { .app-workbench-link { transition: none; } }
@@ -38,11 +38,9 @@
 }
 :root .application-actions .app-header-link { background: var(--workbench-panel); color: var(--workbench-text); }
 :root .application-actions .app-header-link:hover { background: var(--workbench-soft); color: var(--workbench-brand-strong); }
-:root .application-actions .app-workbench-entry { background: #08778f; border-color: #08778f; color: #fff; }
-:root .application-actions .app-workbench-entry:hover { background: #065b70; border-color: #065b70; color: #fff; }
+:root .application-actions .app-workbench-entry { background: var(--workbench-brand-strong); border-color: var(--workbench-brand-strong); color: var(--workbench-on-brand, #fff); }
+:root .application-actions .app-workbench-entry:hover { background: var(--workbench-brand); border-color: var(--workbench-brand); color: var(--workbench-on-brand, #fff); }
 :root .application-actions :is(.app-header-link, .app-workbench-entry):focus-visible { outline: 2px solid var(--workbench-brand); outline-offset: 3px; }
 :root .application-actions :is(.app-header-link, .app-workbench-entry) > svg { width: 17px; height: 17px; flex-shrink: 0; }
 :root .application-actions :is(.app-header-link, .app-workbench-entry) > span { display: inline; }
 @media (max-width: 650px) { :root .application-actions :is(.app-header-link, .app-workbench-entry) { gap: 4px; padding-inline: 7px; font-size: 12px; } }
-/* Preserve the primary action's deep teal through the existing dark-mode filter. */
-html[data-application-theme="dark"] .application-actions .app-workbench-entry { filter: brightness(.74074074) hue-rotate(180deg) invert(1); }

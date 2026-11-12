@@ -1,0 +1,98 @@
+/* One calm input surface: the surrounding card carries the focus treatment. */
+:root .ks-app .ks-ai-content > .ks-question-composer {
+  border: 1px solid var(--workbench-line-strong);
+  border-radius: 14px;
+  background: var(--workbench-panel);
+  box-shadow: 0 2px 6px rgb(15 59 39 / .035);
+  overflow: hidden;
+  transition: border-color .16s ease, box-shadow .16s ease;
+}
+:root .ks-app .ks-question-composer:focus-within {
+  border-color: color-mix(in srgb, var(--workbench-brand) 55%, var(--workbench-line));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--workbench-brand) 8%, transparent);
+}
+:root .ks-app .ks-question-composer .ks-context-bar {
+  min-height: 30px;
+  padding: 6px 10px 2px;
+  background: transparent;
+  border: 0;
+  gap: 8px;
+}
+:root .ks-app .ks-question-composer .ks-context-bar > button {
+  min-height: 24px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: var(--workbench-muted);
+  background: var(--workbench-panel-soft);
+  font-size: 12px;
+}
+:root .ks-app .ks-question-composer .ks-context-bar > button:hover:not(:disabled) {
+  color: var(--workbench-brand-strong);
+  background: var(--workbench-soft);
+}
+:root .ks-app .ks-question-composer .ks-context-bar > span {
+  color: var(--workbench-muted);
+  font-size: 11px;
+}
+:root .ks-app .ks-question-composer form > textarea {
+  height: 48px;
+  min-height: 48px;
+  padding: 8px 12px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--workbench-text);
+  font-size: 13px;
+  line-height: 1.65;
+  caret-color: var(--workbench-brand);
+}
+:root .ks-app .ks-question-composer form > textarea:is(:focus, :focus-visible) {
+  outline: none;
+  outline-offset: 0;
+  border: 0;
+  box-shadow: none;
+}
+:root .ks-app .ks-question-composer form > textarea::placeholder {
+  color: var(--workbench-muted);
+  opacity: .8;
+}
+:root .ks-app .ks-question-composer .ks-composer-bottom {
+  min-height: 36px;
+  padding: 2px 9px 7px 12px;
+  gap: 10px;
+}
+:root .ks-app .ks-question-composer .ks-composer-bottom > small {
+  color: var(--workbench-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+:root .ks-app .ks-question-composer .ks-send {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--workbench-brand);
+  color: var(--workbench-on-brand);
+}
+:root .ks-app .ks-question-composer .ks-send:hover:not(:disabled),
+:root .ks-app .ks-question-composer .ks-send:active:not(:disabled) {
+  background: var(--workbench-brand-strong);
+  color: var(--workbench-on-brand);
+}
+:root .ks-app .ks-question-composer .ks-send:disabled {
+  background: var(--workbench-line);
+  color: var(--workbench-muted);
+  opacity: 1;
+}
+
+/* Generic button hover colors must not override text on a filled action. */
+:root .ks-app .ks-button.ks-primary:not(:disabled):is(:hover, :active, :focus-visible) {
+  color: var(--workbench-on-brand, #fff);
+}
+
+@container ks-module (max-width: 380px) {
+  :root .ks-app .ks-question-composer .ks-context-bar > span { max-width: 40%; }
+  :root .ks-app .ks-question-composer .ks-composer-bottom > small { font-size: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root .ks-app .ks-question-composer { transition: none; }
+}

@@ -26,6 +26,7 @@ describe('continuous research report writing', () => {
   })
   it('sends the displayed whole-report context with a bounded length', async () => {
     const client = await mount(), ask = vi.spyOn(client, 'ask')
+    fireEvent.click(screen.getByRole('button', { name: '不附带正文' }))
     fireEvent.change(screen.getByRole('combobox', { name: 'AI写作上下文' }), { target: { value: 'report' } })
     const context = screen.getByRole('textbox', { name: '附带上下文' }) as HTMLTextAreaElement
     expect(context.readOnly).toBe(true)

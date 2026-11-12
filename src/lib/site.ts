@@ -4,13 +4,21 @@ export const projectPublicUrl = 'https://pm.openlims.ai'
 export const knowledgePublicUrl = 'https://kb.openlims.ai'
 // 论文知识库（dikw-mbweb）自 2026-10-06 起独立部署在 knowledgePublicUrl 根地址，入口不再需要 #mb-web；
 // 旧链接 /#mb-web 仍会打开论文知识库。管理工作台不经此域名访问。
-const localDevelopment = import.meta.env.DEV && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
+// 本机同源构建使用 combined 模式；Vite build 的 DEV=false 不能把它误判为线上入口。
+const localDevelopment = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
+  && (import.meta.env.DEV || import.meta.env.VITE_APP_MODE === 'combined')
 const configuredKnowledgePort = Number(import.meta.env.VITE_KNOWLEDGE_PORT || 4322)
 const knowledgeDevelopmentPort = Number.isInteger(configuredKnowledgePort) && configuredKnowledgePort > 0 && configuredKnowledgePort <= 65535
   ? configuredKnowledgePort : 4322
-const knowledgeDevelopmentUrl = new URL(window.location.origin)
+// 与本机知识库 IAM 回调及 Cookie 来源一致，统一使用 localhost。
+const knowledgeDevelopmentUrl = new URL('http://localhost')
 knowledgeDevelopmentUrl.port = String(knowledgeDevelopmentPort)
-export const knowledgeLaunchUrl = localDevelopment ? `${knowledgeDevelopmentUrl.origin}/` : `${knowledgePublicUrl}/`
+const knowledgeMountedLocally = localDevelopment && import.meta.env.VITE_KNOWLEDGE_BASE_PATH === '/knowledge-base'
+const knowledgeWorkspaceOrigin = new URL(window.location.origin)
+if (localDevelopment) knowledgeWorkspaceOrigin.hostname = 'localhost'
+export const knowledgeLaunchUrl = knowledgeMountedLocally
+  ? new URL('/knowledge-base/', knowledgeWorkspaceOrigin).href
+  : localDevelopment ? `${knowledgeDevelopmentUrl.origin}/` : `${knowledgePublicUrl}/`
 
 type SiteMode = 'portal' | 'pm' | 'combined'
 const configuredMode = import.meta.env.VITE_APP_MODE
@@ -72,5 +80,5 @@ export function projectApplicationUrl(returnTo = '/dashboard'): string {
 export function loginUsesProjectSession(returnTo: string): boolean {
   const path = returnTo.split(/[?#]/)[0].replace(/\/+$/, '') || '/'
   const portalPaths = ['/', '/workspace', '/account', '/accounts', '/settings', '/model-settings', '/data-backup', '/notes', '/assistant', '/feedback', '/help', '/release-notes']
-  return siteMode === 'pm' || (siteMode === 'combined' && !portalPaths.includes(path) && !path.startsWith('/launch/') && path !== '/knowledge-sources' && !path.startsWith('/knowledge-sources/') && path !== '/information' && !path.startsWith('/information/') && !path.startsWith('/assistant/') && path !== '/solutions' && !path.startsWith('/solutions/'))
+  return siteMode === 'pm' || (siteMode === 'combined' && !portalPaths.includes(path) && !path.startsWith('/launch/') && path !== '/knowledge-base' && !path.startsWith('/knowledge-base/') && path !== '/knowledge-sources' && !path.startsWith('/knowledge-sources/') && path !== '/information' && !path.startsWith('/information/') && !path.startsWith('/assistant/') && path !== '/solutions' && !path.startsWith('/solutions/'))
 }

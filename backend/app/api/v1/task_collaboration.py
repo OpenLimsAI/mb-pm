@@ -274,8 +274,17 @@ def new_deliverable(
     db.add(row)
     invalidate_acceptance(db, task, user)
     record_activity(db, task, user, "deliverable", f"提交交付物：{title} · v{version}")
-    db.commit()
+    db.flush()
     return row
+
+
+def validate_deliverable_link(link: str) -> None:
+    try:
+        url = urlsplit(link)
+    except ValueError as exc:
+        raise HTTPException(422, "链接格式无效") from exc
+    if url.scheme not in ("http", "https") or not url.hostname or url.username or url.password:
+        raise HTTPException(422, "链接须为不含账号密码的 HTTP/HTTPS 地址")
 
 
 @router.post("/{task_id}/deliverables/link", status_code=201)
@@ -286,13 +295,9 @@ def add_link(
     user: CurrentUser,
 ):
     task = task_access(db, user, task_id, write=True)
-    try:
-        url = urlsplit(payload.link)
-    except ValueError as exc:
-        raise HTTPException(422, "链接格式无效") from exc
-    if url.scheme not in ("http", "https") or not url.hostname or url.username or url.password:
-        raise HTTPException(422, "链接须为不含账号密码的 HTTP/HTTPS 地址")
+    validate_deliverable_link(payload.link)
     row = new_deliverable(db, task, user, payload.title, payload.notes, link=payload.link)
+    db.commit()
     return {"id": row.id, "version": row.version}
 
 
@@ -330,6 +335,7 @@ async def add_file(
         media_type="application/octet-stream",
         content=content,
     )
+    db.commit()
     return {"id": row.id, "version": row.version}
 
 
@@ -403,6 +409,34 @@ class AcceptanceAction(BaseModel):
     comment: str = Field(default="", max_length=5000)
 
 
+def acceptance_deliverables(
+    db: Session, row: TaskAcceptance, selected_ids: list[str] | None = None
+) -> list[TaskDeliverable]:
+    if row.state in ("submitted", "accepted"):
+        raise HTTPException(409, "已提交或已通过验收，无需重复提交")
+    files = (
+        db.query(TaskDeliverable)
+        .options(defer(TaskDeliverable.content))
+        .filter_by(task_id=row.task_id)
+        .all()
+    )
+    # Versions of the same deliverable count once.
+    latest = {}
+    for item in files:
+        if item.title not in latest or item.version > latest[item.title].version:
+            latest[item.title] = item
+    if selected_ids is not None:
+        by_id = {item.id: item for item in latest.values()}
+        if any(item_id not in by_id for item_id in selected_ids):
+            raise HTTPException(409, "交付物已更新或不属于当前任务，请选择最新版本")
+        files = [by_id[item_id] for item_id in dict.fromkeys(selected_ids)]
+    else:
+        files = list(latest.values())
+    if len(files) < row.required_count:
+        raise HTTPException(422, f"需要至少 {row.required_count} 项不同名称的交付物")
+    return files
+
+
 @router.post("/{task_id}/acceptance/actions")
 def acceptance_action(
     task_id: str,
@@ -411,27 +445,26 @@ def acceptance_action(
     user: CurrentUser,
 ):
     task = task_access(db, user, task_id, write=payload.action == "submit", lock=True)
+    row = apply_acceptance_action(db, task, user, payload)
+    db.commit()
+    return acceptance_out(row)
+
+
+def apply_acceptance_action(
+    db: Session,
+    task: Task,
+    user: User,
+    payload: AcceptanceAction,
+    selected_ids: list[str] | None = None,
+) -> TaskAcceptance:
     # The parent and task are locked before the acceptance row.
-    row = db.query(TaskAcceptance).filter_by(task_id=task_id).with_for_update().first()
+    row = db.query(TaskAcceptance).filter_by(task_id=task.id).with_for_update().first()
     if not row:
         raise HTTPException(422, "尚未设置验收要求")
     if payload.action == "submit":
-        if row.state in ("submitted", "accepted"):
-            raise HTTPException(409, "已提交或已通过验收，无需重复提交")
-        files = (
-            db.query(TaskDeliverable)
-            .options(defer(TaskDeliverable.content))
-            .filter_by(task_id=task_id)
-            .all()
-        )
-        # Versions of the same deliverable count once; superseded versions cannot satisfy the minimum.
-        latest = {}
-        for item in files:
-            if item.title not in latest or item.version > latest[item.title].version:
-                latest[item.title] = item
-        if len(latest) < row.required_count:
-            raise HTTPException(422, f"需要至少 {row.required_count} 项不同名称的交付物")
-        row.submitted_deliverable_ids = [x.id for x in latest.values()]
+        row.submitted_deliverable_ids = [
+            item.id for item in acceptance_deliverables(db, row, selected_ids)
+        ]
         row.state = "submitted"
     else:
         if user.id != row.reviewer_id:
@@ -469,5 +502,4 @@ def acceptance_action(
         {"submit": "提交验收", "accept": "验收通过", "reject": "验收退回"}[payload.action]
         + (f"：{row.comment}" if row.comment else ""),
     )
-    db.commit()
-    return acceptance_out(row)
+    return row

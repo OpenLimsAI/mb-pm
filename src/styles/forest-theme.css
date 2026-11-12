@@ -1,0 +1,209 @@
+/* Shared Maibo Blue Edition palette. Semantic business states keep their own colors. */
+:root {
+  color-scheme: light;
+  --workbench-brand: #1e466b;
+  --workbench-brand-strong: #153a5b;
+  --workbench-ink: #0d0d0d;
+  --workbench-text: #202b36;
+  --workbench-muted: #607184;
+  --workbench-line: #e0e6ed;
+  --workbench-line-strong: #abc4d9;
+  --workbench-soft: #edf5fb;
+  --workbench-bg: #fafafa;
+  --workbench-panel: #fff;
+  --workbench-panel-soft: #f6f8fb;
+  --workbench-mark: #1e466b;
+  --workbench-on-brand: #fff;
+  --workbench-on-mark: #fff;
+  --workbench-sky: #67baf4;
+  --workbench-highlight: #67baf4;
+  --workbench-on-sky: #1e466b;
+  --workbench-header-height: 72px;
+  --workbench-radius: 12px;
+  --app-header-background: var(--workbench-panel);
+  --forest-brand-50: 245 250 254;
+  --forest-brand-100: 234 244 252;
+  --forest-brand-200: 212 234 249;
+  --forest-brand-300: 167 213 246;
+  --forest-brand-400: 103 186 244;
+  --forest-brand-500: 62 137 191;
+  --forest-brand-600: 40 102 150;
+  --forest-brand-700: 30 70 107;
+  --forest-brand-800: 24 58 91;
+  --forest-brand-900: 21 47 72;
+  --forest-ink-900: 13 13 13;
+  --forest-ink-700: 32 43 54;
+  --forest-ink-600: 79 96 112;
+  --forest-ink-500: 96 113 132;
+  --forest-ink-300: 224 230 237;
+  --forest-ink-100: 246 248 251;
+}
+
+html[data-application-theme="dark"] {
+  color-scheme: dark;
+  --workbench-brand: #67baf4;
+  --workbench-brand-strong: #a7d9fc;
+  --workbench-ink: #fafafa;
+  --workbench-text: #dbe7f1;
+  --workbench-muted: #b0c2d3;
+  --workbench-line: #314a60;
+  --workbench-line-strong: #627d94;
+  --workbench-soft: #203b52;
+  --workbench-bg: #0d141d;
+  --workbench-panel: #142332;
+  --workbench-panel-soft: #192e40;
+  --workbench-mark: #1e466b;
+  --workbench-on-brand: #0d2233;
+  --workbench-sky: #67baf4;
+  --workbench-highlight: #67baf4;
+  --workbench-on-sky: #0d2233;
+  --forest-brand-50: 20 35 50;
+  --forest-brand-100: 32 59 82;
+  --forest-brand-200: 49 74 96;
+  --forest-brand-300: 77 113 141;
+  --forest-brand-400: 103 186 244;
+  --forest-brand-500: 134 200 248;
+  --forest-brand-600: 167 217 252;
+  --forest-brand-700: 192 228 253;
+  --forest-brand-800: 218 239 254;
+  --forest-brand-900: 240 248 254;
+  --forest-ink-900: 250 250 250;
+  --forest-ink-700: 219 231 241;
+  --forest-ink-600: 198 215 231;
+  --forest-ink-500: 176 194 211;
+  --forest-ink-300: 49 74 96;
+  --forest-ink-100: 13 20 29;
+}
+
+body {
+  background: var(--workbench-bg);
+  color: var(--workbench-ink);
+}
+
+::selection {
+  background: var(--workbench-soft);
+  color: var(--workbench-ink);
+}
+
+:root .card {
+  border-color: var(--workbench-line);
+  border-radius: var(--workbench-radius);
+  background: var(--workbench-panel);
+}
+
+:root .btn-primary {
+  border: 1px solid var(--workbench-brand);
+  background: var(--workbench-brand);
+  color: var(--workbench-on-brand);
+}
+
+:root .btn-primary:hover:not(:disabled) {
+  background: var(--workbench-brand-strong);
+  border-color: var(--workbench-brand-strong);
+}
+
+:root :is(.btn-secondary, .input) {
+  border-color: var(--workbench-line-strong);
+  background: var(--workbench-panel);
+  color: var(--workbench-text);
+  border-radius: 8px;
+}
+
+:root .btn-secondary:hover:not(:disabled) {
+  background: var(--workbench-panel-soft);
+}
+
+:root :is(input, select, textarea) {
+  accent-color: var(--workbench-brand);
+}
+
+:root .input:focus {
+  border-color: var(--workbench-brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--workbench-brand) 12%, transparent);
+}
+
+:root .app-main {
+  background: var(--workbench-bg);
+}
+
+:root .metric-caption {
+  background: var(--workbench-panel-soft);
+}
+
+:root .gantt-label-column {
+  background: var(--workbench-panel);
+  border-color: var(--workbench-line);
+}
+
+:root :is(.gantt-label-header, .gantt-time-header) {
+  background: var(--workbench-panel-soft);
+  border-color: var(--workbench-line);
+}
+
+:root :is(.gantt-scroll, .gantt-task-bar):focus-visible {
+  outline-color: var(--workbench-brand);
+}
+
+:root :is(.mb-login-header, .mb-login-main, .mb-login-panel, .mb-login-input) {
+  background: var(--workbench-panel);
+  border-color: var(--workbench-line);
+}
+
+:root .mb-login-header {
+  min-height: var(--workbench-header-height);
+}
+
+:root .mb-login-intro {
+  background: var(--workbench-mark);
+  color: var(--workbench-on-mark);
+}
+
+:root .mb-login-intro :is(.mb-login-eyebrow, .mb-login-intro-description,
+  .mb-login-preview-item p, .mb-login-intro-footnote, .mb-login-preview-icon) {
+  color: #c5d6e6;
+}
+
+:root .mb-login-card-mark {
+  background: var(--workbench-soft);
+  color: var(--workbench-brand-strong);
+}
+
+:root .mb-login :is(.mb-login-field, .mb-login-input input, .mb-login-options label) {
+  color: var(--workbench-text);
+}
+
+:root .mb-login :is(.mb-login-brand-caption, .mb-login-header-note,
+  .mb-login-card-eyebrow, .mb-login-card-description, .mb-login-help,
+  .mb-login-footer, .mb-login-switch, .mb-login-identity-note) {
+  color: var(--workbench-muted);
+  border-color: var(--workbench-line);
+}
+
+:root .mb-login-submit {
+  background: var(--workbench-brand);
+  color: var(--workbench-on-brand);
+}
+
+:root .mb-login-submit:hover:not(:disabled) {
+  background: var(--workbench-brand-strong);
+}
+
+:root .mb-login :is(.mb-login-preview-link, .mb-login-reveal, .mb-login-switch):hover {
+  background: var(--workbench-soft);
+}
+
+/* Tailwind's white surfaces follow the shared theme without recoloring
+   semantic red, amber and green health indicators. */
+html[data-application-theme="dark"] :is(.bg-white, .bg-white\/90, .bg-white\/95) {
+  background-color: var(--workbench-panel);
+}
+
+html[data-application-theme="dark"] :is(.btn-secondary, .input) {
+  color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root :is(.card, .btn, .input) {
+    transition: none;
+  }
+}

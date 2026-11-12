@@ -178,10 +178,32 @@ def jobs(project_id: str, db: DB, user: Analyst):
 
 @router.post("/{project_id}/jobs", status_code=202)
 def create_job(project_id: str, payload: AnalysisInput, db: DB, user: Analyst):
+    return enqueue_job(project_id, payload, db, user)
+
+
+def enqueue_job(
+    project_id: str,
+    payload: AnalysisInput,
+    db,
+    user,
+    *,
+    agent_request: tuple[str, str] | None = None,
+):
     # Serialize queue admission across both production instances.
     if db.bind.dialect.name == "postgresql":
         db.execute(text("SELECT pg_advisory_xact_lock(7211202604)"))
     project = project_access(db, user, project_id, write=True)
+    if agent_request:
+        job_id, request_digest = agent_request
+        prior = db.get(ProjectAIJob, job_id)
+        if prior:
+            if (
+                prior.project_id != project_id
+                or prior.created_by != user.id
+                or prior.source.get("agent_request_digest") != request_digest
+            ):
+                raise HTTPException(409, "请求编号已用于不同的后台分析")
+            return job_view(prior)
     cfg = ai.load_settings(db)
     prompt = (payload.prompt or "").strip() or cfg["analysis_prompt"]
     existing = (
@@ -191,7 +213,8 @@ def create_job(project_id: str, payload: AnalysisInput, db: DB, user: Analyst):
     )
     if existing:
         if (
-            existing.project_id == project_id
+            not agent_request
+            and existing.project_id == project_id
             and existing.focus == payload.focus.strip()
             and existing.prompt == prompt
         ):
@@ -200,10 +223,13 @@ def create_job(project_id: str, payload: AnalysisInput, db: DB, user: Analyst):
     if db.query(ProjectAIJob).filter(ProjectAIJob.state.in_(["queued", "running"])).count() >= 16:
         raise HTTPException(429, "后台项目分析队列已满，请稍后重试")
     context, source = ai.project_context(db, project)
+    if agent_request:
+        context = agent_analysis_context(context)
+        source["agent_request_digest"] = request_digest
     if len(str(context)) > 120000:
         raise HTTPException(422, "分析数据超过单次容量，请精简任务备注后重试")
     job = ProjectAIJob(
-        id=uuid4().hex,
+        id=job_id if agent_request else uuid4().hex,
         project_id=project_id,
         created_by=user.id,
         created_at=datetime.now(UTC),
@@ -217,6 +243,39 @@ def create_job(project_id: str, payload: AnalysisInput, db: DB, user: Analyst):
     db.add(job)
     db.commit()
     return job_view(job)
+
+
+def agent_analysis_context(context):
+    """The delegated analysis tool receives scheduling fields and notes."""
+    project_fields = {"id", "code", "name", "status", "progress", "planned_start", "planned_end"}
+    task_fields = project_fields | {
+        "sub_project_id",
+        "owner_id",
+        "collaborator_ids",
+        "priority",
+        "actual_start",
+        "actual_end",
+        "is_milestone",
+        "is_critical_path",
+        "notes",
+    }
+    return {
+        "as_of": context["as_of"],
+        "project": {
+            key: value for key, value in context["project"].items() if key in project_fields
+        },
+        "sub_projects": [
+            {key: value for key, value in sub.items() if key in {"id", "name", "stage", "module"}}
+            for sub in context["sub_projects"]
+        ],
+        "tasks": [
+            {key: value for key, value in task.items() if key in task_fields}
+            for task in context["tasks"]
+        ],
+        "dependencies": context["dependencies"],
+        "members": [{"id": member["id"], "name": member["name"]} for member in context["members"]],
+        "overdue_task_ids": context["overdue_task_ids"],
+    }
 
 
 @router.post("/{project_id}/jobs/{job_id}/cancel")

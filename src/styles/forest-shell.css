@@ -1,0 +1,383 @@
+/* Blue Edition: shared application chrome follows the approved system design. */
+:root .forest-app-mark {
+  display: grid;
+  place-items: center;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: var(--workbench-mark, #1e466b);
+  color: var(--workbench-on-mark, #fff);
+}
+
+:root .forest-app-identity {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 10px;
+}
+
+:root .forest-app-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+:root .forest-app-copy strong {
+  color: var(--workbench-ink);
+  font-size: 16px;
+  font-weight: 650;
+}
+
+:root .forest-app-copy small {
+  color: var(--workbench-muted);
+  font-size: 10px;
+  letter-spacing: .14em;
+  white-space: nowrap;
+}
+
+:root .app-topbar,
+:root .app-brand,
+:root .efficient-portal .workspace-header-inner {
+  height: var(--workbench-header-height, 72px);
+  min-height: var(--workbench-header-height, 72px);
+}
+
+:root .app-topbar {
+  gap: 20px;
+  padding-inline: 24px;
+  border-color: var(--workbench-line);
+  color: var(--workbench-ink);
+  background: var(--workbench-panel);
+}
+
+:root .app-sidebar {
+  width: 208px;
+  background: var(--workbench-panel);
+  border-color: var(--workbench-line);
+}
+
+:root .forest-sidebar-brand {
+  padding-inline: 18px;
+  background: var(--workbench-panel);
+}
+
+:root .forest-sidebar-brand .app-brand-logo {
+  width: 32px;
+  height: 36px;
+  border-radius: 4px;
+}
+
+:root .app-nav {
+  padding: 24px 12px;
+}
+
+:root .app-nav-caption {
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  font-size: 11px;
+  letter-spacing: .04em;
+}
+
+:root .app-nav-link {
+  min-height: 40px;
+  border-radius: 7px;
+  color: var(--workbench-text);
+}
+
+:root .app-nav-link:hover {
+  color: var(--workbench-brand-strong);
+  background: var(--workbench-soft);
+}
+
+:root .app-nav-active {
+  color: var(--workbench-brand-strong);
+  background: var(--workbench-soft);
+  font-weight: 600;
+}
+
+:root .app-nav-active > svg {
+  color: inherit;
+}
+
+:root .app-nav-children {
+  border-color: var(--workbench-line);
+}
+
+:root .app-search {
+  max-width: 340px;
+}
+
+:root .app-search .input {
+  min-height: 36px;
+  border-color: var(--workbench-line);
+  border-radius: 7px;
+  background: var(--workbench-bg);
+  color: var(--workbench-ink);
+}
+
+:root .app-search > svg {
+  top: 10px;
+}
+
+:root .app-sync-status {
+  color: var(--workbench-muted);
+}
+
+:root .efficient-portal {
+  grid-template-columns: 208px minmax(0, 1fr);
+  grid-template-rows: var(--workbench-header-height, 72px) 1fr auto;
+}
+
+:root .efficient-portal .workspace-header-inner {
+  gap: 24px;
+  padding-inline: 28px;
+}
+
+:root .efficient-portal .workspace-brand {
+  gap: 10px;
+  min-width: 180px;
+}
+
+:root .efficient-portal .workspace-brand-copy {
+  gap: 3px;
+}
+
+:root .efficient-portal .workspace-brand-copy strong {
+  color: var(--workbench-ink);
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+:root .efficient-portal .workspace-brand-copy > span {
+  color: var(--workbench-muted);
+  font-size: 10px;
+  letter-spacing: .14em;
+}
+
+:root .workspace-context {
+  font-size: 12px;
+  color: var(--workbench-muted);
+}
+
+:root .workspace-sidebar {
+  top: var(--workbench-header-height, 72px);
+  height: calc(100dvh - var(--workbench-header-height, 72px));
+  background: var(--workbench-panel);
+  border-color: var(--workbench-line);
+}
+
+:root .efficient-portal .portal-navigation a {
+  min-height: 40px;
+  border-radius: 7px;
+  color: var(--workbench-text);
+}
+
+:root .efficient-portal .portal-navigation a:hover,
+:root .efficient-portal .portal-navigation a.active {
+  color: var(--workbench-brand-strong);
+  background: var(--workbench-soft);
+}
+
+:root .efficient-portal .workspace-main {
+  padding: 28px 28px 24px;
+}
+
+:root .application-actions {
+  gap: 8px;
+}
+
+:root .application-actions :is(.app-header-link, .app-workbench-entry) {
+  gap: 6px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+:root .application-actions .app-header-link {
+  background: var(--workbench-panel);
+  border-color: var(--workbench-line);
+  color: var(--workbench-text);
+}
+
+:root .application-actions .app-workbench-entry {
+  background: var(--workbench-mark, #1e466b);
+  border-color: var(--workbench-mark, #1e466b);
+  color: var(--workbench-on-mark, #fff);
+}
+
+:root .application-actions .app-workbench-entry:hover {
+  background: var(--workbench-brand);
+  border-color: var(--workbench-brand);
+  color: var(--workbench-on-brand, #fff);
+}
+
+:root .application-avatar {
+  width: 30px;
+  height: 30px;
+  background: var(--workbench-soft);
+  border-color: var(--workbench-line);
+  color: var(--workbench-brand-strong);
+}
+
+:root .application-account-copy strong {
+  color: var(--workbench-ink);
+  font-size: 12px;
+  font-weight: 550;
+}
+
+:root .application-theme-toggle {
+  color: var(--workbench-muted);
+}
+
+:root .application-action-divider {
+  margin-inline: 1px;
+}
+
+@media (max-width: 1280px) {
+  :root .app-search {
+    max-width: 220px;
+  }
+
+  :root .forest-app-copy small {
+    display: none;
+  }
+
+  :root .app-sync-status button > span {
+    display: none;
+  }
+}
+
+@media (max-width: 1100px) {
+  :root .app-topbar {
+    gap: 12px;
+    padding-inline: 18px;
+  }
+}
+
+@media (max-width: 960px) {
+  :root .app-search {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  :root .app-sidebar {
+    width: 64px;
+  }
+
+  :root .forest-sidebar-brand {
+    padding: 0;
+  }
+
+  :root .app-nav {
+    padding: 18px 8px;
+  }
+
+  :root .app-topbar {
+    height: auto;
+    min-height: var(--workbench-header-height, 72px);
+    padding: 12px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  :root .forest-app-mark {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+  }
+
+  :root .forest-app-copy strong {
+    font-size: 14px;
+  }
+
+  :root .efficient-portal {
+    display: flex;
+  }
+
+  :root .efficient-portal .workspace-header-inner {
+    height: auto;
+    min-height: var(--workbench-header-height, 72px);
+    flex-wrap: wrap;
+    padding: 12px 16px;
+    gap: 10px;
+  }
+
+  :root .efficient-portal .workspace-brand {
+    min-width: 0;
+  }
+
+  :root .efficient-portal .workspace-brand-copy strong {
+    font-size: 14px;
+  }
+
+  :root .efficient-portal .workspace-brand-copy > span {
+    display: none;
+  }
+
+  :root .workspace-context {
+    display: none;
+  }
+
+  :root .workspace-sidebar {
+    position: static;
+    height: auto;
+  }
+
+  :root .efficient-portal .workspace-main {
+    padding: 22px 16px;
+  }
+
+  :root .application-actions {
+    gap: 6px;
+  }
+}
+
+
+/* A calm white navigation surface, with a small blue active marker. */
+:root .app-nav-active,
+:root .efficient-portal .portal-navigation a.active {
+  position: relative;
+}
+
+:root .app-nav-active::before,
+:root .efficient-portal .portal-navigation a.active::before {
+  content: '';
+  display: block;
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--workbench-brand);
+}
+
+:root .workspace-sidebar-caption,
+:root .app-nav-caption {
+  color: var(--workbench-muted);
+  font-size: 11px;
+}
+
+:root .workspace-context {
+  padding-left: 22px;
+  border-left: 1px solid var(--workbench-line);
+}
+
+:root .app-sidebar-footer,
+:root .workspace-sidebar-footer {
+  border-color: var(--workbench-line);
+  color: var(--workbench-muted);
+}
+
+@media (max-width: 760px) {
+  :root .workspace-context {
+    padding-left: 0;
+    border-left: 0;
+  }
+}

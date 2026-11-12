@@ -4,6 +4,8 @@ import SolutionsApp from './SolutionsApp'
 import { createDemoClient } from './demo'
 import { reportReferences, resolveCitations } from './reportReferences'
 
+
+function openAnswerSettings() { const toggle = screen.getByRole('button', { name: '回答设置' }); if (toggle.getAttribute('aria-expanded') !== 'true') fireEvent.click(toggle) }
 beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-editor-mode', 'markdown'); sessionStorage.clear() })
 async function mount() {
   const client = createDemoClient('topics-test', 'author', '研究员')
@@ -85,6 +87,7 @@ describe('separate report research conversations', () => {
 
   it('confirms each answer before inserting it, retains source records, and can undo', async () => {
     const { client } = await mount()
+    openAnswerSettings()
     fireEvent.change(screen.getByRole('combobox', { name: '回答方式' }), { target: { value: 'knowledge' } })
     const body = screen.getByRole('textbox', { name: '章节正文' }) as HTMLTextAreaElement
     const original = body.value

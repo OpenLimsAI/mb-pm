@@ -32,6 +32,8 @@ function insertCard() {
   fireEvent.click(screen.getByRole('menuitem', { name: /AI 问答/ }))
   return screen.getByRole('region', { name: '正文 AI 问答' })
 }
+
+function openAnswerSettings() { const toggle = screen.getByRole('button', { name: '回答设置' }); if (toggle.getAttribute('aria-expanded') !== 'true') fireEvent.click(toggle) }
 beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-editor-mode', 'markdown'); sessionStorage.clear(); localStorage.setItem('ks-writing-mode', 'split') })
 
 describe('knowledge report model integration', () => {
@@ -41,6 +43,7 @@ describe('knowledge report model integration', () => {
     await mount(models(), capabilities)
     const select = screen.getByRole('combobox', { name: '当前 AI 模型' })
     await waitFor(() => expect(select).toHaveValue('profile-one'))
+    openAnswerSettings()
     fireEvent.click(await screen.findByRole('button', { name: /搜索服务/ }))
     await screen.findByText('当前模型尚未配置搜索密钥。')
     expect(capabilities).toHaveBeenLastCalledWith('profile-one')
@@ -81,6 +84,7 @@ describe('knowledge report model integration', () => {
     await waitFor(() => expect(select).toHaveValue('profile-one'))
     expect(modelClient.test).not.toHaveBeenCalled()
     fireEvent.change(select, { target: { value: 'profile-two' } })
+    openAnswerSettings()
     fireEvent.change(screen.getByRole('combobox', { name: '回答方式' }), { target: { value: 'knowledge' } })
     fireEvent.change(screen.getByRole('textbox', { name: '向AI提问' }), { target: { value: '缓冲体系有哪些证据？' } })
     fireEvent.click(screen.getByRole('button', { name: '发送问题' }))

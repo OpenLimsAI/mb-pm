@@ -42,7 +42,7 @@ function ProjectsContent({ userId }: { userId: string }) {
   const mode = useDataStore((s) => s.mode)
   const { view, scope } = navigation
   const query = searchParams.get('q')
-  const page = query === null ? navigation.page : 'projects'
+  const page = searchParams.has('aiRun') ? 'workbench' : query === null ? navigation.page : 'projects'
   const filters = { ...navigation.filters, keyword: query ?? navigation.filters.keyword }
 
   useEffect(() => {
@@ -68,7 +68,7 @@ function ProjectsContent({ userId }: { userId: string }) {
 
   const change = (patch: Partial<ProjectNavigation>) => {
     setNavigation((current) => ({ ...current, page, ...patch, filters: patch.filters ?? { ...current.filters, keyword: query ?? current.filters.keyword } }))
-    if (query !== null) { const params = new URLSearchParams(searchParams); params.delete('q'); setSearchParams(params, { replace: true }) }
+    if (query !== null || (patch.page && searchParams.has('aiRun'))) { const params = new URLSearchParams(searchParams); params.delete('q'); if (patch.page) params.delete('aiRun'); setSearchParams(params, { replace: true }) }
   }
   const changeFilters = (next: FilterState) => change({ filters: next })
   const allItems = projectItems(projects, subProjects, tasks, today)

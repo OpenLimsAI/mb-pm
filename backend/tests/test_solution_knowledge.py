@@ -85,6 +85,32 @@ def test_configuration_rejects_ambiguous_or_non_origin_urls(monkeypatch, url):
     assert not kb.configured()
 
 
+def test_public_knowledge_mount_does_not_change_the_internal_core_origin(monkeypatch, upstream):
+    monkeypatch.setenv("SOLUTION_KB_PUBLIC_URL", "http://localhost:1234/knowledge-base/")
+    calls = upstream([page("sources/mounted.md")])
+    assert kb.configured()
+    assert kb.list_sources(CLAIMS)[0]["url"] == "http://localhost:1234/knowledge-base/"
+    assert calls[0]["url"] == "http://core.test:8765/v1/base/pages"
+    monkeypatch.setenv("SOLUTION_KB_CORE_URL", "http://core.test:8765/knowledge-base")
+    assert not kb.configured()
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/knowledge-base-other",
+        "/knowledge-base/extra",
+        "/knowledge-base/../private",
+        "/%6bnowledge-base",
+        "/knowledge-base?key=value",
+        "/knowledge-base#fragment",
+    ],
+)
+def test_public_mount_rejects_arbitrary_or_ambiguous_paths(monkeypatch, path):
+    monkeypatch.setenv("SOLUTION_KB_PUBLIC_URL", "http://localhost:1234" + path)
+    assert not kb.configured()
+
+
 @pytest.mark.parametrize("roles", [set(), {"admin"}, {"dikw-admin"}, {"project_lead"}])
 def test_cached_or_platform_roles_do_not_grant_kb_access(monkeypatch, roles):
     seen = []

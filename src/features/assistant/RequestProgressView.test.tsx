@@ -25,11 +25,41 @@ it('shows the recovery stage while the retained draft stays available', () => {
   expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 
+it('offers a general answer for a search failure and keeps data settings for application failures', () => {
+  const onGeneral = vi.fn(), onSettings = vi.fn(), onRetry = vi.fn()
+  const { rerender } = render(<RequestProgressView progress={{ phase: 'failed', job: job({ errorCode: 'web_not_configured', error: '请联系管理员开启联网搜索' }) }} onGeneral={onGeneral} onSettings={onSettings} onRetry={onRetry} />)
+  expect(screen.queryByRole('button', { name: /检查数据/ })).not.toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: '检查模型设置' })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '改用通用回答' }))
+  expect(onGeneral).toHaveBeenCalledOnce()
+  expect(onSettings).not.toHaveBeenCalled()
+  expect(onRetry).not.toHaveBeenCalled()
+  rerender(<RequestProgressView progress={{ phase: 'failed', job: job({ errorCode: 'knowledge_not_configured' }) }} onGeneral={onGeneral} onSettings={onSettings} />)
+  expect(screen.queryByRole('button', { name: '改用通用回答' })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '检查数据设置' }))
+  expect(onSettings).toHaveBeenCalledOnce()
+})
+
 it('keeps the actual failure reason when the request record is unavailable', () => {
   render(<RequestProgressView progress={{ phase: 'failed', requestId: 'request-a', message: '当前账号无权读取这次请求。' }} />)
   expect(screen.getByRole('alert')).toHaveTextContent('当前账号无权读取这次请求。')
   expect(screen.queryByText('本轮提问')).not.toBeInTheDocument()
   expect(screen.queryByText('诊断信息')).not.toBeInTheDocument()
+})
+
+it('offers project login only when a background request needs an account association', () => {
+  const onSettings = vi.fn()
+  const { rerender } = render(<RequestProgressView progress={{ phase: 'failed', job: job({ errorCode: 'project_login_required' }) }} onSettings={onSettings} />)
+  const link = screen.getByRole('link', { name: '打开项目管理' })
+  const destination = new URL(link.getAttribute('href')!)
+  expect(destination.pathname).toBe('/api/v1/auth/login')
+  expect(destination.searchParams.get('return_to')).toBe('/dashboard')
+  expect(link).toHaveAttribute('target', '_blank')
+  expect(screen.queryByRole('button', { name: '检查数据设置' })).not.toBeInTheDocument()
+  rerender(<RequestProgressView progress={{ phase: 'failed', job: job({ errorCode: 'project_account_unavailable' }) }} onSettings={onSettings} />)
+  expect(screen.queryByRole('link', { name: '打开项目管理' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '检查数据设置' })).not.toBeInTheDocument()
+  expect(onSettings).not.toHaveBeenCalled()
 })
 
 it('offers an honest draft recovery action and copies the retained text without submitting an edit', () => {

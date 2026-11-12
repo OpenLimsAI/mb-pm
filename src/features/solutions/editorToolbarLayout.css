@@ -1,0 +1,83 @@
+/* Keep writing controls readable when the report shares its width with other modules. */
+.ks-app .ks-editor-toolbar.ks-editor-formatbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 6px 0;
+}
+
+.ks-editor-toolbar .ks-editor-toolbar-tools {
+  display: flex;
+  flex: 1 1 450px;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  gap: 2px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--workbench-line, #d7e4e6) transparent;
+}
+
+.ks-editor-toolbar .ks-editor-tool-group {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+}
+
+.ks-app .ks-editor-toolbar .ks-editor-tool-group > button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  min-width: 30px;
+  height: 32px;
+  padding: 5px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--workbench-muted, #5b747a);
+  font-size: 12px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.ks-app .ks-editor-toolbar .ks-editor-tool-group > .ks-editor-caption-trigger {
+  width: auto;
+  padding-inline: 8px;
+}
+
+.ks-app .ks-editor-toolbar .ks-editor-tool-group > button:hover:not(:disabled) {
+  color: var(--workbench-brand);
+  background: var(--workbench-soft, #e7f3f3);
+}
+
+.ks-app .ks-editor-toolbar .ks-editor-tool-group > button:focus-visible {
+  outline: 2px solid var(--workbench-brand);
+  outline-offset: -2px;
+}
+
+.ks-app .ks-editor-toolbar .ks-editor-tool-group > button:disabled { opacity: .35; }
+.ks-editor-toolbar .ks-format-divider { flex: 0 0 1px; margin-inline: 5px; }
+
+.ks-editor-toolbar .ks-editor-toolbar-options {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  margin-left: auto;
+}
+
+.ks-editor-toolbar .ks-editor-mode { margin-left: 0; }
+.ks-editor-toolbar .ks-format-hint { flex: 0 0 auto; margin-left: 0; }
+.ks-editor-toolbar .ks-format-hint[hidden] { display: none; }
+
+@container ks-formatbar (max-width: 780px) {
+  .ks-editor-toolbar .ks-format-hint { display: none; }
+}

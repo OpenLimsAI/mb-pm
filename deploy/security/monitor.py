@@ -11,8 +11,11 @@ import subprocess as sp
 import tempfile
 
 # MiB / PIDs / CPUs. Only named production services; never unknown candidate containers.
+PM_WORKER = "mb-pm-v2-worker-1"
+PM_WEB = {"mb-pm-v2-app-1", "mb-pm-v2-app-direct-1"}
 LIMITS = {
     "mb-pm-v2-app-1": (1536, 128, 2), "mb-pm-v2-app-direct-1": (1536, 128, 2),
+    PM_WORKER: (1536, 128, 2),
     "mb-pm-v2-pms-db-1": (2048, 256, 2), "mb-pm-v2-iam-db-1": (1024, 256, 2),
     "mb-pm-v2-casdoor-1": (2048, 256, 2), "mb-pm-v2-tunnel-1": (256, 128, 1),
     "mb-pm-v2-direct-proxy-1": (256, 128, 1), "iam-proxy": (256, 128, 1),
@@ -81,7 +84,14 @@ def main():
         report["alerts"].append("docker_unavailable")
         containers = []
     else:
+        split = any(
+            item["Name"].lstrip("/") in PM_WEB
+            and "APP_PROCESS_ROLE=web" in item["Config"].get("Env", [])
+            for item in containers
+        )
         for name in LIMITS:
+            if name == PM_WORKER and not split:
+                continue
             if name not in {item["Name"].lstrip("/") for item in containers}:
                 report["alerts"].append(name + ":missing")
     args.output.parent.mkdir(parents=True, exist_ok=True, mode=0o700)

@@ -32,6 +32,19 @@ it('preserves unmatched history without pairing an answer with a different quest
   expect(within(screen.getByRole('region', { name: '第 2 轮对话' })).getByText('另一轮的独立回答')).toBeInTheDocument()
 })
 
+it('reanswers with current application settings through automatic mode while preserving historical provenance', () => {
+  const onReask = vi.fn()
+  render(<Conversation userName="研究员" messages={[
+    message('q', 'r', 'user', '知识库里有哪些论文？'),
+    { ...message('a', 'r', 'assistant', '原回答'), answerMode: 'knowledge', usedSources: ['knowledge'] },
+  ]} artifacts={[]} onCopy={() => {}} onArtifact={() => {}} onReask={onReask} />)
+  expect(screen.getByText('知识库回答')).toBeInTheDocument()
+  fireEvent.click(screen.getByText('换种方式重新回答'))
+  expect(screen.queryByRole('button', { name: '改用仅知识库重新回答' })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '改用自动判断重新回答' }))
+  expect(onReask).toHaveBeenCalledWith('知识库里有哪些论文？', '', 'auto')
+})
+
 it('offers the personal-assistant reference category for a saved message in its own task', () => {
   render(<Conversation taskId="task-own" userName="研究员" messages={[{...message('a-web','request-web','assistant','公开研究结果'),answerMode:'web',webReferences:[{id:'source-web',title:'原始论文',url:'https://example.org/paper',publishedAt:null,retrievedAt:'',excerpt:''}]}]} artifacts={[]} onCopy={()=>{}} onArtifact={()=>{}} />)
   fireEvent.click(screen.getByRole('button',{name:'导入知识源'}))

@@ -50,7 +50,7 @@ Ollama 不需要 API 密钥；其他云服务可先保存无密钥配置，但�
    `{PMS_PUBLIC_URL}/api/v1/auth/callback` 与登出回跳 `{PMS_PUBLIC_URL}/login`（`localhost` / `127.0.0.1` 由 Casdoor 免登记）。
 2. **后端 `.env`**（完整清单见 [`backend/.env.example`](../backend/.env.example)）：`CASDOOR_ENDPOINT`（浏览器访问的 IAM 地址 = token issuer）、
    `CASDOOR_CLIENT_SECRET`、`APP_SECRET`（≥32 字符随机值，兼作会话加密密钥）、`PMS_PUBLIC_URL`（用户访问本系统的 origin，
-   本地开发为 `http://localhost:5175`）。后端在容器 / 内网中访问 IAM 时另设 `CASDOOR_INTERNAL_URL`。HTTPS 部署设 `IAM_COOKIE_SECURE=true`。
+   本地开发为 `http://localhost:1234`）。后端在容器 / 内网中访问 IAM 时另设 `CASDOOR_INTERNAL_URL`。HTTPS 部署设 `IAM_COOKIE_SECURE=true`。
 3. **账号与角色**：`mabpharm` 组织中启用的账号都能进入项目管理。项目管理角色（admin / cmc_lead / project_lead / rd /
    production / qa_qc）取 IAM 中最高的一个，没有则按员工（rd）。首次登录时：有同名且未绑定的成员就关联，没有就按 IAM
    资料自动建成员；之后固定绑定 IAM 的 issuer + sub。已停用的成员、或同名成员已绑定其他 IAM 账号时无法登录。
@@ -187,6 +187,8 @@ AI 助手正式运行需迁移到 `012`，新建个人任务和消息表。门�
 
 统一笔记的精确 CORS Origin 和可选后台检索连接：`KNOWLEDGE_NOTES_ORIGIN`、`NOTES_WISDOM_CORE_URL`、`NOTES_WISDOM_TOKEN`、`NOTES_WISDOM_WORKER_ENABLED`，配置说明见 [我的笔记](personal-notes.md#配置)。
 
+本机知识库同源验证可显式配置 `KNOWLEDGE_BASE_UPSTREAM=http://127.0.0.1:4322`，把独立知识库挂载于 `/knowledge-base/`。默认留空，线上路由不改变；仅接受固定本机 4322 目标，不是通用代理。工作台只转发知识库自己的会话 Cookie，知识库继续核验身份和资料权限。前端构建配套设置 `VITE_KNOWLEDGE_BASE_PATH=/knowledge-base`，只在本机开发或 `combined` 模式启用；登录恢复、报告嵌入保持子路径。`SOLUTION_KB_PUBLIC_URL` 可使用精确的 `/knowledge-base` 公开前缀，Core 内部连接仍只接受原服务 Origin。知识库本身还需对应的公开 Origin 与基础路径配置，启动和验收见[本地开发](development.md)。
+
 此前个人助手移除项目相关功能的版本只提供知识库，忽略旧浏览器 `projects` 选择；当时无需新增迁移，发布范围见[发布记录](../deploy/parallel-test/releases/20261101-assistant-remove-projects.md)。当前开发预览单独恢复项目管理只读数据源，保持任务项目归类移除，并要求重新明确选择；升级要求见下方。
 
 Kimi 支持、模型价格显示与静态价格目录的维护规则见[模型价格参考](model-pricing.md)。
@@ -230,3 +232,13 @@ Kimi 支持、模型价格显示与静态价格目录的维护规则见[模型�
 ## 门户退出与来源校验
 
 SPA 入口文档（`index.html` 及前端路由回退）使用 `Referrer-Policy: same-origin`，保证浏览器原生 POST 退出表单带上精确 Origin，同时不向外站发送 Referer。API、认证响应、重定向和其他静态文件继续使用 `no-referrer`；不能对所有 HTML 一概放宽。后端仍严格匹配门户或 PM 的配置 Origin，拒绝缺失、`null`、错误域名及端口。根域与 www 并非同源，代理与公开入口须保持一致。本修复的源码及本地验证不代表已部署生产。
+
+## Agent 业务接口
+
+`AGENT_DELEGATION_CLIENT_ID` 默认为空。启用时，在 Casdoor 为外部 Agent 单独登记组织内用户授权客户端。此客户端的受众与项目管理、门户、MDM 和知识库模型客户端分开；采用用户交互授权取得专用访问令牌，限制回调地址和令牌时长。项目成员须已登录迈博并绑定身份。Agent 只接收用户访问令牌，不需要数据库凭据、IAM 管理员密钥或项目管理登录令牌。
+
+接口要求 `OIDC_GLOBAL_LOGOUT_ENABLED=true` 和 `CASDOOR_ACCOUNT_STATUS_VISIBLE=true`，按当前环境的状态模式校验令牌状态、账号和角色。部署前使用授权的测试账号验证：专用客户端与项目管理资源客户端的证书和令牌自省兼容，能读取必要的账号策略字段，禁用、撤销或降级后访问立即收窄。Casdoor 版本及客户策略的兼容性以该环境实测为准。
+
+项目与任务证据只从当前账号可见记录中读取。用户可按角色及任务权限创建提案，以同一账号在浏览器中确认执行。确认时重新校验权限、记录版本与提案影响；重复确认返回原回执。变更订阅游标使用服务端现有加密密钥，部署实例须共用有效配置。知识检索沿用已启用的知识源服务连接、账号知识库角色和文档访问控制。接入方法见 [Agent 命令行与 MCP](agent-cli.md)。
+
+后台进程角色 `APP_PROCESS_ROLE` 默认 `combined`。启用 `web` 和 `worker` 的部署步骤、有效配置要求、健康检查及回退见 [后台任务独立运行](background-worker-runtime.md)。

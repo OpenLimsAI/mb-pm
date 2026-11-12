@@ -140,6 +140,47 @@ def test_knowledge_origin_requires_matching_session_identity(note_client):
     assert f.client.get(PREFIX, headers={"X-Notes-Identity": "wrong"}).status_code == 403
 
 
+def test_same_origin_portal_and_mounted_knowledge_keep_distinct_identity_bindings(
+    note_client, monkeypatch
+):
+    f = note_client
+    origin = notes.settings.portal_origin
+    monkeypatch.setattr(notes.settings, "KNOWLEDGE_NOTES_ORIGIN", origin)
+    # The portal's existing verified account pin remains enough for its own CRUD.
+    assert f.client.get(PREFIX, headers={"Origin": origin}).status_code == 200
+    portal_note = create(f, title="Portal note")
+    assert (
+        f.client.put(
+            f"{PREFIX}/{portal_note['id']}",
+            headers={"Origin": origin},
+            json=save_body(portal_note, content="Portal update"),
+        ).status_code
+        == 200
+    )
+
+    # The KB has its independently verified issuer/subject rather than a portal pin.
+    f.client.headers.pop("X-Notes-Portal-Identity")
+    headers = {
+        "Origin": origin,
+        "X-Notes-Issuer": notes.settings.casdoor_issuer,
+        "X-Notes-Subject": "author",
+    }
+    assert f.client.get(PREFIX, headers=headers).status_code == 200
+    assert (
+        f.client.post(PREFIX, json=body(source_app="knowledge"), headers=headers).status_code == 201
+    )
+    for invalid in (
+        {"Origin": origin},
+        headers | {"X-Notes-Subject": "another-person"},
+        headers | {"X-Notes-Issuer": "https://other-issuer.example"},
+        headers | {"Origin": "https://other-origin.example"},
+    ):
+        assert f.client.post(PREFIX, json=body(), headers=invalid).status_code == 403
+    f.login("another-person")
+    f.client.headers.pop("X-Notes-Portal-Identity")
+    assert f.client.get(PREFIX, headers=headers).status_code == 403
+
+
 def test_portal_draft_is_not_created_under_a_new_cookie_account(note_client):
     f = note_client
     # This is the identity returned to account A's already-open PortalGate.

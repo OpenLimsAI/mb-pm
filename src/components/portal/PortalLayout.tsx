@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
-import { Archive, LogOut, ShieldCheck, LayoutDashboard, Sparkles, Library, BriefcaseBusiness, Settings2, CircleHelp } from 'lucide-react'
+import { Archive, LogOut, ShieldCheck, LayoutDashboard, Sparkles, Library, BriefcaseBusiness, Settings2, CircleHelp, Grid2X2 } from 'lucide-react'
 import type { PortalUser } from '../../api/portal'
 import { workspaceSections } from './workspaceSections'
 import '../../styles/workspace.css'
@@ -23,10 +23,10 @@ export default function PortalLayout({ user, logout, preview = false, children }
     <header className="workspace-header">
       <div className="workspace-header-inner">
         <Link className="workspace-brand" to={'/' + suffix} aria-label="迈博药业应用工作台首页">
-          <img src="/brand/maibo-pharma-logo.png" alt="迈博药业" />
-          <span className="workspace-brand-copy"><strong>迈博药业</strong><span>数字化工作空间</span></span>
+          <span className="forest-app-mark" aria-hidden="true"><Grid2X2 size={22} /></span>
+          <span className="workspace-brand-copy"><strong>应用工作台</strong><span lang="en">WORKSPACE</span></span>
         </Link>
-        <span className="workspace-context">MBERP / 应用工作台</span>
+        <span className="workspace-context">迈博数字化工作空间</span>
         <div className="workspace-account">
           <ApplicationActions userName={displayName || undefined} preview={preview} page={location} />
           {!user && !preview && <Link className="workspace-header-action" to="/login">前往登录</Link>}

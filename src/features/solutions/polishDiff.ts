@@ -18,3 +18,18 @@ export function polishChanges(original: string, proposed: string): TextChange[] 
   return parts
 }
 export function applyPolishChoices(changes: TextChange[], rejected: ReadonlySet<number>): string { return changes.map((part, index) => rejected.has(index) ? part.before : part.after).join('') }
+
+// Classify presentation only. Never normalize the actual proposal or the strings
+// used by applyPolishChoices. Keep word boundaries and numeric spacing meaningful.
+function layoutText(text: string): string {
+  return text.split(/\r?\n/).map(line => line.trim().replace(/[ \t\u3000]+/g, ' ').replace(/ *([，。！？；：、:／/]) */g, '$1')).filter(Boolean).join('\n')
+}
+export function polishChangeGroups(changes: TextChange[]): { text: number[]; layout: number[] } {
+  const onlyLayout = layoutText(changes.map(part => part.before).join('')) === layoutText(changes.map(part => part.after).join(''))
+  const groups: { text: number[]; layout: number[] } = { text: [], layout: [] }
+  changes.forEach((part, index) => {
+    if (!part.changed) return
+    groups[onlyLayout || layoutText(part.before) === layoutText(part.after) ? 'layout' : 'text'].push(index)
+  })
+  return groups
+}

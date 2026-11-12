@@ -1,0 +1,581 @@
+/* Business applications share the Blue Edition canvas and controls.
+   Keep status, validation, destructive actions and document formatting local. */
+:root :is(.aa-app, .aa-modal) {
+  --aa-soft: var(--workbench-soft);
+}
+
+:root .ks-app {
+  --ks-paper: var(--workbench-panel);
+  --ks-soft: var(--workbench-bg);
+}
+
+:root .information-app {
+  --if-panel: var(--workbench-panel);
+  --if-soft: var(--workbench-soft);
+  --if-primary: var(--workbench-brand);
+  --if-card-shadow: 0 1px 3px rgb(30 70 107 / 0.025);
+}
+
+:root .feedback-app {
+  --fb-blue: var(--workbench-ink);
+  --fb-muted: var(--workbench-muted);
+  --fb-border: var(--workbench-line);
+  --fb-teal: var(--workbench-brand);
+  --fb-soft: var(--workbench-soft);
+}
+
+:root #knowledge-source-app {
+  --kso-surface: var(--workbench-panel);
+  --kso-side: var(--workbench-bg);
+  --kso-soft: var(--workbench-bg);
+  --kso-border: var(--workbench-line);
+  --kso-scrim: rgb(20 42 61 / 0.38);
+}
+
+/* White reading and editing surfaces sit above the soft-white canvas. */
+:root :is(.aa-app, .pn-app, .ks-app) {
+  background: var(--workbench-bg);
+}
+
+:root .aa-app :is(.aa-chat, .aa-messages, .aa-result-pane, .aa-composer-wrap),
+:root .pn-app :is(.pn-note-detail, .pn-note-editor),
+:root .ks-app :is(.ks-knowledge-pane, .ks-paper, .ks-source-card),
+:root .information-app .if-browser-detail {
+  background: var(--workbench-panel);
+}
+
+:root .aa-app :is(.aa-sidebar, .aa-trash-view),
+:root .pn-app :is(.pn-note-list, .pn-reader-origin),
+:root .ks-app :is(.ks-editor-pane, .ks-report-summary, .ks-paper-scroll),
+:root .information-app .if-sidebar {
+  background: var(--workbench-bg);
+  border-color: var(--workbench-line);
+}
+
+:root .aa-app :is(.aa-turn, .aa-artifact-card),
+:root .pn-app .pn-card,
+:root .ks-app :is(.ks-paper, .ks-solution-card, .ks-source-card),
+:root .information-app .if-panel,
+:root .backup-app .backup-panel,
+:root .feedback-app .feedback-board,
+:root .efficient-portal .portal-panel {
+  border-color: var(--workbench-line);
+  border-radius: 12px;
+  background: var(--workbench-panel);
+  box-shadow: 0 1px 3px rgb(30 70 107 / 0.025);
+}
+
+:root .aa-app :is(.aa-artifact-option, .aa-artifact-search),
+:root .ks-app :is(.ks-evidence-panel > article, .ks-rich-slash),
+:root .information-app .if-source-card {
+  color: var(--workbench-text);
+  background: var(--workbench-panel);
+  border-color: var(--workbench-line);
+  border-radius: 12px;
+}
+
+:root .aa-app .aa-artifact-card:hover,
+:root .pn-app .pn-card:hover,
+:root .ks-app .ks-solution-card:hover {
+  border-color: color-mix(in srgb, var(--workbench-brand) 36%, var(--workbench-line));
+  background: var(--workbench-soft);
+}
+
+/* Toolbars and secondary controls have the same quiet, bordered treatment. */
+:root .aa-app :is(.aa-chat-header, .aa-result-footer, .aa-form-footer),
+:root .pn-app :is(.pn-list-header, .pn-reader-toolbar, .pn-reader-footer),
+:root .ks-app :is(.ks-layout-toolbar, .ks-pane-heading, .ks-subheading, .ks-focus-toolbar, .ks-editor-formatbar, .ks-supplement-heading),
+:root .information-app :is(.if-list-heading, .if-browser-heading),
+:root .feedback-app :is(.feedback-board-heading, .feedback-toolbar) {
+  background: var(--workbench-panel);
+  color: var(--workbench-text);
+  border-color: var(--workbench-line);
+}
+
+:root .aa-app .aa-button:not(.aa-primary):not(.aa-delete-confirm),
+:root .pn-app .pn-button:not(.pn-primary):not(.pn-reader-trash):not(.pn-trash-action),
+:root .ks-app .ks-button:not(.ks-primary):not(.ks-danger),
+:root .information-app .if-button:not(.is-primary),
+:root .backup-app .backup-btn:not(.primary):not(.danger):not(.danger-primary),
+:root .feedback-app :is(.feedback-outline-button, .feedback-status-button),
+:root .assistant-operations button {
+  color: var(--workbench-text);
+  border-color: var(--workbench-line);
+  border-radius: 7px;
+  background: var(--workbench-panel);
+  box-shadow: none;
+}
+
+:root .aa-app .aa-button:not(.aa-primary):not(.aa-delete-confirm):hover:not(:disabled),
+:root .pn-app .pn-button:not(.pn-primary):not(.pn-reader-trash):not(.pn-trash-action):hover:not(:disabled),
+:root .ks-app .ks-button:not(.ks-primary):not(.ks-danger):hover:not(:disabled),
+:root .information-app .if-button:not(.is-primary):hover:not(:disabled),
+:root .backup-app .backup-btn:not(.primary):not(.danger):not(.danger-primary):hover:not(:disabled),
+:root .feedback-app :is(.feedback-outline-button, .feedback-status-button):hover:not(:disabled),
+:root .assistant-operations button:hover:not(:disabled) {
+  color: var(--workbench-brand-strong);
+  border-color: color-mix(in srgb, var(--workbench-brand) 30%, var(--workbench-line));
+  background: var(--workbench-soft);
+}
+
+:root .aa-app .aa-primary,
+:root .pn-app .pn-primary,
+:root .ks-app .ks-primary,
+:root .information-app .if-button.is-primary,
+:root .backup-app .backup-btn.primary,
+:root .feedback-app .feedback-create {
+  border-color: var(--workbench-brand);
+  background: var(--workbench-brand);
+  color: var(--workbench-on-brand, #fff);
+  box-shadow: none;
+}
+
+:root .information-app .if-button.is-primary {
+  color: var(--workbench-on-brand) !important;
+}
+
+:root .aa-app .aa-send {
+  color: var(--workbench-on-brand);
+}
+
+:root .aa-app .aa-send:disabled {
+  background: var(--workbench-line);
+  color: var(--workbench-muted);
+}
+
+:root .aa-app .aa-primary:hover:not(:disabled),
+:root .pn-app .pn-primary:hover:not(:disabled),
+:root .ks-app .ks-primary:hover:not(:disabled),
+:root .information-app .if-button.is-primary:hover:not(:disabled),
+:root .backup-app .backup-btn.primary:hover:not(:disabled),
+:root .feedback-app .feedback-create:hover:not(:disabled) {
+  border-color: var(--workbench-brand-strong);
+  background: var(--workbench-brand-strong);
+}
+
+:root .aa-app :is(.aa-task-row.is-selected, .aa-new-task),
+:root .pn-app :is(.pn-note-row[aria-current='true'], .pn-nav[aria-current='page']),
+:root .ks-app :is(.ks-button.is-active, .ks-focus-tools > button[aria-pressed='true'], .ks-library-toolbar [role='tab'][aria-selected='true']),
+:root .information-app :is(.if-nav.is-active, .if-segment button[aria-pressed='true']),
+:root .backup-app .backup-root.selected,
+:root .feedback-app .feedback-category-picker > button.is-selected {
+  border-color: var(--workbench-line);
+  background: var(--workbench-soft);
+  color: var(--workbench-brand-strong);
+}
+
+/* Search and entry fields stay distinct from both the canvas and the paper. */
+:root .aa-app :is(.aa-search, .aa-composer, .aa-model-select select),
+:root .aa-modal .aa-field :is(input, textarea),
+:root .pn-app .pn-search,
+:root .pn-dialog .pn-field :is(input, textarea),
+:root .ks-app :is(.ks-search, .ks-question-composer, .ks-conversation-toolbar select),
+:root .information-app :is(.if-search, .if-field input, .if-field select, .if-field textarea),
+:root .backup-app :is(.backup-filters input, .backup-filters select, .backup-plan-fields input[type='time']),
+:root .feedback-app :is(.feedback-search, .feedback-reply-form > textarea),
+:root .model-price-preset select,
+:root .assistant-operations input {
+  background: var(--workbench-panel);
+  border-color: var(--workbench-line);
+  border-radius: 8px;
+  color: var(--workbench-text);
+}
+
+:root .aa-app :is(.aa-search input, .aa-composer > textarea),
+:root .pn-app .pn-search input,
+:root .ks-app .ks-search input {
+  color: var(--workbench-text);
+  background: transparent;
+}
+
+:root .aa-app :is(.aa-search, .aa-composer):focus-within,
+:root .pn-app .pn-search:focus-within,
+:root .ks-app :is(.ks-search, .ks-question-composer):focus-within,
+:root .information-app .if-search:focus-within,
+:root .feedback-app .feedback-search:focus-within {
+  border-color: var(--workbench-brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--workbench-brand) 12%, transparent);
+}
+
+/* AI modules share the research assistant's deep-blue panel heading. */
+:root .aa-app .aa-result-header,
+:root .ks-app [data-module='ai'] > .ks-subheading {
+  background: var(--workbench-mark);
+  color: var(--workbench-on-mark);
+  border-color: var(--workbench-mark);
+}
+
+:root .aa-app .aa-result-header [role='tab'],
+:root .ks-app [data-module='ai'] > .ks-subheading :is(strong, .ks-button, .ks-subheading-title, .ks-evidence-label) {
+  color: inherit;
+}
+
+:root .aa-app .aa-result-header [role='tab'][aria-selected='true'] {
+  border-color: currentColor;
+  color: inherit;
+}
+
+:root .aa-app .aa-result-header [role='tab'] > span {
+  background: rgb(255 255 255 / 0.14);
+  color: inherit;
+}
+
+/* Report, notebook and acquisition details use a common information hierarchy. */
+:root .aa-app :is(.aa-chat-header h2, .aa-question-text, .aa-overview-title),
+:root .pn-app :is(.pn-row-title, .pn-reader-paper > h2),
+:root .ks-app :is(.ks-document-identity h1, .ks-section-heading h2, .ks-section-heading h3, .ks-ai-welcome h3),
+:root .information-app :is(h1, h2, h3, .if-document-row strong, .if-event-row strong),
+:root .backup-app :is(h1, h2, .backup-metric > strong),
+:root .feedback-app :is(.feedback-summary-copy strong, .feedback-metrics strong),
+:root .efficient-portal .portal-panel h2,
+:root .assistant-operations :is(h2, .ao-totals strong) {
+  color: var(--workbench-ink);
+}
+
+:root .aa-app :is(.aa-welcome h2, .aa-result-empty h3, .aa-result-scroll > h2, .aa-overview-stats strong, .aa-artifact-nav-heading h3),
+:root .ks-app :is(.ks-rich-document h1, .ks-rich-document h2, .ks-rich-document h3, .ks-evidence-title) {
+  color: var(--workbench-ink);
+}
+
+:root .ks-app :is(.ks-body-editor, .ks-rich-document, .ks-evidence-panel) {
+  color: var(--workbench-text);
+}
+
+:root .aa-app :is(.aa-task-list-heading, .aa-task-time, .aa-source-summary),
+:root .pn-app :is(.pn-card-meta, .pn-origin, .pn-nav-label),
+:root .ks-app :is(.ks-paper-meta, .ks-writing-toolbar, .ks-writing-footnote, .ks-format-hint),
+:root .information-app :is(.if-caption, .if-eyebrow, .if-nav-group, .if-detail-overline, .if-folder-path),
+:root .backup-app :is(.backup-heading p, .backup-muted, .backup-panel-heading p, .backup-metric p, .backup-plan-meta, .backup-root > span, .backup-table small),
+:root .feedback-app :is(.feedback-summary-copy p, .feedback-metrics span, .feedback-board-eyebrow),
+:root :is(.model-price-picker, .model-price-source, .model-price-disclaimer, .assistant-operations) {
+  color: var(--workbench-muted);
+}
+
+:root .aa-app :is(.aa-welcome p, .aa-result-empty p, .aa-overview-intro, .aa-overview-section p, .aa-overview-section dt, .aa-disclaimer, .aa-artifact-option-meta),
+:root .information-app :is(.if-soft-box p, .if-follow p, .if-profile div > span, .if-footer),
+:root .feedback-app :is(.feedback-field-heading label, .feedback-field-label) {
+  color: var(--workbench-muted);
+}
+
+:root .aa-app :is(.aa-turn-header, .aa-context-details pre, .aa-history-materials pre),
+:root .pn-app :is(.pn-reader-origin, .pn-list-caption),
+:root .ks-app :is(.ks-context-bar, .ks-scope-foot, .ks-formula-detail, .ks-library-toolbar),
+:root .information-app :is(.if-soft-box, .if-cost-summary),
+:root .backup-app .backup-root,
+:root .feedback-app :is(.feedback-side-note, .feedback-summary),
+:root :is(.model-price-info, .ao-totals > div) {
+  background: var(--workbench-bg);
+  border-color: var(--workbench-line);
+}
+
+:root .aa-app :is(.aa-overview-stats > div, .aa-readonly),
+:root .ks-app :is(.ks-evidence-detail blockquote, .ks-polish-diff > header, .ks-import-preview textarea) {
+  color: var(--workbench-text);
+  background: var(--workbench-panel-soft);
+  border-color: var(--workbench-line);
+}
+
+/* The legacy information theme gives these neutral labels !important. */
+:root .information-app .if-nav {
+  color: var(--workbench-muted) !important;
+}
+
+:root .information-app .if-nav:is(.is-active, :hover),
+:root .information-app .if-inline-link {
+  color: var(--workbench-brand-strong) !important;
+}
+
+:root .information-app .if-nav.is-active .if-nav-count {
+  color: var(--workbench-brand-strong);
+  background: var(--workbench-panel);
+}
+
+:root .aa-app :is(.aa-bot-avatar, .aa-overview-icon, .aa-artifact-card > span),
+:root .pn-app :is(.pn-row-icon, .pn-dialog-icon),
+:root .information-app :is(.if-summary-icon, .if-count, .if-run-icon),
+:root .feedback-app :is(.feedback-summary-icon, .feedback-side-icon),
+:root .backup-app .backup-badge:not(.warning) {
+  color: var(--workbench-brand-strong);
+  background: var(--workbench-soft);
+  border-color: var(--workbench-line);
+}
+
+:root .backup-app :is(.backup-heading h1 svg, .backup-metric svg, .backup-plan h2 svg, .backup-table summary) {
+  color: var(--workbench-brand);
+}
+
+:root .backup-app .backup-banner:not(.warning):not([role='alert']) {
+  background: var(--workbench-soft);
+  color: var(--workbench-brand-strong);
+  border-color: var(--workbench-line);
+}
+
+:root .backup-app :is(.backup-table-wrap, .backup-table th, .backup-table td),
+:root .model-price-info :is(th, td),
+:root .assistant-operations :is(th, td),
+:root .feedback-app :is(.feedback-items, .feedback-item, .feedback-board-footer, .feedback-empty) {
+  border-color: var(--workbench-line);
+}
+
+:root .backup-app .backup-table th,
+:root .assistant-operations th {
+  background: var(--workbench-bg);
+  color: var(--workbench-muted);
+}
+
+:root .efficient-portal .portal-primary-action,
+:root .ks-model-settings .ks-primary {
+  color: var(--workbench-on-brand);
+  background: var(--workbench-brand);
+  border-color: var(--workbench-brand);
+}
+
+:root .efficient-portal .portal-primary-action:hover,
+:root .ks-model-settings .ks-primary:hover:not(:disabled) {
+  background: var(--workbench-brand-strong);
+  border-color: var(--workbench-brand-strong);
+}
+
+:root .ks-model-settings,
+:root .ks-model-settings :is(.ks-field, .ks-model-editor-heading h3) {
+  color: var(--workbench-text);
+}
+
+:root .ks-model-settings :is(.ks-model-list, .ks-model-banner) {
+  color: var(--workbench-muted);
+  background: var(--workbench-bg);
+  border-color: var(--workbench-line);
+}
+
+:root .ks-model-settings .ks-model-list > button.is-selected {
+  color: var(--workbench-brand-strong);
+  background: var(--workbench-soft);
+  border-color: var(--workbench-line);
+}
+
+:root .ks-model-settings .ks-model-editor,
+:root .portal-ai-settings .ks-field :is(input, select) {
+  color: var(--workbench-text);
+  background: var(--workbench-panel);
+  border-color: var(--workbench-line);
+}
+
+:root .efficient-portal :is(.portal-identity-list > div, .portal-access-list li, .portal-faq details) {
+  border-color: var(--workbench-line);
+}
+
+:root .efficient-portal .portal-access-status:not(.portal-access-status--pending) {
+  color: var(--workbench-brand-strong);
+  background: var(--workbench-soft);
+}
+
+:root .backup-app .backup-table .selected td {
+  background: var(--workbench-soft);
+}
+
+/* Knowledge sources own their status tokens; only neutral structure changes. */
+:root #knowledge-source-app :is(.kso-workspace, .kso-source-card, .kso-job, .ksv-library) {
+  border-color: var(--workbench-line);
+  border-radius: 12px;
+  background: var(--workbench-panel);
+}
+
+:root #knowledge-source-app :is(.kso-search, .kso-field input, .kso-field select, .kso-field textarea) {
+  border-color: var(--workbench-line);
+  background: var(--workbench-panel);
+  color: var(--workbench-text);
+}
+
+:root #knowledge-source-app :is(.kso-search:focus-within, .kso-field input:focus, .kso-field select:focus) {
+  border-color: var(--workbench-brand);
+}
+
+:root #knowledge-source-app .kso-paper-sub {
+  color: var(--workbench-muted);
+}
+
+:root #knowledge-source-app .kso-dialog-head {
+  background: var(--workbench-bg);
+}
+
+:root :is(.aa-modal, .pn-dialog),
+:root .information-app .if-modal,
+:root .backup-dialog {
+  color: var(--workbench-text);
+  background: var(--workbench-panel);
+  border-color: var(--workbench-line);
+  border-radius: 12px;
+}
+
+:root .pn-dialog > :is(header, footer),
+:root .information-app .if-modal-header {
+  background: var(--workbench-bg);
+  border-color: var(--workbench-line);
+}
+
+:root :is(.aa-app, .pn-app, .ks-app, .information-app, .backup-app, .assistant-operations) :focus-visible {
+  outline-color: var(--workbench-brand);
+}
+
+:root .backup-app input[type='checkbox'] {
+  accent-color: var(--workbench-brand);
+}
+
+
+/* Application identity and surface hierarchy follow the Blue Edition draft. */
+:root :is(.aa-topbar, .pn-app-header),
+:root .ks-app .ks-topbar,
+:root .information-app .if-header,
+:root #knowledge-source-app :is(.kso-source-header, .kso-top) {
+  height: var(--workbench-header-height, 72px);
+  min-height: var(--workbench-header-height, 72px);
+  padding-inline: 24px;
+  background: var(--workbench-panel);
+  border-color: var(--workbench-line);
+  color: var(--workbench-ink);
+  box-shadow: none;
+}
+
+:root :is(.aa-brand-mark, .pn-app-mark, .if-app-mark),
+:root #knowledge-source-app .kso-mark {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 38px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--workbench-mark);
+  color: var(--workbench-on-mark);
+}
+
+:root .aa-app :is(.aa-sidebar, .aa-chat-header),
+:root .pn-app :is(.pn-sidebar, .pn-list-header),
+:root .ks-app :is(.ks-focus-rail, .ks-format-menu),
+:root .information-app .if-sidebar {
+  background: var(--workbench-panel);
+  border-color: var(--workbench-line);
+}
+
+:root .pn-app .pn-note-list {
+  background: var(--workbench-panel-soft);
+}
+
+:root .pn-app .pn-note-row {
+  border: 1px solid var(--workbench-line);
+  border-radius: 8px;
+  margin-bottom: 9px;
+  background: var(--workbench-panel);
+  padding: 15px 12px;
+}
+
+:root .pn-app .pn-note-row[aria-current='true'] {
+  background: var(--workbench-soft);
+  border-color: var(--workbench-line-strong);
+}
+
+:root .pn-app .pn-note-row:hover {
+  border-color: var(--workbench-line-strong);
+}
+
+:root .pn-app :is(.pn-reader-placeholder > svg, .pn-row-icon),
+:root .aa-app :is(.aa-welcome > svg, .aa-bot-avatar),
+:root .ks-app :is(.ks-ai-symbol, .ks-project-dot) {
+  color: var(--workbench-brand);
+}
+
+:root .aa-app .aa-turn {
+  border-radius: 10px;
+}
+
+:root .aa-app .aa-composer,
+:root .ks-app .ks-question-composer {
+  border-radius: 10px;
+  box-shadow: 0 3px 16px rgb(30 70 107 / 0.035);
+}
+
+:root .ks-app :is(.ks-editor-formatbar, .ks-ai-modelbar, .ks-research-toolbar),
+:root .pn-app :is(.pn-inline-editor > header, .pn-reader-toolbar) {
+  background: var(--workbench-panel);
+  border-color: var(--workbench-line);
+}
+
+:root .ks-app :is(.ks-rich-document blockquote, .ks-report-intro-note) {
+  border-color: var(--workbench-highlight, #67baf4);
+  background: var(--workbench-soft);
+  color: var(--workbench-brand-strong);
+}
+
+:root .ks-app :is(.ks-focus-rail, .ks-focus-utilities, .ks-outline-entry) {
+  border-color: var(--workbench-line);
+}
+
+:root .ks-app .ks-count,
+:root .ks-app .ks-library-count {
+  background: var(--workbench-soft);
+  color: var(--workbench-brand-strong);
+}
+
+:root #knowledge-source-app {
+  --kso-side: var(--workbench-panel);
+  --kso-top-ink: var(--workbench-ink);
+}
+
+/* Raised headers keep their existing scroll and drawer boundaries. */
+:root .ks-app,
+:root .ks-app.ks-focus-writing {
+  --ks-focus-header-height: calc(var(--workbench-header-height, 72px) + 48px);
+}
+
+:root .aa-result-expanded .aa-result-pane,
+:root .aa-result-peek .aa-result-pane {
+  top: var(--workbench-header-height, 72px);
+}
+
+:root .aa-result-peek .aa-result-scrim,
+:root .aa-sidebar-visible .aa-sidebar-scrim {
+  inset: var(--workbench-header-height, 72px) 0 0;
+}
+
+:root .aa-sidebar-visible .aa-sidebar {
+  top: var(--workbench-header-height, 72px);
+}
+
+:root .information-app .if-shell {
+  min-height: calc(100dvh - var(--workbench-header-height, 72px));
+}
+
+:root .information-app .if-sidebar,
+:root #knowledge-source-app .kso-sidebar {
+  top: var(--workbench-header-height, 72px);
+  height: calc(100dvh - var(--workbench-header-height, 72px));
+}
+
+:root #knowledge-source-app .kso-bulk {
+  top: var(--workbench-header-height, 72px);
+}
+
+:root #knowledge-source-app .ksv-reader.is-expanded {
+  inset: calc(var(--workbench-header-height, 72px) + 9px) 4vw 20px;
+}
+
+@media (max-width: 850px) {
+  :root #knowledge-source-app .ksv-reader.is-expanded {
+    inset: var(--workbench-header-height, 72px) 8px 8px;
+  }
+}
+
+@media (max-width: 760px) {
+  :root :is(.aa-topbar, .pn-app-header),
+  :root .ks-app .ks-topbar,
+  :root .information-app .if-header,
+  :root #knowledge-source-app :is(.kso-source-header, .kso-top) {
+    padding-inline: 12px;
+  }
+
+  :root .information-app .if-sidebar,
+  :root #knowledge-source-app .kso-sidebar {
+    position: static;
+    height: auto;
+  }
+}

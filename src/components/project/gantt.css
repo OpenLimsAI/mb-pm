@@ -52,7 +52,7 @@
   border-top: 1px solid rgb(148 163 184 / 0.25);
 }
 .gantt-scroll:focus-visible {
-  outline: 2px solid #087b9c;
+  outline: 2px solid var(--workbench-brand);
   outline-offset: -2px;
 }
 .gantt-grid {
@@ -74,7 +74,7 @@
   position: sticky;
   top: 0;
   z-index: 20;
-  background: #edf1f3;
+  background: var(--workbench-panel-soft);
   border-bottom: 1px solid rgb(148 163 184 / 0.25);
 }
 .gantt-label-header { z-index: 40; }
@@ -86,7 +86,7 @@
 .gantt-legend { flex-shrink: 0; }
 .gantt-task-bar { padding: 0; text-align: left; }
 .gantt-task-bar:focus-visible {
-  outline: 2px solid #087b9c;
+  outline: 2px solid var(--workbench-brand);
   outline-offset: 2px;
   z-index: 15;
 }

@@ -3,6 +3,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import AssistantApp from './AssistantApp'
 import { createPreviewAssistantClient, type AssistantRequest } from './client'
 import { readDraft, writeDraft } from './localDrafts'
+import { writeDataSources } from './dataSources'
 import type { ModelSettingsClient } from '../solutions/modelSettings'
 
 const question = '最新的生物制药论文'
@@ -16,6 +17,104 @@ function deferred<T>() {
   return { promise, resolve }
 }
 beforeEach(() => localStorage.clear())
+
+function openEmptyComposer() {
+  const namespace = crypto.randomUUID()
+  localStorage.setItem(`mberp:assistant:preview:v1:${encodeURIComponent(namespace)}`, '[]')
+  const client = createPreviewAssistantClient(namespace)
+  render(<AssistantApp client={client} modelClient={models} userName="测试用户" namespace="first-message" preview />)
+  return client
+}
+
+it('starts a task from the first question and sends only once with the selected application data', async () => {
+  writeDataSources(localStorage, 'assistant-data-sources:first-message:preview', ['projects'])
+  const client = openEmptyComposer()
+  const create = vi.spyOn(client, 'create'), send = vi.spyOn(client, 'send')
+  const firstQuestion = '当前有哪些项目？'
+  expect(composer()).toBeEnabled()
+  fireEvent.change(composer(), { target: { value: firstQuestion } })
+  fireEvent.click(screen.getByRole('button', { name: '添加任务资料' }))
+  fireEvent.change(screen.getByRole('textbox', { name: '本轮资料正文' }), { target: { value: context } })
+  fireEvent.click(screen.getByRole('button', { name: '应用资料' }))
+  expect(create).not.toHaveBeenCalled()
+  fireEvent.keyDown(composer(), { key: 'Enter' })
+  fireEvent.keyDown(composer(), { key: 'Enter' })
+  await waitFor(() => expect(composer()).toHaveValue(''))
+  expect(create).toHaveBeenCalledOnce()
+  expect(send).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ title: firstQuestion }), expect.objectContaining({ question: firstQuestion, context, data_sources: ['projects'] }))
+  expect(screen.getByRole('heading', { name: firstQuestion, level: 2 })).toBeInTheDocument()
+  expect(await client.list()).toMatchObject({ total: 1 })
+})
+
+it('keeps the first question when the creation response is lost and reuses the created task on retry', async () => {
+  const client = openEmptyComposer(), createTask = client.create
+  const create = vi.spyOn(client, 'create').mockImplementationOnce(async input => {
+    await createTask(input)
+    throw new Error('创建任务响应丢失')
+  })
+  const send = vi.spyOn(client, 'send')
+  fireEvent.change(composer(), { target: { value: question } })
+  fireEvent.click(screen.getByRole('button', { name: '发送任务消息' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('创建任务响应丢失')
+  expect(composer()).toHaveValue(question)
+  expect(send).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: '发送任务消息' }))
+  await waitFor(() => expect(composer()).toHaveValue(''))
+  expect(create.mock.calls[1]).toEqual(create.mock.calls[0])
+  expect(send).toHaveBeenCalledOnce()
+  expect(await client.list()).toMatchObject({ total: 1 })
+})
+
+it('keeps the question and offers a settings shortcut when the first send is blocked before creation', async () => {
+  const client = openEmptyComposer()
+  client.preflight = vi.fn(async () => ({ ready: false, checks: [{ key: 'scope', status: 'blocked' as const, message: '请检查数据设置' }] }))
+  const create = vi.spyOn(client, 'create')
+  fireEvent.change(composer(), { target: { value: question } })
+  fireEvent.keyDown(composer(), { key: 'Enter' })
+  expect(await screen.findByRole('alert')).toHaveTextContent('请检查数据设置')
+  expect(screen.getByRole('button', { name: '打开数据设置' })).toBeInTheDocument()
+  expect(composer()).toHaveValue(question)
+  expect(create).not.toHaveBeenCalled()
+})
+
+it('offers a non-web answer without opening model settings or sending the draft automatically', async () => {
+  const client = openEmptyComposer()
+  client.preflight = vi.fn(async input => input.question && input.answerMode !== 'general'
+    ? { ready: false, checks: [{ key: 'web', status: 'blocked' as const, message: '联网搜索未启用，请联系管理员在服务端开启。' }] }
+    : { ready: true, checks: [] })
+  const create = vi.spyOn(client, 'create'), send = vi.spyOn(client, 'send')
+  fireEvent.change(composer(), { target: { value: question } })
+  fireEvent.keyDown(composer(), { key: 'Enter' })
+  const alert = await screen.findByRole('alert')
+  expect(alert).toHaveTextContent('请联系管理员')
+  expect(within(alert).queryByRole('link', { name: '打开 AI 模型设置' })).not.toBeInTheDocument()
+  fireEvent.click(within(alert).getByRole('button', { name: '改用通用回答' }))
+  expect(screen.getByRole('combobox', { name: '回答方式' })).toHaveValue('general')
+  expect(composer()).toHaveValue(question)
+  expect(create).not.toHaveBeenCalled()
+  expect(send).not.toHaveBeenCalled()
+  fireEvent.keyDown(composer(), { key: 'Enter' })
+  await waitFor(() => expect(send).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ answerMode: 'general', question })))
+})
+
+it('does not send or leave the recycle bin when task creation finishes after navigation', async () => {
+  const client = openEmptyComposer(), createTask = client.create, creation = deferred<void>()
+  const create = vi.spyOn(client, 'create').mockImplementation(async input => {
+    await creation.promise
+    return createTask(input)
+  })
+  const send = vi.spyOn(client, 'send')
+  fireEvent.change(composer(), { target: { value: question } })
+  fireEvent.keyDown(composer(), { key: 'Enter' })
+  await waitFor(() => expect(create).toHaveBeenCalledOnce())
+  fireEvent.click(screen.getByRole('button', { name: '回收站' }))
+  await act(async () => creation.resolve())
+  expect(screen.queryByRole('textbox', { name: '给 AI 助手的任务' })).not.toBeInTheDocument()
+  expect(send).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: '任务列表' }))
+  fireEvent.click(await screen.findByRole('button', { name: `打开任务：${question}` }))
+  await waitFor(() => expect(composer()).toHaveValue(question))
+})
 
 async function fixture() {
   const client = createPreviewAssistantClient(crypto.randomUUID())
@@ -33,6 +132,7 @@ async function fixture() {
   const seed = () => writeDraft(scope, task.id, { question, context, label: '参考资料' })
   const open = async () => {
     const view = render(<AssistantApp {...props} />)
+    fireEvent.click(await screen.findByRole('button', { name: `打开任务：${task.title}` }))
     await screen.findByRole('heading', { name: task.title, level: 2 })
     await waitFor(() => expect(composer()).toBeEnabled())
     await waitFor(() => expect(client.activeRequest).toHaveBeenCalled())
