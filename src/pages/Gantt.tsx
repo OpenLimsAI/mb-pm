@@ -1,7 +1,7 @@
 // 全局甘特图：多项目联合视图（FR-PJ-002 / FR-PJ-003）
 // 单项目模式：选定一个项目，复用 <Gantt> 组件（点击任务条打开任务抽屉，可直接录入进展）
 // 多项目模式：所有活跃项目堆叠展示（紧凑视图，跨项目时间轴）
-// 管理者看组合全景；执行者（rd / production / qa_qc）固定单项目视图，只见自己参与的项目。
+// 默认单项目视图；管理者可切换组合全景，执行者只见自己参与的项目。
 
 import { useState, useMemo, useRef, useLayoutEffect } from 'react'
 import { useColumnWidth } from '../lib/useColumnWidth'
@@ -45,7 +45,7 @@ export default function GanttPage() {
   )
 
   // 执行者强制单项目（看本人参与），其他角色可切换
-  const [mode, setMode] = useState<Mode>(isOwnTaskOnly ? 'single' : 'multi')
+  const [mode, setMode] = useState<Mode>('single')
   const [singleId, setSingleId] = useState<string>('')
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
   // 所选项目不可见 / 已删除时回落到第一个
@@ -69,6 +69,7 @@ export default function GanttPage() {
           {!isOwnTaskOnly && (
             <div className="inline-flex rounded-md border border-ink-300 bg-white p-0.5">
               <button
+                aria-pressed={mode === 'multi'}
                 onClick={() => setMode('multi')}
                 className={cn(
                   'inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors',
@@ -79,6 +80,7 @@ export default function GanttPage() {
                 多项目视图
               </button>
               <button
+                aria-pressed={mode === 'single'}
                 onClick={() => setMode('single')}
                 className={cn(
                   'inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors',
