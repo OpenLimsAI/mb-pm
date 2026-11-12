@@ -15,9 +15,14 @@ from app.core.config import settings
 from app.schemas.knowledge_ai import Completion, Message
 from app.services import ai, solution_ai
 from app.services import assistant_diagnostics as diagnostics
+from app.services.assistant_generation_policy import official_deepseek
 
 TIMEOUT_SECONDS = 120
 FINISH_REASONS = {"stop", "length", "tool_calls", "content_filter"}
+
+
+def supports_json_object(profile):
+    return profile["provider"] in {"deepseek", "custom"} and official_deepseek(profile)
 
 
 def models(db, claims, legacy_profile_id=None):
@@ -34,6 +39,7 @@ def models(db, claims, legacy_profile_id=None):
                 "id": profile["id"],
                 "name": profile["name"],
                 "provider": profile["provider"],
+                "base_url": profile["base_url"],
                 "model": profile["model"],
                 "key_set": bool(profile.get("api_key")),
             }
@@ -47,6 +53,7 @@ def models(db, claims, legacy_profile_id=None):
                 "model": p["model"],
                 "key_set": p["key_set"],
                 "available": p["provider"] in {"custom", "ollama"} or p["key_set"],
+                **({"supports_json_object": True} if supports_json_object(p) else {}),
             }
             for p in public["profiles"]
         ],
@@ -164,7 +171,7 @@ def response_tool_call(raw):
     return call
 
 
-def response_data(result, cfg, payload):
+def response_data(result, cfg, payload, *, structured_deepseek=False):
     choices = result.get("choices")
     if not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], dict):
         raise ValueError("invalid completion")
@@ -177,6 +184,12 @@ def response_data(result, cfg, payload):
         "role": "assistant",
         **{key: raw[key] for key in ("content", "tool_calls", "reasoning_content") if key in raw},
     }
+    reason = choice.get("finish_reason")
+    if structured_deepseek:
+        # No tool continuation needs reasoning in a bounded structured turn.
+        data.pop("reasoning_content", None)
+        if reason in ("stop", "length", "content_filter") and raw.get("content", "") is None:
+            data["content"] = ""
     if isinstance(data.get("tool_calls"), list):
         data["tool_calls"] = [response_tool_call(call) for call in data["tool_calls"]]
     message = Message.model_validate(data)
@@ -185,7 +198,6 @@ def response_data(result, cfg, payload):
         raise ValueError("provider selected an undeclared tool")
     if message.tool_calls and payload.tool_choice == "none":
         raise ValueError("provider ignored disabled tools")
-    reason = choice.get("finish_reason")
     if reason not in FINISH_REASONS:
         raise ValueError("missing completion finish reason")
     if (reason == "tool_calls") != bool(message.tool_calls) and reason != "length":
@@ -245,6 +257,20 @@ def complete(db, claims, payload: Completion):
     if provider == "kimi" or cfg.get("provider") == "kimi":
         limit_key = "max_completion_tokens" if cfg["model"].startswith("kimi-k3") else "max_tokens"
         body[limit_key] = min(budget, 16384)
+    structured_deepseek = (
+        supports_json_object(cfg)
+        and payload.response_format is not None
+        and payload.response_format.type in {"json_object", "json_schema"}
+        and not payload.tools
+        and not any(message.tool_calls or message.role == "tool" for message in payload.messages)
+    )
+    if structured_deepseek:
+        # DeepSeek Chat Completions supports JSON objects rather than strict schemas.
+        # Disable default thinking so this turn's bounded budget is available for JSON.
+        body["response_format"] = {"type": "json_object"}
+        body["reasoning_effort"] = "none"
+        if "max_completion_tokens" in body:
+            body["max_tokens"] = body.pop("max_completion_tokens")
     diagnostics.configure_model(provider, cfg)
     try:
         result = diagnostics.model_call(
@@ -256,7 +282,10 @@ def complete(db, claims, payload: Completion):
             timeout=TIMEOUT_SECONDS,
         )
         return response_data(
-            ollama_result(result) if provider == "ollama" else result, cfg, payload
+            ollama_result(result) if provider == "ollama" else result,
+            cfg,
+            payload,
+            structured_deepseek=structured_deepseek,
         )
     except ai.AIError as exc:
         raise diagnostics.model_http_error(exc) from None

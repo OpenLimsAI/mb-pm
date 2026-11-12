@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { HttpResponse, http } from 'msw'
 import { afterEach, expect, it, vi } from 'vitest'
 import App from '../App'
@@ -13,8 +13,14 @@ it('uses portal identity and owned assistant tasks independently of PM and KB', 
   server.use(http.get('*/api/v1/assistant/tasks', () => { calls.push('list'); return HttpResponse.json({ items: [summary], total: 1 }) }))
   server.use(http.get('*/api/v1/assistant/tasks/task-id', () => { calls.push('task'); return HttpResponse.json({ ...summary, messages: [], artifacts: [] }) }))
   server.use(http.get('*/api/v1/solutions/ai/settings', () => { calls.push('models'); return HttpResponse.json({ profiles: [], default_profile_id: null, revision: 0 }) }))
+  server.use(http.get('*/api/v1/assistant/tasks/capabilities', () => HttpResponse.json({ webSearch: { configured: false }, modes: ['auto', 'general', 'web'] })))
+  server.use(http.post('*/api/v1/assistant/tasks/preflight', () => HttpResponse.json({ ready: true, checks: [] })))
+  server.use(http.get('*/api/v1/assistant/tasks/task-id/requests/active', () => HttpResponse.json(null)))
   window.history.replaceState({}, '', '/assistant')
   render(<App />)
+  const ownedTask = await screen.findByRole('button', { name: '打开任务：自己的 AI 任务' })
+  expect(calls).not.toContain('task')
+  fireEvent.click(ownedTask)
   expect(await screen.findByRole('heading', { name: '自己的 AI 任务' })).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'AI 助手', level: 1 })).toBeInTheDocument()
   expect(screen.getByRole('textbox', { name: '给 AI 助手的任务' })).toBeEnabled()

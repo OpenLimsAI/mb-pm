@@ -187,6 +187,8 @@ AI 助手正式运行需迁移到 `012`，新建个人任务和消息表。门�
 
 统一笔记的精确 CORS Origin 和可选后台检索连接：`KNOWLEDGE_NOTES_ORIGIN`、`NOTES_WISDOM_CORE_URL`、`NOTES_WISDOM_TOKEN`、`NOTES_WISDOM_WORKER_ENABLED`，配置说明见 [我的笔记](personal-notes.md#配置)。
 
+本机知识库同源验证可显式配置 `KNOWLEDGE_BASE_UPSTREAM=http://127.0.0.1:4322`，把独立知识库挂载于 `/knowledge-base/`。默认留空，线上路由不改变；仅接受固定本机 4322 目标，不是通用代理。工作台只转发知识库自己的会话 Cookie，知识库继续核验身份和资料权限。前端构建配套设置 `VITE_KNOWLEDGE_BASE_PATH=/knowledge-base`，只在本机开发或 `combined` 模式启用；登录恢复、报告嵌入保持子路径。`SOLUTION_KB_PUBLIC_URL` 可使用精确的 `/knowledge-base` 公开前缀，Core 内部连接仍只接受原服务 Origin。知识库本身还需对应的公开 Origin 与基础路径配置，启动和验收见[本地开发](development.md)。
+
 此前个人助手移除项目相关功能的版本只提供知识库，忽略旧浏览器 `projects` 选择；当时无需新增迁移，发布范围见[发布记录](../deploy/parallel-test/releases/20261101-assistant-remove-projects.md)。当前开发预览单独恢复项目管理只读数据源，保持任务项目归类移除，并要求重新明确选择；升级要求见下方。
 
 Kimi 支持、模型价格显示与静态价格目录的维护规则见[模型价格参考](model-pricing.md)。

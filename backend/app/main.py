@@ -28,6 +28,7 @@ from app.api.v1 import (
     finances,
     information,
     knowledge_ai,
+    knowledge_base,
     knowledge_source_acquisition_v3,
     knowledge_source_library_v3,
     knowledge_source_manual_index_v3,
@@ -321,6 +322,17 @@ async def prevent_auth_response_caching(request, call_next):
     # API 响应均依赖登录身份：禁止缓存，且不向外泄露 Referer。
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
+    if getattr(request.state, "knowledge_base_response", False):
+        # The KB emits its own script hashes and frame policy for auth recovery.
+        # Do not replace that policy with the portal's broader SPA policy.
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        response.headers.setdefault(
+            "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
+        )
+        response.headers.setdefault(
+            "Content-Security-Policy", "object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
+        )
+        return response
     # Only the SPA entry document opts in: native form POST navigation under
     # no-referrer sends Origin: null. Never relax the exact-Origin CSRF check.
     spa_document = (
@@ -393,6 +405,7 @@ app.include_router(baselines.router, prefix=API_PREFIX)
 app.include_router(ai.router, prefix=API_PREFIX)
 app.include_router(solutions.router, prefix=API_PREFIX)
 app.include_router(data_backup.router, prefix=API_PREFIX)
+app.include_router(knowledge_base.router)
 
 
 # 页面与文件名不带哈希的静态文件（index.html、release-notes.html 等）：每次向服务器确认是否有新版本，

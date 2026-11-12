@@ -51,6 +51,8 @@ class Settings(BaseSettings):
 
     # —— 信息获取（真实采集与受保护的原文归档）—— #
     KNOWLEDGE_NOTES_ORIGIN: str = "https://kb.openlims.ai"
+    # Local opt-in: mount the independently running knowledge application below the portal.
+    KNOWLEDGE_BASE_UPSTREAM: str = ""
     # Server-to-server only; existing PM/portal routes never accept this audience.
     KNOWLEDGE_AI_ENABLED: bool = False
     KNOWLEDGE_AI_CLIENT_ID: str = ""

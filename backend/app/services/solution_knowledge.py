@@ -25,7 +25,7 @@ MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 CONFIG_MESSAGE = "论文知识库连接尚未配置，请联系管理员配置知识报告的知识库连接"
 
 
-def _origin(value: str) -> str:
+def _origin(value: str, *, knowledge_mount: bool = False) -> str:
     try:
         parsed = urlsplit(value)
         valid = (
@@ -33,7 +33,8 @@ def _origin(value: str) -> str:
             and bool(parsed.hostname)
             and parsed.username is None
             and parsed.password is None
-            and parsed.path in {"", "/"}
+            and parsed.path
+            in ({"", "/", "/knowledge-base", "/knowledge-base/"} if knowledge_mount else {"", "/"})
             and not parsed.query
             and not parsed.fragment
             and not any(c.isspace() or unicodedata.category(c) == "Cc" for c in value)
@@ -53,7 +54,7 @@ def _configuration() -> tuple[str, str, str]:
     public = os.environ.get("SOLUTION_KB_PUBLIC_URL", "").strip()
     if not core or not token or not public or any(c.isspace() for c in token):
         raise HTTPException(503, CONFIG_MESSAGE)
-    return _origin(core), token, _origin(public)
+    return _origin(core), token, _origin(public, knowledge_mount=True)
 
 
 def configured() -> bool:
@@ -181,8 +182,8 @@ def _source(record: dict, *, content: str = "", full: bool = False) -> dict:
         "content": content,
         "locator": path,
         "version": hashlib.sha256(content.encode("utf-8")).hexdigest() if full else "",
-        # The KB has no paper deep link. The application reads originals through
-        # get_source; its external link opens the real knowledge-library homepage.
+        # Source bodies use get_source; the external link keeps the configured
+        # public application root, including an explicitly allowed KB mount.
         "url": public + "/",
         "updated_at": _timestamp(record.get("mtime", metadata.get("updated_at"))),
     }

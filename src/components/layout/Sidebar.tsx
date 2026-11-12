@@ -67,7 +67,7 @@ export function Sidebar() {
   return (
     <aside className="app-sidebar">
       {/* Logo */}
-      <div className="app-brand">
+      <div className="app-brand forest-sidebar-brand">
         <img
           src="/brand/maibo-pharma-logo.png"
           alt="迈博药业"
@@ -79,7 +79,7 @@ export function Sidebar() {
           <div className="text-sm font-semibold text-ink-900 leading-tight">
             MBERP
           </div>
-          <div className="text-xs text-ink-500 mt-1 leading-tight">迈博药业 · 项目管理</div>
+          <div className="text-xs text-ink-500 mt-1 leading-tight">迈博数字化工作空间</div>
         </div>
       </div>
 

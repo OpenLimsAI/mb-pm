@@ -15,10 +15,13 @@ export default function ReportEvidencePanel({ solution, sectionId, selectedText,
   const numbered = reportReferences(solution)
   const refs = solution.references.filter(ref => !sectionId || ref.sectionId === sectionId)
   const update = (id: string, fields: Partial<Reference>) => onChangeReferences(solution.references.map(ref => ref.id === id ? { ...ref, ...fields } : ref))
+  if (!refs.length) return <details className="ks-evidence-panel ks-evidence-empty" aria-label="正文与参考依据">
+    <summary><BookOpen size={15} /><strong>正文与参考依据</strong><span>本章暂无关联 · 展开说明</span></summary>
+    <p>从知识库引用资料或采纳 AI 回答后，在这里管理依据。在结论后插入引用编号，点击编号可核对来源；绑定选段和适用条件会随报告保存。</p>
+  </details>
   return <section className="ks-evidence-panel" aria-label="正文与参考依据">
     <header><h3><BookOpen size={15} />正文与参考依据</h3><span>{numbered.length} 个来源 · 本章 {refs.length} 条关联</span></header>
     <p>在结论后插入引用编号，点击编号可核对来源。绑定选段和适用条件会随报告保存。</p>
-    {!refs.length && <p className="ks-muted">从知识库引用资料或采纳 AI 回答后，在这里管理依据。</p>}
     {refs.map(ref => {
       const item = numbered.find(value => value.aliases.includes(ref.id))!
       return <article key={ref.id} id={`report-reference-${encodeURIComponent(ref.id)}`}>

@@ -1,0 +1,76 @@
+/* Maibo Blue Edition identity sign-in, using the official Casdoor formCss hook. */
+body:has(.login-content) {
+  background: #fafafa;
+  color: #0d0d0d;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+.login-content .login-panel,
+.login-content .login-panel-dark {
+  border: 1px solid #e0e6ed;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 12px 38px rgba(30, 70, 107, 0.06);
+}
+.login-content .login-form {
+  color: #0d0d0d;
+}
+.login-content .login-logo-box {
+  margin-bottom: 24px;
+}
+.login-content .ant-input,
+.login-content .ant-input-affix-wrapper,
+.login-content .ant-select-selector {
+  border-color: #e0e6ed;
+  border-radius: 8px;
+}
+.login-content .ant-btn-primary {
+  border-radius: 8px;
+  background: #1e466b;
+  border-color: #1e466b;
+  box-shadow: none;
+}
+.login-content .ant-btn-primary:not(:disabled):hover {
+  background: #153a5b;
+  border-color: #153a5b;
+}
+body:has(.login-panel-dark) {
+  background: #0d1722;
+  color: #f2f6fa;
+}
+.login-content .login-panel-dark {
+  background: #142536;
+  border-color: #30475c;
+}
+.login-panel-dark .login-form {
+  color: #f2f6fa;
+}
+@media (max-width: 640px) {
+  .login-content {
+    padding-inline: 16px;
+  }
+  .login-content .login-panel,
+  .login-content .login-panel-dark {
+    max-width: 100%;
+    border-radius: 12px;
+  }
+}
+
+.login-content .ant-input:focus,
+.login-content .ant-input-affix-wrapper-focused {
+  border-color: #1e466b;
+  box-shadow: 0 0 0 3px rgba(103, 186, 244, 0.22);
+}
+.login-content .ant-checkbox-checked .ant-checkbox-inner {
+  background-color: #1e466b;
+  border-color: #1e466b;
+}
+.login-panel-dark .ant-btn-primary {
+  background: #67baf4;
+  border-color: #67baf4;
+  color: #0d1722;
+}
+.login-panel-dark .ant-btn-primary:not(:disabled):hover {
+  background: #8acbfa;
+  border-color: #8acbfa;
+  color: #0d1722;
+}

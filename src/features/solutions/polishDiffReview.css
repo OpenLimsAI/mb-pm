@@ -1,0 +1,17 @@
+.ks-polish-diff > .ks-polish-diff-help,
+.ks-polish-diff > .ks-polish-layout-note {
+  padding: 10px 12px;
+  color: var(--workbench-muted, #56685d);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.ks-polish-layout-details { border-top: 1px solid var(--workbench-line, #dce6de); }
+.ks-polish-layout-details > summary { padding: 10px 12px; cursor: pointer; color: var(--workbench-text, #344d3e); font-size: 12px; }
+.ks-polish-layout-details > summary:focus-visible { outline: 2px solid var(--workbench-brand, #0f3b27); outline-offset: -2px; }
+.ks-polish-layout-details > p { padding: 0 12px 10px; color: var(--workbench-muted, #56685d); font-size: 12px; }
+.ks-polish-layout-change { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 12px; padding: 12px; border-top: 1px solid var(--workbench-line, #dce6de); }
+.ks-polish-layout-change > strong { grid-column: 1 / -1; color: var(--workbench-muted, #56685d); font-size: 12px; }
+.ks-polish-layout-change > div { min-width: 0; }
+.ks-polish-layout-change > div > span { color: var(--workbench-muted, #56685d); font-size: 11px; }
+.ks-polish-layout-change pre { margin: 4px 0 0; padding: 7px 9px; border-radius: 5px; color: var(--workbench-text, #344d3e); background: var(--workbench-panel-soft, #f4f7f4); font: inherit; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ks-polish-layout-change > button { grid-column: 1 / -1; justify-self: start; }

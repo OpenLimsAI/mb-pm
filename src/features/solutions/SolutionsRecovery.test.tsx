@@ -28,6 +28,8 @@ async function open(client: SolutionClient) {
   await screen.findByRole('textbox', { name: '章节正文' })
   return view
 }
+
+function openAnswerSettings() { const toggle = screen.getByRole('button', { name: '回答设置' }); if (toggle.getAttribute('aria-expanded') !== 'true') fireEvent.click(toggle) }
 beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-editor-mode', 'markdown'); sessionStorage.clear(); vi.restoreAllMocks() })
 afterEach(() => { vi.useRealTimers() })
 
@@ -67,12 +69,14 @@ describe('research workspace survives authentication remounts', () => {
 
   it.each(['general', 'knowledge', 'web'] as const)('restores the %s restriction after authentication without automatically sending the draft', async answerMode => {
     const client = mockClient(), view = await open(client)
+    openAnswerSettings()
     fireEvent.change(screen.getByRole('combobox', { name: '回答方式' }), { target: { value: answerMode } })
     fireEvent.change(screen.getByRole('textbox', { name: '向AI提问' }), { target: { value: '最新研究进展是否完整？' } })
     expect(readWorkspaceRecovery(scope)?.answerMode).toBe(answerMode)
     view.unmount()
     render(app(client))
     await screen.findByRole('textbox', { name: '向AI提问' })
+    openAnswerSettings()
     expect(screen.getByRole('combobox', { name: '回答方式' })).toHaveValue(answerMode)
     expect(screen.getByRole('textbox', { name: '向AI提问' })).toHaveValue('最新研究进展是否完整？')
     expect(client.ask).not.toHaveBeenCalled()
@@ -145,6 +149,7 @@ describe('research workspace survives authentication remounts', () => {
     vi.mocked(client.getSource).mockImplementation(() => new Promise(done => { resolve = done }))
     render(app(client))
     await screen.findByRole('textbox', { name: '向AI提问' })
+    openAnswerSettings()
     expect(screen.getByRole('combobox', { name: '回答方式' })).toHaveValue('auto')
     expect(screen.getByRole('button', { name: '发送问题' })).toBeDisabled()
     await waitFor(() => expect(resolve).toBeDefined())

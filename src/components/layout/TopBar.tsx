@@ -1,4 +1,5 @@
 import { useLocation } from 'react-router-dom'
+import { FolderKanban } from 'lucide-react'
 import { useAuth } from '../../store/auth'
 import { Notifications } from '../management/Notifications'
 import { SyncStatus } from './SyncStatus'
@@ -12,7 +13,10 @@ export function TopBar() {
   const preview = import.meta.env.DEV && !USE_API
   return (
     <header className="app-topbar">
-      <span className="app-workspace-name">项目工作台</span>
+      <div className="forest-app-identity">
+        <span className="forest-app-mark" aria-hidden="true"><FolderKanban size={22} /></span>
+        <span className="forest-app-copy"><strong>项目管理</strong><small lang="en">PROJECT WORKSPACE</small></span>
+      </div>
       <GlobalSearch />
       <div className="flex-1" />
       <SyncStatus />

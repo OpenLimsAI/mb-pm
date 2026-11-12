@@ -8,7 +8,7 @@
 前端默认为 `http://localhost:1234`，FastAPI 默认监听 `127.0.0.1:8000`。
 真实登录需要可访问的 mb-casd IAM、对应客户端密钥及已开通的账号；本仓库不包含可用的生产登录凭据。
 
-当前本机统一验证入口为 `http://localhost:1234`，由独立本地启动配置提供前端构建和 API，继续复用已有 PostgreSQL、模型配置和加密密钥。前端构建使用 `VITE_APP_MODE=combined` 时，只有本机地址会跳到 `http://localhost:4322/` 的知识库；线上域名仍使用正式知识库地址。本机知识库可通过 `VITE_KNOWLEDGE_PORT` 调整端口，访问时统一使用 `localhost`。
+当前本机统一验证入口为 `http://localhost:1234`，由独立本地启动配置提供前端构建和 API，继续复用已有 PostgreSQL、模型配置和加密密钥。同源知识库验证需后端设置 `KNOWLEDGE_BASE_UPSTREAM=http://127.0.0.1:4322`，前端构建设置 `VITE_APP_MODE=combined VITE_KNOWLEDGE_BASE_PATH=/knowledge-base`，用户入口为 `http://localhost:1234/knowledge-base/`。独立知识库仍监听 4322，并保留原资料、会话与 IAM 身份配置。未开启同源挂载时，本机知识库可通过 `VITE_KNOWLEDGE_PORT` 选择独立端口。线上域名仍使用正式知识库地址；本地配置和代码验证不代表线上已迁移。
 
 当前统一代码的来源、验证及本地运行约定见[本地代码整合](local-unified-workbench.md)。
 

@@ -1,0 +1,85 @@
+/* The split research panel reserves room for the conversation before options. */
+:root .ks-app [data-module='ai'] > .ks-subheading .ks-panel-toggle {
+  color: inherit;
+  background: transparent;
+  border-color: color-mix(in srgb, currentColor 40%, transparent);
+  white-space: nowrap;
+}
+:root .ks-app [data-module='ai'] > .ks-subheading .ks-panel-toggle:hover:not(:disabled) {
+  color: inherit;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  border-color: color-mix(in srgb, currentColor 65%, transparent);
+}
+:root .ks-app [data-module='ai'] > .ks-subheading .ks-panel-toggle:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+.ks-app .ks-ai-modelbar {
+  flex-wrap: nowrap;
+  min-height: 42px;
+  padding: 5px 10px;
+  gap: 7px;
+}
+.ks-app .ks-ai-modelbar > label { flex: 1 1 0; min-width: 0; }
+.ks-app .ks-ai-modelbar > .ks-model-configure { flex: 0 0 auto; min-height: 30px; }
+.ks-app .ks-ai-modelbar > small,
+.ks-app .ks-ai-modelbar > .ks-model-load-error { flex: 1 0 100%; }
+.ks-app .ks-ai-modelbar:has(> small),
+.ks-app .ks-ai-modelbar:has(> .ks-model-load-error) { flex-wrap: wrap; }
+.ks-app .ks-ai-modelbar select { width: 0; height: 30px; }
+.ks-app .ks-ai-section { position: relative; }
+.ks-app .ks-ai-content { overflow: auto; overscroll-behavior: contain; }
+:root .ks-app [data-module='ai'] > .ks-subheading .ks-answer-settings-toggle {
+  display: flex;
+  max-width: 225px;
+  min-height: 28px;
+  padding: 3px 7px;
+  border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+  border-radius: 5px;
+  justify-content: flex-start;
+  color: inherit;
+  background: transparent;
+  font-size: 12px;
+}
+.ks-answer-settings-toggle > svg:last-child { margin-left: auto; transition: transform .15s; }
+.ks-answer-settings-toggle > svg.is-open { transform: rotate(180deg); }
+.ks-answer-settings-summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; opacity: .85; margin-left: 2px; font-weight: 400; }
+.ks-app .ks-answer-settings-content { position: absolute; z-index: 24; top: 44px; right: 9px; left: 9px; max-height: min(200px, calc(100% - 58px)); overflow: auto; overscroll-behavior: contain; border: 1px solid var(--workbench-line-strong, #a9bfaf); border-radius: 7px; background: var(--workbench-panel); box-shadow: 0 8px 22px rgb(15 39 27 / .16); }
+.ks-app .ks-answer-modebar { padding: 6px 10px; gap: 4px 8px; border-bottom: 0; background: var(--workbench-panel); }
+.ks-app .ks-answer-modebar > small { flex-basis: 100%; line-height: 1.5; }
+.ks-app .ks-search-status { padding: 0 10px; }
+.ks-app .ks-topics-panel { flex: 0 0 auto; min-width: 0; }
+.ks-app .ks-conversation-toolbar { min-height: 40px; padding: 4px 10px; gap: 5px; }
+.ks-app .ks-conversation-toolbar > .ks-button { min-height: 29px; padding: 4px 6px; }
+.ks-app .ks-ai-content > .ks-conversation { flex: 1 1 112px; min-height: 48px; padding: 10px 12px 6px; }
+.ks-app .ks-ai-content > .ks-question-composer {
+  flex: 0 0 auto;
+  max-height: none;
+  margin: 5px 10px 10px;
+  overflow: visible;
+}
+.ks-app .ks-question-composer .ks-source-chips:empty { display: none; }
+.ks-app .ks-question-composer .ks-context-bar { min-height: 29px; padding: 4px 9px; gap: 7px; }
+.ks-app .ks-question-composer .ks-context-bar > button { flex: 0 0 auto; white-space: nowrap; }
+.ks-app .ks-question-composer .ks-context-bar > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ks-app .ks-question-composer .ks-context-scope { padding: 5px 9px; gap: 4px 10px; font-size: 12px; }
+.ks-app .ks-question-composer .ks-context-scope > span { line-height: 1.5; }
+.ks-app .ks-question-composer .ks-context-editor { max-height: 150px; overflow: auto; }
+.ks-app .ks-question-composer form > textarea { height: 44px; min-height: 44px; padding: 6px 10px 3px; line-height: 1.6; }
+.ks-app .ks-question-composer .ks-composer-bottom { min-height: 30px; padding: 2px 8px 4px; }
+.ks-app .ks-ai-content .ks-ai-welcome { padding: 8px 4px; }
+.ks-app .ks-ai-content .ks-ai-welcome > .ks-ai-symbol { display: none; }
+.ks-app .ks-ai-content .ks-ai-welcome h3 { font-size: 14px; margin-bottom: 6px; }
+.ks-app .ks-ai-content .ks-ai-welcome p { font-size: 12px; line-height: 1.7; }
+@container ks-module (max-width: 580px) {
+  .ks-app .ks-answer-settings-toggle > span:first-of-type { display: none; }
+  .ks-app .ks-ai-modelbar > label > span,
+  .ks-app .ks-subheading-actions .ks-evidence-label,
+  .ks-app .ks-conversation-toolbar label > span { display: none; }
+  .ks-app .ks-ai-modelbar > .ks-model-configure { padding: 4px 7px; }
+}
+@container ks-module (max-width: 400px) {
+  .ks-app .ks-conversation-toolbar { flex-wrap: wrap; }
+  .ks-app .ks-conversation-toolbar > label { flex-basis: 100%; }
+  .ks-app .ks-question-composer .ks-composer-bottom > small { font-size: 11px; }
+}

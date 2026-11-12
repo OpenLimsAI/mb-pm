@@ -43,8 +43,10 @@ def main():
         "::1",
     }:
         raise SystemExit("本地统一入口只允许连接已配置的回环开发数据库。")
-    if config.get("KNOWLEDGE_NOTES_ORIGIN") != "http://localhost:4322":
-        raise SystemExit("本地知识库笔记来源必须为 http://localhost:4322。")
+    mounted = config.get("KNOWLEDGE_BASE_UPSTREAM") == "http://127.0.0.1:4322"
+    expected_notes_origin = "http://localhost:1234" if mounted else "http://localhost:4322"
+    if config.get("KNOWLEDGE_NOTES_ORIGIN") != expected_notes_origin:
+        raise SystemExit(f"本地知识库笔记来源必须为 {expected_notes_origin}。")
     static = root / "dist"
     if not (static / "index.html").is_file():
         raise SystemExit("请先构建真实 API、combined 模式的本地前端。")

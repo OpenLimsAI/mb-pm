@@ -39,6 +39,7 @@
 ## 配置
 
 - `KNOWLEDGE_NOTES_ORIGIN`：允许访问笔记 API 的精确知识库 Origin，生产默认 `https://kb.openlims.ai`；同时仅允许该 Origin 嵌入 `/notes?embed=knowledge` 的 HTML 页面。不得配置通配符、路径、凭据或多个 Origin，其余门户页面沿用原有 `frame-ancestors` 限制。
+- 本地知识库挂载到 `http://localhost:1234/knowledge-base` 时，知识库 Origin 是 `http://localhost:1234`，不含路径。此时普通门户笔记继续校验门户身份摘要；知识库笔记继续校验其显式 issuer/subject，不因同源而混淆两个调用方，也不跳过写操作的精确 Origin 检查。读取、保存和重试始终绑定原账号。
 - `NOTES_WISDOM_CORE_URL` / `NOTES_WISDOM_TOKEN`：后台专用 Core 地址和服务令牌，不发给浏览器。
 - `NOTES_WISDOM_WORKER_ENABLED=true`：启用后台同步线程。两实例可以同时启用，共用数据库锁。生产必须使用 PostgreSQL；单进程 SQLite 仅供本地调试。
 

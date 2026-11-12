@@ -27,7 +27,13 @@ Source = Literal["manual", "solutions", "information", "knowledge"]
 
 
 def identity(request: Request, db: Session = Depends(get_db)):
-    knowledge_request = request.headers.get("origin") == settings.KNOWLEDGE_NOTES_ORIGIN
+    # A mounted KB and the portal can have the same Origin. Only a distinct
+    # configured KB origin needs the cross-origin exception; caller identity is
+    # still pinned below by whichever explicit binding headers it supplies.
+    knowledge_request = (
+        request.headers.get("origin") == settings.KNOWLEDGE_NOTES_ORIGIN
+        and settings.KNOWLEDGE_NOTES_ORIGIN != settings.portal_origin
+    )
     if request.method not in ("GET", "HEAD", "OPTIONS") and not knowledge_request:
         require_same_origin(request, origin=settings.portal_origin)
     claims = portal.session_claims(request, db)

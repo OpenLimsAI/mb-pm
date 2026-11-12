@@ -23,7 +23,7 @@
 - IAM、数据库、知识库、Ollama 维持各自内部端口。跨应用浏览器入口保持 `localhost`。
 - 真实 Agent 委托接口需要管理员配置独立受众及 IAM 授权。合并源码本身不创建令牌或扩大任何账号权限。
 
-使用已安装后端依赖的 Python，在仓库根目录运行 `python scripts/run-local-workbench.py`。前端构建命令为 `VITE_USE_API=true VITE_APP_MODE=combined VITE_KNOWLEDGE_PORT=4322 npm run build`。启动脚本固定使用本仓库的后端与 `dist`，不再分别指向其他工作副本。
+使用已安装后端依赖的 Python，在仓库根目录运行 `python scripts/run-local-workbench.py`。前端构建命令为 `VITE_USE_API=true VITE_APP_MODE=combined VITE_KNOWLEDGE_BASE_PATH=/knowledge-base npm run build`，配套本机后端配置 `KNOWLEDGE_BASE_UPSTREAM=http://127.0.0.1:4322`，知识库浏览器入口为 `http://localhost:1234/knowledge-base/`。启动脚本固定使用本仓库的后端与 `dist`，不再分别指向其他工作副本。
 
 本地 DeepSeek Fake-IP DNS 兼容辅助代码已收拢到 `scripts/local_model_dns.py`，只由本地启动脚本加载，继续验证公网地址，不进入生产启动链。
 
@@ -44,3 +44,9 @@ PM AI 与 Agent 共用 `task_deadlines`：普通任务计划完成日已过、�
 使用后端测试环境运行 `tests/test_unified_ai_migrations.py`、`tests/test_task_deadlines.py`、`tests/test_worker_isolation.py` 及 PM AI、Agent、个人助手相关测试。前端验证个人助手、项目 AI、Agent 审核组件、门户路由和 `npm run build`。
 
 真实本地验收核对登录、项目任务列表、模型目录、已有对话、后台生成及知识库跳转；外部 Agent 的真实 IAM 委托和知识库权限单独验收。
+
+## 本地蓝色界面
+
+当前统一工作副本与独立知识库采用 Blue Edition 配色，公共主色为 `#1E466B`，强调色为 `#67BAF4`，画布为 `#FAFAFA`，主要文字为 `#0D0D0D`。工作台、项目管理、助手、研究报告、笔记、知识源、反馈、备份和设置共用白色顶部栏、白色面板及浅蓝选择状态。暗色使用蓝灰表面，业务状态保留语义颜色。
+
+工作台从现有应用目录与权限渲染入口，不导入独立设计稿中的示例指标和论文。MDM 的本地主题源码和 IAM 两个本地应用主题同步维护在 `local-development/2026-11-11-unified-design/`；MDM 未运行时仅表示源码和构建已完成。本轮视觉调整不代表 GitHub 提交或生产发布。

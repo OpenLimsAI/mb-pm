@@ -13,7 +13,12 @@ const knowledgeDevelopmentPort = Number.isInteger(configuredKnowledgePort) && co
 // 与本机知识库 IAM 回调及 Cookie 来源一致，统一使用 localhost。
 const knowledgeDevelopmentUrl = new URL('http://localhost')
 knowledgeDevelopmentUrl.port = String(knowledgeDevelopmentPort)
-export const knowledgeLaunchUrl = localDevelopment ? `${knowledgeDevelopmentUrl.origin}/` : `${knowledgePublicUrl}/`
+const knowledgeMountedLocally = localDevelopment && import.meta.env.VITE_KNOWLEDGE_BASE_PATH === '/knowledge-base'
+const knowledgeWorkspaceOrigin = new URL(window.location.origin)
+if (localDevelopment) knowledgeWorkspaceOrigin.hostname = 'localhost'
+export const knowledgeLaunchUrl = knowledgeMountedLocally
+  ? new URL('/knowledge-base/', knowledgeWorkspaceOrigin).href
+  : localDevelopment ? `${knowledgeDevelopmentUrl.origin}/` : `${knowledgePublicUrl}/`
 
 type SiteMode = 'portal' | 'pm' | 'combined'
 const configuredMode = import.meta.env.VITE_APP_MODE
@@ -75,5 +80,5 @@ export function projectApplicationUrl(returnTo = '/dashboard'): string {
 export function loginUsesProjectSession(returnTo: string): boolean {
   const path = returnTo.split(/[?#]/)[0].replace(/\/+$/, '') || '/'
   const portalPaths = ['/', '/workspace', '/account', '/accounts', '/settings', '/model-settings', '/data-backup', '/notes', '/assistant', '/feedback', '/help', '/release-notes']
-  return siteMode === 'pm' || (siteMode === 'combined' && !portalPaths.includes(path) && !path.startsWith('/launch/') && path !== '/knowledge-sources' && !path.startsWith('/knowledge-sources/') && path !== '/information' && !path.startsWith('/information/') && !path.startsWith('/assistant/') && path !== '/solutions' && !path.startsWith('/solutions/'))
+  return siteMode === 'pm' || (siteMode === 'combined' && !portalPaths.includes(path) && !path.startsWith('/launch/') && path !== '/knowledge-base' && !path.startsWith('/knowledge-base/') && path !== '/knowledge-sources' && !path.startsWith('/knowledge-sources/') && path !== '/information' && !path.startsWith('/information/') && !path.startsWith('/assistant/') && path !== '/solutions' && !path.startsWith('/solutions/'))
 }

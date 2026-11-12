@@ -21,6 +21,8 @@ function mockClient(initial = seed()) {
   return client
 }
 async function mount(client: SolutionClient, userId = 'author') { render(<SolutionsApp client={client} userId={userId} userName="张研究员" preview />); await screen.findByRole('textbox', { name: '章节正文' }) }
+
+function openAnswerSettings() { const toggle = screen.getByRole('button', { name: '回答设置' }); if (toggle.getAttribute('aria-expanded') !== 'true') fireEvent.click(toggle) }
 beforeEach(() => { localStorage.clear(); localStorage.setItem('ks-editor-mode', 'markdown'); localStorage.setItem('ks-writing-mode', 'split'); sessionStorage.clear() })
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
@@ -29,6 +31,7 @@ describe('knowledge solution workspace', () => {
     const client = mockClient()
     vi.mocked(client.ask).mockImplementation(async (_id, input) => ({ id: 'routed-answer', question: input.question, content: '仅依据指定资料整理。', createdAt: '2026-11-01T10:00:00Z', mode: 'ai', requestedMode: input.answerMode, answerMode: 'knowledge', modeReason: '仅在本次指定资料范围内查证', references: [], context: input.context, scope: '指定资料' }))
     await mount(client)
+    openAnswerSettings()
     expect(screen.getByRole('combobox', { name: '回答方式' })).toHaveValue('auto')
     const frame = screen.getByTitle('原知识库资料') as HTMLIFrameElement, origin = new URL(frame.src).origin
     act(() => {

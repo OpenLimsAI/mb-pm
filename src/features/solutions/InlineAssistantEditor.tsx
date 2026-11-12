@@ -11,6 +11,7 @@ import type { Answer, PolishResult, Reference } from './types'
 import SelectionAssistant from './SelectionAssistant'
 import type { EditorSelection } from './SelectionAssistant'
 import './inlineAssistant.css'
+import './editorToolbarLayout.css'
 import { findSlashTrigger, splitInlineDocument, textEditFromValues } from './inlineAssistant'
 import type { InlineAnchor, InlineTextEdit } from './inlineAssistant'
 import { continueEditorList, formatEditorText } from './editorFormatting'
@@ -273,14 +274,35 @@ export default function InlineAssistantEditor(props: Props) {
     try { const src = await readReportImage(file); if (target.isDestroyed || !target.isEditable) return; if (content.length + src.length > 4_000_000) throw new Error('本章节图片与文字合计超过容量，请压缩图片或拆分章节。'); target.chain().focus().setImage({ src, alt: file.name }).insertContent(captionMarkdown('图', nextCaptionNumber(content, '图'), file.name.replace(/\.[^.]+$/, '')), { contentType: 'markdown' }).run(); setEditorError('') } catch (error) { setEditorError(error instanceof Error ? error.message : '图片读取失败') }
   }
   return <div className="ks-inline-editor" ref={editor}>
-    <div className="ks-editor-formatbar" role="toolbar" aria-label="正文格式">
-      {([{ id: 'heading', label: '标题', icon: Heading2 }, { id: 'bold', label: '加粗', icon: Bold }, { id: 'italic', label: '斜体', icon: Italic }, { id: 'list', label: '项目列表', icon: List }, { id: 'quote', label: '引用段落', icon: Quote }] as const).map(({ id, label, icon: Icon }) => <button key={id} type="button" aria-label={label} title={`${label}${id === 'bold' ? ' · Ctrl/⌘ B' : id === 'italic' ? ' · Ctrl/⌘ I' : ''}`} disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => format(id)}><Icon size={16} /></button>)}
-      <span className="ks-format-divider" />
-      <button type="button" aria-label="撤销正文编辑" title="撤销 · Ctrl/⌘ Z" disabled={disabled || (mode === 'markdown' && !history.past.length)} onMouseDown={event => event.preventDefault()} onClick={() => moveHistory('undo')}><Undo2 size={16} /></button>
-      <button type="button" aria-label="重做正文编辑" title="重做 · Ctrl/⌘ Shift Z" disabled={disabled || (mode === 'markdown' && !history.future.length)} onMouseDown={event => event.preventDefault()} onClick={() => moveHistory('redo')}><Redo2 size={16} /></button>
-      {mode === 'visual' && <><button type="button" aria-label="插入表格" title="插入 3 × 3 表格" disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => { rich.current?.editor.chain().focus().insertContent(captionMarkdown('表', nextCaptionNumber(content, '表'), '表格标题'), { contentType: 'markdown' }).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); setTableActive(true) }}><Table size={16} /></button><button type="button" aria-label="插入图片" title="插入 PNG / JPEG / WebP 图片，最多 1 MB" disabled={disabled} onClick={() => imageInput.current?.click()}><ImagePlus size={16} /></button><button type="button" aria-label="上移段落" title="上移当前段落、列表或表格" disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => { if (rich.current) moveSelectedDocumentBlock(rich.current.editor, -1) }}><ArrowUp size={16} /></button><button type="button" aria-label="下移段落" title="下移当前段落、列表或表格" disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => { if (rich.current) moveSelectedDocumentBlock(rich.current.editor, 1) }}><ArrowDown size={16} /></button><button type="button" aria-label="拖动当前段落" title="先把光标放在段落、列表或表格中，再拖动此手柄到目标段落前" draggable={!disabled} disabled={disabled} onDragStart={event => { const instance = rich.current?.editor; if (!instance) { event.preventDefault(); return } const selected = instance.state.selection.$from, from = selected.depth > 0 ? selected.before(1) : selected.pos; event.dataTransfer.setData('application/x-report-block', JSON.stringify({ owner: rich.current?.dragOwner, from })); event.dataTransfer.effectAllowed = 'move' }}><GripVertical size={16} /></button><button type="button" disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => setCaption({ kind: '图', text: '' })}>图表标题</button></>}
-      <div className="ks-editor-mode" role="group" aria-label="编辑方式">{(['visual', 'markdown'] as const).map(value => <button type="button" key={value} aria-pressed={mode === value} onClick={() => { setMode(value); setSelectedText(null); setMenu(null); localStorage.setItem('ks-editor-mode', value) }}>{value === 'visual' ? '可视编辑' : 'Markdown'}</button>)}</div>
-      <span className="ks-format-hint" hidden={props.allowAI === false}><Sparkles size={13} />输入 <kbd>/</kbd> 插入 AI 问答</span>
+    <div className="ks-editor-formatbar ks-editor-toolbar" role="toolbar" aria-label="正文格式">
+      <div className="ks-editor-toolbar-tools">
+        <div className="ks-editor-tool-group" role="group" aria-label="文字格式">
+          {([{ id: 'heading', label: '标题', icon: Heading2 }, { id: 'bold', label: '加粗', icon: Bold }, { id: 'italic', label: '斜体', icon: Italic }, { id: 'list', label: '项目列表', icon: List }, { id: 'quote', label: '引用段落', icon: Quote }] as const).map(({ id, label, icon: Icon }) => <button key={id} type="button" aria-label={label} title={`${label}${id === 'bold' ? ' · Ctrl/⌘ B' : id === 'italic' ? ' · Ctrl/⌘ I' : ''}`} disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => format(id)}><Icon size={16} /></button>)}
+        </div>
+        <span className="ks-format-divider" aria-hidden="true" />
+        <div className="ks-editor-tool-group" role="group" aria-label="编辑历史">
+          <button type="button" aria-label="撤销正文编辑" title="撤销 · Ctrl/⌘ Z" disabled={disabled || (mode === 'markdown' && !history.past.length)} onMouseDown={event => event.preventDefault()} onClick={() => moveHistory('undo')}><Undo2 size={16} /></button>
+          <button type="button" aria-label="重做正文编辑" title="重做 · Ctrl/⌘ Shift Z" disabled={disabled || (mode === 'markdown' && !history.future.length)} onMouseDown={event => event.preventDefault()} onClick={() => moveHistory('redo')}><Redo2 size={16} /></button>
+        </div>
+        {mode === 'visual' && <>
+          <span className="ks-format-divider" aria-hidden="true" />
+          <div className="ks-editor-tool-group" role="group" aria-label="插入图表">
+            <button type="button" aria-label="插入表格" title="插入 3 × 3 表格" disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => { rich.current?.editor.chain().focus().insertContent(captionMarkdown('表', nextCaptionNumber(content, '表'), '表格标题'), { contentType: 'markdown' }).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); setTableActive(true) }}><Table size={16} /></button>
+            <button type="button" aria-label="插入图片" title="插入 PNG / JPEG / WebP 图片，最多 1 MB" disabled={disabled} onClick={() => imageInput.current?.click()}><ImagePlus size={16} /></button>
+            <button type="button" className="ks-editor-caption-trigger" title="为图片或表格插入编号与标题" disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => setCaption({ kind: '图', text: '' })}>图表标题</button>
+          </div>
+          <span className="ks-format-divider" aria-hidden="true" />
+          <div className="ks-editor-tool-group" role="group" aria-label="段落顺序">
+            <button type="button" aria-label="上移段落" title="上移当前段落、列表或表格" disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => { if (rich.current) moveSelectedDocumentBlock(rich.current.editor, -1) }}><ArrowUp size={16} /></button>
+            <button type="button" aria-label="下移段落" title="下移当前段落、列表或表格" disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => { if (rich.current) moveSelectedDocumentBlock(rich.current.editor, 1) }}><ArrowDown size={16} /></button>
+            <button type="button" aria-label="拖动当前段落" title="先把光标放在段落、列表或表格中，再拖动此手柄到目标段落前" draggable={!disabled} disabled={disabled} onDragStart={event => { const instance = rich.current?.editor; if (!instance) { event.preventDefault(); return } const selected = instance.state.selection.$from, from = selected.depth > 0 ? selected.before(1) : selected.pos; event.dataTransfer.setData('application/x-report-block', JSON.stringify({ owner: rich.current?.dragOwner, from })); event.dataTransfer.effectAllowed = 'move' }}><GripVertical size={16} /></button>
+          </div>
+        </>}
+      </div>
+      <div className="ks-editor-toolbar-options">
+        <div className="ks-editor-mode" role="group" aria-label="编辑方式">{(['visual', 'markdown'] as const).map(value => <button type="button" key={value} aria-pressed={mode === value} onClick={() => { setMode(value); setSelectedText(null); setMenu(null); localStorage.setItem('ks-editor-mode', value) }}>{value === 'visual' ? '可视编辑' : 'Markdown'}</button>)}</div>
+        <span className="ks-format-hint" hidden={props.allowAI === false} title="在正文输入 /，即可插入 AI 问答"><Sparkles size={13} /><kbd>/</kbd> AI 问答</span>
+      </div>
     </div>
     {mode === 'visual' && reportFigureLinks(content).length > 0 && <div className="ks-editor-contextbar"><label>引用图表<select aria-label="插入图表引用" value="" disabled={disabled} onChange={event => { const target = event.target.value, figure = reportFigureLinks(content).find(item => item.target === target); if (figure) rich.current?.editor.chain().focus().insertContent(`[${figure.label}](${target})`, { contentType: 'markdown' }).run() }}><option value="">选择已插入的图表</option>{reportFigureLinks(content).map(item => <option key={item.target} value={item.target}>{item.label}</option>)}</select></label></div>}
     {mode === 'visual' && tableActive && <div className="ks-editor-contextbar" role="toolbar" aria-label="表格操作"><span>表格</span>{([{ label: '增加行', action: 'addRowAfter' }, { label: '增加列', action: 'addColumnAfter' }, { label: '删除行', action: 'deleteRow' }, { label: '删除列', action: 'deleteColumn' }, { label: '合并单元格', action: 'mergeCells' }, { label: '拆分单元格', action: 'splitCell' }, { label: '删除表格', action: 'deleteTable' }] as const).map(item => <button key={item.action} type="button" disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => { const current = rich.current?.editor; current?.chain().focus()[item.action]().run(); setTableActive(current?.isActive('table') || false) }}>{item.label}</button>)}</div>}

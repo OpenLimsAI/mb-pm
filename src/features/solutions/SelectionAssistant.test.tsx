@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import InlineAssistantEditor from './InlineAssistantEditor'
 import type { InlineQuestion } from './InlineAssistantEditor'
 import type { Answer, PolishResult } from './types'
+import { applyPolishChoices, polishChanges } from './polishDiff'
 
 const answer: Answer = { id: 'selected-answer', question: '相关知识？', content: '这是有待核对的知识摘录。', mode: 'retrieval', context: '', scope: '', references: [], createdAt: '' }
 function mount(initial = '前文。待润色的文字。后文。', cards: InlineQuestion[] = [], disabled = false) {
@@ -103,6 +104,37 @@ describe('selected report text assistant', () => {
     expect(within(dialog).getByRole('textbox', { name: '润色后的文字' })).toHaveValue('原来结论。保持句。修订建议。')
     fireEvent.click(within(dialog).getByRole('button', { name: '替换选中文字' }))
     expect(body).toHaveValue('原来结论。保持句。修订建议。')
+  })
+
+  it('groups formatting-only proposals instead of displaying empty red and green cards, without applying them automatically', async () => {
+    const original = '专家判断\n结论:\n支持 / 反对的依据:\n适用条件:\n选择理由:'
+    const proposed = '专家判断\n\n结论:\n\n支持/反对的依据:\n\n适用条件:\n\n选择理由:'
+    const { body, polish, edit } = mount(original)
+    polish.mockResolvedValueOnce({ content: proposed, model: 'test', mode: 'ai' })
+    select(body, 0, body.value.length)
+    fireEvent.click(screen.getByRole('button', { name: 'Polish 文字' }))
+    const dialog = screen.getByRole('dialog', { name: 'Polish 文字 · 润色' })
+    fireEvent.click(within(dialog).getByRole('button', { name: '开始润色' }))
+    const result = await within(dialog).findByRole('textbox', { name: '润色后的文字' })
+    expect(result).toHaveValue(proposed)
+    expect(within(dialog).getByText('仅排版调整')).toBeVisible()
+    expect(within(dialog).getByText(/没有实质文字修改/)).toBeVisible()
+    expect(within(dialog).queryByRole('button', { name: '保留此处原文' })).not.toBeInTheDocument()
+    for (const control of within(dialog).getAllByRole('button', { name: '保留此处原排版' })) expect(control).not.toBeVisible()
+    expect(body).toHaveValue(original)
+    expect(edit).not.toHaveBeenCalled()
+
+    fireEvent.click(within(dialog).getByText(/查看排版调整（/))
+    expect(within(dialog).getAllByText('此处无内容').length).toBeGreaterThan(0)
+    expect(within(dialog).getAllByText(/个换行/).length).toBeGreaterThan(0)
+    const changes = polishChanges(original, proposed), first = changes.findIndex(change => change.changed)
+    fireEvent.click(within(dialog).getAllByRole('button', { name: '保留此处原排版' })[0])
+    expect(result).toHaveValue(applyPolishChoices(changes, new Set([first])))
+    fireEvent.click(within(dialog).getByRole('button', { name: '采纳全部建议' }))
+    expect(result).toHaveValue(proposed)
+    expect(body).toHaveValue(original)
+    fireEvent.click(within(dialog).getByRole('button', { name: '替换选中文字' }))
+    expect(body).toHaveValue(proposed)
   })
 
   it('keeps the original after a failure or cancellation and permits retrying', async () => {
