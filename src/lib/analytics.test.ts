@@ -6,6 +6,8 @@ const sub = { id: 's1', projectId: 'p1' } as SubProject
 const task = { id: 't1', name: '任务', subProjectId: 's1', status: '进行中', plannedEnd: '2026-11-10', isMilestone: false } as Task
 
 vi.mock('../mock', () => ({ projects: [], tasks: [], subProjects: [], users: [], alerts: [], resourceBookings: [], resources: [], calcWorkload: () => 0, findUser: () => undefined, TODAY: new Date(2026, 10, 3) }))
+// Schedule helpers import the same clock from the direct module, not the barrel.
+vi.mock('../mock/tasks', () => ({ TODAY: new Date(2026, 10, 3) }))
 import { projects, tasks, subProjects } from '../mock'
 import { getGlobalKpis, getProjectSummary } from './analytics'
 
