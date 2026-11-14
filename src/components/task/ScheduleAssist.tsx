@@ -35,10 +35,10 @@ function retainReceipt(key: string, result: ScheduleAssistReceipt, token: string
   } catch { /* The original confirmation can still retrieve the receipt. */ }
 }
 
-export function ScheduleAssist({ userId, projectId, task, editorDirty, embedded = false }: { userId: string; projectId: string; task: Task; editorDirty: boolean; embedded?: boolean }) {
+export function ScheduleAssist({ userId, projectId, task, editorDirty, embedded = false, initialInstruction = '', autoPreview = false }: { userId: string; projectId: string; task: Task; editorDirty: boolean; embedded?: boolean; initialInstruction?: string; autoPreview?: boolean }) {
   const storageKey = `pm-schedule-confirmation:${JSON.stringify([userId, projectId, task.id])}`
-  const [restored] = useState(() => readConfirmation(storageKey))
-  const [instruction, setInstruction] = useState('')
+  const [restored] = useState(() => { const saved = readConfirmation(storageKey); return autoPreview && saved?.receipt ? null : saved })
+  const [instruction, setInstruction] = useState(initialInstruction)
   const [reason, setReason] = useState(restored?.reason ?? '')
   const [preview, setPreview] = useState<Preview | null>(restored?.preview ?? null)
   const [receipt, setReceipt] = useState<ScheduleAssistReceipt | null>(restored?.receipt ?? null)
@@ -46,9 +46,12 @@ export function ScheduleAssist({ userId, projectId, task, editorDirty, embedded 
   const [error, setError] = useState('')
   const [expired, setExpired] = useState(false)
   const [uncertain, setUncertain] = useState(!!restored && !restored.receipt)
+  const [recoveringPrevious, setRecoveringPrevious] = useState(autoPreview && !!restored && !restored.receipt)
   const [verification, setVerification] = useState<Verification>('unavailable')
   const [syncFailed, setSyncFailed] = useState(false)
   const controller = useRef<AbortController | null>(null)
+  const autoStarted = useRef(false)
+  const reviewRef = useRef<(() => Promise<void>) | null>(null)
   const taskVersion = [task.revision, task.status, task.plannedStart, task.plannedEnd].join(':')
   const stale = preview?.taskVersion !== taskVersion
   const completed = task.status === '已完成' || task.status === '已验证'
@@ -62,6 +65,15 @@ export function ScheduleAssist({ userId, projectId, task, editorDirty, embedded 
     const timer = window.setTimeout(() => setExpired(true), Math.max(0, Date.parse(preview.expiresAt) - Date.now()))
     return () => window.clearTimeout(timer)
   }, [preview, receipt])
+
+  useEffect(() => { reviewRef.current = review })
+  useEffect(() => {
+    let valid = true
+    if (autoPreview && initialInstruction && !restored) void Promise.resolve().then(() => {
+      if (valid && !autoStarted.current) { autoStarted.current = true; void reviewRef.current?.() }
+    })
+    return () => { valid = false }
+  }, [autoPreview, initialInstruction, restored])
 
   async function review() {
     if (!instruction.trim() || pending || blocked || uncertain || receipt) return
@@ -129,6 +141,7 @@ export function ScheduleAssist({ userId, projectId, task, editorDirty, embedded 
         clearConfirmation(storageKey, preview.confirmationToken)
         setError(failure.detail)
         setPreview(null)
+        setRecoveringPrevious(false)
         setUncertain(false)
       } else {
         setUncertain(true)
@@ -139,10 +152,11 @@ export function ScheduleAssist({ userId, projectId, task, editorDirty, embedded 
   }
 
   function startOver() {
+    setRecoveringPrevious(false)
     clearConfirmation(storageKey, preview?.confirmationToken ?? null)
     setReceipt(null)
     setPreview(null)
-    setInstruction('')
+    setInstruction(autoPreview ? initialInstruction : '')
     setReason('')
     setError('')
   }
@@ -154,6 +168,7 @@ export function ScheduleAssist({ userId, projectId, task, editorDirty, embedded 
         : <summary className="cursor-pointer text-sm font-medium text-brand-700">AI 排期推演</summary>}
       <div className="mt-3 space-y-3 text-sm">
         <p className="break-words text-ink-600">当前任务 {task.code} · {task.name}</p>
+        {recoveringPrevious && <p role="alert" className="rounded bg-amber-50 p-3 text-amber-900">{uncertain ? '上次确认尚未取得回执，本次新要求尚未预览。下方保留的是上次已确认的方案；重试将继续该调整，已执行时返回原回执。' : '已取得上次确认回执，本次新要求尚未预览。可开始新的推演，继续处理本次要求。'}</p>}
         {!receipt && <>
           {editorDirty && <p className="text-amber-800">请先处理未保存的进展，再调整排期。</p>}
           {completed && !uncertain && <p className="text-ink-600">当前任务已完成或已验证。</p>}
@@ -209,7 +224,7 @@ export function ScheduleAssist({ userId, projectId, task, editorDirty, embedded 
               <Button size="sm" variant="primary"
                 disabled={!!pending || editorDirty || !reason.trim() || (!uncertain && (completed || expired || stale))}
                 onClick={() => void apply()}>
-                {pending === 'apply' ? '正在确认…' : uncertain ? '重试本次确认' : `确认应用 ${preview.schedule.changes.length} 项调整`}
+                {pending === 'apply' ? '正在确认…' : uncertain ? recoveringPrevious ? '重试上次确认' : '重试本次确认' : `确认应用 ${preview.schedule.changes.length} 项调整`}
               </Button>
             </>}
           </div>
@@ -217,7 +232,7 @@ export function ScheduleAssist({ userId, projectId, task, editorDirty, embedded 
         {error && <p role="alert" className="break-words text-red-700">{error}</p>}
         {receipt && <div className="space-y-2 rounded bg-brand-50 p-3">
           <div role="status" className="space-y-1">
-            <p className="font-medium">调整已应用 · 回执 {receipt.receiptId}</p>
+            <p className="font-medium">{recoveringPrevious ? '上次调整已应用' : '调整已应用'} · 回执 {receipt.receiptId}</p>
             <p>{{
               checking: '正在读取最新任务日期…',
               verified: '已核验受影响任务和锁定里程碑的日期。',

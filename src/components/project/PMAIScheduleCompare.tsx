@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { addWeeks, startOfWeek } from 'date-fns'
 import { Link } from 'react-router-dom'
 import { pmAI, type PMAIContext } from '../../api/pmAI'
@@ -37,6 +37,7 @@ export function PMAIScheduleCompare({
   context,
   disabled,
   initialDelays,
+  autoCompare = false,
 }: {
   projectId: string
   taskId?: string
@@ -44,6 +45,7 @@ export function PMAIScheduleCompare({
   context: PMAIContext | null
   disabled: boolean
   initialDelays?: number[]
+  autoCompare?: boolean
 }) {
   const [pickedId, setPickedId] = useState(taskId ?? '')
   const user = useAuth((state) => state.currentUser)
@@ -86,6 +88,7 @@ export function PMAIScheduleCompare({
           userId={userId}
           disabled={disabled}
           initialDelays={initialDelays}
+          autoCompare={autoCompare}
         />
       )}
     </div>
@@ -125,16 +128,18 @@ function ScheduleOptions({
   userId,
   disabled,
   initialDelays,
+  autoCompare,
 }: {
   projectId: string
   taskId: string
   userId: string
   disabled: boolean
   initialDelays?: number[]
+  autoCompare: boolean
 }) {
   const dataVersion = useDataStore((state) => state.version)
   const key = `pm-ai-comparison:${userId}:${projectId}:${taskId}`
-  const [saved] = useState(() => readPending(key))
+  const [saved] = useState(() => { const previous = readPending(key); return autoCompare && previous?.receipt ? null : previous })
   const [delayText, setDelayText] = useState(() => initialDelays?.length ? initialDelays.join(',') : '1,3,5')
   const [lockedIds, setLockedIds] = useState<string[]>([])
   const [plans, setPlans] = useState<ScheduleAssistPreview[]>(
@@ -144,6 +149,7 @@ function ScheduleOptions({
   const [reason, setReason] = useState(saved?.reason ?? '')
   const [receipt, setReceipt] = useState(saved?.receipt ?? null)
   const [uncertain, setUncertain] = useState(!!saved && !saved.receipt)
+  const [recoveringPrevious, setRecoveringPrevious] = useState(autoCompare && !!saved && !saved.receipt)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [syncFailed, setSyncFailed] = useState(false)
@@ -155,6 +161,16 @@ function ScheduleOptions({
     void dataVersion
     return selected ? previewMetrics(projectId, selected) : null
   }, [projectId, selected, dataVersion])
+  const autoStarted = useRef(false)
+  const compareRef = useRef<(() => Promise<void>) | null>(null)
+  useEffect(() => { compareRef.current = compare })
+  useEffect(() => {
+    let valid = true
+    if (autoCompare && initialDelays?.length && !saved) void Promise.resolve().then(() => {
+      if (valid && !autoStarted.current) { autoStarted.current = true; void compareRef.current?.() }
+    })
+    return () => { valid = false }
+  }, [autoCompare, initialDelays, saved])
   const reset = () => {
     setPlans([])
     setError('')
@@ -227,6 +243,7 @@ function ScheduleOptions({
       ) {
         savePending(key, null)
         setPlans([])
+        setRecoveringPrevious(false)
         setUncertain(false)
         setError(failure.detail)
       } else {
@@ -239,6 +256,7 @@ function ScheduleOptions({
   }
   return (
     <div className="space-y-3">
+      {recoveringPrevious && <p role="alert" className="rounded bg-amber-50 p-3 text-amber-900">{uncertain ? '上次确认尚未取得回执，本次新要求尚未预览。下方保留的是上次已确认的方案；重试将继续该调整，已执行时返回原回执。' : '已取得上次确认回执，本次新要求尚未预览。可开始新的推演，继续处理本次要求。'}</p>}
       {!receipt && (
         <fieldset
           disabled={busy || disabled || uncertain}
@@ -383,7 +401,7 @@ function ScheduleOptions({
                       {busy
                         ? '正在确认…'
                         : uncertain
-                          ? '重试本次确认'
+                          ? recoveringPrevious ? '重试上次确认' : '重试本次确认'
                           : '确认采用此方案'}
                     </Button>
                   </>
@@ -394,7 +412,7 @@ function ScheduleOptions({
       )}
       {receipt && (
         <div role="status" className="space-y-2 rounded bg-emerald-50 p-3">
-          <p>排期已更新 · 回执 {receipt.receiptId}</p>
+          <p>{recoveringPrevious ? '上次排期已更新' : '排期已更新'} · 回执 {receipt.receiptId}</p>
           {syncFailed && (
             <>
               <p>页面同步暂未完成。</p>
@@ -407,6 +425,7 @@ function ScheduleOptions({
             size="sm"
             onClick={() => {
               savePending(key, null)
+              setRecoveringPrevious(false)
               setReceipt(null)
               reset()
             }}

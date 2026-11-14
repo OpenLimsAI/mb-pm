@@ -32,8 +32,8 @@ beforeEach(() => {
   useAuth.setState({ currentUser: null })
 })
 
-function openTask(task: Task) {
-  return render(<MemoryRouter><TaskDrawer task={task} onClose={vi.fn()} /></MemoryRouter>)
+function openTask(task: Task, entry = '/') {
+  return render(<MemoryRouter initialEntries={[entry]}><TaskDrawer task={task} onClose={vi.fn()} /></MemoryRouter>)
 }
 
 test.each([false, true])('普通任务与里程碑都能选择完整的四个主状态（里程碑：%s）', (isMilestone) => {
@@ -154,15 +154,13 @@ const assistantPreview = (): ScheduleAssistPreview => ({
 })
 
 async function selectScheduleAssist() {
-  fireEvent.click(screen.getByText('项目 AI 助手'))
-  fireEvent.click(await screen.findByRole('button', { name: '智能排期' }))
   await screen.findByRole('heading', { name: '智能排期' })
 }
 
 async function openScheduleAssist() {
   useAuth.setState({ currentUser: users.find(user => user.role === 'admin')! })
   useDataStore.setState({ mode: 'api' })
-  const view = openTask(baseTask)
+  const view = openTask(baseTask, '/?assistant=schedule-assist')
   await selectScheduleAssist()
   fireEvent.change(screen.getByLabelText('延期要求'), { target: { value: '延迟 5 个工作日，申报不动' } })
   return view
@@ -184,7 +182,7 @@ test('AI 排期只在确认后写入，关闭抽屉仍能读取回执并重试�
   fireEvent.click(confirm)
   view.unmount()
   await waitFor(() => expect(listTasks).toHaveBeenCalledTimes(1))
-  openTask(baseTask)
+  openTask(baseTask, '/?assistant=schedule-assist')
   await selectScheduleAssist()
   expect(await screen.findByText('调整已应用 · 回执 applied-1')).toBeInTheDocument()
   expect(applyScheduleAssist).toHaveBeenCalledWith(expect.any(String), 'reviewed-proposal', '供应商延期')
@@ -233,7 +231,7 @@ test('确认请求未收到回执时，重新打开抽屉仍使用原确认记�
   fireEvent.click(screen.getByRole('button', { name: '确认应用 1 项调整' }))
   await screen.findByRole('button', { name: '重试本次确认' })
   view.unmount()
-  openTask(baseTask)
+  openTask(baseTask, '/?assistant=schedule-assist')
   await selectScheduleAssist()
   const retry = screen.getByRole('button', { name: '重试本次确认' })
   expect(screen.getByLabelText('延期要求')).toBeDisabled()

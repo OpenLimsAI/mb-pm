@@ -30,7 +30,7 @@ export interface PMAgentTarget {
 }
 export interface PMAgentPlan extends PMAIScope {
   status: 'ready' | 'clarify'
-  scenario: PMAIScenario | 'schedule' | null
+  scenario: PMAIScenario | 'schedule' | 'assessment' | 'finance' | 'settings' | null
   targets: PMAgentTarget[]
   choices: PMAgentTarget[]
   message: string
@@ -39,8 +39,11 @@ export interface PMAgentPlan extends PMAIScope {
   startDate?: string | null
   endDate?: string | null
   delays?: number[]
+  taskFilter?: 'attention' | 'overdue' | 'delayed' | 'blocked'
+  scheduleInstruction?: string | null
 }
 export interface PMAgentTriage {
+  taskFilter?: 'attention' | 'overdue' | 'delayed' | 'blocked'
   businessDate: string
   items: {
     taskId: string
@@ -227,12 +230,13 @@ export const pmAI = {
         taskId,
       })
     ).data,
-  triage: async (scope: PMAIScope, limit: number, mineOnly: boolean) =>
+  triage: async (scope: PMAIScope, limit: number, mineOnly: boolean, taskFilter?: PMAgentPlan['taskFilter']) =>
     (
       await api.post<PMAgentTriage>(`${root}/agent/triage`, {
         ...scope,
         limit,
         mineOnly,
+        ...(taskFilter ? { taskFilter } : {}),
       })
     ).data,
   context: async (projectId?: string) =>

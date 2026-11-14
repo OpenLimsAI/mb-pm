@@ -94,6 +94,33 @@ def test_agent_plan_and_triage_share_scope_across_rest_and_mcp(
     assert mcp_triage.json()["result"]["structuredContent"] == result
 
 
+def test_explicit_overdue_query_keeps_its_filter_through_rest_and_mcp(
+    client, auth_headers, project_factory, live_ai_roles
+):
+    project_id = project_factory("t-admin")
+    with SessionLocal.begin() as db:
+        first = db.get(Task, f"{project_id}-t1")
+        second = db.get(Task, f"{project_id}-t2")
+        first.status, first.planned_end = "阻塞", date.today() + timedelta(days=15)
+        second.status, second.planned_end = "进行中", date.today() - timedelta(days=2)
+    query = {"question": "当前项目有哪些逾期任务", "project_id": project_id}
+    planned = client.post("/api/v1/pm-ai/agent/plan", headers=auth_headers, json=query).json()
+    assert planned["status"] == "ready" and planned["task_filter"] == "overdue"
+    args = {"project_ids": planned["project_ids"], "task_filter": planned["task_filter"]}
+    response = client.post("/api/v1/pm-ai/agent/triage", headers=auth_headers, json=args)
+    assert response.status_code == 200
+    assert [row["task_id"] for row in response.json()["items"]] == [f"{project_id}-t2"]
+    assert response.json()["task_filter"] == "overdue"
+    tool = rpc(
+        client, auth_headers, "tools/call", {"name": "pm_work_priorities", "arguments": args}
+    )
+    assert tool.json()["result"]["structuredContent"] == response.json()
+    invalid = client.post(
+        "/api/v1/pm-ai/agent/triage", headers=auth_headers, json={"task_filter": "unknown"}
+    )
+    assert invalid.status_code == 422
+
+
 def test_comparison_reuses_schedule_engine_and_only_confirmed_option_applies(
     client, auth_headers, project_factory, live_ai_roles, iam_user, bearer
 ):

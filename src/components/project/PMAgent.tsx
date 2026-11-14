@@ -14,6 +14,7 @@ import { safeMarkdownLink } from '../markdownSafety'
 import { Button } from '../ui'
 
 type AgentScenario = PMAIScenario | 'schedule'
+type LegacyPlan = Omit<PMAgentPlan, 'scenario'> & { scenario: AgentScenario | null }
 
 export interface AgentRequest extends PMAIScope {
   scenario: AgentScenario
@@ -69,7 +70,7 @@ export function PMAgent({
   onProceed: (request: AgentRequest) => Promise<void>
 }) {
   const [question, setQuestion] = useState('')
-  const [plan, setPlan] = useState<PMAgentPlan | null>(null)
+  const [plan, setPlan] = useState<LegacyPlan | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [triage, setTriage] = useState<{
@@ -91,6 +92,7 @@ export function PMAgent({
       )
       setPlan({
         ...value,
+        scenario: value.scenario && value.scenario in scenarioNames ? value.scenario as AgentScenario : null,
         startDate: value.startDate ?? startDate,
         endDate: value.endDate ?? endDate,
       })
@@ -101,7 +103,7 @@ export function PMAgent({
     }
   }
 
-  function editPlan(patch: Partial<PMAgentPlan>) {
+  function editPlan(patch: Partial<LegacyPlan>) {
     setPlan((value) => (value ? { ...value, ...patch } : value))
     setTriage(null)
     setError('')
