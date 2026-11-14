@@ -34,7 +34,7 @@ test('核对报告保存后留在综合评估并直接打开已保存报告，�
   fireEvent.click(save)
   expect(await screen.findByText('刚刚保存的完整报告')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: '综合评估' })).toHaveAttribute('aria-pressed', 'true')
-  expect(screen.queryByRole('region', { name: '核对逾期任务报告' })).not.toBeInTheDocument()
+  await waitFor(() => expect(screen.queryByRole('region', { name: '核对逾期任务报告' })).not.toBeInTheDocument())
   await waitFor(() => expect(getProjectAnalysis).toHaveBeenCalledWith('P1', 'saved-report'))
   expect(api.post).toHaveBeenCalledTimes(1)
 })
