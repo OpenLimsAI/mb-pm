@@ -35,7 +35,7 @@ function retainReceipt(key: string, result: ScheduleAssistReceipt, token: string
   } catch { /* The original confirmation can still retrieve the receipt. */ }
 }
 
-export function ScheduleAssist({ userId, projectId, task, editorDirty }: { userId: string; projectId: string; task: Task; editorDirty: boolean }) {
+export function ScheduleAssist({ userId, projectId, task, editorDirty, embedded = false }: { userId: string; projectId: string; task: Task; editorDirty: boolean; embedded?: boolean }) {
   const storageKey = `pm-schedule-confirmation:${JSON.stringify([userId, projectId, task.id])}`
   const [restored] = useState(() => readConfirmation(storageKey))
   const [instruction, setInstruction] = useState('')
@@ -147,9 +147,11 @@ export function ScheduleAssist({ userId, projectId, task, editorDirty }: { userI
     setError('')
   }
 
+  const Surface = embedded ? 'section' : 'details'
   return (
-    <details className="rounded-lg border border-ink-200 p-3">
-      <summary className="cursor-pointer text-sm font-medium text-brand-700">AI 排期推演</summary>
+    <Surface className="rounded-lg border border-ink-200 p-3">
+      {embedded ? <h3 className="text-sm font-medium text-brand-700">智能排期</h3>
+        : <summary className="cursor-pointer text-sm font-medium text-brand-700">AI 排期推演</summary>}
       <div className="mt-3 space-y-3 text-sm">
         <p className="break-words text-ink-600">当前任务 {task.code} · {task.name}</p>
         {!receipt && <>
@@ -229,6 +231,6 @@ export function ScheduleAssist({ userId, projectId, task, editorDirty }: { userI
           <Button className="ml-2" size="sm" disabled={verification === 'checking'} onClick={startOver}>开始新的推演</Button>
         </div>}
       </div>
-    </details>
+    </Surface>
   )
 }

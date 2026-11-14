@@ -25,6 +25,7 @@ const Workload = lazy(() => import('./pages/Workload'))
 const ReleaseNotes = lazy(() => import('./pages/ReleaseNotes'))
 const PortalSettings = lazy(() => import('./pages/PortalSettings'))
 const AISettings = lazy(() => import('./pages/AISettings'))
+const ProjectAssistant = lazy(() => import('./pages/ProjectAssistant'))
 const PortalAccounts = lazy(() => import('./pages/PortalAccounts'))
 const PortalHelp = lazy(() => import('./pages/PortalHelp'))
 const PortalLaunch = lazy(() => import('./pages/PortalLaunch'))
@@ -88,6 +89,7 @@ export default function App() {
             <Route path="/projects"              element={<Projects />} />
             <Route path="/projects/new"          element={<ProjectCreate />} />
             <Route path="/projects/:id"          element={<ProjectDetail />} />
+            <Route path="/project-assistant"     element={<ProjectAssistant />} />
             <Route path="/templates"             element={<Templates />} />
             <Route path="/templates/:id"         element={<TemplateDetail />} />
             <Route path="/templates/:id/edit"    element={<TemplateEditor />} />
@@ -118,6 +120,7 @@ function RouteTitle() {
     if (pathname === '/data-backup') { document.title = '数据备份 · 迈博工作空间'; return }
     if (pathname === '/feedback') { document.title = '回音壁 · 迈博工作空间'; return }
     if (pathname === '/assistant' || pathname.startsWith('/assistant/')) { document.title = 'AI 助手 · 迈博工作空间'; return }
+    if (pathname === '/project-assistant') { document.title = '项目 AI 助手 · 迈博工作空间'; return }
     if (pathname === '/notes') { document.title = '我的笔记 · 迈博工作空间'; return }
     if (pathname === '/solutions' || pathname.startsWith('/solutions/')) {
       document.title = '研究报告 · 迈博工作空间'

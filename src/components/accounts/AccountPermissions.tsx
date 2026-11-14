@@ -37,10 +37,10 @@ export function AccountPermissions({ value, onChange, available, locked = false,
       <legend className="px-1 text-sm font-semibold text-ink-900"><LayoutGrid className="inline w-4 h-4 mr-2" />项目管理</legend>
       {value.platformAdmin && <p className="text-sm text-brand-700">继承系统管理员的全部权限；下方业务角色保留，取消管理员身份后生效。</p>}
       <div className="grid sm:grid-cols-2 gap-3">
-        <Choice group={id + '-pm'} label="项目负责人" hint="管理项目、使用 AI 分析和 AI设置；账号管理只读" selected={value.pmIdentity === 'lead'}
+        <Choice group={id + '-pm'} label="项目负责人" hint="管理项目、使用项目 AI 助手的综合评估和 AI 设置；账号管理只读" selected={value.pmIdentity === 'lead'}
           disabled={value.platformAdmin || (value.pmIdentity !== 'lead' && !available.includes('cmc_lead'))}
           onChange={() => onChange({ ...value, pmIdentity: 'lead' })} />
-        <Choice group={id + '-pm'} label="项目成员" hint="日常更新本人任务，不提供 AI 功能" selected={value.pmIdentity === 'staff'} disabled={value.platformAdmin}
+        <Choice group={id + '-pm'} label="项目成员" hint="日常更新本人任务，按可见范围使用项目 AI 助手" selected={value.pmIdentity === 'staff'} disabled={value.platformAdmin}
           onChange={() => onChange({ ...value, pmIdentity: 'staff' })} />
       </div>
       {pmRoleNote && <p className="text-xs text-amber-700">当前角色：{pmRoleNote}；不更改业务角色时保留原授权范围。</p>}

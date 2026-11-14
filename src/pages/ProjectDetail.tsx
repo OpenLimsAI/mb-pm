@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import {
-  LayoutGrid, Diamond, FolderTree, Users, Flag, Zap, Sparkles,
+  LayoutGrid, Diamond, FolderTree, Users, Flag, Zap,
   CheckCircle2, X,
 } from 'lucide-react'
 import { findProject, findTask, subProjects } from '../mock'
@@ -19,8 +19,6 @@ import { ProjectBudgetCard } from '../components/project/ProjectBudgetCard'
 import { BaselinePanel } from '../components/project/BaselinePanel'
 import { PMManagement } from '../components/management/PMManagement'
 import { DelayImpact } from '../components/project/DelayImpact'
-import { ProjectAIAnalysis } from '../components/project/ProjectAIAnalysis'
-import { AgentProposalReview } from '../components/project/AgentProposalReview'
 import { ProjectExchange } from '../components/project/ProjectExchange'
 import { TemplateUpgrade } from '../components/project/TemplateUpgrade'
 import { ProgressPolicy } from '../components/project/ProgressPolicy'
@@ -33,8 +31,8 @@ import { EmptyState } from '../components/ui'
 import { cn } from '../lib/cn'
 import { recordProjectVisit } from '../lib/projectNavigation'
 
-// Tab 顺序：概览 → 里程碑 → WBS → 延迟推演 → 基线 → 团队 → AI 分析（仅管理者）
-type Tab = 'overview' | 'milestones' | 'wbs' | 'delay' | 'baseline' | 'team' | 'ai' | 'management' | 'tools'
+// AI 能力统一由页首项目 AI 助手提供。
+type Tab = 'overview' | 'milestones' | 'wbs' | 'delay' | 'baseline' | 'team' | 'management' | 'tools'
 // WBS 子视图：表格（行内编辑，主工作面）/ 树形 / 甘特图
 
 export default function ProjectDetail() {
@@ -42,7 +40,6 @@ export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>()
   const role = useAuth((s) => s.currentUser?.role)
   const userId = useAuth((s) => s.currentUser?.id) ?? 'offline'
-  const canAnalyze = can(role, 'ai.analyze')
   // 「编辑项目」（项目信息、预算、子项目 / 任务 / 依赖）：与账号管理身份对应；后端另按项目可见范围校验
   const canEditProject = can(role, 'project.edit')
   // 订阅数据版本：任务进展保存后重算并刷新本页（含抽屉、WBS、里程碑）
@@ -50,19 +47,14 @@ export default function ProjectDetail() {
   const online = useDataStore((s) => s.mode) === 'api'
   const project = findProject(id || '')
   const requestedTab = params.get('tab')
-  const agentReportKey = params.get('agent_report')
-  const agentProposalId = params.get('agent_proposal')
-  const closeAgentProposal = () => {
+  const tab: Tab = ['overview', 'milestones', 'wbs', 'delay', 'baseline', 'team', 'management', 'tools'].includes(requestedTab || '') ? requestedTab as Tab : 'overview'
+  useEffect(() => {
+    if (requestedTab !== 'ai') return
     const next = new URLSearchParams(params)
-    next.delete('agent_proposal')
+    next.delete('tab')
+    if (!next.has('assistant')) next.set('assistant', next.has('agent_proposal') ? 'proposal' : 'assessment')
     setParams(next, { replace: true })
-  }
-  const closeAgentReport = () => {
-    const next = new URLSearchParams(params)
-    next.delete('agent_report')
-    setParams(next, { replace: true })
-  }
-  const tab: Tab = (requestedTab !== 'ai' || canAnalyze) && ['overview', 'milestones', 'wbs', 'delay', 'baseline', 'team', 'ai', 'management', 'tools'].includes(requestedTab || '') ? requestedTab as Tab : 'overview'
+  }, [requestedTab, params, setParams])
   const [toolMode, setToolMode] = useState<'template' | 'progress'>('template')
   const setTab = (value: Tab) => { const next = new URLSearchParams(params); next.set('tab', value); setParams(next) }
   const [wbsView, setWbsView] = useState<WbsView>('table')
@@ -130,10 +122,6 @@ export default function ProjectDetail() {
         editDisabledReason={online ? undefined : '离线演示模式不支持修改项目'}
       />
 
-      {online && agentProposalId && /^[a-zA-Z0-9_-]{1,64}$/.test(agentProposalId) && <AgentProposalReview
-        key={`${project.id}:${agentProposalId}`} projectId={project.id} proposalId={agentProposalId}
-        onClose={closeAgentProposal} onApplied={refreshAllData} />}
-
       <ProjectExchange key={project.id} projectId={project.id} canManage={online && (role === 'admin' || role === 'cmc_lead' || (role === 'project_lead' && userId === project.ownerId))} onApplied={refreshAllData} />
 
       {notice && (
@@ -158,9 +146,6 @@ export default function ProjectDetail() {
         <TabBtn current={tab} v="team"        icon={<Users className="w-4 h-4" />}             label="团队" onClick={setTab} />
         <TabBtn current={tab} v="management" icon={<CheckCircle2 className="w-4 h-4" />} label="项目跟进" onClick={setTab} />
         <TabBtn current={tab} v="tools" icon={<Flag className="w-4 h-4" />} label="计划工具" onClick={setTab} />
-        {canAnalyze && (
-          <TabBtn current={tab} v="ai"        icon={<Sparkles className="w-4 h-4" />}          label="AI 分析" onClick={setTab} />
-        )}
       </div>
 
       {/* 概览：里程碑路线图（横向置顶，宏观）→ 预算与成本 → 三级 WBS（下方） */}
@@ -206,11 +191,6 @@ export default function ProjectDetail() {
         </div>
         {toolMode === 'template' ? <TemplateUpgrade key={project.id} project={project} /> : <ProgressPolicy key={project.id} project={project} />}
       </div>}
-
-      {tab === 'ai' && canAnalyze && (
-        <ProjectAIAnalysis key={project.id} projectId={project.id} projectName={project.name}
-          agentReportKey={agentReportKey} onCloseAgentReport={closeAgentReport} />
-      )}
 
       {tab !== 'wbs' && <TaskDrawer
         task={drawerTaskId ? findTask(drawerTaskId) || null : null}

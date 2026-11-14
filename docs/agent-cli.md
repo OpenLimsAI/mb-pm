@@ -54,7 +54,7 @@ python3 scripts/maibo-agent.py changes PROJECT_ID --kind delay --days 7
 3. 打开返回的 `review_url`，用创建提案的同一账号登录，核对变更前后内容并确认。系统重新校验权限、版本和影响，项目数据变化时需要重新预览。
 4. 用 `proposal` 查看状态与执行回执。提交时保留自己的 `request_id`：同一请求超时可用原编号重试；查询到已执行时以原回执为准。用 `cancel-proposal` 撤销未执行提案。仅在状态及操作类型允许时用 `retry-proposal --request-id NEW_REQUEST_ID` 生成新提案，再由用户确认。
 
-风险报告仍可通过其审核链接确认保存至项目 AI 分析记录。
+风险报告通过审核链接进入「项目 AI 助手 → 综合评估」，确认后保存在原项目报告历史。提案核对链接统一打开助手内的「建议核对」；旧 `tab=ai` 链接仍兼容。
 
 后台项目分析由有权限的项目管理人员发起。经用户同意后，迈博把项目计划、任务备注、依赖和团队名称等所需信息交给已配置的模型。保存返回的任务编号，用 `analysis-jobs`、`analysis-job` 和 `analysis-result` 找回状态与结果。`cancel-analysis` 可取消等待或处理中的任务；`retry-analysis` 用新请求编号重试允许重跑的任务，需要再次明确同意模型处理。
 
