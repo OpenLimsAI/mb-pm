@@ -43,13 +43,14 @@
 :root .efficient-portal .workspace-brand-copy strong { font-size: 15px; letter-spacing: .3px; color: var(--workbench-ink); }
 :root .efficient-portal .workspace-brand-copy > span { font-size: 11px; letter-spacing: 0; }
 :root .workspace-context { font-size: 12px; color: var(--workbench-muted); margin-right: auto; }
-:root .workspace-sidebar { grid-column: 1; grid-row: 2 / 4; position: sticky; top: 56px; height: calc(100dvh - 56px); align-self: start; display: flex; flex-direction: column; padding: 24px 12px 18px; border-right: 1px solid var(--workbench-line); }
-:root .workspace-sidebar-caption { font-size: 12px; color: var(--workbench-muted); margin: 0 12px 12px; }
-:root .efficient-portal .portal-navigation { display: flex; flex-direction: column; align-items: stretch; gap: 4px; margin: 0; white-space: normal; }
+:root .workspace-sidebar { grid-column: 1; grid-row: 2 / 4; position: sticky; top: 56px; height: calc(100dvh - 56px); align-self: start; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior-y: contain; padding: 24px 12px 18px; border-right: 1px solid var(--workbench-line); }
+:root .workspace-sidebar-caption { flex-shrink: 0; font-size: 12px; color: var(--workbench-muted); margin: 0 12px 12px; }
+/* Sidebar navigation keeps DOM order instead of inheriting the legacy header's narrow-screen order. */
+:root .efficient-portal .portal-navigation { display: flex; order: 0; flex-shrink: 0; flex-direction: column; align-items: stretch; gap: 4px; width: auto; margin: 0; border-top: 0; overflow: visible; white-space: normal; }
 :root .efficient-portal .portal-navigation a { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 9px 12px; border: 0; border-radius: 6px; color: var(--workbench-muted); font-size: 13px; }
 :root .efficient-portal .portal-navigation a:hover { background: var(--workbench-soft); color: var(--workbench-brand-strong); }
 :root .efficient-portal .portal-navigation a.active { color: var(--workbench-brand-strong); background: var(--workbench-soft); font-weight: 600; }
-:root .workspace-sidebar-footer { display: grid; gap: 5px; margin-top: auto; padding: 18px 12px 0; border-top: 1px solid var(--workbench-line); font-size: 12px; color: var(--workbench-muted); }
+:root .workspace-sidebar-footer { display: grid; flex-shrink: 0; gap: 5px; margin-top: auto; padding: 18px 12px 0; border-top: 1px solid var(--workbench-line); font-size: 12px; color: var(--workbench-muted); }
 :root .workspace-sidebar-footer strong { color: var(--workbench-ink); letter-spacing: 1px; }
 :root .efficient-portal .workspace-main { grid-column: 2; width: 100%; min-width: 0; max-width: 1600px; padding: 24px 28px; margin-inline: auto; }
 :root .efficient-portal .workspace-footer { grid-column: 2; width: 100%; max-width: 1600px; padding: 0 28px 16px; font-size: 12px; }
@@ -229,7 +230,8 @@ html[data-application-theme="dark"]:root :is(.aa-topbar, .pn-app-header, .ks-top
   :root .efficient-portal { grid-template-rows: auto 1fr auto; }
   :root .efficient-portal .workspace-header-inner { height: auto; min-height: 56px; flex-wrap: wrap; padding-block: 8px; gap: 8px; }
   :root .efficient-portal .workspace-brand { min-width: 0; }
-  :root .efficient-portal .workspace-account { margin-left: auto; }
+  :root .efficient-portal .workspace-account { max-width: 100%; margin-left: auto; }
+  :root .efficient-portal .workspace-account .application-actions { flex-wrap: wrap; justify-content: flex-end; }
 }
 
 @media (max-width: 760px) {
@@ -244,3 +246,4 @@ html[data-application-theme="dark"]:root :is(.aa-topbar, .pn-app-header, .ks-top
   }
   :root #knowledge-source-app .kso-header-actions { flex: 1 0 100%; justify-content: flex-end; }
 }
+
