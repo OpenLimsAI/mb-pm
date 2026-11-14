@@ -8,13 +8,12 @@ const financeTags = (a: AIAnalysis) => [
   `${a.source.overBudgetCount ?? 0} 个超支`,
 ]
 
-// 财务 →「AI 财务分析」（admin / cmc_lead）：全部项目的预算执行、任务成本偏差与数据缺口。
-// 与项目分析是同一套体系：共用 AI 设置、默认提示词（项目管理「AI设置」› 财务分析提示词）与报告存档。
+// 项目 AI 助手 → 组合财务（admin / cmc_lead），沿用原提示词、权限与报告存档。
 export function FinanceAIAnalysis() {
   return (
     <AIAnalysisPanel
       kind="finance"
-      title="AI 财务分析"
+      title="组合财务评估"
       description="结合各项目的预算执行、已承诺金额、任务成本偏差与进度，生成组合层面的财务判断和建议。"
       subject="项目组合财务"
       focusPlaceholder="例如：哪些项目的花费节奏与进度不匹配？剩余预算能否支撑下季度计划？哪些任务超支最严重？"

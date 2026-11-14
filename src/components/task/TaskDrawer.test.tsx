@@ -11,6 +11,7 @@ import { useAuth } from '../../store/auth'
 import type { Task } from '../../types'
 
 vi.mock('../../data/bootstrap', () => ({ updateTaskProgress: vi.fn(), refreshAllData: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('../../api/pmAI', () => ({ pmAI: { context: vi.fn().mockResolvedValue(null), list: vi.fn().mockResolvedValue({ items: [], total: 0 }) } }))
 vi.mock('../../api/projectAIWork', () => ({ applyScheduleAssist: vi.fn(), previewScheduleAssist: vi.fn() }))
 vi.mock('../../api/tasks', async (original) => ({ ...await original<typeof import('../../api/tasks')>(), listTasks: vi.fn() }))
 vi.mock('../../api/taskCollaboration', async (original) => ({
@@ -152,11 +153,17 @@ const assistantPreview = (): ScheduleAssistPreview => ({
   expiresAt: new Date(Date.now() + 60_000).toISOString(),
 })
 
-function openScheduleAssist() {
+async function selectScheduleAssist() {
+  fireEvent.click(screen.getByText('项目 AI 助手'))
+  fireEvent.click(await screen.findByRole('button', { name: '智能排期' }))
+  await screen.findByRole('heading', { name: '智能排期' })
+}
+
+async function openScheduleAssist() {
   useAuth.setState({ currentUser: users.find(user => user.role === 'admin')! })
   useDataStore.setState({ mode: 'api' })
   const view = openTask(baseTask)
-  fireEvent.click(screen.getByText('AI 排期推演'))
+  await selectScheduleAssist()
   fireEvent.change(screen.getByLabelText('延期要求'), { target: { value: '延迟 5 个工作日，申报不动' } })
   return view
 }
@@ -166,7 +173,7 @@ test('AI 排期只在确认后写入，关闭抽屉仍能读取回执并重试�
   vi.mocked(previewScheduleAssist).mockResolvedValueOnce(preview)
   vi.mocked(applyScheduleAssist).mockResolvedValueOnce({ receiptId: 'applied-1', replayed: false, schedule: preview.schedule })
   vi.mocked(listTasks).mockRejectedValueOnce(new Error('read unavailable'))
-  const view = openScheduleAssist()
+  const view = await openScheduleAssist()
   fireEvent.click(screen.getByRole('button', { name: '预览排期影响' }))
   expect(await screen.findByRole('table', { name: '排期调整前后对比' })).toHaveTextContent('2026-12-04')
   expect(screen.getByRole('link', { name: 'M01 · 申报' })).toHaveAttribute('href', expect.stringContaining('task=submit'))
@@ -178,7 +185,7 @@ test('AI 排期只在确认后写入，关闭抽屉仍能读取回执并重试�
   view.unmount()
   await waitFor(() => expect(listTasks).toHaveBeenCalledTimes(1))
   openTask(baseTask)
-  fireEvent.click(screen.getByText('AI 排期推演'))
+  await selectScheduleAssist()
   expect(await screen.findByText('调整已应用 · 回执 applied-1')).toBeInTheDocument()
   expect(applyScheduleAssist).toHaveBeenCalledWith(expect.any(String), 'reviewed-proposal', '供应商延期')
 
@@ -203,7 +210,7 @@ test('AI 排期显示锁定冲突，保留未保存的进展并禁用推演', as
   const preview = assistantPreview()
   preview.schedule.conflicts = [{ taskId: 'submit', name: '申报', reason: '锁定节点无法满足依赖' }]
   vi.mocked(previewScheduleAssist).mockResolvedValueOnce({ ...preview, confirmationToken: null, expiresAt: null })
-  openScheduleAssist()
+  await openScheduleAssist()
   fireEvent.click(screen.getByRole('button', { name: '预览排期影响' }))
   expect(await screen.findByText('申报：锁定节点无法满足依赖')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: /确认应用/ })).not.toBeInTheDocument()
@@ -220,14 +227,14 @@ test('确认请求未收到回执时，重新打开抽屉仍使用原确认记�
     .mockRejectedValueOnce(new Error('request timed out'))
     .mockResolvedValueOnce({ receiptId: 'applied-2', replayed: true, schedule: preview.schedule })
   vi.mocked(listTasks).mockRejectedValue(new Error('read unavailable'))
-  const view = openScheduleAssist()
+  const view = await openScheduleAssist()
   fireEvent.click(screen.getByRole('button', { name: '预览排期影响' }))
   fireEvent.change(await screen.findByLabelText('调整原因'), { target: { value: '供应商延期' } })
   fireEvent.click(screen.getByRole('button', { name: '确认应用 1 项调整' }))
   await screen.findByRole('button', { name: '重试本次确认' })
   view.unmount()
   openTask(baseTask)
-  fireEvent.click(screen.getByText('AI 排期推演'))
+  await selectScheduleAssist()
   const retry = screen.getByRole('button', { name: '重试本次确认' })
   expect(screen.getByLabelText('延期要求')).toBeDisabled()
   expect(screen.getByLabelText('调整原因')).toBeDisabled()

@@ -85,7 +85,10 @@ def test_simulated_schedule_changes_once_and_has_a_receipt(
     response = propose(client, project, agent, "schedule-review", **draft)
     assert response.status_code == 201, response.text
     proposal = response.json()
-    assert parse_qs(urlsplit(proposal["review_url"]).query)["agent_proposal"] == [proposal["id"]]
+    review_query = parse_qs(urlsplit(proposal["review_url"]).query)
+    assert review_query["agent_proposal"] == [proposal["id"]]
+    assert review_query["assistant"] == ["proposal"]
+    assert "tab" not in review_query
     assert propose(client, project, agent, "schedule-review", **draft).json() == proposal
     assert (
         propose(
@@ -333,6 +336,7 @@ def test_analysis_admission_replay_consent_and_scoped_result(
     assert client.get(path, headers=agent).json()["state"] == "succeeded"
     report = client.get(path + "/result", headers=agent).json()
     assert report["content"] == "计划分析完成"
+    assert parse_qs(urlsplit(report["url"]).query) == {"assistant": ["assessment"]}
     replayed = client.post(base, headers=agent, json=params)
     assert replayed.json()["id"] == queued.json()["id"]
     assert replayed.json()["state"] == "succeeded"

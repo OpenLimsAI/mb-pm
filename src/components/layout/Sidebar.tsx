@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, FolderKanban, ListChecks, GanttChartSquare, Gauge, Wallet, ChevronDown,
-  SlidersHorizontal, LogOut, type LucideIcon,
+  Sparkles, LogOut, type LucideIcon,
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { can, type PermKey } from '../../lib/permissions'
@@ -19,7 +19,7 @@ interface NavItem {
 }
 
 // 左侧主导航。模板管理由「项目」页右上角入口进入；任务 / 甘特图 / 人员负荷 收在「项目」下，可折叠。
-// 账号管理、个人设置、版本更新与跨应用切换在门户工作台；项目管理保留 AI设置。
+// 账号管理、个人设置与跨应用切换在门户；项目管理 AI 统一进入项目 AI 助手。
 const navItems: NavItem[] = [
   { to: '/dashboard', label: '首页',   icon: LayoutDashboard, end: true },
   {
@@ -31,7 +31,7 @@ const navItems: NavItem[] = [
     ],
   },
   { to: '/finance',   label: '财务',   icon: Wallet },
-  { to: '/ai-settings', label: 'AI设置', icon: SlidersHorizontal, perms: ['ai.config'] },
+  { to: '/project-assistant', label: '项目 AI 助手', icon: Sparkles },
 ]
 
 // 记住用户收起的分组（仅本浏览器的界面偏好；读写失败时按默认全部展开）

@@ -4,14 +4,14 @@
 //   §1 组合 KPI —— 总预算 / 已花费 / 已承诺 / 剩余 / 执行率 / 超支项目
 //   §2 预算执行 + 成本结构（手工填报）+ 超支项目
 //   §3 分项目预算明细 —— 每个项目的预算执行 + 任务预算合计；有「编辑项目」权限的人可逐项目编辑预算
-//「AI 财务分析」（admin / cmc_lead）：与项目 AI 分析同一套体系的组合财务分析。
+// 财务 AI 能力统一进入项目 AI 助手；旧标签链接保留跳转。
 //
 // 口径：已花费 = 该项目全部任务实际花费合计（后端实时汇总，不含内部人力）；
 //       总预算 / 已承诺 / 成本结构为项目级填报。
 
 import { useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Wallet, CheckCircle2, AlertTriangle, ChevronRight, Pencil, Sparkles, LayoutGrid, type LucideIcon } from 'lucide-react'
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
+import { Wallet, CheckCircle2, AlertTriangle, ChevronRight, Pencil, Sparkles } from 'lucide-react'
 import {
   projects, getProjectFinance, getProjectTasks,
   summarizeFinances, executionRate, isOverBudget,
@@ -21,7 +21,7 @@ import { useAuth } from '../store/auth'
 import { can } from '../lib/permissions'
 import { Card, CardHeader, CardBody, Tag, HealthTag } from '../components/ui'
 import { FinanceEditDialog } from '../components/finance/FinanceEditDialog'
-import { FinanceAIAnalysis } from '../components/finance/FinanceAIAnalysis'
+import { projectAssistantUrl } from '../lib/projectAssistantNavigation'
 import { cn } from '../lib/cn'
 import type { Project } from '../types'
 
@@ -31,9 +31,8 @@ const CATS = ['人力', '设备', '原材料', '外部服务', '其他'] as cons
 export default function Finance() {
   const role = useAuth((s) => s.currentUser?.role)
   const canAI = can(role, 'ai.finance')
-  const [params, setParams] = useSearchParams()
-  const tab = canAI && params.get('tab') === 'ai' ? 'ai' : 'overview'
-  const select = (next: 'overview' | 'ai') => setParams(next === 'ai' ? { tab: 'ai' } : {}, { replace: true })
+  const [params] = useSearchParams()
+  if (canAI && params.get('tab') === 'ai') return <Navigate to={projectAssistantUrl('finance')} replace />
 
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-6">
@@ -47,31 +46,9 @@ export default function Finance() {
         </p>
       </div>
 
-      {canAI && (
-        <div role="tablist" aria-label="财务视图" className="flex gap-1 border-b border-ink-300/60">
-          <TabButton icon={LayoutGrid} active={tab === 'overview'} onClick={() => select('overview')}>预算总览</TabButton>
-          <TabButton icon={Sparkles} active={tab === 'ai'} onClick={() => select('ai')}>AI 财务分析</TabButton>
-        </div>
-      )}
-      {tab === 'ai' ? <FinanceAIAnalysis /> : <FinanceOverview />}
+      {canAI && <Link className="inline-flex items-center gap-2 text-sm text-brand-700" to={projectAssistantUrl('finance')}><Sparkles className="h-4 w-4" />在项目 AI 助手中评估组合财务</Link>}
+      <FinanceOverview />
     </div>
-  )
-}
-
-function TabButton({ icon: Icon, active, onClick, children }: { icon: LucideIcon; active: boolean; onClick: () => void; children: string }) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      onClick={onClick}
-      className={cn(
-        '-mb-px px-3 py-2 text-sm flex items-center gap-2 border-b-2 transition-colors',
-        active ? 'border-brand-600 text-brand-700 font-medium' : 'border-transparent text-ink-600 hover:text-ink-900',
-      )}
-    >
-      <Icon className="w-4 h-4" />{children}
-    </button>
   )
 }
 

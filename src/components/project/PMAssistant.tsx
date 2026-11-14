@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { format, parseISO, subDays } from 'date-fns'
-import { Sparkles } from 'lucide-react'
 import {
   pmAI,
   type PMAIContext,
@@ -14,11 +13,23 @@ import {
 import { asAPIError } from '../../api/client'
 import { useAuth } from '../../store/auth'
 import { useDataStore } from '../../store/data'
-import { findProject, findTask, TODAY } from '../../mock'
+import { findProject, findTask, findSubProject, TODAY } from '../../mock'
 import { Button } from '../ui'
 import { PMAgent, type AgentRequest } from './PMAgent'
 import { PMAIActions } from './PMAIActions'
 import { PMAIScheduleCompare } from './PMAIScheduleCompare'
+import { can } from '../../lib/permissions'
+import { assistantMode, type ProjectAssistantMode } from '../../lib/projectAssistantNavigation'
+import { PMAssistantSurface } from './PMAssistantSurface'
+import { refreshAllData } from '../../data/bootstrap'
+import type { Task } from '../../types'
+
+const ProjectAIWorkbench = lazy(() => import('./ProjectAIWorkbench').then(module => ({ default: module.ProjectAIWorkbench })))
+const FinanceAIAnalysis = lazy(() => import('../finance/FinanceAIAnalysis').then(module => ({ default: module.FinanceAIAnalysis })))
+const AISettingsPanel = lazy(() => import('../settings/AISettingsPanel').then(module => ({ default: module.AISettingsPanel })))
+const AgentProposalReview = lazy(() => import('./AgentProposalReview').then(module => ({ default: module.AgentProposalReview })))
+const ScheduleAssist = lazy(() => import('../task/ScheduleAssist').then(module => ({ default: module.ScheduleAssist })))
+const toolModes = new Set<ProjectAssistantMode>(['assessment', 'finance', 'settings', 'proposal', 'schedule-assist'])
 
 const scenarios: Record<PMAIScenario, { name: string; prompt: string }> = {
   priorities: {
@@ -70,25 +81,44 @@ function scopeLabel(scope: PMAIScope, context: PMAIContext | null) {
 export function PMAssistant({
   projectId,
   taskId,
+  taskSnapshot,
   disabled = false,
+  standalone = false,
 }: {
   projectId?: string
   taskId?: string
+  taskSnapshot?: Task
   disabled?: boolean
+  standalone?: boolean
 }) {
   const userId = useAuth((state) => state.currentUser?.id)
+  const role = useAuth((state) => state.currentUser?.role)
   const online = useDataStore((state) => state.mode) === 'api'
   const [params] = useSearchParams()
   const requestedRun = params.get('aiRun') || null
+  // Delegated review links belong to the project surface, never a task drawer.
+  const projectSurface = !!projectId && !taskId
+  const rawReport = params.get('agent_report')
+  const rawProposal = params.get('agent_proposal')
+  const reportKey = projectSurface && rawReport && /^[0-9a-f]{64}$/.test(rawReport) ? rawReport : null
+  const proposalId = projectSurface && rawProposal && /^[a-zA-Z0-9_-]{1,64}$/.test(rawProposal) ? rawProposal : null
+  const linkedMode = assistantMode(params.get('assistant'))
+  const requestedMode = (taskId && linkedMode && toolModes.has(linkedMode) && linkedMode !== 'schedule-assist' ? null : linkedMode)
+    ?? (proposalId ? 'proposal' : reportKey || (projectSurface && params.get('tab') === 'ai') ? 'assessment' : null)
   if (!online || !userId) return null
   return (
     <AssistantPanel
-      key={`${userId}:${projectId ?? 'all'}:${taskId ?? 'all'}:${requestedRun ?? ''}`}
+      key={`${userId}:${role}:${projectId ?? 'all'}:${taskId ?? 'all'}:${requestedRun ?? ''}:${requestedMode ?? ''}:${reportKey ?? ''}:${proposalId ?? ''}`}
       projectId={projectId}
       taskId={taskId}
+      taskSnapshot={taskSnapshot}
       userId={userId}
       disabled={disabled}
       requestedRun={requestedRun}
+      requestedMode={requestedMode}
+      standalone={standalone}
+      reportKey={reportKey}
+      proposalId={proposalId}
     />
   )
 }
@@ -96,20 +126,46 @@ export function PMAssistant({
 function AssistantPanel({
   projectId,
   taskId,
+  taskSnapshot,
   userId,
   disabled,
   requestedRun,
+  requestedMode,
+  standalone,
+  reportKey,
+  proposalId,
 }: {
   projectId?: string
   taskId?: string
+  taskSnapshot?: Task
   userId: string
   disabled: boolean
   requestedRun: string | null
+  requestedMode: ProjectAssistantMode | null
+  standalone: boolean
+  reportKey: string | null
+  proposalId: string | null
 }) {
+  const role = useAuth(state => state.currentUser?.role)
+  const [params, setParams] = useSearchParams()
+  const task = taskId ? (taskSnapshot?.id === taskId ? taskSnapshot : findTask(taskId)) : undefined
+  const availableTools = {
+    assessment: !!projectId && !taskId && can(role, 'ai.analyze'),
+    finance: !projectId && !taskId && can(role, 'ai.finance'),
+    settings: !taskId && can(role, 'ai.config'),
+    proposal: !!projectId && !taskId && !!proposalId,
+    'schedule-assist': !!projectId && !!task && findSubProject(task.subProjectId)?.projectId === projectId
+      && (role === 'admin' || role === 'cmc_lead' || (role === 'project_lead' && userId === findProject(projectId)?.ownerId)),
+  }
+  const modeAvailable = (mode: ProjectAssistantMode) => !toolModes.has(mode)
+    || ((!disabled || mode === 'schedule-assist') && availableTools[mode as keyof typeof availableTools])
+  const initialScenario = requestedMode && modeAvailable(requestedMode) ? requestedMode : 'agent'
   const date =
     useDataStore((state) => state.businessDate) || format(TODAY, 'yyyy-MM-dd')
-  const [open, setOpen] = useState(!!requestedRun)
-  const [scenario, setScenario] = useState<PMAIScenario | 'schedule' | 'agent'>('agent')
+  const [open, setOpen] = useState(standalone || !!requestedRun || !!requestedMode)
+  const [selectedScenario, setScenario] = useState<ProjectAssistantMode>(initialScenario)
+  const scenario = modeAvailable(selectedScenario) ? selectedScenario : 'agent'
+  const structured = !toolModes.has(scenario)
   const [question, setQuestion] = useState('')
   const [material, setMaterial] = useState('')
   const [startDate, setStartDate] = useState(() =>
@@ -202,14 +258,14 @@ function AssistantPanel({
   }, [projectId, taskId, matchesScope, readRun])
   useEffect(() => {
     let active = true
-    if (requestedRun)
+    if (requestedRun || ((standalone || requestedMode) && !toolModes.has(initialScenario)))
       void Promise.resolve().then(() => {
-        if (active) return load(true)
+        if (active) return load(!!requestedRun)
       })
     return () => {
       active = false
     }
-  }, [requestedRun, load])
+  }, [requestedRun, requestedMode, standalone, initialScenario, load])
   const active = run?.state === 'queued' || run?.state === 'running'
   const runId = run?.id
   useEffect(() => {
@@ -271,14 +327,15 @@ function AssistantPanel({
   }
 
   async function generate() {
-    if (scenario === 'agent' || scenario === 'schedule' || disabled || busy || active) return
+    if (!(scenario in scenarios) || disabled || busy || active) return
+    const analysisScenario = scenario as PMAIScenario
     try {
       await submit({
-        scenario,
+        scenario: analysisScenario,
         ...manualScope,
         startDate,
         endDate,
-        question: question.trim() || scenarios[scenario].prompt,
+        question: question.trim() || scenarios[analysisScenario].prompt,
         material: scenario === 'meeting' ? material : '',
       })
     } catch (e) {
@@ -316,12 +373,21 @@ function AssistantPanel({
     setError('')
   }
 
-  function changeScenario(next: typeof scenario) {
+  function changeScenario(next: ProjectAssistantMode) {
+    if (!modeAvailable(next)) return
     if (next === scenario) return
     setPreparedScope(null)
     setScheduleDelays(undefined)
     setScenario(next)
     setError('')
+    if (!toolModes.has(next) && !context) void load()
+  }
+
+  function closeReview(key: 'agent_report' | 'agent_proposal') {
+    const next = new URLSearchParams(params)
+    next.delete(key)
+    next.delete('assistant')
+    setParams(next, { replace: true })
   }
 
   async function cancel() {
@@ -353,34 +419,34 @@ function AssistantPanel({
   const scheduleProjectId = scenario === 'schedule' ? manualScope.projectIds[0] : undefined
   const scheduleTaskId = scenario === 'schedule' ? manualScope.taskIds[0] : undefined
   return (
-    <details
-      className="rounded-xl border border-brand-200 bg-white p-4"
+    <PMAssistantSurface
+      standalone={standalone}
       open={open}
-      onToggle={(event) => {
-        const isOpen = event.currentTarget.open
+      onToggle={(isOpen) => {
         setOpen(isOpen)
-        if (isOpen && !open) void load()
+        if (isOpen && !open && structured) void load()
       }}
     >
-      <summary className="cursor-pointer text-sm font-semibold text-brand-700">
-        <Sparkles className="mr-2 inline h-4 w-4" />
-        项目 AI 助手
-      </summary>
       {open && (
         <div className="mt-4 space-y-4 text-sm">
           <div className="flex flex-wrap gap-2 text-xs">
             <span className="rounded bg-brand-50 px-2 py-1 break-words">
-              {scopeName}
+              {scenario === 'finance' ? '全部项目 · 组合预算与成本' : scenario === 'settings' ? '组织共享模型与分析提示词' : scopeName}
             </span>
             <span className="rounded bg-ink-100 px-2 py-1">
               按当前账号权限取数
             </span>
-            {context && (
+            {structured && context && (
               <span className="px-2 py-1 text-ink-500">
                 数据时间 {new Date(context.asOf).toLocaleString('zh-CN')}
               </span>
             )}
           </div>
+          {requestedMode && !modeAvailable(requestedMode) && <p role="status" className="rounded bg-amber-50 p-2 text-amber-900">
+            {requestedMode === 'assessment' && !projectId && can(role, 'ai.analyze') ? '请先选择一个项目，再使用综合评估。'
+              : requestedMode === 'finance' && projectId && can(role, 'ai.finance') ? '组合财务覆盖全部项目，请将项目范围切换为全部可见项目。'
+                : '当前账号或页面范围不支持所请求的功能，请选择下方可用功能。'}
+          </p>}
           {disabled && (
             <p className="text-amber-800">
               请先保存或放弃当前进展草稿，再生成或应用建议。
@@ -425,7 +491,24 @@ function AssistantPanel({
                 排期比较
               </Button>
             )}
+            {Object.entries(availableTools).filter(([, allowed]) => allowed).map(([mode]) => (
+              <Button key={mode} size="sm" disabled={disabled} variant={scenario === mode ? 'primary' : 'secondary'}
+                aria-pressed={scenario === mode} onClick={() => changeScenario(mode as ProjectAssistantMode)}>
+                {{ assessment: '综合评估', finance: '组合财务', settings: 'AI 设置', proposal: '建议核对', 'schedule-assist': '智能排期' }[mode as keyof typeof availableTools]}
+              </Button>
+            ))}
           </div>
+          <Suspense fallback={<p role="status">正在打开助手功能…</p>}>
+            {scenario === 'assessment' && projectId && availableTools.assessment && <ProjectAIWorkbench
+              key={projectId} projectId={projectId} projectName={findProject(projectId)?.name ?? context?.projects.find(item => item.id === projectId)?.name ?? '当前项目'}
+              agentReportKey={reportKey} onCloseAgentReport={() => closeReview('agent_report')} />}
+            {scenario === 'finance' && availableTools.finance && <FinanceAIAnalysis />}
+            {scenario === 'settings' && availableTools.settings && <AISettingsPanel online />}
+            {scenario === 'proposal' && projectId && proposalId && availableTools.proposal && <AgentProposalReview
+              key={proposalId} projectId={projectId} proposalId={proposalId} onClose={() => closeReview('agent_proposal')} onApplied={refreshAllData} />}
+            {scenario === 'schedule-assist' && projectId && task && availableTools['schedule-assist'] && <ScheduleAssist
+              key={`${userId}:${projectId}:${task.id}`} userId={userId} projectId={projectId} task={task} editorDirty={disabled} embedded />}
+          </Suspense>
           <div hidden={scenario !== 'agent'}>
             <PMAgent
               projectId={projectId}
@@ -450,7 +533,7 @@ function AssistantPanel({
               initialDelays={scheduleDelays}
             />
           )}
-          {scenario !== 'agent' && scenario !== 'schedule' && (
+          {scenario in scenarios && (
               <fieldset
                 disabled={busy || disabled}
                 className="space-y-3 disabled:opacity-60"
@@ -483,7 +566,7 @@ function AssistantPanel({
                     rows={2}
                     value={question}
                     onChange={(event) => setQuestion(event.target.value)}
-                    placeholder={scenarios[scenario].prompt}
+                    placeholder={scenarios[scenario as PMAIScenario].prompt}
                   />
                 </label>
                 {scenario === 'meeting' && (
@@ -516,6 +599,7 @@ function AssistantPanel({
                 </Button>
               </fieldset>
           )}
+          {structured && <>
               <div className="flex flex-wrap items-end gap-3 border-t border-ink-200 pt-3">
                 <label className="min-w-0 flex-1">
                   分析记录
@@ -658,6 +742,7 @@ function AssistantPanel({
                   )}
                 </div>
               )}
+          </>}
           {error && (
             <p role="alert" className="break-words text-red-700">
               {error}
@@ -665,7 +750,7 @@ function AssistantPanel({
           )}
         </div>
       )}
-    </details>
+    </PMAssistantSurface>
   )
 }
 

@@ -119,7 +119,7 @@ export function AISettingsPanel({ online = true }: { online?: boolean }) {
         </>}
         <PromptCard
           title="项目分析提示词"
-          description="告诉模型要分析什么、按什么结构输出。项目详情「AI 分析」默认使用这段提示词，生成前也可临时修改。"
+          description="告诉模型要分析什么、按什么结构输出。项目 AI 助手的「综合评估」默认使用这段提示词，生成前也可临时修改。"
           value={draft.analysisPrompt}
           systemDefault={draft.defaultAnalysisPrompt}
           busy={!!busy}

@@ -277,5 +277,5 @@ def analysis_result(project_id: IDPath, job_id: IDPath, db: DB, user: AnalysisAc
         "model": report.model,
         "focus": report.focus,
         "content": report.content,
-        "url": agent_projects.project_link(project_id, tab="ai"),
+        "url": agent_projects.project_link(project_id, assistant="assessment"),
     }

@@ -305,7 +305,7 @@ def view(row: AgentProposal, *, review=False, replayed=False) -> dict:
     review_url = None
     if state == PENDING:
         review_url = settings.pms_origin + agent_projects.project_link(
-            row.project_id, tab="ai", agent_proposal=row.id
+            row.project_id, assistant="proposal", agent_proposal=row.id
         )
     result = {
         "id": row.id,

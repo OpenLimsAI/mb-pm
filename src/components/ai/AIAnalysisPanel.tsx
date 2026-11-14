@@ -94,11 +94,11 @@ export function AIAnalysisPanel({ kind, title, description, subject, focusPlaceh
       <section className="card p-5 bg-gradient-to-br from-white to-brand-50/50">
         <div className="flex flex-wrap justify-between items-start gap-4">
           <div><h2 className="font-semibold flex items-center gap-2"><Sparkles className="w-5 h-5 text-brand-600" />{title}</h2><p className="text-sm text-ink-500 mt-2">{description}</p></div>
-          {/* AI 设置在项目管理「AI设置」中（ai.config：系统管理员 / 项目负责人 cmc_lead） */}
-          {canConfigureAI && <Link to="/ai-settings" className="text-sm text-brand-700 flex items-center gap-1">AI设置<ArrowRight className="w-4 h-4" /></Link>}
+          {/* 配置统一位于项目 AI 助手（沿用 ai.config 权限） */}
+          {canConfigureAI && <Link to="/project-assistant?assistant=settings" className="text-sm text-brand-700 flex items-center gap-1">AI设置<ArrowRight className="w-4 h-4" /></Link>}
         </div>
         {!online ? <p className="mt-4 text-sm text-amber-800">当前为离线演示模式。连接后端后，可使用真实数据生成分析。</p> : <>
-          <div className="flex items-center gap-2 text-xs text-ink-500 mt-4"><span className={cn('w-2 h-2 rounded-full', status?.ready ? 'bg-emerald-500' : 'bg-amber-400')} />{status?.ready ? `${providerLabel(status.provider)} · ${status.model}` : canConfigureAI ? '尚未完成 AI 配置，请先在项目管理「AI设置」中选择模型。' : '尚未完成 AI 配置，请联系系统管理员在项目管理「AI设置」中选择模型。'}{status?.offlineFallback && <span className="border border-ink-300/60 rounded px-1.5 py-0.5">启用本地备用</span>}</div>
+          <div className="flex items-center gap-2 text-xs text-ink-500 mt-4"><span className={cn('w-2 h-2 rounded-full', status?.ready ? 'bg-emerald-500' : 'bg-amber-400')} />{status?.ready ? `${providerLabel(status.provider)} · ${status.model}` : canConfigureAI ? '尚未完成 AI 配置，请先在「项目 AI 助手 → AI 设置」中选择模型。' : '尚未完成 AI 配置，请联系系统管理员在「项目 AI 助手 → AI 设置」中选择模型。'}{status?.offlineFallback && <span className="border border-ink-300/60 rounded px-1.5 py-0.5">启用本地备用</span>}</div>
           <div className="mt-4 space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
               <span className="font-medium flex items-center gap-1.5"><MessageSquareText className="w-4 h-4 text-brand-600" />分析提示词 <span className="font-normal text-ink-500">（默认来自 AI 设置，可临时修改，仅本次生效）</span></span>

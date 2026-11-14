@@ -229,7 +229,10 @@ def test_agent_report_requires_browser_confirmation_and_rechecks_evidence(
     agent = delegated_token(uid, "project_lead")
     report = client.get(read_path, headers=agent).json()
     assert "首个任务" in report["content"] and "```pm-actions" not in report["content"]
-    key = parse_qs(urlsplit(report["review_url"]).query)["agent_report"][0]
+    review_query = parse_qs(urlsplit(report["review_url"]).query)
+    assert review_query["assistant"] == ["assessment"]
+    assert "tab" not in review_query
+    key = review_query["agent_report"][0]
     assert client.get(read_path, headers=delegated_token(other)).json()["review_url"] is None
     assert client.post(endpoint, headers=agent, json={"review_key": key}).status_code == 401
     with SessionLocal() as db:

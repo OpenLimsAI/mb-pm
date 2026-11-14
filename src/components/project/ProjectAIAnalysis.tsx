@@ -1,6 +1,6 @@
 import { ProjectAIWorkbench } from './ProjectAIWorkbench'
 
-// 项目详情 →「AI 分析」：单个项目的进度、里程碑、依赖、团队、预算与基线。
+// 综合评估的兼容包装；项目详情通过项目 AI 助手提供此能力。
 export function ProjectAIAnalysis(props: Parameters<typeof ProjectAIWorkbench>[0]) {
   return <ProjectAIWorkbench key={props.projectId} {...props} />
 }

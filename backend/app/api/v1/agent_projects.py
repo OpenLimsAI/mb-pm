@@ -390,7 +390,7 @@ def risk_report(project_id: IDPath, db: DB, user: AgentUser):
     review_url = None
     if key:
         review_url = settings.pms_origin + agent_projects.project_link(project.id)
-        review_url += "?" + urlencode({"tab": "ai", "agent_report": key})
+        review_url += "?" + urlencode({"assistant": "assessment", "agent_report": key})
     return {**report, "review_url": review_url}
 
 
