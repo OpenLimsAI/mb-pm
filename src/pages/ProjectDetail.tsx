@@ -32,7 +32,6 @@ import { PMAssistant } from '../components/project/PMAssistant'
 import { EmptyState } from '../components/ui'
 import { cn } from '../lib/cn'
 import { recordProjectVisit } from '../lib/projectNavigation'
-import { getProjectMDMLaunchUrl } from '../api/projects'
 
 // Tab 顺序：概览 → 里程碑 → WBS → 延迟推演 → 基线 → 团队 → AI 分析（仅管理者）
 type Tab = 'overview' | 'milestones' | 'wbs' | 'delay' | 'baseline' | 'team' | 'ai' | 'management' | 'tools'
@@ -135,12 +134,7 @@ export default function ProjectDetail() {
         key={`${project.id}:${agentProposalId}`} projectId={project.id} proposalId={agentProposalId}
         onClose={closeAgentProposal} onApplied={refreshAllData} />}
 
-      <div className="flex flex-wrap gap-2 items-center">
       <ProjectExchange key={project.id} projectId={project.id} canManage={online && (role === 'admin' || role === 'cmc_lead' || (role === 'project_lead' && userId === project.ownerId))} onApplied={refreshAllData} />
-      <button type="button" className="px-3 py-2 rounded-lg border text-sm" disabled={!online} onClick={() => {
-        void getProjectMDMLaunchUrl(project.id).then((url) => window.location.assign(url)).catch(() => setNotice('无法打开 MDM：请确认入口配置、登录及项目权限。'))
-      }}>打开 MDM 登记项目</button>
-      </div>
 
       {notice && (
         <div role="status" className="p-3 rounded-lg bg-emerald-50 text-emerald-800 text-sm flex items-center gap-2">
