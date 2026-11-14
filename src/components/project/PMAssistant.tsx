@@ -108,7 +108,7 @@ export function PMAssistant({
   if (!online || !userId) return null
   return (
     <AssistantPanel
-      key={`${userId}:${role}:${projectId ?? 'all'}:${taskId ?? 'all'}:${requestedRun ?? ''}:${requestedMode ?? ''}:${reportKey ?? ''}:${proposalId ?? ''}`}
+      key={`${userId}:${role}:${projectId ?? 'all'}:${taskId ?? 'all'}:${requestedRun ?? ''}:${requestedMode ?? ''}`}
       projectId={projectId}
       taskId={taskId}
       taskSnapshot={taskSnapshot}
@@ -386,7 +386,7 @@ function AssistantPanel({
   function closeReview(key: 'agent_report' | 'agent_proposal') {
     const next = new URLSearchParams(params)
     next.delete(key)
-    next.delete('assistant')
+    next.set('assistant', key === 'agent_report' ? 'assessment' : 'agent')
     setParams(next, { replace: true })
   }
 
