@@ -29,7 +29,13 @@ STRUCTURED = (
     "problem_to_solve",
     "expected_benefit",
 )
+# Old inputs remain accepted so saved drafts and historical clients stay readable.
 STATUSES = ("open", "in_progress", "ready", "released", "fixed")
+
+
+def simple_status(value):
+    """Present the old staged process as two states without rewriting history."""
+    return "fixed" if value in {"ready", "released", "fixed"} else "open"
 
 
 def utc(value):
@@ -218,16 +224,19 @@ def metadata_rows(db, rows, claims):
             "can_manage": manages,
             "can_assign": verified_admin,
             "can_unclaim": row.assignee_id == claims["sub"],
-            "can_reopen": row.status == "fixed" and manages,
-            "can_verify": mine and row.status == "released",
-            "can_claim": (row.status != "fixed" or manages)
+            "can_update_status": True,
+            "can_reopen": simple_status(row.status) == "fixed",
+            "can_verify": False,
+            "can_claim": (simple_status(row.status) != "fixed" or manages)
             and (row.assignee_id in (None, claims["sub"]) or verified_admin),
             "can_remind": mine or follows or verified_admin,
             "vote_count": votes.get(row.id, 0),
             "has_voted": row.id in own_votes,
             "is_following": follows,
             "unread_count": unread.get(row.id, 0),
-            "is_overdue": bool(row.due_at and utc(row.due_at) < now() and row.status != "fixed"),
+            "is_overdue": bool(
+                row.due_at and utc(row.due_at) < now() and simple_status(row.status) != "fixed"
+            ),
             **{field: getattr(row, field) for field in STRUCTURED},
         }
     return result
@@ -315,49 +324,25 @@ def change_status(
     release_version=None,
     legacy=False,
 ):
+    # find_feedback has already authenticated and scoped the parent to its issuer.
+    # Closing/reopening is intentionally available to every organization member;
+    # it does not grant the separate content-edit, delete or assignment privileges.
     if target not in STATUSES:
         raise HTTPException(422, "无效的处理状态")
-    if legacy and row.workflow_version == 1 and target in {"open", "in_progress", "fixed"}:
-        return
-    if target == "fixed":
-        if row.author_id != claims["sub"]:
-            raise HTTPException(403, "仅反馈提交人可以确认验证通过")
-        if row.status != "released":
-            raise HTTPException(409, "请先发布修复，再由提交人验证确认")
-    else:
-        require_manage(row, claims)
-    if row.workflow_version == 2 and target != row.status:
-        allowed = {
-            "open": {"in_progress"},
-            "in_progress": {"open", "ready"},
-            "ready": {"in_progress", "released"},
-            "released": {"in_progress", "fixed"},
-            "fixed": {"in_progress"},
-        }
-        if target not in allowed.get(row.status, set()):
-            raise HTTPException(409, "请按处理、待发布、待验证的顺序更新状态")
-    if row.status in {"released", "fixed"} and target == "in_progress" and not note.strip():
-        raise HTTPException(422, "请填写验证未通过或重新打开的原因")
-    values = {
+    target = simple_status(target)
+    current = simple_status(row.status)
+    for key, value in {
         "resolution": resolution,
         "verification_steps": verification_steps,
         "release_version": release_version,
-    }
-    resolved = {
-        key: value if value is not None else getattr(row, key) for key, value in values.items()
-    }
-    if target in {"ready", "released"} and (
-        not resolved["resolution"].strip() or not resolved["verification_steps"].strip()
-    ):
-        raise HTTPException(422, "请填写修复说明和验证步骤")
-    if target == "released" and not resolved["release_version"].strip():
-        raise HTTPException(422, "请填写发布版本")
-    for key, value in resolved.items():
-        setattr(row, key, value)
-    if target == "fixed":
+    }.items():
+        if value is not None:
+            setattr(row, key, value)
+    if target == "fixed" and current != "fixed":
         row.resolved_at = now()
-    elif target != row.status:
+    elif target == "open" and current != "open":
         row.resolved_at = None
+    return target
 
 
 def mark_read(db, row, claims):

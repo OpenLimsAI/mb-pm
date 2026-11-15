@@ -87,7 +87,7 @@ def output(row, claims, summary=None, *, db=None, metadata=None):
         "category": row.category,
         "application": row.application,
         "description": row.description,
-        "status": row.status,
+        "status": workflow.simple_status(row.status),
         "author_name": row.author_name,
         "created_at": row.created_at.isoformat(),
         "images": [image.id for image in row.images if not image.archived],
@@ -135,7 +135,9 @@ def find_feedback(db: Session, feedback_id: str, claims: dict, *, lock=False, re
 
 
 def new_activity(row, claims, body="", status=None, **extra):
-    changed = status is not None and status != row.status
+    if status is not None:
+        status = workflow.simple_status(status)
+    changed = status is not None and status != workflow.simple_status(row.status)
     activity = FeedbackActivity(
         id=uuid4().hex,
         feedback_id=row.id,
@@ -361,11 +363,14 @@ def update(
     claims: dict = Depends(identity),
 ):
     row = find_feedback(db, feedback_id, claims, lock=True)
-    if row.status == payload.status and payload.note:
-        raise HTTPException(409, "状态已更新，请通过回复补充处理说明")
-    if row.status != payload.status:
-        workflow.change_status(row, claims, payload.status, note=payload.note, legacy=True)
-        workflow.record(db, row, new_activity(row, claims, payload.note, payload.status), claims)
+    target = workflow.simple_status(payload.status)
+    changed = workflow.simple_status(row.status) != target
+    if changed:
+        workflow.change_status(row, claims, target, note=payload.note, legacy=True)
+    if changed or payload.note:
+        workflow.record(
+            db, row, new_activity(row, claims, payload.note, target if changed else None), claims
+        )
     db.commit()
     return output(row, claims, summaries(db, claims, row.id).get(row.id), db=db)
 
@@ -435,7 +440,9 @@ def reply(
         if activity is not None and activity.request_hash != fingerprint:
             raise HTTPException(409, "该回复请求已用于其他内容，请重新提交")
     if activity is None:
-        if payload.status is not None and payload.status != row.status:
+        if payload.status is not None and workflow.simple_status(
+            payload.status
+        ) != workflow.simple_status(row.status):
             workflow.change_status(row, claims, payload.status, note=payload.body, legacy=True)
         activity = new_activity(
             row,
@@ -780,11 +787,20 @@ def workbench(db: Session = Depends(get_db), claims: dict = Depends(identity)):
             "resolution_count": len(resolution_hours),
         }
 
-    metrics = {status: sum(row.status == status for row in rows) for status in workflow.STATUSES}
+    metrics = {
+        status: sum(workflow.simple_status(row.status) == status for row in rows)
+        for status in workflow.STATUSES
+    }
     metrics.update(
         overdue=sum(item["is_overdue"] for item in items),
-        unassigned=sum(row.assignee_id is None and row.status != "fixed" for row in rows),
-        mine=sum(row.assignee_id == claims["sub"] and row.status != "fixed" for row in rows),
+        unassigned=sum(
+            row.assignee_id is None and workflow.simple_status(row.status) != "fixed"
+            for row in rows
+        ),
+        mine=sum(
+            row.assignee_id == claims["sub"] and workflow.simple_status(row.status) != "fixed"
+            for row in rows
+        ),
         unanswered=sum(item["reply_count"] == 0 and item["status"] != "fixed" for item in items),
         **timings(rows),
     )
@@ -792,7 +808,7 @@ def workbench(db: Session = Depends(get_db), claims: dict = Depends(identity)):
     grouped = []
     for application in applications:
         group = [row for row in rows if row.application == application]
-        pending = sum(row.status != "fixed" for row in group)
+        pending = sum(workflow.simple_status(row.status) != "fixed" for row in group)
         grouped.append(
             {
                 "application": application,
@@ -979,7 +995,7 @@ def claim(feedback_id: str, db: Session = Depends(get_db), claims: dict = Depend
     row = find_feedback(db, feedback_id, claims, lock=True)
     if row.assignee_id == claims["sub"]:
         return complete(db, row, claims)
-    if row.status == "fixed":
+    if workflow.simple_status(row.status) == "fixed":
         # Claiming a closed, unassigned issue must not grant reopen privileges.
         workflow.require_manage(row, claims)
     if row.assignee_id is not None and not workflow.live_admin(claims):
@@ -1076,7 +1092,6 @@ def transition(
     activity = replay(db, row, payload.request_id, digest)
     if activity is None:
         workflow.expected_revision(row, payload)
-        workflow.require_manage(row, claims)
         before = {
             "workflow_version": row.workflow_version,
             "status": row.status,
@@ -1085,8 +1100,6 @@ def transition(
             "release_version": row.release_version,
         }
         note = payload.note or payload.body
-        if row.workflow_version == 1:
-            row.workflow_version = 2
         workflow.change_status(
             row,
             claims,
@@ -1105,12 +1118,7 @@ def transition(
             client_request_id=payload.request_id,
             request_hash=digest if payload.request_id else None,
         )
-        activity.kind = (
-            "verification"
-            if payload.status == "fixed"
-            or (before["status"] == "released" and payload.status == "in_progress")
-            else "status"
-        )
+        activity.kind = "status" if activity.to_status is not None else "comment"
         activity.details = {
             "before": before,
             "after": {
@@ -1152,7 +1160,9 @@ async def reply_with_images(
     )
     activity = replay(db, row, payload.request_id, digest)
     if activity is None:
-        if payload.status is not None and payload.status != row.status:
+        if payload.status is not None and workflow.simple_status(
+            payload.status
+        ) != workflow.simple_status(row.status):
             workflow.change_status(row, claims, payload.status, note=payload.body, legacy=True)
         activity = new_activity(
             row,
@@ -1226,7 +1236,7 @@ def remind(
             and not workflow.live_admin(claims)
         ):
             raise HTTPException(403, "只有提交人、关注者或管理员可以催办")
-        if row.status == "fixed":
+        if workflow.simple_status(row.status) == "fixed":
             raise HTTPException(409, "已修复的问题无需催办")
         previous = db.scalar(
             select(FeedbackActivity.id)

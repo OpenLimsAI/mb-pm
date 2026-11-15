@@ -57,34 +57,6 @@ def post(client, item, action, payload):
     return client.post(f"{BASE}/{item['id']}/{action}", json=payload)
 
 
-def process(client, login, item):
-    login("handler")
-    assert post(client, item, "claim", {}).status_code == 200
-    own = client.get(BASE + "/" + item["id"]).json()
-    assert own["can_unclaim"] is True and own["can_assign"] is False
-    result = post(
-        client,
-        item,
-        "transition",
-        {
-            "status": "ready",
-            "resolution": "修复检索条件",
-            "verification_steps": "搜索相同关键词检查全部结果",
-            "request_id": "ready-one",
-        },
-    )
-    assert result.status_code == 201, result.text
-    assert result.json()["feedback"]["status"] == "ready"
-    result = post(
-        client,
-        item,
-        "transition",
-        {"status": "released", "release_version": "2026.11.04.1", "request_id": "release-one"},
-    )
-    assert result.status_code == 201, result.text
-    return result
-
-
 def test_context_short_numbers_and_idempotent_create(wall):
     client, login, db = wall
     login("reporter")
@@ -156,70 +128,129 @@ def test_context_short_numbers_and_idempotent_create(wall):
     assert client.get(BASE + "/FB-0077").status_code == 404
 
 
-def test_lifecycle_requires_fix_evidence_reporter_verification_and_rejection_reason(wall):
+def test_any_member_can_resolve_and_reopen_without_assignment_or_verification(wall):
     client, login, db = wall
     login("reporter")
     item = create(client)
-    assert client.patch(BASE + "/" + item["id"], json={"status": "fixed"}).status_code == 409
     login("handler")
-    assert post(client, item, "transition", {"status": "ready"}).status_code == 403
-    assert post(client, item, "claim", {}).status_code == 200
-    assert (
-        post(
-            client, item, "transition", {"status": "ready", "resolution": "only explanation"}
-        ).status_code
-        == 422
+    available = client.get(BASE + "/" + item["id"]).json()
+    assert available["can_update_status"] is True and available["can_manage"] is False
+    result = client.patch(BASE + "/" + item["id"], json={"status": "fixed"})
+    assert result.status_code == 200, result.text
+    assert result.json()["status"] == "fixed" and result.json()["can_verify"] is False
+    row = db.get(Feedback, item["id"])
+    assert row.assignee_id is None and row.resolved_at is not None
+    assert row.resolution == row.verification_steps == row.release_version == ""
+    event = db.query(FeedbackActivity).filter_by(feedback_id=item["id"]).one()
+    assert (event.author_id, event.kind, event.from_status, event.to_status) == (
+        "handler",
+        "status",
+        "open",
+        "fixed",
     )
-    result = process(client, login, item)
-    assert result.json()["feedback"]["release_version"] == "2026.11.04.1"
-    assert post(client, item, "transition", {"status": "fixed"}).status_code == 403
+    # Simplifying status writes does not grant editing, deletion or assignment.
+    assert (
+        client.patch(
+            BASE + "/" + item["id"] + "/content", json={"description": "forged"}
+        ).status_code
+        == 403
+    )
+    assert (
+        client.patch(BASE + "/" + item["id"] + "/management", json={"priority": "p0"}).status_code
+        == 403
+    )
+    assert client.delete(BASE + "/" + item["id"]).status_code == 403
     login("reporter")
-    assert post(client, item, "transition", {"status": "in_progress"}).status_code == 422
-    assert (
-        post(
-            client, item, "transition", {"status": "in_progress", "note": "相同关键词仍缺少一条"}
-        ).status_code
-        == 201
-    )
-    assert db.get(Feedback, item["id"]).status == "in_progress"
-    login("handler")
-    assert (
-        post(
-            client,
-            item,
-            "transition",
-            {
-                "status": "ready",
-                "resolution": "已补全",
-                "verification_steps": "再次检索",
-                "request_id": "ready-two",
-            },
-        ).status_code
-        == 201
-    )
-    payload = {"status": "released", "release_version": "2026.11.04.2", "request_id": "release-two"}
-    first = post(client, item, "transition", payload).json()
-    second = post(client, item, "transition", payload).json()
-    assert first["activity"]["id"] == second["activity"]["id"]
-    login("reporter")
-    assert (
-        post(
-            client,
-            item,
-            "transition",
-            {"status": "fixed", "note": "验证通过", "request_id": "verify-one"},
-        ).json()["feedback"]["status"]
-        == "fixed"
-    )
     notices = client.get(BASE + "/notifications?unread_only=true").json()
-    assert notices["unread_count"] >= 3
-    assert len({notice["id"] for notice in notices["items"]}) == len(notices["items"])
-    assert post(client, item, "read", {}).json()["unread_count"] == 0
-    assert client.get(BASE + "/notifications").json()["unread_count"] == 0
+    assert notices["unread_count"] == 1
     metrics = client.get(BASE + "/workbench").json()
     assert metrics["metrics"]["fixed"] == 1 and metrics["metrics"]["resolution_count"] == 1
-    assert metrics["by_application"][0]["application"] == "kb"
     assert metrics["metrics"]["first_response_count"] == 1
+    assert post(client, item, "read", {}).json()["unread_count"] == 0
+    login("another-member")
+    assert client.get(BASE + "/" + item["id"]).json()["can_reopen"] is True
+    reopened = client.patch(BASE + "/" + item["id"], json={"status": "open"})
+    assert reopened.status_code == 200 and reopened.json()["status"] == "open"
+    assert db.get(Feedback, item["id"]).resolved_at is None
+
+
+def test_saved_transition_inputs_are_compatible_and_retry_does_not_reclose(wall):
+    client, login, db = wall
+    login("reporter")
+    item = create(client)
+    login("handler")
+    payload = {"status": "ready", "request_id": "old-draft-fix"}
+    first = post(client, item, "transition", payload)
+    assert first.status_code == 201, first.text
+    assert first.json()["feedback"]["status"] == "fixed"
+    assert first.json()["activity"]["kind"] == "status"
+    assert first.json()["activity"]["to_status"] == "fixed"
+    assert db.get(Feedback, item["id"]).verification_steps == ""
+    login("someone-else")
+    assert client.patch(BASE + "/" + item["id"], json={"status": "open"}).status_code == 200
+    login("handler")
+    retry = post(client, item, "transition", payload)
+    assert retry.status_code == 201 and retry.json()["feedback"]["status"] == "open"
+    assert first.json()["activity"]["id"] == retry.json()["activity"]["id"]
+    assert (
+        post(client, item, "transition", {"status": "released"}).json()["feedback"]["status"]
+        == "fixed"
+    )
+    assert db.get(Feedback, item["id"]).release_version == ""
+
+
+@pytest.mark.parametrize(
+    "stored,displayed",
+    [
+        ("open", "open"),
+        ("in_progress", "open"),
+        ("ready", "fixed"),
+        ("released", "fixed"),
+        ("fixed", "fixed"),
+    ],
+)
+def test_historical_status_reads_are_normalized_without_rewriting_records(wall, stored, displayed):
+    client, login, db = wall
+    login("reporter")
+    item = create(client)
+    row = db.get(Feedback, item["id"])
+    row.status = stored
+    row.resolution = "保留旧修复说明"
+    row.verification_steps = "保留旧验证信息"
+    row.release_version = "历史版本"
+    db.commit()
+    login("other-member")
+    response = client.get(BASE + "/" + item["id"]).json()
+    assert response["status"] == displayed and response["can_update_status"] is True
+    assert response["can_verify"] is False
+    assert client.get(BASE).json()[0]["status"] == displayed
+    assert client.get(BASE + "/" + item["id"] + "/activities").json()["items"] == []
+    assert db.get(Feedback, item["id"]).status == stored
+    assert row.resolved_at is None and row.resolution == "保留旧修复说明"
+    assert row.verification_steps == "保留旧验证信息" and row.release_version == "历史版本"
+    # A plain reply retains historical raw status; no validation record is invented.
+    result = post(client, item, "replies", {"body": "补充说明"})
+    assert result.status_code == 201 and result.json()["feedback"]["status"] == displayed
+    assert db.get(Feedback, item["id"]).status == stored and row.resolved_at is None
+
+
+def test_legacy_closed_statuses_are_counted_without_fabricated_resolution_times(wall):
+    client, login, db = wall
+    login("reporter")
+    raw = {}
+    for status in ("open", "in_progress", "ready", "released", "fixed"):
+        item = create(client, description=status)
+        row = db.get(Feedback, item["id"])
+        row.status = status
+        row.due_at = datetime.now(UTC) - timedelta(days=1)
+        raw[row.id] = status
+    db.commit()
+    metrics = client.get(BASE + "/workbench").json()
+    assert metrics["metrics"]["open"] == 2 and metrics["metrics"]["fixed"] == 3
+    assert metrics["metrics"]["unassigned"] == 2 and metrics["metrics"]["overdue"] == 2
+    assert metrics["metrics"]["resolution_count"] == 0
+    assert metrics["by_application"][0]["pending"] == 2
+    assert all(db.get(Feedback, ident).status == status for ident, status in raw.items())
 
 
 def test_edit_history_and_reply_images_are_retained_private_and_retry_safe(wall, monkeypatch):
@@ -372,7 +403,8 @@ def test_similar_and_legacy_upgrade_do_not_invent_closed_history(wall):
         "transition",
         {"status": "ready", "resolution": "修复", "verification_steps": "验证"},
     )
-    assert result.status_code == 201 and result.json()["feedback"]["workflow_version"] == 2
+    assert result.status_code == 201 and result.json()["feedback"]["workflow_version"] == 1
+    assert result.json()["feedback"]["status"] == "fixed"
     old = Feedback(
         id="old-fixed",
         issuer=legacy.issuer,
@@ -386,7 +418,7 @@ def test_similar_and_legacy_upgrade_do_not_invent_closed_history(wall):
     db.commit()
     assert client.get(BASE + "/old-fixed").json()["workflow_version"] == 1
     assert db.query(FeedbackActivity).filter_by(feedback_id="old-fixed").count() == 0
-    assert client.get(BASE + "/workbench").json()["metrics"]["resolution_count"] == 0
+    assert client.get(BASE + "/workbench").json()["metrics"]["resolution_count"] == 1
     assert client.get(BASE + "/old-fixed").json()["can_reopen"] is True
     login("other")
     assert client.get(BASE + "/old-fixed").json()["can_claim"] is False
@@ -396,7 +428,8 @@ def test_similar_and_legacy_upgrade_do_not_invent_closed_history(wall):
         client, {"id": "old-fixed"}, "transition", {"status": "in_progress", "note": "问题再次出现"}
     )
     assert reopened.status_code == 201
-    assert reopened.json()["feedback"]["workflow_version"] == 2
+    assert reopened.json()["feedback"]["workflow_version"] == 1
+    assert reopened.json()["feedback"]["status"] == "open"
     assert reopened.json()["activity"]["details"]["before"]["workflow_version"] == 1
 
 

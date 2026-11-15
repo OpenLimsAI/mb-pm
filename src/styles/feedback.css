@@ -271,3 +271,27 @@
   .feedback-workbench-scopes,.feedback-application-metrics { margin-left: 17px; margin-right: 17px; }.feedback-workbench-item,.feedback-notification { padding-left: 17px; padding-right: 17px; }
   .feedback-manage-fields { grid-template-columns: 1fr; }.feedback-management { padding: 13px; }.feedback-notification-toolbar { padding-left: 17px; padding-right: 17px; flex-wrap: wrap; }
 }
+
+/* A single list and two outcomes keep everyday feedback close at hand. */
+.feedback-simple-app .if-shell { display: block; }
+.feedback-simple-app .if-main.feedback-main { max-width: 1180px; padding-top: 30px; }
+.feedback-simple-app .feedback-intro { margin-bottom: 18px; }
+.feedback-simple-tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--fb-border); margin-bottom: 22px; padding-bottom: 9px; }
+.feedback-simple-tabs button { display: inline-flex; align-items: center; gap: 7px; border: 0; border-radius: 7px; background: transparent; color: var(--fb-muted); padding: 9px 14px; font-size: 13px; }
+.feedback-simple-tabs button[aria-current="page"] { color: var(--if-heading); background: var(--workbench-active, #e8f3fb); font-weight: 600; }
+.feedback-simple-status { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; padding: 14px 16px; border: 1px solid var(--fb-border); border-radius: 8px; background: var(--if-bg); }
+.feedback-simple-status > div { display: flex; align-items: center; gap: 12px; margin-right: auto; }
+.feedback-simple-status h3 { margin: 0; font-size: 13px; }
+.feedback-simple-status > p { width: 100%; margin: 0!important; }
+.feedback-simple-app .feedback-status-button--resolve { color: #fff; border-color: var(--workbench-primary, #1e466b); background: var(--workbench-primary, #1e466b); }
+.feedback-simple-app .feedback-status-button--resolve:hover:not(:disabled) { filter: brightness(.93); }
+.feedback-extra-details { border: 1px solid var(--fb-border); padding: 10px 12px; border-radius: 7px; margin: 0 0 20px; font-size: 12px; }
+.feedback-extra-details > summary { cursor: pointer; color: var(--if-ink); font-weight: 550; }
+.feedback-extra-details > summary span { color: var(--fb-muted); font-size: 11px; margin-left: 5px; font-weight: 400; }
+.feedback-extra-details[open] > summary { margin-bottom: 12px; }
+@media (max-width: 650px) {
+  .feedback-simple-app .if-main.feedback-main { padding: 20px 14px; }
+  .feedback-simple-tabs { margin-bottom: 16px; }
+  .feedback-simple-app .feedback-item-actions { justify-content: flex-end; width: 100%; flex-wrap: wrap; }
+  .feedback-simple-app .feedback-item-bottom { align-items: flex-start; flex-direction: column; }
+}
