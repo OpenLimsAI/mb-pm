@@ -46,6 +46,8 @@ jobs:
           SOURCE_REVISION: ${{ github.sha }}
           VITE_USE_API: 'false' # 生产入口必须覆盖继承的演示开关
         run: npm run build:production
+      - name: 项目布局真实浏览器回归
+        run: npm run test:project-layout
       - name: 最终生产包匿名登录表单检查
         env:
           SOURCE_REVISION: ${{ github.sha }}

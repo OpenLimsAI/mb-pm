@@ -84,6 +84,7 @@ MDM 登记项目与 PM 执行项目的一对一关联见 [MDM 整合](docs/mdm-i
 npm run build
 npm run test:coverage
 node scripts/test-portal-routing.mjs
+npm run test:project-layout
 (cd backend && .venv/bin/python -m pytest -q)
 ```
 
