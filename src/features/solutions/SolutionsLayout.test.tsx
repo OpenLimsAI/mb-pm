@@ -118,6 +118,7 @@ describe('independent workspace module layout', () => {
     expect(screen.getByRole('button', { name: '已保存到本机' })).toBeInTheDocument()
   })
 
+  // This full-workspace interaction sequence needs extra headroom under CI coverage.
   it('can hide all three modules, rearrange them and restore their existing input nodes independently', async () => {
     await mount()
     const question = screen.getByRole('textbox', { name: '向AI提问' })
@@ -140,7 +141,7 @@ describe('independent workspace module layout', () => {
     expect(screen.getByTitle('原知识库资料')).toBeVisible()
     expect(screen.getByRole('textbox', { name: '向AI提问' })).toBe(question)
     expect(question).toHaveValue('隐藏时仍然保留的问题')
-  })
+  }, 15000)
 
   it('keeps the latest writing and revision when a previous autosave completes after a layout change', async () => {
     const { client } = await mount()

@@ -18,8 +18,6 @@ from app.services import ai
 def test_pm_assistant_queue_is_processed_by_both_executor_roles(
     auth_headers, project_factory, live_ai_roles, monkeypatch, executor_role
 ):
-    from app.services import pm_ai_runs
-
     project_id = project_factory("t-admin")
     monkeypatch.setattr(settings, "APP_PROCESS_ROLE", "web")
     monkeypatch.setattr(settings, "AUTO_MIGRATE_SCHEMA", False)
@@ -35,24 +33,34 @@ def test_pm_assistant_queue_is_processed_by_both_executor_roles(
     )
     calls = []
 
-    def analyze(_provider, _config, _request, context):
+    def respond(provider, config, path, body=None, timeout=25):
+        assert provider == "ollama" and config["model"] == "isolated-worker-test"
+        assert path == "/api/chat"
+        context = json.loads(body["messages"][-1]["content"])["context"]
         calls.append(context["project_ids"])
-        return json.dumps(
-            {
-                "summary": "后台项目分析已完成",
-                "findings": [
+        return {
+            "message": {
+                "content": json.dumps(
                     {
-                        "kind": "fact",
-                        "title": "已读取项目",
-                        "detail": "已按当前权限读取项目记录",
-                        "evidence_ids": [context["projects"][0]["evidence_id"]],
+                        "summary": "后台项目分析已完成",
+                        "findings": [
+                            {
+                                "kind": "fact",
+                                "title": "已读取项目",
+                                "detail": "已按当前权限读取项目记录",
+                                "evidence_ids": [context["projects"][0]["evidence_id"]],
+                            }
+                        ],
+                        "draft_actions": [],
                     }
-                ],
-                "draft_actions": [],
-            }
-        ), {}
+                )
+            },
+            "done_reason": "stop",
+            "prompt_eval_count": 23,
+            "eval_count": 17,
+        }
 
-    monkeypatch.setattr(pm_ai_runs, "generate_analysis", analyze)
+    monkeypatch.setattr(ai, "request", respond)
     with TestClient(main.app) as web:
         queued = web.post(
             "/api/v1/pm-ai/runs",
@@ -76,6 +84,9 @@ def test_pm_assistant_queue_is_processed_by_both_executor_roles(
             assert result.json()["state"] == "succeeded", result.text
             assert result.json()["result"]["summary"] == "后台项目分析已完成"
             assert calls == [[project_id]]
+            assert result.json()["workflow"]["calls_used"] == 1
+            assert result.json()["workflow"]["completed_steps"] == 1
+            assert result.json()["workflow"]["token_budget_used"] > 0
 
 
 def test_web_queues_project_job_for_standalone_worker(
