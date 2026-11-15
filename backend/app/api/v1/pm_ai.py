@@ -12,7 +12,7 @@ from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models import User
 from app.models.pm_ai import PMAIRun
-from app.services import pm_ai_runs
+from app.services import pm_ai_runs, pm_ai_workflow
 from app.services.pm_ai_context import (
     ContextBudgetExceeded,
     ContextRequest,
@@ -92,7 +92,12 @@ def get_run(run_id: str, db: DB, user: CurrentUser):
     result = pm_ai_runs.run_view(run)
     if run.state == "succeeded":
         try:
-            current = build_context(db, user, ContextRequest.model_validate(run.request))
+            request = ContextRequest.model_validate(run.request)
+            current = (
+                build_context(db, user, request, workflow=True)
+                if run.workflow
+                else build_context(db, user, request)
+            )
             result["stale"] = current["source"]["fingerprint"] != run.source.get("fingerprint")
         except ContextBudgetExceeded:
             result.update(stale=True, stale_reason="context_budget")
@@ -103,7 +108,19 @@ def get_run(run_id: str, db: DB, user: CurrentUser):
 def cancel_run(run_id: str, db: DB, user: CurrentUser):
     run = pm_ai_runs.get_run(db, user, run_id)
     run = db.query(PMAIRun).filter_by(id=run.id).with_for_update().populate_existing().one()
-    if run.state in {"queued", "running"}:
+    if run.workflow and run.state in {"queued", "running"}:
+        workflow = dict(run.workflow)
+        workflow["pause_reason"] = "user_stopped"
+        run.workflow, run.state, run.claim = workflow, "paused", None
+        run.error = "已暂停并保存步骤，继续时将核对原资料与预算。"
+        db.commit()
+    elif not run.workflow and run.state in {"queued", "running"}:
         run.state, run.finished_at, run.claim = "cancelled", datetime.now(UTC), None
         db.commit()
     return pm_ai_runs.run_view(run)
+
+
+@router.post("/runs/{run_id}/resume", status_code=202)
+def resume_run(run_id: str, db: DB, user: CurrentUser):
+    run = pm_ai_runs.get_run(db, user, run_id)
+    return pm_ai_runs.run_view(pm_ai_workflow.resume(db, user, run))

@@ -5,7 +5,11 @@ import { Button } from '../ui'
 
 /** Editing a draft never changes the stored report or its evidence/actions. */
 export function PMAssistantDraft({ run, children }: { run: PMAIRun; children: ReactNode }) {
-  const original = [run.result?.summary ?? '', ...(run.result?.findings ?? []).map(item => `### ${item.title}\n\n${item.detail}`)].join('\n\n')
+  const sections = run.state === 'succeeded' ? run.workflow?.sections ?? [] : []
+  const original = [run.result?.summary ?? '', ...(run.result?.findings ?? []).map(item => `### ${item.title}\n\n${item.detail}`), ...sections.map(section => {
+    const evidence = section.evidenceIds.map(id => run.source.refs.find(ref => ref.id === id)).filter(ref => !!ref).map(ref => `${ref.title}（${ref.href}）`).join('、')
+    return `### ${section.title}\n\n${section.summary}${evidence ? `\n\n依据：${evidence}` : ''}`
+  })].join('\n\n')
   const [draft, setDraft] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
   const [message, setMessage] = useState('')

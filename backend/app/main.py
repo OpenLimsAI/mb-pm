@@ -97,6 +97,7 @@ _WIDE_ID_COLUMNS: tuple[tuple[str, str], ...] = (
 
 # (表, 列, 类型) —— 后来新增、老库里可能缺失的列（create_all 不会给已存在的表补列）。
 _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
+    ("pm_ai_runs", "workflow", "JSON"),
     ("feedback", "issue_number", "INTEGER"),
     ("feedback", "client_request_id", "VARCHAR(64)"),
     ("feedback", "request_hash", "VARCHAR(64)"),

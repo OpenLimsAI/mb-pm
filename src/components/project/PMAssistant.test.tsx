@@ -490,6 +490,134 @@ test('从失败记录开始新问题，不带入旧错误或自动执行旧条�
   expect(pmAI.create).not.toHaveBeenCalled()
 })
 
+function generation(errorCode: string | null = null, recovered = false): NonNullable<PMAIRun['generation']> {
+  return {
+    version: 1, recoveryAttempted: true, recovered, errorCode,
+    attempts: [
+      { number: 1, outputBudget: 8192, finishReason: 'length', errorCode: 'output_limit', usage: { promptTokens: 1200 }, durationMs: 120 },
+      { number: 2, outputBudget: 16384, finishReason: errorCode === 'output_limit' ? 'length' : 'stop', errorCode, usage: {}, durationMs: 180 },
+    ],
+  }
+}
+
+test('恢复成功仅凭本次服务端元数据显示简洁提示，诊断默认折叠且未知用量不记零', async () => {
+  vi.mocked(pmAI.get).mockResolvedValue({ ...run, scenario: 'weekly', generation: generation(null, true) })
+  render(<MemoryRouter initialEntries={['/?aiRun=R1']}><PMAssistant standalone /></MemoryRouter>)
+  expect(await screen.findByText('已自动重新整理，结果已通过校验。')).toBeVisible()
+  const diagnosis = screen.getByText('查看诊断', { selector: 'summary' })
+  expect(diagnosis.parentElement).not.toHaveAttribute('open')
+  expect(screen.getByText(/模型请求次数：2 · 自动恢复：已完成/)).not.toBeVisible()
+  fireEvent.click(diagnosis)
+  expect(screen.getByText(/输入 tokens：1,200 · 输出 tokens：未返回 · 合计 tokens：未返回 · 推理 tokens：未返回/)).toBeVisible()
+  expect(screen.getByText(/第2次请求 · 输出额度：16,384 tokens/)).toBeVisible()
+  expect(screen.queryByText(/输出 tokens：0/)).not.toBeInTheDocument()
+  expect(pmAI.create).not.toHaveBeenCalled()
+})
+
+test('旧成功记录不宣称自动恢复，也不凭无元数据推断请求次数', async () => {
+  render(<MemoryRouter initialEntries={['/?aiRun=R1']}><PMAssistant standalone /></MemoryRouter>)
+  expect(await screen.findByText('这项任务需要关注。')).toBeVisible()
+  expect(screen.queryByText('已自动重新整理，结果已通过校验。')).not.toBeInTheDocument()
+  expect(screen.queryByText('查看诊断', { selector: 'summary' })).not.toBeInTheDocument()
+  expect(pmAI.create).not.toHaveBeenCalled()
+})
+
+test('服务端同run恢复期间保持处理中，刷新状态不新建模型请求', async () => {
+  const recovering: PMAIRun = { ...run, state: 'running', result: null, generation: generation() }
+  vi.mocked(pmAI.get).mockResolvedValue(recovering)
+  render(<MemoryRouter initialEntries={['/?aiRun=R1']}><PMAssistant standalone /></MemoryRouter>)
+  expect(await screen.findByText('正在自动重新整理完整结果…')).toBeVisible()
+  expect(screen.getByRole('heading', { name: '正在整理' })).toBeVisible()
+  expect(screen.queryByRole('button', { name: '重新整理' })).not.toBeInTheDocument()
+  expect(screen.queryByText('这次内容没有整理完整')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '更新状态' }))
+  await waitFor(() => expect(pmAI.get).toHaveBeenCalledTimes(2))
+  expect(pmAI.create).not.toHaveBeenCalled()
+})
+
+test.each([
+  ['output_limit', '这次内容没有整理完整', '系统已自动重新整理一次，但模型输出仍未完整返回。'],
+  ['model_output_format', '结果格式未能通过校验', '系统已自动重新整理一次，但返回结果仍不符合所需格式。'],
+  ['model_empty_response', '模型没有返回有效结果', '系统已自动重新整理一次，但仍未取得有效结果。'],
+  ['context_budget', '本次资料超过模型可处理的容量', '当前资料与结果所需空间超过了单次模型容量，请调整本次范围或材料后再整理。'],
+  ['model_network', '暂未取得模型服务的结果', '连接模型服务时发生网络异常或超时，可稍后重新整理。'],
+  ['model_timeout', '暂未取得模型服务的结果', '连接模型服务时发生网络异常或超时，可稍后重新整理。'],
+  ['model_auth', '模型服务配置需要检查', '本次未能正常连接所配置的模型，请由有权限的管理员检查连接设置。'],
+  ['authorization_changed', '本次分析权限已变化', '分析期间可访问的数据范围发生变化，请确认当前项目权限后重新整理。'],
+])('失败说明按最终错误码区分（%s），不按旧错误里的输出关键词归因', async (code, title, detail) => {
+  vi.mocked(pmAI.get).mockResolvedValue({ ...run, state: 'failed', result: null, error: '服务输出错误，原始长度信息', generation: generation(code) })
+  render(<MemoryRouter initialEntries={['/?aiRun=R1']}><PMAssistant standalone /></MemoryRouter>)
+  expect(await screen.findByRole('heading', { name: title })).toBeVisible()
+  expect(screen.getByText(detail)).toBeVisible()
+  expect(screen.getByRole('button', { name: '重新整理' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: '调整要求' })).toBeEnabled()
+  expect(screen.queryByText(/减少分析要求|更换模型|选择输出容量更大/)).not.toBeInTheDocument()
+  expect(pmAI.create).not.toHaveBeenCalled()
+})
+
+test('未触发恢复的失败不宣称已经尝试，历史读取与展开诊断不自动重试', async () => {
+  const failed: PMAIRun = { ...run, state: 'failed', result: null, error: '本次结果未完整返回', generation: { ...generation('output_limit'), recoveryAttempted: false, attempts: generation().attempts.slice(0, 1) } }
+  vi.mocked(pmAI.get).mockResolvedValue(failed)
+  render(<MemoryRouter initialEntries={['/?aiRun=R1']}><PMAssistant standalone /></MemoryRouter>)
+  expect(await screen.findByText('模型在完整结果返回前达到了输出上限。')).toBeVisible()
+  expect(screen.queryByText(/系统已自动重新整理一次/)).not.toBeInTheDocument()
+  fireEvent.click(screen.getByText('查看诊断', { selector: 'summary' }))
+  expect(screen.getByText('模型请求次数：1 · 自动恢复：未触发')).toBeVisible()
+  openHistory()
+  expect(pmAI.create).not.toHaveBeenCalled()
+})
+
+test('旧字符串失败保持可读且不推断自动恢复或错误类型', async () => {
+  vi.mocked(pmAI.get).mockResolvedValue({ ...run, state: 'failed', result: null, error: '模型输出被截断，请减少要求' })
+  render(<MemoryRouter initialEntries={['/?aiRun=R1']}><PMAssistant standalone /></MemoryRouter>)
+  expect(await screen.findByRole('heading', { name: '这次请求未完成' })).toBeVisible()
+  expect(screen.queryByText(/系统已自动重新整理一次/)).not.toBeInTheDocument()
+  expect(screen.queryByText(/模型请求次数/)).not.toBeInTheDocument()
+  fireEvent.click(screen.getByText('查看诊断', { selector: 'summary' }))
+  expect(screen.getByText('模型输出被截断，请减少要求')).toBeVisible()
+  expect(pmAI.create).not.toHaveBeenCalled()
+})
+
+test('诊断只展示约定安全字段，不展示未知finishReason或额外模型正文', async () => {
+  const metadata = generation('model_output_format')
+  metadata.attempts[1] = { ...metadata.attempts[1], finishReason: 'PRIVATE_MODEL_BODY', usage: { completionTokens: 0 } }
+  const extra = { ...metadata, reasoningContent: 'PRIVATE_REASONING', output: 'PRIVATE_OUTPUT' }
+  vi.mocked(pmAI.get).mockResolvedValue({ ...run, state: 'failed', result: null, error: '结果格式错误', generation: extra })
+  render(<MemoryRouter initialEntries={['/?aiRun=R1']}><PMAssistant standalone /></MemoryRouter>)
+  fireEvent.click(await screen.findByText('查看诊断', { selector: 'summary' }))
+  expect(screen.getByText(/其他结束原因/)).toBeVisible()
+  expect(screen.getByText(/输入 tokens：未返回 · 输出 tokens：0 · 合计 tokens：未返回/)).toBeVisible()
+  expect(screen.queryByText(/PRIVATE_MODEL_BODY|PRIVATE_REASONING|PRIVATE_OUTPUT/)).not.toBeInTheDocument()
+})
+
+test('两次服务端恢复失败后，只有显式重新整理才按原条件创建一个新run', async () => {
+  const failed: PMAIRun = { ...run, state: 'failed', result: null, scope: { projectIds: ['P1'], taskIds: ['T1'] }, request: { ...run.request, scenario: 'weekly', projectIds: [], taskIds: [], question: '整理本周周报', material: '原材料全文', startDate: '2026-11-02', endDate: '2026-11-08' }, generation: generation('output_limit') }
+  vi.mocked(pmAI.get).mockResolvedValue(failed)
+  vi.mocked(pmAI.create).mockResolvedValue({ ...failed, id: 'fresh-run', state: 'queued', generation: undefined, error: '' })
+  render(<MemoryRouter initialEntries={['/?aiRun=R1']}><PMAssistant standalone /></MemoryRouter>)
+  expect(await screen.findByText(/重新整理将按原要求发起新的模型请求，可能产生费用/)).toBeVisible()
+  expect(pmAI.create).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: '重新整理' }))
+  await waitFor(() => expect(pmAI.create).toHaveBeenCalledExactlyOnceWith({ ...failed.request, ...failed.scope! }))
+  expect(pmAI.plan).not.toHaveBeenCalled()
+  expect(pmAI.apply).not.toHaveBeenCalled()
+})
+
+test('显式重新整理若请求失败，原材料与分析条件仍可直接调整后重发', async () => {
+  const previous = legacyMeeting()
+  vi.mocked(pmAI.get).mockResolvedValue(previous)
+  vi.mocked(pmAI.create).mockRejectedValueOnce(new Error('连接暂时中断')).mockResolvedValueOnce({ ...previous, id: 'retry-created', state: 'queued', error: '' })
+  render(<MemoryRouter initialEntries={['/?aiRun=R1']}><PMAssistant standalone /></MemoryRouter>)
+  fireEvent.click(await screen.findByRole('button', { name: '重新整理' }))
+  expect(await screen.findByText(/连接暂时中断/)).toBeVisible()
+  expect(screen.getByRole('textbox', { name: '告诉我你想做什么' })).toHaveValue(previous.request.material)
+  expect(screen.getByRole('status', { name: '正在调整此前请求' })).toHaveTextContent('日期：2026-10-01 → 2026-10-08')
+  fireEvent.click(screen.getByRole('button', { name: '发送' }))
+  await waitFor(() => expect(pmAI.create).toHaveBeenCalledTimes(2))
+  expect(pmAI.create).toHaveBeenLastCalledWith({ ...previous.request, ...previous.scope! })
+  expect(pmAI.plan).not.toHaveBeenCalled()
+})
+
 function legacyMeeting(scope = { projectIds: ['P1'], taskIds: ['T1'] }): PMAIRun {
   return {
     ...run, scenario: 'meeting', scope, state: 'failed', result: null, error: '旧记录未完成',
@@ -577,7 +705,7 @@ test('调整旧请求后切换项目清除沿用范围，下一次发送按新�
   expect(pmAI.create).toHaveBeenCalledWith(expect.objectContaining({ scenario: 'explain', projectIds: ['P2'], taskIds: ['T2'], material: '' }))
 })
 
-test.each(['调整要求', '重新整理简版'])('固定项目页不能重发组合范围或静默缩小历史条件（%s）', async (buttonName) => {
+test.each(['调整要求', '重新整理'])('固定项目页不能重发组合范围或静默缩小历史条件（%s）', async (buttonName) => {
   const previous = legacyMeeting({ projectIds: ['P1', 'P2'], taskIds: [] })
   vi.mocked(pmAI.get).mockResolvedValue(previous)
   render(<MemoryRouter initialEntries={['/?aiRun=R1']}><PMAssistant projectId="P1" standalone /></MemoryRouter>)
@@ -600,14 +728,14 @@ test('全项目页面可显式沿用历史组合范围，不按当前上下文�
   expect(pmAI.plan).not.toHaveBeenCalled()
 })
 
-test('历史失败的简版重试也绑定真实scope，而非旧请求的空范围', async () => {
+test('历史失败的显式重试保留原要求和真实scope，而非旧请求的空范围', async () => {
   const previous = legacyMeeting()
   vi.mocked(pmAI.get).mockResolvedValue(previous)
   vi.mocked(pmAI.create).mockResolvedValue({ ...previous, id: 'retry-meeting', state: 'queued', error: '' })
   render(<MemoryRouter initialEntries={['/?aiRun=R1']}><PMAssistant standalone /></MemoryRouter>)
-  fireEvent.click(await screen.findByRole('button', { name: '重新整理简版' }))
+  fireEvent.click(await screen.findByRole('button', { name: '重新整理' }))
   await waitFor(() => expect(pmAI.create).toHaveBeenCalledOnce())
-  expect(pmAI.create).toHaveBeenCalledWith(expect.objectContaining({ scenario: 'meeting', ...previous.scope!, material: previous.request.material, startDate: previous.request.startDate, endDate: previous.request.endDate }))
+  expect(pmAI.create).toHaveBeenCalledWith({ ...previous.request, ...previous.scope! })
   expect(pmAI.plan).not.toHaveBeenCalled()
 })
 

@@ -17,7 +17,7 @@ from sqlalchemy import text, update
 
 from app.db.session import SessionLocal
 from app.models.pm_ai import PMAIRun
-from app.services import ai
+from app.services import ai, pm_ai_generation, pm_ai_workflow
 from app.services.pm_ai_context import (
     MANAGERS,
     ContextRequest,
@@ -90,6 +90,12 @@ class AnalysisResult(BaseModel):
     draft_actions: list[dict] = Field(default_factory=list, max_length=12)
 
 
+class WorkflowResult(AnalysisResult):
+    summary: str = Field(min_length=1, max_length=16000)
+    findings: list[Finding] = Field(default_factory=list, max_length=1280)
+    draft_actions: list[dict] = Field(default_factory=list, max_length=768)
+
+
 ACTION_FIELDS = {
     "task_update": {"task_id", "expected_revision", "progress", "status", "actual_effort", "notes"},
     "task_create": {
@@ -139,7 +145,7 @@ def output_schema(context):
         "entry_id": "register_entries",
     }
     fields = {
-        key: {"enum": [None, "", *[row["id"] for row in context[name]]]}
+        key: {"enum": [None, "", *[row["id"] for row in context.get(name, [])]]}
         for key, name in candidates.items()
     }
     fields.update(
@@ -184,18 +190,18 @@ def output_schema(context):
     return schema
 
 
-def generate_analysis(provider, config, request, context):
-    def request_model(provider, config, path, body=None, timeout=25):
-        if provider == "ollama":
-            body = {
-                **body,
-                "format": output_schema(context),
-                "options": {**body["options"], "temperature": 0},
-            }
-        elif "max_tokens" not in body and "max_completion_tokens" not in body:
-            body = {**body, "max_tokens": 4096}
-        return ai.request(provider, config, path, body, timeout)
-
+def generate_analysis(
+    provider,
+    config,
+    request,
+    context,
+    *,
+    before_attempt=None,
+    on_progress=None,
+    max_attempts=2,
+    total_seconds=240,
+    workflow_step=False,
+):
     payload = {
         "scenario": SCENARIOS[request["scenario"]],
         "question": request["question"],
@@ -222,7 +228,7 @@ def generate_analysis(provider, config, request, context):
                     }
                 )
         payload["mentioned_tasks"] = mentions
-    return ai.chat(
+    return pm_ai_generation.generate(
         provider,
         config,
         [
@@ -232,8 +238,15 @@ def generate_analysis(provider, config, request, context):
                 "content": json.dumps(payload, ensure_ascii=False),
             },
         ],
-        timeout=120,
-        request_fn=request_model,
+        request["scenario"],
+        output_schema(context) if provider == "ollama" else None,
+        lambda content: validate_result(
+            content, context, require_complete=True, workflow_step=workflow_step
+        ),
+        before_attempt=before_attempt,
+        on_progress=on_progress,
+        max_attempts=max_attempts,
+        total_seconds=total_seconds,
     )
 
 
@@ -304,14 +317,46 @@ def validate_draft(action, context):
         raise ai.AIError("模型生成的状态无效，请重新生成")
 
 
-def validate_result(content, context):
-    if len(content) > 80000:
-        raise ai.AIError("分析输出过长，请缩小范围后重试")
-    match = re.fullmatch(r"```(?:json)?\s*([\s\S]*?)\s*```", content.strip(), re.IGNORECASE)
+def validate_result(
+    content, context, *, require_complete=False, workflow=False, workflow_step=False
+):
+    if len(content) > (1500000 if workflow else 80000):
+        raise ai.AIError(
+            "分析输出超过该流程的总结果硬容量，请分批新建分析",
+            code="workflow_result_limit" if workflow else "output_limit",
+        )
+    content = content.strip().lstrip("\ufeff").strip()
+    match = re.fullmatch(r"```(?:json)?\s*([\s\S]*?)\s*```", content, re.IGNORECASE)
     try:
-        result = AnalysisResult.model_validate_json(match[1] if match else content)
-    except (ValidationError, ValueError):
-        raise ai.AIError("模型输出格式不完整，请重新生成或切换模型") from None
+        raw = json.loads(match[1] if match else content)
+    except ValueError:
+        raise ai.AIError("模型输出格式不完整，请重新生成", code="model_output_format") from None
+    if (
+        require_complete
+        and isinstance(raw, dict)
+        and not {"summary", "findings", "draft_actions"} <= raw.keys()
+    ):
+        raise ai.AIError("模型输出缺少完整结果字段", code="model_output_format")
+    try:
+        result = (WorkflowResult if workflow else AnalysisResult).model_validate(raw)
+    except ValidationError as exc:
+        if workflow and any(error["type"] == "too_long" for error in exc.errors()):
+            raise ai.AIError(
+                "最终结果超过工作流硬容量，请分批新建分析", code="workflow_result_limit"
+            ) from None
+        if workflow_step and all(
+            error["type"] == "too_long" and error["loc"] in {("findings",), ("draft_actions",)}
+            for error in exc.errors()
+        ):
+            raise ai.AIError(
+                "当前步骤结果超过单批容量，需要拆分当前步骤", code="output_limit"
+            ) from None
+        code = (
+            "model_output_format"
+            if all(error["type"] == "missing" for error in exc.errors())
+            else "model_error"
+        )
+        raise ai.AIError("模型输出格式不完整，请重新生成或切换模型", code=code) from None
     allowed = {item["id"] for item in context["source"]["refs"]}
     if any(not set(item.evidence_ids) <= allowed for item in result.findings):
         raise ai.AIError("模型引用了本次范围外的证据，请重新生成")
@@ -379,7 +424,9 @@ def run_view(run):
         "result": run.result,
         "provider": run.provider,
         "model": run.model,
-        "usage": run.usage,
+        "usage": pm_ai_generation.counters(run.usage or {}),
+        "generation": pm_ai_generation.safe_generation((run.usage or {}).get("_generation")),
+        "workflow": pm_ai_workflow.public_view(run.workflow, run.state),
         "error": run.error,
     }
 
@@ -410,7 +457,7 @@ def create_run(db, user, request):
     cfg = ai.load_settings(db)
     if not cfg["providers"][cfg["provider"]].get("model"):
         raise HTTPException(422, "请先在 AI 设置中配置组织默认模型")
-    context = build_context(db, user, request)
+    context = build_context(db, user, request, workflow=True)
     run = PMAIRun(
         id=uuid4().hex,
         created_by=user.id,
@@ -421,6 +468,9 @@ def create_run(db, user, request):
         source=context["source"],
         usage={},
         error="",
+        workflow=pm_ai_workflow.initialize(context, cfg),
+        provider=cfg["provider"],
+        model=cfg["providers"][cfg["provider"]]["model"],
     )
     db.add(run)
     db.commit()
@@ -431,9 +481,27 @@ def process_one():
     claim = uuid4().hex
     now = datetime.now(UTC)
     with SessionLocal() as db:
+        interrupted = (
+            db.query(PMAIRun)
+            .filter(
+                PMAIRun.state == "running",
+                PMAIRun.started_at < now - timedelta(minutes=15),
+                PMAIRun.workflow.is_not(None),
+            )
+            .all()
+        )
+        for old in interrupted:
+            state = dict(old.workflow)
+            state["pause_reason"] = "process_interrupted"
+            old.workflow, old.state, old.claim = state, "paused", None
+            old.error = "处理进程已中断，已完成步骤和调用预算已保存，可继续分析。"
         db.execute(
             update(PMAIRun)
-            .where(PMAIRun.state == "running", PMAIRun.started_at < now - timedelta(minutes=15))
+            .where(
+                PMAIRun.state == "running",
+                PMAIRun.started_at < now - timedelta(minutes=15),
+                PMAIRun.workflow.is_(None),
+            )
             .values(
                 state="failed",
                 finished_at=now,
@@ -461,6 +529,14 @@ def process_one():
             db.rollback()
             return False
         db.commit()
+    with SessionLocal() as db:
+        active = db.get(PMAIRun, run_id)
+        workflow_run = bool(active.workflow)
+    if workflow_run:
+        pm_ai_workflow.execute(run_id, claim)
+        return True
+    provider = model = None
+    usage = {}
     try:
         with SessionLocal() as db:
             run = db.get(PMAIRun, run_id)
@@ -471,10 +547,38 @@ def process_one():
             context, request = run.context, run.request
             config = ai.load_settings(db)
         provider = config["provider"]
+        model = config["providers"][provider]["model"]
+
+        def before_attempt():
+            with SessionLocal() as db:
+                current = db.get(PMAIRun, run_id)
+                if not current or current.state != "running" or current.claim != claim:
+                    raise ai.AIError("本轮整理已取消或被新的处理接管", code="generation_cancelled")
+                actor = recheck_user(db, current.created_by)
+                authorize_run(db, actor, current)
+
+        def on_progress(metadata, usage):
+            with SessionLocal() as db:
+                changed = db.execute(
+                    update(PMAIRun)
+                    .where(PMAIRun.id == run_id, PMAIRun.state == "running", PMAIRun.claim == claim)
+                    .values(
+                        provider=provider, model=model, usage={**usage, "_generation": metadata}
+                    )
+                )
+                if changed.rowcount != 1:
+                    raise ai.AIError("本轮整理已取消或被新的处理接管", code="generation_cancelled")
+                db.commit()
+
         content, usage = generate_analysis(
-            provider, config["providers"][provider], request, context
+            provider,
+            config["providers"][provider],
+            request,
+            context,
+            before_attempt=before_attempt,
+            on_progress=on_progress,
         )
-        result = validate_result(content, context)
+        result = validate_result(content, context, require_complete=True)
         with SessionLocal() as db:
             run = db.query(PMAIRun).filter_by(id=run_id).with_for_update().first()
             if not run or run.state != "running" or run.claim != claim:
@@ -482,13 +586,8 @@ def process_one():
             user = recheck_user(db, run.created_by)
             authorize_run(db, user, run)
             run.result = result
-            run.provider, run.model = provider, config["providers"][provider]["model"]
-            run.usage = {
-                key: value
-                for key, value in usage.items()
-                if key in {"prompt_tokens", "completion_tokens", "total_tokens"}
-                and type(value) in {int, float}
-            }
+            run.provider, run.model = provider, model
+            run.usage = pm_ai_generation.safe_usage(usage)
             run.state, run.finished_at, run.claim = "succeeded", datetime.now(UTC), None
             db.commit()
     except Exception as exc:
@@ -497,13 +596,32 @@ def process_one():
             if isinstance(exc, ai.AIError)
             else "当前权限或项目数据无法继续分析，请刷新后重试"
         )
+        metadata = getattr(exc, "pm_generation", None) or pm_ai_generation.safe_generation(
+            usage.get("_generation")
+        )
+        saved_usage = getattr(exc, "pm_usage", pm_ai_generation.counters(usage))
+        if metadata is not None:
+            metadata["error_code"] = pm_ai_generation.error_code(exc)
+            metadata["recovered"] = False
+            if metadata["error_code"] == "output_limit":
+                message = "模型输出仍未完整返回，原问题和资料已保留。"
+        failure_values = {
+            "state": "failed",
+            "error": message[:1000],
+            "finished_at": datetime.now(UTC),
+            "claim": None,
+        }
+        if provider is not None:
+            failure_values.update(provider=provider, model=model)
+        if metadata is not None:
+            failure_values["usage"] = pm_ai_generation.safe_usage(
+                {**saved_usage, "_generation": metadata}
+            )
         with SessionLocal() as db:
             db.execute(
                 update(PMAIRun)
                 .where(PMAIRun.id == run_id, PMAIRun.state == "running", PMAIRun.claim == claim)
-                .values(
-                    state="failed", error=message[:1000], finished_at=datetime.now(UTC), claim=None
-                )
+                .values(**failure_values)
             )
             db.commit()
         logger.warning("Project assistant generation failed (%s)", type(exc).__name__)

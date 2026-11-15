@@ -58,18 +58,32 @@ function saveConfirmation(key: string, value: SavedConfirmation | null) {
   }
 }
 
-export function PMAIActions({
-  run,
-  context,
-  userId,
-  disabled,
-}: {
+type ActionProps = {
   run: PMAIRun
   context: PMAIContext | null
   userId: string
   disabled: boolean
-}) {
-  const key = `pm-ai-confirmation:${userId}:${run.id}`
+}
+export function PMAIActions(props: ActionProps) {
+  const [batch, setBatch] = useState(0)
+  const [visited, setVisited] = useState([0])
+  const actions = props.run.result?.draftActions ?? []
+  if (actions.length <= 12) return <ActionBatch {...props} />
+  const count = Math.ceil(actions.length / 12)
+  return <div className="space-y-3">
+    <p className="text-xs text-ink-600">共 {actions.length} 项待核对修改，分 {count} 批处理；每批最多 12 项，分别预览并确认。</p>
+    <label className="block text-xs">操作批次<select aria-label="操作批次" className="input mt-1" value={batch} onChange={event => { const next = Number(event.target.value); setBatch(next); setVisited(previous => previous.includes(next) ? previous : [...previous, next]) }}>{Array.from({ length: count }, (_, index) => <option key={index} value={index}>第{index + 1}批（{index * 12 + 1}–{Math.min(actions.length, (index + 1) * 12)}项）</option>)}</select></label>
+    {visited.map(index => <div key={index} hidden={index !== batch}><ActionBatch {...props} confirmationSuffix={index ? `:batch:${index}` : ''} run={{ ...props.run, result: props.run.result ? { ...props.run.result, draftActions: actions.slice(index * 12, (index + 1) * 12) } : null }} /></div>)}
+  </div>
+}
+function ActionBatch({
+  run,
+  context,
+  userId,
+  disabled,
+  confirmationSuffix = '',
+}: ActionProps & { confirmationSuffix?: string }) {
+  const key = `pm-ai-confirmation:${userId}:${run.id}${confirmationSuffix}`
   const [saved] = useState(() => savedConfirmation(key))
   const defaults = (draft: PMAIAction): PMAIAction => ({
     ...draft,
@@ -179,6 +193,10 @@ export function PMAIActions({
     setPreview(null)
   }
   async function review() {
+    if (drafts.filter((_, index) => included[index]).length > 12) {
+      setError('每批最多预览12项操作，请减少本批选择。')
+      return
+    }
     setBusy(true)
     setError('')
     try {
@@ -697,7 +715,7 @@ export function PMAIActions({
             </details>
           ))}
           <div className="flex gap-2">
-            <Button size="sm" onClick={add} disabled={drafts.length >= 20}>
+            <Button size="sm" onClick={add} disabled={drafts.length >= 12}>
               添加操作
             </Button>
             <Button

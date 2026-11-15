@@ -4,11 +4,11 @@ import hashlib
 import json
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 from urllib.parse import quote
 
 from fastapi import HTTPException
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 from sqlalchemy import case, func, or_
 from sqlalchemy.orm.attributes import set_committed_value
 
@@ -55,7 +55,9 @@ class ContextRequest(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
     question: str = Field(default="", max_length=2000)
-    material: str = Field(default="", max_length=16000)
+    material: Annotated[str, StringConstraints(strip_whitespace=False)] = Field(
+        default="", max_length=16000
+    )
 
     @model_validator(mode="after")
     def valid_period(self):
@@ -122,7 +124,12 @@ def fingerprint(value):
     ).hexdigest()
 
 
-def build_context(db, user, request):
+def build_context(db, user, request, *, workflow=False):
+    task_limit = 5000 if workflow else MAX_TASKS
+    event_limit = 5000 if workflow else MAX_EVENTS
+    record_limit = 5000 if workflow else 200
+    audit_limit = 5000 if workflow else 100
+    baseline_limit = 1000 if workflow else 30
     project_ids, task_ids = assert_current_scope(db, user, request)
     visible_tasks = visible_task_ids_for(user, db)
     today = date.today()
@@ -179,7 +186,7 @@ def build_context(db, user, request):
         }
         query = query.filter(Task.id.in_(task_ids | related_ids))
     total_tasks = query.count()
-    task_rows = query.order_by(Task.planned_end, Task.id).limit(MAX_TASKS).all()
+    task_rows = query.order_by(Task.planned_end, Task.id).limit(task_limit).all()
     if total_tasks > len(task_rows):
         truncated.append(f"任务仅纳入按计划结束时间排序的前 {MAX_TASKS} 条，请缩小项目或任务范围")
     ids = [row.id for row in task_rows]
@@ -209,8 +216,8 @@ def build_context(db, user, request):
         )
         item = fields(row, names)
         item["project_id"] = sub_projects[row.sub_project_id]
-        item["notes"] = (row.notes or "")[:800]
-        if len(row.notes or "") > 800:
+        item["notes"] = (row.notes or "") if workflow else (row.notes or "")[:800]
+        if not workflow and len(row.notes or "") > 800:
             truncated.append(f"任务 {row.code} 的备注仅纳入前 800 字")
         item["overdue"] = is_overdue(row, today)
         item["days_to_start"] = (row.planned_start - today).days
@@ -261,7 +268,7 @@ def build_context(db, user, request):
     )
     entry_total = entries_query.count()
     entries = []
-    for row in entries_query.limit(200):
+    for row in entries_query.limit(record_limit):
         item = fields(
             row,
             (
@@ -277,8 +284,11 @@ def build_context(db, user, request):
                 "updated_at",
             ),
         )
-        item["mitigation"], item["closure"] = row.mitigation[:1000], row.closure[:1000]
-        if len(row.mitigation) > 1000 or len(row.closure) > 1000:
+        item["mitigation"], item["closure"] = (
+            (row.mitigation if workflow else row.mitigation[:1000]),
+            (row.closure if workflow else row.closure[:1000]),
+        )
+        if not workflow and (len(row.mitigation) > 1000 or len(row.closure) > 1000):
             truncated.append(f"事项 {row.id} 的处理记录仅纳入前 1000 字")
         item["evidence_id"] = reference(
             "register",
@@ -307,10 +317,10 @@ def build_context(db, user, request):
     event_total = event_query.count()
     events = []
     by_id = {row.id: row for row in task_rows}
-    for row in event_query.limit(MAX_EVENTS):
+    for row in event_query.limit(event_limit):
         item = fields(row, ("id", "task_id", "actor_id", "kind", "created_at"))
-        item["body"] = (row.body or "")[:1200]
-        if len(row.body or "") > 1200:
+        item["body"] = (row.body or "") if workflow else (row.body or "")[:1200]
+        if not workflow and len(row.body or "") > 1200:
             truncated.append(f"变更 {row.id} 的正文仅纳入前 1200 字")
         item["changes"] = {
             key: value
@@ -348,9 +358,9 @@ def build_context(db, user, request):
         )
         .order_by(AuditLog.created_at.desc(), AuditLog.id)
     )
-    if audit_query.count() > 100:
+    if audit_query.count() > audit_limit:
         truncated.append("跟进事项变更仅纳入最近 100 条")
-    for row in audit_query.limit(100):
+    for row in audit_query.limit(audit_limit):
         try:
             detail = json.loads(row.detail or "{}")
         except (ValueError, TypeError):
@@ -385,9 +395,9 @@ def build_context(db, user, request):
         .filter(TaskDeliverable.task_id.in_(ids))
         .order_by(TaskDeliverable.created_at.desc())
     )
-    if deliverable_query.count() > 200:
+    if deliverable_query.count() > record_limit:
         truncated.append("交付物仅纳入最近 200 条摘要")
-    for row in deliverable_query.limit(200):
+    for row in deliverable_query.limit(record_limit):
         item = fields(row, ("id", "task_id", "title", "version", "created_at"))
         item["evidence_id"] = reference(
             "deliverable",
@@ -444,9 +454,9 @@ def build_context(db, user, request):
             .filter(ProjectBaseline.project_id.in_(project_ids))
             .order_by(ProjectBaseline.created_at.desc())
         )
-        if baseline_query.count() > 30:
+        if baseline_query.count() > baseline_limit:
             truncated.append("基线仅纳入最近 30 条摘要")
-        for row in baseline_query.limit(30):
+        for row in baseline_query.limit(baseline_limit):
             item = fields(row, ("id", "project_id", "label", "created_at"))
             item["evidence_id"] = reference(
                 "baseline",
@@ -464,6 +474,7 @@ def build_context(db, user, request):
                 "title": "本次提供的会议文字",
                 "href": "",
                 "observed_at": now,
+                **({"start_offset": 0, "end_offset": len(request.material)} if workflow else {}),
             }
         )
         lines = [
@@ -471,7 +482,12 @@ def build_context(db, user, request):
             for index, line in enumerate(request.material.splitlines(), start=1)
             if line.strip()
         ]
-        for index, line in lines[:200]:
+        offsets = {}
+        offset = 0
+        for index, line in enumerate(request.material.splitlines(keepends=True), start=1):
+            offsets[index] = (offset, offset + len(line))
+            offset += len(line)
+        for index, line in lines if workflow else lines[:200]:
             refs.append(
                 {
                     "id": f"material:{index}",
@@ -481,9 +497,14 @@ def build_context(db, user, request):
                     "href": "",
                     "observed_at": now,
                     "excerpt": line[:400],
+                    **(
+                        {"start_offset": offsets[index][0], "end_offset": offsets[index][1]}
+                        if workflow
+                        else {}
+                    ),
                 }
             )
-        if len(lines) > 200:
+        if not workflow and len(lines) > 200:
             truncated.append("会议逐行引用仅提供前 200 个非空行，完整原文仍包含在上下文中")
     context = {
         "schema_version": 1,
@@ -539,6 +560,12 @@ def build_context(db, user, request):
         {key: value for key, value in context.items() if key != "as_of"}
     )
     context["source"] = source
-    if len(json.dumps(context, ensure_ascii=False, default=str)) > 120000:
+    if workflow and truncated:
+        raise HTTPException(
+            422, "分步分析超过硬容量上限（5000任务/条目、1000基线），请缩小范围；未裁剪资料"
+        )
+    if len(json.dumps(context, ensure_ascii=False, default=str)) > (
+        1500000 if workflow else 120000
+    ):
         raise ContextBudgetExceeded()
     return context

@@ -26,3 +26,4 @@ class PMAIRun(Base):
     usage: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     error: Mapped[str] = mapped_column(Text, nullable=False, default="")
     claim: Mapped[str | None] = mapped_column(String(40))
+    workflow: Mapped[dict | None] = mapped_column(JSON)
