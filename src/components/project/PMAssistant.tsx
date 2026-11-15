@@ -28,7 +28,7 @@ const ScheduleAssist = lazy(() => import('../task/ScheduleAssist').then(m => ({ 
 const toolModes = new Set<ProjectAssistantMode>(['assessment', 'finance', 'settings', 'proposal', 'schedule-assist'])
 const scenarioNames: Record<PMAIScenario, string> = { priorities: '工作重点', explain: '异常解释', weekly: '项目周报', meeting: '会议记录整理', followup: '措施跟踪' }
 const scenarioQuestions: Record<PMAIScenario, string> = { priorities: '当前有哪些需要优先处理的任务？', explain: '当前项目哪些任务可能延期，为什么？', weekly: '整理本周项目周报', meeting: '请整理会议记录并提取待核对的更新', followup: '已有措施落实了吗，还有哪些阻塞？' }
-const states: Record<PMAIRun['state'], string> = { queued: '等待整理', running: '正在整理', succeeded: '已完成', failed: '未完成', cancelled: '已停止' }
+const states: Record<PMAIRun['state'], string> = { queued: '等待整理', running: '正在整理', paused: '进度已保存', succeeded: '已完成', failed: '未完成', cancelled: '已停止' }
 const pendingRun = (value: PMAIRun | null) => value?.state === 'queued' || value?.state === 'running'
 function scopeLabel(scope: PMAIScope, context: PMAIContext | null) {
   return [scope.projectIds.map(id => context?.projects.find(p => p.id === id)?.name ?? findProject(id)?.name ?? id).join('、') || '全部可见项目', scope.taskIds.map(id => context?.tasks.find(t => t.id === id)?.name ?? findTask(id)?.name ?? id).join('、')].filter(Boolean).join(' · ')
@@ -84,6 +84,7 @@ function AssistantPanel({ projectId, taskId, taskSnapshot, userId, disabled, sta
   const [error, setError] = useState('')
   const [loadError, setLoadError] = useState('')
   const [pollError, setPollError] = useState('')
+  const [resumeError, setResumeError] = useState('')
   const [readingRun, setReadingRun] = useState(false)
   const [plan, setPlan] = useState<PMAgentPlan | null>(null)
   const [triage, setTriage] = useState<{ result: PMAgentTriage; scope: PMAIScope; question: string } | null>(null)
@@ -107,7 +108,7 @@ function AssistantPanel({ projectId, taskId, taskSnapshot, userId, disabled, sta
     requestVersion.current++
     const attempt = selectId(id, true)
     setBusy(false); setPreparedRequest(null); if (!preserveDraft) setDraft('')
-    setRun(previous => previous?.id === id ? previous : null); setMode('agent'); setTriage(null); setSchedule(null); setReport(null); setPlan(null); setError(''); setPollError(''); setHistoryOpen(false)
+    setRun(previous => previous?.id === id ? previous : null); setMode('agent'); setTriage(null); setSchedule(null); setReport(null); setPlan(null); setError(''); setPollError(''); setResumeError(''); setHistoryOpen(false)
     try {
       const current = await pmAI.get(id)
       if (!alive.current || selectionRef.current !== attempt) return
@@ -165,7 +166,7 @@ function AssistantPanel({ projectId, taskId, taskSnapshot, userId, disabled, sta
   const withinPage = (scope: PMAIScope) => matchesScope(scope) && (!projectId || (scope.projectIds.length === 1 && scope.projectIds[0] === projectId)) && (!taskId || (scope.taskIds.length === 1 && scope.taskIds[0] === taskId))
   function resetCurrent(keepPrepared = false) {
     if (!keepPrepared) setPreparedRequest(null)
-    selectId(null); setRun(null); setPlan(null); setTriage(null); setSchedule(null); setReport(null); setError(''); setPollError(''); setCurrentQuestion(''); setHistoryOpen(false); setMode('agent')
+    selectId(null); setRun(null); setPlan(null); setTriage(null); setSchedule(null); setReport(null); setError(''); setPollError(''); setResumeError(''); setCurrentQuestion(''); setHistoryOpen(false); setMode('agent')
   }
   function newQuestion() { requestVersion.current++; setBusy(false); resetCurrent(); setDraft(''); setLastRequest(null); input.current?.focus() }
   async function create(request: PMAIRequest, attempt: number) {
@@ -250,13 +251,13 @@ function AssistantPanel({ projectId, taskId, taskSnapshot, userId, disabled, sta
     requestVersion.current++; setBusy(false); resetCurrent(); setLastRequest(restored); setPreparedRequest(restored)
     setDraft(restored.scenario === 'meeting' ? restored.material : restored.question); input.current?.focus()
   }
-  async function retryBrief() {
+  async function retry() {
     if (!lastRequest || disabled || busy) return
     if (!withinPage(lastRequest)) { setError('该历史分析超出当前页面范围，请从原范围打开后重新整理。'); return }
-    const request = { ...lastRequest, question: `${lastRequest.question}\n请简明回答：最多3项关键结论，建议仅保留必要字段。` }
+    const request = { ...lastRequest }
     if (request.question.length > 2000) { reuse(lastRequest); return }
     const attempt = ++requestVersion.current; resetCurrent(); setBusy(true); setCurrentQuestion(request.question)
-    try { await create(request, attempt) } catch (failure) { if (validAttempt(attempt)) setError(asAPIError(failure).detail) } finally { if (validAttempt(attempt)) setBusy(false) }
+    try { await create(request, attempt) } catch (failure) { if (validAttempt(attempt)) { setError(asAPIError(failure).detail); setPreparedRequest(request); setDraft(request.scenario === 'meeting' ? request.material : request.question) } } finally { if (validAttempt(attempt)) setBusy(false) }
   }
   async function cancel() {
     if (!run || !pendingRun(run)) return
@@ -269,12 +270,28 @@ function AssistantPanel({ projectId, taskId, taskSnapshot, userId, disabled, sta
     } catch (failure) { if (alive.current && selectionRef.current === attempt) setError(asAPIError(failure).detail) }
     finally { if (alive.current && selectionRef.current === attempt) setBusy(false) }
   }
+  async function resume() {
+    if (!run || run.state !== 'paused' || !run.workflow?.canResume || disabled || busy || readingRun) return
+    if (!withinPage(run.scope ?? run.request)) { setResumeError('该分析涉及当前页面以外的项目或任务，请从原范围打开后继续处理。'); return }
+    const id = run.id, selection = selectionRef.current, attempt = ++requestVersion.current
+    setBusy(true); setResumeError('')
+    try {
+      const resumed = await pmAI.resume(id)
+      if (!validAttempt(attempt) || selectionRef.current !== selection) return
+      if (resumed.id !== id || !withinPage(resumed.scope ?? resumed.request)) { setResumeError('返回的分析记录与当前请求不一致，请更新原记录状态后再核对。'); return }
+      setRun(resumed); setRuns(rows => rows.map(item => item.id === id ? resumed : item)); setPollError('')
+    } catch (failure) {
+      if (!validAttempt(attempt) || selectionRef.current !== selection) return
+      const e = asAPIError(failure)
+      setResumeError(e.status && e.status >= 400 && e.status < 500 && ![408, 429].includes(e.status) ? e.detail : '暂未确认继续处理的结果，请更新状态核对原记录。再次继续处理也会沿用同一记录，不会新建分析记录。')
+    } finally { if (validAttempt(attempt) && selectionRef.current === selection) setBusy(false) }
+  }
   function closeReview(key: 'agent_report' | 'agent_proposal') {
     const next = new URLSearchParams(params); next.delete(key); next.set('assistant', key === 'agent_report' ? 'assessment' : 'agent'); setParams(next, { replace: true })
   }
   const analysisProject = projectId ?? plan?.projectIds[0]
   const scheduleTask = schedule?.taskId ? (task?.id === schedule.taskId ? task : findTask(schedule.taskId)) : undefined
-  const background = runs.filter(item => pendingRun(item) && item.id !== run?.id)
+  const background = runs.filter(item => (pendingRun(item) || item.state === 'paused') && item.id !== run?.id)
   const showingResult = !!(preparedRequest || currentQuestion || run || triage || schedule || report || toolModes.has(mode) || readingRun)
   return <PMAssistantSurface standalone={standalone} open={open} onToggle={setOpen}>
     {open && <div className="space-y-5 text-sm">
@@ -300,7 +317,7 @@ function AssistantPanel({ projectId, taskId, taskSnapshot, userId, disabled, sta
           {available.finance && <Button size="sm" onClick={() => { requestVersion.current++; resetCurrent(); setMode('finance') }}>组合财务报告</Button>}
         </div>
       </section>}
-      {!!background.length && <p className="flex flex-wrap items-center gap-2 text-xs text-ink-500">有{background.length}项后台整理尚未完成。<button type="button" className="text-brand-700 underline" onClick={() => void readRun(background[0].id)}>查看进度</button></p>}
+      {!!background.length && <p className="flex flex-wrap items-center gap-2 text-xs text-ink-500">有{background.length}项整理尚未完成。<button type="button" className="text-brand-700 underline" onClick={() => void readRun(background[0].id)}>查看进度</button></p>}
       {currentQuestion && <p className="whitespace-pre-wrap break-words rounded-lg bg-brand-50 px-3 py-2 text-ink-700">{currentQuestion.length > 300 ? `${currentQuestion.slice(0, 300)}…` : currentQuestion}</p>}
       {busy && <p role="status" className="text-ink-500">正在处理这次请求…</p>}
       {readingRun && !run && <p role="status">正在读取分析记录…</p>}
@@ -317,19 +334,25 @@ function AssistantPanel({ projectId, taskId, taskSnapshot, userId, disabled, sta
         <details><summary className="cursor-pointer text-xs text-ink-500">查看资料范围</summary><p className="mt-2 text-xs text-ink-500">{scopeLabel(triage.scope, context)} · 业务日期{triage.result.businessDate} · 按当前账号权限读取任务和日期规则。</p></details>
       </section>}
       {run && <section aria-label="当前分析结果" className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-medium">{active ? states[run.state] : run.state === 'succeeded' ? '整理结果' : run.state === 'cancelled' ? '这次整理已停止' : /截断|输出|长度/.test(run.error) ? '这次内容没有整理完整' : '这次请求未完成'}</h3>
-          {active && <Button size="sm" disabled={busy} onClick={() => void cancel()}>停止整理</Button>}
+        <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-medium">{active || run.state === 'paused' ? states[run.state] : run.state === 'succeeded' ? '整理结果' : run.state === 'cancelled' ? '这次整理已停止' : failureMessage(run).title}</h3>
+          {active && <Button size="sm" disabled={busy} onClick={() => void cancel()}>{run.workflow ? '暂停处理' : '停止整理'}</Button>}
         </div>
         {pollError && <p role="status" className="text-amber-800">{pollError}</p>}
         {active && <p role="status" className="text-ink-500">可以先处理其他问题，结果会保存在历史中。</p>}
-        {run.state === 'failed' && <div className="space-y-3"><p>问题和材料已保留，可以调整要求后重新整理。</p><div className="flex flex-wrap gap-2"><Button size="sm" disabled={disabled || busy} onClick={() => void retryBrief()}>重新整理简版</Button><Button size="sm" disabled={disabled || busy} onClick={() => reuse(run.request, run.scope)}>调整要求</Button></div><details><summary className="cursor-pointer text-xs text-ink-500">查看详情</summary><p role="alert" className="mt-2 break-words text-red-700">{run.error}</p></details></div>}
-        {run.result && <>{run.scenario === 'weekly' ? <PMAssistantDraft key={run.id} run={run}><AnalysisBody run={run} /></PMAssistantDraft> : <AnalysisBody run={run} />}
+        {run.workflow && <WorkflowProgress run={run} />}
+        {active && !run.workflow && run.generation?.recoveryAttempted && <p role="status" className="text-brand-700">正在自动重新整理完整结果…</p>}
+        {run.state === 'succeeded' && run.generation?.recovered && <p role="status" className="text-xs text-brand-700">已自动重新整理，结果已通过校验。</p>}
+        {run.state === 'paused' && <div className="space-y-3"><p>{pauseMessage(run.workflow?.pauseReason)}</p><p className="text-xs text-ink-500">{run.workflow?.canResume ? '已完成步骤保存在原记录中。继续处理只运行剩余步骤，可能产生模型费用。' : '已完成步骤保存在原记录中；可调整要求或发起新的整理。重新整理会创建新请求，可能产生模型费用。'}</p><div className="flex flex-wrap gap-2">{run.workflow?.canResume ? <Button size="sm" disabled={disabled || busy || readingRun} onClick={() => void resume()}>继续处理</Button> : <Button size="sm" disabled={disabled || busy} onClick={() => void retry()}>重新整理</Button>}<Button size="sm" disabled={disabled || busy} onClick={() => reuse(run.request, run.scope)}>调整要求</Button></div></div>}
+        {resumeError && <p role="alert" className="text-amber-800">{resumeError}</p>}
+        {run.state === 'failed' && <div className="space-y-3"><p>{failureMessage(run).detail}</p><p className="text-xs text-ink-500">原问题、材料和分析条件已保留。重新整理将按原要求发起新的模型请求，可能产生费用。</p><div className="flex flex-wrap gap-2"><Button size="sm" disabled={disabled || busy} onClick={() => void retry()}>重新整理</Button><Button size="sm" disabled={disabled || busy} onClick={() => reuse(run.request, run.scope)}>调整要求</Button></div></div>}
+        {(run.state === 'failed' || run.generation) && <GenerationDiagnostics run={run} />}
+        {run.result && (!run.workflow || run.state === 'succeeded') && <>{run.scenario === 'weekly' ? <PMAssistantDraft key={run.id} run={run}><AnalysisBody run={run} /></PMAssistantDraft> : <AnalysisBody run={run} />}
           {!!run.result.draftActions.length && <details className="rounded-lg border border-ink-200 p-3"><summary className="cursor-pointer font-medium">核对修改（{run.result.draftActions.length}）</summary><div className="mt-3"><PMAIActions key={run.id} run={run} context={context} userId={userId} disabled={disabled} /></div></details>}
         </>}
         {(run.stale || run.staleReason === 'context_budget') && <p className="text-xs text-amber-800">{run.staleReason === 'context_budget' ? '当前资料规模超过单次核对上限，暂时无法判断结果是否仍然有效。可缩小范围重新分析。' : '分析后数据已有变化，应用建议前会重新核对当前版本。'}</p>}
         {run.source.complete === false && <p className="text-xs text-amber-800">本次资料范围有限，请结合下方依据核对完整情况。</p>}
         <details><summary className="cursor-pointer text-xs text-ink-500">查看资料与依据（{run.source.refs.length}）</summary><div className="mt-2 space-y-2 text-xs text-ink-500"><p>分析范围 {scopeLabel(run.scope ?? run.request, context)}</p><p>数据时间 {run.source.asOf}{run.model ? ` · 模型${run.model}` : ''}</p>{run.source.refs.map(ref => <div key={ref.id}><Evidence evidence={ref} />{ref.excerpt && <p className="mt-1 whitespace-pre-wrap">{ref.excerpt}</p>}</div>)}</div></details>
-        {(active || pollError || run.state === 'succeeded' || run.state === 'cancelled') && <div className="flex flex-wrap gap-2">{(active || pollError) && <Button size="sm" onClick={() => void readRun(run.id, true)} disabled={busy}>更新状态</Button>}{!active && run.state !== 'failed' && <Button size="sm" disabled={disabled || busy} onClick={() => reuse(run.request, run.scope)}>调整要求</Button>}</div>}
+        {(active || run.state === 'paused' || pollError || run.state === 'succeeded' || run.state === 'cancelled') && <div className="flex flex-wrap gap-2">{(active || run.state === 'paused' || pollError) && <Button size="sm" onClick={() => void readRun(run.id, true)} disabled={busy}>更新状态</Button>}{!active && run.state !== 'failed' && run.state !== 'paused' && <Button size="sm" disabled={disabled || busy} onClick={() => reuse(run.request, run.scope)}>调整要求</Button>}</div>}
       </section>}
       {report && <PMAssistantReportResult key={report.job?.id ?? `${report.kind}:${report.requestId}`} value={report} disabled={disabled} />}
       <Suspense fallback={<p role="status">正在打开助手功能…</p>}>
@@ -358,6 +381,82 @@ function AssistantPanel({ projectId, taskId, taskSnapshot, userId, disabled, sta
       <p className="text-xs text-ink-500">查询直接返回，修改由你确认。</p>
     </div>}
   </PMAssistantSurface>
+}
+function pauseMessage(reason?: string | null) {
+  switch (reason) {
+    case 'window_call_limit': return '本轮已达到模型请求额度，已保存进度。'
+    case 'window_token_limit': return '本轮已达到模型用量额度，已保存进度。'
+    case 'window_time_limit': return '本轮已达到处理时限，已保存进度。'
+    case 'process_interrupted': return '处理曾被中断，已完成步骤已保存。'
+    case 'user_stopped': return '已按你的操作暂停处理，已完成步骤已保存。'
+    case 'output_limit': return '当前步骤的模型结果仍不完整，已保存此前完成的步骤。'
+    case 'model_output_format': return '当前步骤的结果未通过格式校验，已保存此前完成的步骤。'
+    case 'model_empty_response': return '当前步骤未取得有效结果，已保存此前完成的步骤。'
+    case 'meeting_incomplete': return '当前步骤尚未覆盖会议中的全部明确更新，已保存此前完成的步骤。'
+    case 'model_error': return '当前步骤未能完成，已保存此前完成的步骤。'
+    case 'model_network':
+    case 'model_timeout': return '当前步骤连接模型服务时发生网络异常或超时，已保存此前完成的步骤。'
+    case 'model_auth':
+    case 'model_configuration': return '当前步骤的模型服务配置需要检查，已保存此前完成的步骤。'
+    case 'model_rate_limit': return '模型服务暂时限制请求，已保存此前完成的步骤。'
+    case 'context_budget': return '当前步骤超过模型可处理的容量，已保存此前完成的步骤。'
+    case 'generation_deadline': return '当前步骤超过处理时限，已保存此前完成的步骤。'
+    case 'job_call_limit': return '本次整理已达到总模型请求上限，无法继续当前记录。'
+    case 'job_token_limit': return '本次整理已达到模型用量总上限，无法继续当前记录。'
+    case 'job_step_limit': return '本次整理已达到步骤数量上限，无法继续当前记录。'
+    case 'maximum_split_depth': return '当前资料已达到可继续拆分的上限，无法继续当前记录。'
+    case 'snapshot_changed': return '本次整理的数据快照已变化，无法继续当前记录。'
+    case 'model_changed': return '本次整理的模型配置已变化，无法继续当前记录。'
+    case 'action_conflict': return '不同步骤的修改建议存在冲突，无法继续当前记录，请调整要求后重新整理。'
+    case 'authorization_changed': return '本次分析权限已变化，请确认当前项目权限后重新整理。'
+    default: return '本次处理已暂停，已完成步骤已保存。'
+  }
+}
+function WorkflowProgress({ run }: { run: PMAIRun }) {
+  const workflow = run.workflow
+  if (!workflow) return null
+  const current = workflow.steps.find(step => step.state === 'running')
+  const completed = run.state === 'succeeded'
+  const stepNames = { pending: '待处理', running: '正在处理', completed: '已完成', split: '已拆分为更小步骤' }
+  return <div className="space-y-3 rounded-lg border border-ink-200 p-3" aria-label="分步处理进度">
+    <p className="font-medium">已完成 {workflow.completedSteps} / {workflow.totalSteps} 步</p>
+    <progress aria-label="已完成步骤" className="h-2 w-full accent-brand-600" value={workflow.completedSteps} max={Math.max(workflow.totalSteps, 1)} />
+    {current && <p role="status">当前步骤：{current.title}</p>}
+    {!current && pendingRun(run) && <p role="status">{workflow.phase === 'finalizing' ? '正在校验并整理最终结果…' : '正在准备下一步…'}</p>}
+    <details><summary className="cursor-pointer text-xs text-ink-500">查看处理步骤</summary><ol className="mt-2 space-y-2">{workflow.steps.map(step => <li key={step.id} className="break-words text-xs"><span className={step.state === 'completed' ? 'text-brand-700' : 'text-ink-500'}>{stepNames[step.state]}</span> · {step.title}</li>)}</ol><p className="mt-3 text-xs text-ink-500">本次已请求模型 {workflow.callsUsed} / {workflow.callLimit} 次；当前处理轮次 {workflow.window.number}，已请求 {workflow.window.callsUsed} / {workflow.window.callLimit} 次。</p></details>
+    {!!workflow.sections.length && <details><summary className="cursor-pointer font-medium">{completed ? '查看完整分段报告' : '查看已保存的阶段结果'}（{workflow.sections.length}）</summary><div className="mt-3 space-y-3">{!completed && <p className="text-xs text-amber-800">以下是已完成步骤的摘要，尚未形成最终报告。</p>}{workflow.sections.map((section, index) => <article key={index} className="space-y-2 border-b border-ink-100 pb-3"><h4 className="font-medium">{section.title}</h4><p className="whitespace-pre-wrap break-words text-ink-700">{section.summary}</p><div className="flex flex-wrap gap-2 text-xs">{section.evidenceIds.map(id => { const ref = run.source.refs.find(item => item.id === id); return ref ? <Evidence key={id} evidence={ref} /> : null })}</div></article>)}</div></details>}
+  </div>
+}
+function failureMessage(run: PMAIRun) {
+  const recovered = run.generation?.recoveryAttempted
+  switch (run.generation?.errorCode) {
+    case 'output_limit': return { title: '这次内容没有整理完整', detail: recovered ? '系统已自动重新整理一次，但模型输出仍未完整返回。' : '模型在完整结果返回前达到了输出上限。' }
+    case 'model_output_format': return { title: '结果格式未能通过校验', detail: recovered ? '系统已自动重新整理一次，但返回结果仍不符合所需格式。' : '模型返回的结果未通过格式校验。' }
+    case 'model_empty_response': return { title: '模型没有返回有效结果', detail: recovered ? '系统已自动重新整理一次，但仍未取得有效结果。' : '本次未取得模型返回的有效结果。' }
+    case 'context_budget': return { title: '本次资料超过模型可处理的容量', detail: '当前资料与结果所需空间超过了单次模型容量，请调整本次范围或材料后再整理。' }
+    case 'model_network':
+    case 'model_timeout': return { title: '暂未取得模型服务的结果', detail: '连接模型服务时发生网络异常或超时，可稍后重新整理。' }
+    case 'model_auth':
+    case 'model_configuration': return { title: '模型服务配置需要检查', detail: '本次未能正常连接所配置的模型，请由有权限的管理员检查连接设置。' }
+    case 'authorization_changed': return { title: '本次分析权限已变化', detail: '分析期间可访问的数据范围发生变化，请确认当前项目权限后重新整理。' }
+    case 'model_rate_limit': return { title: '模型服务暂时繁忙', detail: '模型服务限制了本次请求，可稍后重新整理。' }
+    case 'generation_deadline': return { title: '这次整理超过了处理时限', detail: '本次未能在处理时限内完成，可重新整理或调整要求。' }
+    default: return { title: '这次请求未完成', detail: '这次整理未能完成，可以重新整理或调整要求。' }
+  }
+}
+function GenerationDiagnostics({ run }: { run: PMAIRun }) {
+  const generation = run.generation
+  const count = (value: number | undefined) => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value.toLocaleString('zh-CN') : '未返回'
+  const finish = (value: string | null) => value === 'length' || value === 'max_tokens' || value === 'max_output_tokens' ? '达到输出上限' : value === 'stop' || value === 'end_turn' ? '正常结束' : value === 'content_filter' ? '服务商过滤' : value ? '其他结束原因' : '服务端未返回'
+  return <details><summary className="cursor-pointer text-xs text-ink-500">查看诊断</summary><div className="mt-2 space-y-3 text-xs text-ink-600">
+    {run.error && <p role="alert" className="break-words">{run.error}</p>}
+    {generation && <><p>{run.workflow ? '最近步骤模型请求次数' : '模型请求次数'}：{generation.attempts.length} · {run.workflow ? '最近步骤自动恢复' : '自动恢复'}：{generation.recovered && run.state === 'succeeded' ? '已完成' : generation.recoveryAttempted ? '已尝试' : '未触发'}</p>
+      <ul className="space-y-3">{generation.attempts.map((attempt, index) => <li key={index} className="space-y-1 rounded bg-ink-50 p-2">
+        <p>第{count(attempt.number)}次请求 · 输出额度：{count(attempt.outputBudget)} tokens · 结束原因：{finish(attempt.finishReason)}</p>
+        <p>输入 tokens：{count(attempt.usage.promptTokens)} · 输出 tokens：{count(attempt.usage.completionTokens)} · 合计 tokens：{count(attempt.usage.totalTokens)} · 推理 tokens：{count(attempt.usage.reasoningTokens)}</p>
+        <p>耗时：{count(attempt.durationMs)} 毫秒</p>
+      </li>)}</ul></>}
+  </div></details>
 }
 function AnalysisBody({ run }: { run: PMAIRun }) {
   if (!run.result) return null

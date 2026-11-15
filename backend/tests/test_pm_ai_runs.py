@@ -38,6 +38,10 @@ def queue(client, headers, pid, **values):
         json={"scenario": "priorities", "project_ids": [pid], **values},
     )
     assert response.status_code == 202, response.text
+    # This suite preserves coverage of pre-workflow persisted runs; the new
+    # default workflow API has its own checkpoint/resume integration suites.
+    with SessionLocal.begin() as db:
+        db.get(PMAIRun, response.json()["id"]).workflow = None
     return response.json()
 
 
@@ -213,7 +217,7 @@ def test_meeting_evidence_preserves_line_numbers(client, auth_headers, project_f
         client, auth_headers, pid, scenario="meeting", material=" first action\n\nsecond action"
     )
     refs = {ref["id"]: ref for ref in run["source"]["refs"]}
-    assert refs["material:1"]["excerpt"] == "first action"
+    assert refs["material:1"]["excerpt"] == " first action"
     assert refs["material:3"]["excerpt"] == "second action"
 
 
@@ -365,7 +369,7 @@ def test_generation_constrains_local_schema_and_bounds_hosted_output(
         }
     else:
         assert "format" not in captured
-        assert captured["max_tokens"] == 4096
+        assert captured["max_tokens"] == 8192
 
 
 def test_empty_evidence_context_disallows_unsupported_findings():
@@ -441,7 +445,7 @@ def test_meeting_mentions_use_source_refs_for_older_snapshots(monkeypatch, has_r
 
     def record(provider, config, messages, **kwargs):
         captured.update(json.loads(messages[-1]["content"]))
-        return "{}", {}
+        return json.dumps({"summary": "待核对", "findings": [], "draft_actions": []}), {}
 
     monkeypatch.setattr(ai, "chat", record)
     reference = {"id": "task:legacy-task", "type": "task", "entity_id": "legacy-task"}

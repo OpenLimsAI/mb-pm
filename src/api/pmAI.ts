@@ -102,9 +102,57 @@ export interface PMAIAction {
   entryId?: string
   closure?: string
 }
+export interface PMAIGeneration {
+  version: 1
+  attempts: {
+    number: number
+    outputBudget: number
+    finishReason: string | null
+    errorCode: string | null
+    usage: {
+      promptTokens?: number
+      completionTokens?: number
+      totalTokens?: number
+      reasoningTokens?: number
+    }
+    durationMs: number
+  }[]
+  recoveryAttempted: boolean
+  recovered: boolean
+  errorCode: string | null
+}
+export interface PMAIWorkflow {
+  version: 1
+  phase: 'analysis' | 'synthesis' | 'finalizing' | 'complete'
+  completedSteps: number
+  totalSteps: number
+  callsUsed: number
+  callLimit: number
+  tokenBudgetUsed: number
+  window: {
+    number: number
+    callsUsed: number
+    callLimit: number
+    tokenBudgetUsed: number
+    tokenLimit: number
+    secondsLimit: number
+  }
+  pauseReason: string | null
+  canResume: boolean
+  steps: {
+    id: string
+    title: string
+    kind: 'analysis' | 'synthesis'
+    state: 'pending' | 'running' | 'completed' | 'split'
+    depth: number
+    calls: number
+    durationMs: number
+  }[]
+  sections: { title: string; summary: string; evidenceIds: string[] }[]
+}
 export interface PMAIRun {
   id: string
-  state: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+  state: 'queued' | 'running' | 'paused' | 'succeeded' | 'failed' | 'cancelled'
   request: PMAIRequest
   scope?: PMAIScope
   scenario: PMAIScenario
@@ -125,6 +173,8 @@ export interface PMAIRun {
   provider?: string | null
   model?: string | null
   error: string
+  generation?: PMAIGeneration | null
+  workflow?: PMAIWorkflow | null
   stale?: boolean
   staleReason?: 'context_budget'
 }
@@ -253,6 +303,8 @@ export const pmAI = {
   get: async (id: string) => (await api.get<PMAIRun>(runPath(id))).data,
   cancel: async (id: string) =>
     (await api.post<PMAIRun>(`${runPath(id)}/cancel`)).data,
+  resume: async (id: string) =>
+    (await api.post<PMAIRun>(`${runPath(id)}/resume`)).data,
   preview: async (id: string, actions: PMAIAction[]) =>
     (
       await api.post<PMAIChangePreview>(`${runPath(id)}/changes/preview`, {
