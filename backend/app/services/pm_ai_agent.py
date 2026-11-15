@@ -11,10 +11,21 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.models import Project, SubProject, Task
 from app.services.pm_ai_context import MANAGERS
+from app.services.pm_ai_triage import TaskFilter
 from app.services.project_schedule_assist import delay_count
 from app.services.scope import visible_project_ids_for, visible_task_ids_for
 
-Scenario = Literal["priorities", "explain", "weekly", "meeting", "followup", "schedule"]
+Scenario = Literal[
+    "priorities",
+    "explain",
+    "weekly",
+    "meeting",
+    "followup",
+    "schedule",
+    "assessment",
+    "finance",
+    "settings",
+]
 MAX_CHOICES = 8
 MAX_LIMIT = 20
 COUNT = r"[0-9零一二两三四五六七八九十百]{1,7}"
@@ -32,29 +43,37 @@ DEICTIC = re.compile(r"(?:当前|此|这[个项]?|该|本)(?:项目|任务)")
 ALL_PROJECTS = re.compile(r"(?:所有|全部|全体|跨)(?:可见)?项目")
 ALL_TASKS = re.compile(r"(?:所有|全部|全体)(?:可见)?任务")
 MINE = re.compile(r"我的任务|我负责|我(?:今天|现在|当前)?最需要|今天我该")
+MEETING = re.compile(r"会议纪要|会议记录|纪要转更新|会议文字|会议行动项")
+PORTFOLIO = re.compile(
+    r"(?:所有|全部|全体|跨)(?:可见)?项目|组合财务|(?:组合|跨项目).{0,8}(?:预算|成本)"
+)
+PRIORITIES = r"工作重点|(?:本周|这周|今天|今日)重点|重点事项|优先事项|优先(?:处理|跟进|任务)|优先级|待办|最(?:需要|应该|该)处理|先(?:做|处理|跟进)|最需要做|待关注任务|需要关注"
 SCHEDULE_FILLER = re.compile(
     r"当前任务|这个任务|这项任务|该任务|本任务|向后|顺延|延迟|推迟|延期|延后|"
     r"比较|推演|模拟|试算|排期|方案|会有什么影响|影响|分别|假设|如果|会怎样|怎么样|可以吗|"
-    r"请|帮我|把|将|任务|看看|查看|晚|一下|的|吗|或者|或|和|与|[、。,.!?;:/()《》「」“”\"]"
+    r"会影响哪些日期|哪些日期会变化|请|帮我|把|将|项目|任务|看看|查看|晚|一下|的|吗|或者|或|和|与|[、。,.!?;:/()《》「」“”\"]"
 )
 
 INTENTS: dict[Scenario, str] = {
-    "priorities": r"工作重点|(?:本周|这周|今天|今日)重点|重点事项|优先事项|优先(?:处理|跟进|任务)|优先级|待办|"
-    r"最(?:需要|应该|该)处理|先(?:做|处理|跟进)|最需要做",
+    "priorities": PRIORITIES
+    + r"|(?:逾期|延期|延迟|滞后|阻塞|受阻)(?:的)?任务|任务.{0,8}(?:逾期|延期|延迟|滞后|阻塞|受阻)|(?:哪些|有哪些|查看|列出).{0,16}(?:逾期|延期|延迟|滞后|阻塞|受阻)",
     "explain": r"异常|(?:为什么|为何|原因|解释|归因).{0,18}(?:延期|延误|延迟|阻塞|风险)|"
     r"(?:延期|延误|延迟|阻塞|风险).{0,12}(?:原因|为什么|为何|解释)|瓶颈",
     "weekly": r"周报|(?:本周|这周|上周|上一周).{0,5}(?:进展|总结)|(?:总结|回顾)(?:本周|这周|上周|上一周)",
-    "meeting": r"会议纪要|纪要转更新|会议文字|会议行动项",
+    "meeting": MEETING.pattern,
     "followup": r"措施(?:跟踪|效果|执行|落实)|跟踪措施|整改(?:效果|落实)|行动项(?:落实|完成)",
     "schedule": r"排期(?:比较|推演|方案|模拟)|(?:比较|推演|模拟)排期|顺延|推迟|延后|"
     r"(?:延迟|延期|晚).{0,10}工作(?:日|天)",
+    "assessment": r"综合(?:评估|分析|报告)|全面(?:评估|分析|报告)|整体(?:评估|分析)|项目(?:概况|全貌|评估报告)|评估项目",
+    "finance": r"组合财务|财务|预算|成本|超支",
+    "settings": r"ai\s*(?:设置|配置)|模型(?:设置|配置)|(?:切换|选择|更换|修改)(?:默认)?模型|(?:api|模型)(?:密钥|连接)",
 }
 
 
 class PlanRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    question: str = Field(min_length=1, max_length=2000)
+    question: str = Field(min_length=1, max_length=16000)
     project_id: str | None = Field(default=None, min_length=1, max_length=64)
     task_id: str | None = Field(default=None, min_length=1, max_length=64)
 
@@ -156,14 +175,16 @@ def unresolved_reference(question, groups, remaining):
             return True
     # Do not treat an unrecognized named project as a portfolio-wide request.
     unnamed = DEICTIC.sub("", ALL_PROJECTS.sub("", ALL_TASKS.sub("", remaining)))
+    unnamed = re.sub(r"(?:当前|目前)?有?(?:哪些|哪几[项个]?|什么)(?=项目|任务)", "", unnamed)
     unnamed = re.sub(
-        r"请问|帮我|我想|列出|看看|查看|显示|了解|解释|今天|现在|我的任务|我负责的(?:项目|任务)",
+        r"请问|帮我|我想|列出|看看|查看|显示|了解|解释|分析|评估|整理|生成|检查|查询|今天|现在|我的任务|我负责的(?:项目|任务)",
         "",
         unnamed,
     )
+    unnamed = re.sub(r"^\s*(?:项目|任务)(?=为什么|为何)", "", unnamed)
     return bool(
         re.search(
-            r"[\u4e00-\u9fff]{2,}(?:(?:项目|任务)(?:的)?(?:工作重点|本周重点|优先事项|优先级|待办|进展|排期)"
+            r"[\u4e00-\u9fff]{2,}(?:(?:项目|任务)(?:里|中|下)?(?:的)?(?:有哪些|有哪几[项个]?|哪些|有什么|有何|当前)?(?:工作重点|本周重点|优先事项|优先级|待办|进展|排期|延期|逾期|延迟|阻塞|综合|财务|预算|成本|概况)"
             r"|(?:为什么|为何)(?:可能)?(?:延期|延误|延迟|阻塞))",
             unnamed,
         )
@@ -196,8 +217,40 @@ def schedule_delays(question):
     return delays if 1 <= len(delays) <= 3 and all(1 <= value <= 365 for value in delays) else []
 
 
+def routing_question(raw):
+    """Meeting content is evidence, never a second routing instruction or scope selector."""
+    marker = MEETING.search(raw)
+    if marker:
+        boundary = re.search(r"[:：\n。]", raw[marker.end() :])
+        if boundary:
+            raw = raw[: marker.end() + boundary.start()]
+    return normalize(raw)
+
+
+def task_filter_for(question) -> TaskFilter:
+    if "逾期" in question:
+        return "overdue"
+    if re.search(r"延期|延迟|滞后", question):
+        return "delayed"
+    if re.search(r"阻塞|受阻", question):
+        return "blocked"
+    return "attention"
+
+
+def schedule_parts(question):
+    counts = list(WORKDAYS.finditer(question))
+    if len(counts) == 1:
+        suffix = question[counts[0].end() :]
+        clause = re.fullmatch(r"\s*[,;]\s*(.+)", suffix)
+        if clause and re.search(r"锁定|固定|保持|不动|不变|不得调整|不能移动|不可移动", clause[1]):
+            return question[: counts[0].end()], clause[1].rstrip("。.!！?？")
+    return question, None
+
+
 def plan_question(db, user, payload: PlanRequest):
-    question = normalize(payload.question)
+    question = routing_question(payload.question)
+    full_question = question
+    question, schedule_constraint = schedule_parts(question)
     project_targets, task_targets = visible_targets(db, user)
     project = project_targets.get(payload.project_id)
     task = task_targets.get(payload.task_id)
@@ -209,6 +262,11 @@ def plan_question(db, user, payload: PlanRequest):
     groups = mention_groups(question, [*project_targets.values(), *task_targets.values()])
     remaining = without_mentions(question, groups)
     found = [scenario for scenario, pattern in INTENTS.items() if re.search(pattern, remaining)]
+    # A task filter inside a report or explanation is not another requested operation.
+    if len(found) > 1 and "priorities" in found and not re.search(PRIORITIES, remaining):
+        found.remove("priorities")
+    if "assessment" in found and "finance" in found:
+        found.remove("assessment" if PORTFOLIO.search(remaining) else "finance")
     if (
         "explain" in found
         and "schedule" in found
@@ -218,8 +276,21 @@ def plan_question(db, user, payload: PlanRequest):
     scenario = found[0] if len(found) == 1 else None
     limit = limit_for(remaining)
     mine_only = scenario == "priorities" and bool(MINE.search(remaining))
+    task_filter = task_filter_for(remaining) if scenario == "priorities" else "attention"
+    if task_filter != "attention" and not LIMIT.search(remaining):
+        limit = MAX_LIMIT
 
-    def respond(message, target=None, choices=(), *, ready=False, start=None, end=None, delays=()):
+    def respond(
+        message,
+        target=None,
+        choices=(),
+        *,
+        ready=False,
+        start=None,
+        end=None,
+        delays=(),
+        schedule_instruction=None,
+    ):
         options = sorted(
             set(choices), key=lambda item: (item.project_name, item.kind, item.code, item.id)
         )
@@ -233,18 +304,46 @@ def plan_question(db, user, payload: PlanRequest):
             "message": message,
             "limit": limit,
             "mine_only": mine_only,
+            "task_filter": task_filter,
             "start_date": start.isoformat() if start else None,
             "end_date": end.isoformat() if end else None,
             "delays": list(delays),
+            "schedule_instruction": schedule_instruction,
         }
 
     if not scenario:
         message = (
             "检测到多个操作，请一次提出一种需求"
             if found
-            else "请选择工作重点、异常解释、周报、纪要更新、措施跟踪或排期比较"
+            else "请具体说想了解的项目情况或要整理的材料，例如查看延期任务、整理本周周报"
         )
         return respond(message, anchor)
+    if scenario == "priorities":
+        filter_terms = r"逾期|延期|延迟|滞后|阻塞|受阻"
+        polarity = re.sub(rf"有没有(?=(?:被)?(?:标记为)?(?:{filter_terms}))", "是否有", remaining)
+        if re.search(
+            rf"(?:未|不(?:是|属于)?|没有|非)(?:被)?(?:标记为)?(?:{filter_terms})"
+            rf"|(?:排除|不含|不要|除了|除去).{{0,8}}(?:{filter_terms})",
+            polarity,
+        ):
+            return respond(
+                "这次包含排除或未发生条件，暂不能按此条件直接查询，请明确要查看的任务状态", anchor
+            )
+        filters = (
+            bool(re.search(r"逾期", remaining)),
+            bool(re.search(r"延期|延迟|滞后", remaining)),
+            bool(re.search(r"阻塞|受阻", remaining)),
+        )
+        if sum(filters) > 1:
+            return respond(
+                "这次包含多种任务条件，暂不支持混合筛选，请分别查询延期、逾期或阻塞任务", anchor
+            )
+        if task_filter != "attention" and re.search(
+            r"上周|上月|去年|历史|曾经|已完成|已验证", remaining
+        ):
+            return respond(
+                "当前任务查询按最新状态判断；历史时段或已完成任务请明确要核对的记录", anchor
+            )
     choices = [anchor] if anchor else list(project_targets.values())
     if unresolved_reference(question, groups, remaining):
         return respond("未能确认所指项目或任务，请使用当前可见的完整名称或编号", anchor)
@@ -287,10 +386,39 @@ def plan_question(db, user, payload: PlanRequest):
         elif not task:
             target = project_targets[next(iter(common_projects))]
 
+    if scenario == "settings":
+        if user.role not in MANAGERS:
+            return respond("AI 设置由有权限的项目管理人员维护", target)
+        if task:
+            return respond("请从项目助手或项目页面打开 AI 设置", target)
+        return respond("打开组织共享模型与分析提示词设置", target, ready=True)
+
+    if scenario in {"assessment", "finance"}:
+        if user.role not in MANAGERS:
+            return respond("项目综合评估需要项目管理权限", target)
+        if task or target and target.kind == "task":
+            return respond("综合评估以整个项目为范围，请从对应项目页面继续", target)
+        if scenario == "finance" and target:
+            if PORTFOLIO.search(remaining):
+                return respond("组合财务需要全部可见项目范围，请先切换范围后继续", target)
+            # A project budget question stays in that project, never the portfolio API.
+            scenario = "assessment"
+        elif scenario == "finance":
+            if user.role not in {"admin", "cmc_lead"}:
+                return respond("组合财务需要组织项目管理权限")
+            if not PORTFOLIO.search(remaining):
+                return respond("请指定项目，或明确查询全部可见项目的组合财务", choices=choices)
+            return respond("查看全部可见项目的组合财务", ready=True)
+
     if not target and (scenario != "priorities" or DEICTIC.search(remaining)):
         return respond("请选择要分析的项目或任务", choices=choices)
 
     if scenario == "schedule":
+        if target and any(
+            not any(item.project_id == target.project_id for item in matches)
+            for _, matches in mention_groups(full_question, list(project_targets.values()))
+        ):
+            return respond("固定节点的范围须属于当前项目，请核对项目名称", target)
         if user.role not in MANAGERS:
             return respond("排期比较需要项目管理权限", target)
         if not target or target.kind != "task":
@@ -308,6 +436,18 @@ def plan_question(db, user, payload: PlanRequest):
         ):
             return respond("请由当前项目负责人比较排期", target)
         delays = schedule_delays(remaining)
+        if schedule_constraint:
+            if len(delays) != 1:
+                return respond("固定节点推演请给出一个明确的顺延工作日数", target)
+            instruction = f"当前任务顺延{delays[0]}个工作日，{schedule_constraint}"
+            if len(instruction) > 800:
+                return respond("固定节点要求较长，请缩短为当前任务的一个里程碑约束", target)
+            return respond(
+                "将按完整固定节点要求预览排期，确认前不修改任务",
+                target,
+                ready=True,
+                schedule_instruction=instruction,
+            )
         if not delays:
             return respond("请给出 1 至 3 个明确的顺延工作日数，可在排期面板中设置固定节点", target)
         return respond("已找到任务和工作日方案，请核对后比较", target, ready=True, delays=delays)

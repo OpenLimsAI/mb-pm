@@ -10,6 +10,7 @@ import { useDataStore } from '../../store/data'
 import { users } from '../../mock'
 
 vi.mock('../../api/client', async original => ({ ...await original<typeof import('../../api/client')>(), api: { get: vi.fn(), post: vi.fn() } }))
+vi.mock('../../api/pmAI', () => ({ pmAI: { context: vi.fn().mockResolvedValue(null), list: vi.fn().mockResolvedValue({ items: [], total: 0 }) } }))
 vi.mock('../../api/ai', async original => ({ ...await original<typeof import('../../api/ai')>(), getAIStatus: vi.fn() }))
 vi.mock('../../api/projectAIWork', () => ({ getProjectAnalysis: vi.fn(), getReportActions: vi.fn(), listAnalysisJobs: vi.fn(), searchProjectAnalyses: vi.fn() }))
 
@@ -33,7 +34,7 @@ test('核对报告保存后留在综合评估并直接打开已保存报告，�
   await waitFor(() => expect(save).toBeEnabled())
   fireEvent.click(save)
   expect(await screen.findByText('刚刚保存的完整报告')).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: '综合评估' })).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.getByRole('heading', { name: '项目综合评估' })).toBeInTheDocument()
   await waitFor(() => expect(screen.queryByRole('region', { name: '核对逾期任务报告' })).not.toBeInTheDocument())
   await waitFor(() => expect(getProjectAnalysis).toHaveBeenCalledWith('P1', 'saved-report'))
   expect(api.post).toHaveBeenCalledTimes(1)

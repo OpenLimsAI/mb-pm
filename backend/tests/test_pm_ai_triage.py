@@ -157,6 +157,7 @@ def test_triage_excludes_inactive_projects_and_unremarkable_backlog(admin_user, 
         "total_candidates": 0,
         "limit": 5,
         "mine_only": False,
+        "task_filter": "attention",
     }
 
 
@@ -195,3 +196,69 @@ def test_triage_and_context_share_milestone_completion_and_overdue_rules(
 def test_triage_rejects_invalid_limits(limit):
     with pytest.raises(ValidationError):
         TriageRequest(limit=limit)
+
+
+def test_task_filters_distinguish_overdue_delayed_and_blocked(admin_user, project_factory):
+    pid = project_factory(admin_user)
+    with SessionLocal.begin() as db:
+        overdue = set_task(db, pid, 1, -2, "进行中", progress=20)
+        delayed = set_task(db, pid, 2, 10, "延迟", progress=20)
+        blocked = set_task(db, pid, 3, 10, "阻塞", progress=20)
+        near = set_task(db, pid, 4, 2, "进行中", progress=20)
+        completed = set_task(db, pid, 5, -4, "已完成", progress=100)
+        full_progress = set_task(db, pid, 6, -3, "进行中", progress=100)
+        milestone = set_task(db, pid, 7, -1, "进行中", progress=100, is_milestone=True)
+    with SessionLocal() as db:
+        user = db.get(User, admin_user)
+        results = {
+            kind: build_triage(
+                db, user, TriageRequest(project_ids=[pid], limit=20, task_filter=kind)
+            )
+            for kind in ("attention", "overdue", "delayed", "blocked")
+        }
+
+    def ids(kind):
+        return {row["task_id"] for row in results[kind]["items"]}
+
+    assert ids("overdue") == {overdue, milestone}
+    assert ids("delayed") == {overdue, delayed, milestone}
+    assert ids("blocked") == {blocked}
+    assert ids("attention") == {overdue, delayed, blocked, near, milestone}
+    assert all(completed not in ids(kind) and full_progress not in ids(kind) for kind in results)
+    assert all(value["task_filter"] == kind for kind, value in results.items())
+
+
+def test_filtered_queries_still_enforce_task_visibility(admin_user, iam_user, project_factory):
+    uid = iam_user("filter-member", "rd")
+    pid = project_factory(admin_user, member_ids=(uid,))
+    with SessionLocal.begin() as db:
+        own = set_task(db, pid, 1, -2, "进行中", owner_id=uid)
+        private = set_task(db, pid, 2, -3, "阻塞", owner_id=admin_user)
+    with SessionLocal() as db:
+        member = db.get(User, uid)
+        result = build_triage(db, member, TriageRequest(project_ids=[pid], task_filter="overdue"))
+        assert [row["task_id"] for row in result["items"]] == [own]
+        with pytest.raises(HTTPException) as denied:
+            build_triage(db, member, TriageRequest(task_ids=[private], task_filter="overdue"))
+        assert denied.value.status_code == 404
+
+
+def test_explicit_filtered_tasks_are_not_hidden_by_project_activity_status(
+    admin_user, project_factory
+):
+    pid = project_factory(admin_user)
+    with SessionLocal.begin() as db:
+        db.get(Project, pid).status = "暂停"
+        overdue = set_task(db, pid, 1, -2, "进行中")
+        set_task(db, pid, 2, 10)
+    with SessionLocal() as db:
+        actor = db.get(User, admin_user)
+        assert not build_triage(db, actor, TriageRequest(project_ids=[pid]))["items"]
+        result = build_triage(db, actor, TriageRequest(project_ids=[pid], task_filter="overdue"))
+        assert [item["task_id"] for item in result["items"]] == [overdue]
+
+
+@pytest.mark.parametrize("kind", ["all", "", None, 1, True])
+def test_triage_rejects_unknown_filters(kind):
+    with pytest.raises(ValidationError):
+        TriageRequest(task_filter=kind)

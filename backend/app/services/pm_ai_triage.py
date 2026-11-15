@@ -1,7 +1,7 @@
 """Deterministic work priorities from tasks the current user can see."""
 
 from datetime import date, timedelta
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import quote
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -15,6 +15,7 @@ from app.services.task_deadlines import is_overdue, overdue_clause
 
 DEADLINE_HORIZON_DAYS = 7
 ScopeId = Annotated[str, Field(min_length=1, max_length=64)]
+TaskFilter = Literal["attention", "overdue", "delayed", "blocked"]
 
 
 class TriageRequest(BaseModel):
@@ -24,6 +25,10 @@ class TriageRequest(BaseModel):
     task_ids: list[ScopeId] = Field(default_factory=list, max_length=100)
     limit: int = Field(default=5, strict=True, ge=1, le=20)
     mine_only: bool = False
+    task_filter: TaskFilter = Field(
+        default="attention",
+        description="attention 为活跃项目重点；overdue 为当前逾期；delayed 包含标记延迟及逾期；blocked 仅阻塞任务",
+    )
 
 
 def build_triage(db: Session, user: User, payload: TriageRequest) -> dict:
@@ -35,6 +40,12 @@ def build_triage(db: Session, user: User, payload: TriageRequest) -> dict:
     near_deadline = (Task.planned_end >= today) & (
         Task.planned_end <= today + timedelta(days=DEADLINE_HORIZON_DAYS)
     )
+    condition = {
+        "attention": or_(blocked, overdue_or_delayed, near_deadline),
+        "overdue": overdue_clause(today),
+        "delayed": overdue_or_delayed,
+        "blocked": blocked,
+    }[payload.task_filter]
 
     candidates = (
         db.query(
@@ -56,12 +67,13 @@ def build_triage(db: Session, user: User, payload: TriageRequest) -> dict:
         .join(User, Task.owner_id == User.id)
         .filter(
             Project.id.in_(project_ids),
-            Project.status == "活跃",
             Task.id.in_(task_ids),
             Task.status.notin_(DONE),
-            or_(blocked, overdue_or_delayed, near_deadline),
+            condition,
         )
     )
+    if payload.task_filter == "attention":
+        candidates = candidates.filter(Project.status == "活跃")
     if payload.mine_only:
         candidates = candidates.filter(_own_task_clause(user))
     rank = case(
@@ -117,4 +129,5 @@ def build_triage(db: Session, user: User, payload: TriageRequest) -> dict:
         "total_candidates": rows[0].total_candidates if rows else 0,
         "limit": payload.limit,
         "mine_only": payload.mine_only,
+        "task_filter": payload.task_filter,
     }
