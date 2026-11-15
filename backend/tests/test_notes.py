@@ -4,14 +4,15 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 import test_solutions
-from sqlalchemy import create_engine, inspect, select, text
+from sqlalchemy import create_engine, inspect, select, text, update
 
 from app.api.v1 import notes
-from app.models.note import PersonalNote
+from app.models.note import NoteWisdomSync, PersonalNote
 from app.services import password_policy, solution_knowledge
 
 solution_client = test_solutions.solution_client
@@ -253,6 +254,7 @@ def test_existing_kb_identity_contract_remains_usable_without_portal_pin(note_cl
         ("put", "/{id}", "save"),
         ("post", "/{id}/trash", {"revision": 1}),
         ("post", "/{id}/restore", {"revision": 1}),
+        ("post", "/{id}/purge", {"revision": 1}),
         ("post", "/{id}/wisdom", {"revision": 1, "enabled": True}),
     ],
 )
@@ -304,6 +306,7 @@ def test_owner_and_issuer_isolation(note_client):
         ("put", "", save_body(row)),
         ("post", "/trash", {"revision": 1}),
         ("post", "/restore", {"revision": 1}),
+        ("post", "/purge", {"revision": 1}),
     ]:
         assert (
             getattr(f.client, method)(f"{PREFIX}/{row['id']}{suffix}", json=payload).status_code
@@ -484,6 +487,159 @@ def test_counts_require_authenticated_matching_page_identity(note_client):
     f.login()
     f.client.cookies.clear()
     assert f.client.get(f"{PREFIX}/counts").status_code == 401
+
+
+def test_purge_only_removes_trashed_current_revision_and_updates_counts(note_client):
+    f = note_client
+    note = create(f, source_app="knowledge")
+    endpoint = f"{PREFIX}/{note['id']}/purge"
+    response = f.client.post(endpoint, json={"revision": note["revision"]})
+    assert response.status_code == 409
+    assert response.json()["detail"] == "请先将笔记移至回收站"
+    trashed = f.client.post(
+        f"{PREFIX}/{note['id']}/trash", json={"revision": note["revision"]}
+    ).json()
+    assert f.client.post(endpoint, json={"revision": note["revision"]}).status_code == 409
+    assert f.client.get(PREFIX, params={"trashed": True}).json()["total"] == 1
+    assert f.client.get(f"{PREFIX}/counts").json()["trash"] == 1
+    response = f.client.post(endpoint, json={"revision": trashed["revision"]})
+    assert response.status_code == 204 and response.content == b""
+    assert f.db.get(PersonalNote, note["id"]) is None
+    assert f.client.get(PREFIX, params={"trashed": True}).json()["total"] == 0
+    assert f.client.get(f"{PREFIX}/counts").json() == dict(
+        all=0, trash=0, solutions=0, knowledge=0, information=0, manual=0
+    )
+    assert f.client.get(f"{PREFIX}/{note['id']}").status_code == 404
+    assert f.client.post(endpoint, json={"revision": trashed["revision"]}).status_code == 404
+    assert (
+        f.client.post(
+            f"{PREFIX}/{note['id']}/restore", json={"revision": trashed["revision"]}
+        ).status_code
+        == 404
+    )
+
+
+def test_purge_keeps_notes_of_other_issuer(note_client):
+    f = note_client
+    note = create(f)
+    trashed = f.client.post(f"{PREFIX}/{note['id']}/trash", json={"revision": 1}).json()
+    stored = f.db.get(PersonalNote, note["id"])
+    stored.issuer = "https://another-issuer.example"
+    f.db.commit()
+    assert (
+        f.client.post(
+            f"{PREFIX}/{note['id']}/purge", json={"revision": trashed["revision"]}
+        ).status_code
+        == 404
+    )
+    assert f.db.get(PersonalNote, note["id"]).content == note["content"]
+
+
+@pytest.mark.parametrize(
+    "denial", ["anonymous", "origin", "missing-origin", "identity", "password"]
+)
+def test_purge_requires_session_origin_and_current_identity(note_client, denial):
+    f = note_client
+    note = create(f)
+    trashed = f.client.post(f"{PREFIX}/{note['id']}/trash", json={"revision": 1}).json()
+    expected = 403
+    if denial == "anonymous":
+        f.client.cookies.clear()
+        expected = 401
+    elif denial == "origin":
+        f.client.headers["Origin"] = "https://other.example"
+    elif denial == "missing-origin":
+        f.client.headers.pop("Origin")
+    elif denial == "identity":
+        f.client.headers.pop("X-Notes-Portal-Identity")
+    else:
+        password_policy.require_change(f.db, "author", "reset")
+        f.db.commit()
+    response = f.client.post(f"{PREFIX}/{note['id']}/purge", json={"revision": trashed["revision"]})
+    assert response.status_code == expected
+    assert f.db.get(PersonalNote, note["id"]).deleted_at is not None
+
+
+@pytest.mark.parametrize("field", ["published_path", "operation"])
+def test_purge_retains_outbox_until_projection_reconciled(note_client, field):
+    f = note_client
+    note = create(f)
+    trashed = f.client.post(f"{PREFIX}/{note['id']}/trash", json={"revision": 1}).json()
+    mirror = NoteWisdomSync(
+        note_id=note["id"], enabled=True, desired_revision=trashed["revision"], status="pending"
+    )
+    setattr(
+        mirror, field, "wisdom/pending.md" if field == "published_path" else '{"task_id":"pending"}'
+    )
+    f.db.add(mirror)
+    f.db.commit()
+    endpoint = f"{PREFIX}/{note['id']}/purge"
+    response = f.client.post(endpoint, json={"revision": trashed["revision"]})
+    assert response.status_code == 409
+    assert response.json()["detail"] == "知识库检索副本尚未清理完成，请稍后重试彻底删除"
+    assert f.db.get(PersonalNote, note["id"]) is not None
+    assert getattr(f.db.get(NoteWisdomSync, note["id"]), field)
+    # Pending status alone is harmless after reconciliation: no projection or
+    # durable operation remains, and a trashed note cannot start a new publish.
+    setattr(mirror, field, "")
+    f.db.commit()
+    assert f.client.post(endpoint, json={"revision": trashed["revision"]}).status_code == 204
+    assert f.db.get(PersonalNote, note["id"]) is None
+    assert f.db.get(NoteWisdomSync, note["id"]) is None
+
+
+def test_purge_compare_and_delete_preserves_concurrently_restored_note(note_client, monkeypatch):
+    f = note_client
+    note = create(f)
+    trashed = f.client.post(f"{PREFIX}/{note['id']}/trash", json={"revision": 1}).json()
+    get_note = notes.get_note
+
+    def restored_after_read(db, note_id, claims):
+        row = get_note(db, note_id, claims)
+        stale = SimpleNamespace(id=row.id, revision=row.revision, deleted_at=row.deleted_at)
+        db.execute(
+            update(PersonalNote)
+            .where(PersonalNote.id == note_id)
+            .values(revision=row.revision + 1, deleted_at=None)
+        )
+        db.commit()
+        return stale
+
+    monkeypatch.setattr(notes, "get_note", restored_after_read)
+    assert (
+        f.client.post(
+            f"{PREFIX}/{note['id']}/purge", json={"revision": trashed["revision"]}
+        ).status_code
+        == 409
+    )
+    stored = f.db.get(PersonalNote, note["id"])
+    assert stored.deleted_at is None and stored.content == note["content"]
+    assert f.client.get(PREFIX).json()["total"] == 1
+
+
+def test_purge_busy_postgres_worker_fails_without_waiting_or_loading_note():
+    from fastapi import HTTPException
+
+    class BusyWorkerSession:
+        rolled_back = False
+
+        def get_bind(self):
+            return SimpleNamespace(dialect=SimpleNamespace(name="postgresql"))
+
+        def scalar(self, statement, parameters):
+            assert str(statement) == "SELECT pg_try_advisory_xact_lock(:key)"
+            assert parameters == {"key": notes.note_sync.LOCK}
+            return False
+
+        def rollback(self):
+            self.rolled_back = True
+
+    db = BusyWorkerSession()
+    with pytest.raises(HTTPException) as error:
+        notes.purge("irrelevant", notes.NoteRevision(revision=1), db, {})
+    assert error.value.status_code == 409
+    assert error.value.detail == "知识库检索副本正在同步，请稍后重试彻底删除"
+    assert db.rolled_back
 
 
 def test_migration_independent_and_repeatable():

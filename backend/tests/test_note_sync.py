@@ -5,7 +5,7 @@ import test_notes
 from sqlalchemy import select
 from test_notes import PREFIX, create, save_body
 
-from app.models.note import NoteWisdomSync
+from app.models.note import NoteWisdomSync, PersonalNote
 from app.services import note_sync
 
 solution_client = test_notes.solution_client
@@ -217,3 +217,28 @@ def test_core_adapter_polls_status_before_result_and_traverses_pages(monkeypatch
     assert not core.poll(operation)
     assert calls == ["/v1/tasks/task-1"]
     assert core.find(operation) == "task-1"
+
+
+@pytest.mark.parametrize("lost_response", [False, True])
+def test_purge_waits_for_inflight_publish_and_removes_clean_outbox(sharing, lost_response):
+    f = sharing
+    core = Core()
+    core.fail_submit = lost_response
+    note = share(f, create(f))
+    drain(f, core, 1)
+    note = f.client.post(f"{PREFIX}/{note['id']}/trash", json={"revision": note["revision"]}).json()
+    endpoint = f"{PREFIX}/{note['id']}/purge"
+    response = f.client.post(endpoint, json={"revision": note["revision"]})
+    assert response.status_code == 409
+    assert f.db.get(NoteWisdomSync, note["id"]).operation
+    assert f.db.get(PersonalNote, note["id"]) is not None
+    # The original worker finishes/recovers its already-submitted publish, then
+    # deletes that exact projection. Purge must preserve all evidence until then.
+    drain(f, core)
+    assert [operation["action"] for operation in core.operations] == ["publish", "delete"]
+    assert not core.pages
+    assert f.client.post(endpoint, json={"revision": note["revision"]}).status_code == 204
+    assert f.db.get(NoteWisdomSync, note["id"]) is None
+    assert f.db.get(PersonalNote, note["id"]) is None
+    assert not note_sync.run_step(f.db, core)
+    assert not core.pages

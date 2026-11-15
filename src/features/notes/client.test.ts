@@ -81,7 +81,38 @@ describe('independent personal notes', () => {
     await api.trash(note)
     await api.restore(note)
     await api.share!(note, true)
-    expect(requests).toEqual(['GET', 'GET', 'GET', 'POST', 'PUT', 'POST', 'POST', 'POST'])
+    await api.purge!(note)
+    expect(requests).toEqual(['GET', 'GET', 'GET', 'POST', 'PUT', 'POST', 'POST', 'POST', 'POST'])
+  })
+
+  it('permanently deletes only a current trashed preview note and updates counts', async () => {
+    const client = createPreviewNotesClient('purge'), input = newNote({ title: '待删除', content: '个人记录' })
+    const note = await client.create(input.id, input)
+    await expect(client.purge!(note)).rejects.toThrow('其他页面')
+    const trashed = await client.trash(note)
+    await expect(client.purge!(note)).rejects.toThrow('其他页面')
+    const restored = await client.restore(trashed)
+    await expect(client.purge!(trashed)).rejects.toThrow('其他页面')
+    expect((await client.list()).total).toBe(1)
+    await client.purge!(await client.trash(restored))
+    expect((await client.list({ trashed: true })).total).toBe(0)
+    expect((await client.counts!()).trash).toBe(0)
+    await expect(client.get!(note.id)).rejects.toThrow('不存在')
+  })
+  it('sends only the revision on permanent deletion and shows safe synchronization conflicts', async () => {
+    const api = createPortalNotesApi('owner'), input = newNote({ title: '待删除', content: '正文' })
+    const note = { ...input, revision: 3, createdAt: '', updatedAt: '', deletedAt: '2026-11-15' }
+    server.use(http.post('*/api/v1/notes/:id/purge', async ({ request, params }) => {
+      expect(params.id).toBe(note.id)
+      expect(await request.json()).toEqual({ revision: 3 })
+      expect(request.headers.get('X-Notes-Portal-Identity')).toBe('owner')
+      return new HttpResponse(null, { status: 204 })
+    }))
+    await expect(api.purge!(note)).resolves.toBeUndefined()
+    server.use(http.post('*/api/v1/notes/:id/purge', () => HttpResponse.json({ detail: '知识库检索副本尚未清理完成，请稍后重试彻底删除' }, { status: 409 })))
+    await expect(api.purge!(note)).rejects.toThrow('知识库检索副本尚未清理完成')
+    server.use(http.post('*/api/v1/notes/:id/purge', () => HttpResponse.json({ detail: 'private arbitrary detail' }, { status: 409 })))
+    await expect(api.purge!(note)).rejects.toThrow('其他页面更新')
   })
   it('never sends an unbound portal request when the verified identity is missing', async () => {
     server.use(http.post('*/api/v1/notes', ({ request }) => {

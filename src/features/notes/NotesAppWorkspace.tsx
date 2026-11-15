@@ -9,6 +9,7 @@ import type { NotesClient, NoteSource, PersonalNote } from './client'
 import { newNote } from './draft'
 import type { NoteDraft } from './draft'
 import NoteEditor from './NoteEditor'
+import NotePurgeDialog from './NotePurgeDialog'
 import { useNoteCollection } from './useNoteCollection'
 import { useNoteCounts } from './useNoteCounts'
 import './notes.css'
@@ -23,10 +24,15 @@ export default function NotesAppWorkspace({ client, userName, acceptParentRefres
   const counts = useNoteCounts(client, collection.refreshVersion, collection.accessLost)
   const countId = useId()
   const countBadge = (key: keyof NonNullable<typeof counts>) => <span id={`${countId}-${key}`} className="pn-nav-count" title={counts ? `${counts[key].toLocaleString()} 条笔记` : '暂未取得数量'}>{counts ? counts[key].toLocaleString() : '—'}</span>
-  const { items, total, search, source, trashed, loading, error, notice, undo, busy, refresh, filter, move, share } = collection
+  const { items, total, search, source, trashed, loading, error, notice, undo, busy, refresh, filter, move, purge, share } = collection
   const [selection, setSelection] = useState<{ client: NotesClient; id: string; linked?: PersonalNote; referenced?: boolean } | null>(null)
   const [editing, setEditing] = useState<PersonalNote | NoteDraft | null>(null)
   const [detailOpen, setDetailOpen] = useState(false), [linkedError, setLinkedError] = useState('')
+  const [pendingPurge, setPendingPurge] = useState<{ client: NotesClient; note: PersonalNote } | null>(null)
+  const activeClient = useRef(client)
+  useEffect(() => { activeClient.current = client }, [client])
+  const [confirmationClient, setConfirmationClient] = useState(client)
+  if (confirmationClient !== client) { setConfirmationClient(client); setPendingPurge(null) }
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null)
   const reader = useRef<HTMLElement>(null)
   const editorState = useRef({ dirty: false, busy: false })
@@ -65,6 +71,9 @@ export default function NotesAppWorkspace({ client, userName, acceptParentRefres
     setEditing(null); setPendingAction(null); editorState.current = { dirty: false, busy: false }
     setSelection({ client, id: note.id, linked: note }); collection.setNotice('笔记已保存。'); refresh(); next?.()
   }
+  function requestPurge(note: PersonalNote) {
+    if (note.deletedAt && client.purge && !busy && !collection.accessLost) setPendingPurge({ client, note })
+  }
   const SelectedIcon = selected ? sourceIcons[selected.sourceApp] : NotebookPen
   const originUrl = selected && noteSourceUrl(selected.sourceUrl)
   return <section className={`pn-workspace pn-three-pane${detailOpen ? ' pn-detail-open' : ''}`} aria-label="我的笔记内容">
@@ -90,9 +99,9 @@ export default function NotesAppWorkspace({ client, userName, acceptParentRefres
         {error && <div className="pn-error" role="alert">{error}<button type="button" className="pn-button" onClick={refresh}>重试读取</button></div>}
         {linkedError && <p className="pn-error" role="alert">{linkedError}</p>}
         {!items.length && !loading && !error && <div className="pn-list-empty"><NotebookPen size={26} aria-hidden="true" /><h3>{search || source ? '没有匹配的笔记' : trashed ? '回收站为空' : '还没有笔记'}</h3><p>{search || source ? '试试调整关键词和来源筛选。' : trashed ? '移除的笔记会暂存在这里。' : '新建个人记录，或从阅读内容中保存摘录。'}</p></div>}
-        <ul className="pn-note-rows">{items.map(note => { const Icon = sourceIcons[note.sourceApp]; return <li key={note.id}><button type="button" className="pn-note-row" aria-label={`查看笔记：${note.title}`} aria-current={selected?.id === note.id && !editing ? 'true' : undefined} onClick={() => open(note)}>
+        <ul className="pn-note-rows">{items.map(note => { const Icon = sourceIcons[note.sourceApp]; return <li key={note.id} className={note.deletedAt ? 'pn-trashed-row' : undefined}><button type="button" className="pn-note-row" aria-label={`查看笔记：${note.title}`} aria-current={selected?.id === note.id && !editing ? 'true' : undefined} onClick={() => open(note)}>
           <span className="pn-row-icon"><Icon size={19} aria-hidden="true" /></span><span className="pn-row-copy"><span className="pn-row-title">{note.title}</span><span className="pn-row-excerpt">{excerpt(note.content)}</span><span className="pn-row-meta"><span className="pn-source-badge">{noteSourceNames[note.sourceApp]}</span><time dateTime={note.updatedAt}>{updatedAt(note)}</time></span></span>
-        </button></li> })}</ul>
+        </button>{note.deletedAt && <div className="pn-row-actions"><button type="button" className="pn-button pn-text-button" disabled={busy} aria-label={`恢复笔记：${note.title}`} onClick={() => { void move(note, true).then(saved => { if (saved) setSelection(null) }) }}><RotateCcw size={14} aria-hidden="true" />恢复</button>{client.purge && <button type="button" className="pn-button pn-text-button pn-danger" disabled={busy} aria-label={`彻底删除：${note.title}`} onClick={() => requestPurge(note)}><Trash2 size={14} aria-hidden="true" />彻底删除</button>}</div>}</li> })}</ul>
         {items.length < total && <button type="button" className="pn-button pn-load-more" disabled={loading} onClick={collection.loadMore}>加载更多笔记</button>}
       </div>
     </section>
@@ -100,7 +109,7 @@ export default function NotesAppWorkspace({ client, userName, acceptParentRefres
       <button type="button" className="pn-button pn-back-to-list" onClick={() => transition(() => setDetailOpen(false))}><ArrowLeft size={15} aria-hidden="true" />返回笔记列表</button>
       {pendingAction && <div className="pn-unsaved-banner" role="alert"><span>当前笔记有未保存的内容，请先保存或选择放弃更改。</span><div><button type="button" className="pn-button" onClick={() => setPendingAction(null)}>继续编辑</button><button type="button" className="pn-button" onClick={() => { const next = pendingAction; setPendingAction(null); setEditing(null); editorState.current = { dirty: false, busy: false }; next() }}>放弃更改并继续</button></div></div>}
       {editing ? <NoteEditor inline key={editing.id} client={client} draft={editing} existing={'revision' in editing ? editing : undefined} onStateChange={reportEditorState} onClose={() => transition(() => {})} onSaved={saved} /> : selected ? <>
-        <header className="pn-reader-toolbar"><span className="pn-reader-label"><SelectedIcon size={16} aria-hidden="true" />{noteSourceNames[selected.sourceApp]}</span><div className="pn-reader-actions">{selected.deletedAt ? <button type="button" className="pn-button" disabled={busy} onClick={() => { void move(selected, true).then(note => { if (note) setSelection(null) }) }}><RotateCcw size={15} aria-hidden="true" />恢复笔记</button> : <><button type="button" className="pn-button" onClick={() => setEditing(selected)}><PencilLine size={15} aria-hidden="true" />编辑笔记</button><button type="button" className="pn-button pn-reader-trash" disabled={busy} aria-label={`移至回收站：${selected.title}`} onClick={() => { void move(selected, false).then(note => { if (note) setSelection(null) }) }}><Trash2 size={15} aria-hidden="true" /></button></>}</div></header>
+        <header className="pn-reader-toolbar"><span className="pn-reader-label"><SelectedIcon size={16} aria-hidden="true" />{noteSourceNames[selected.sourceApp]}</span><div className="pn-reader-actions">{selected.deletedAt ? <><button type="button" className="pn-button" disabled={busy} onClick={() => { void move(selected, true).then(note => { if (note) setSelection(null) }) }}><RotateCcw size={15} aria-hidden="true" />恢复笔记</button>{client.purge && <button type="button" className="pn-button pn-danger" disabled={busy} onClick={() => requestPurge(selected)}><Trash2 size={15} aria-hidden="true" />彻底删除</button>}</> : <><button type="button" className="pn-button" onClick={() => setEditing(selected)}><PencilLine size={15} aria-hidden="true" />编辑笔记</button><button type="button" className="pn-button pn-reader-trash" disabled={busy} aria-label={`移至回收站：${selected.title}`} onClick={() => { void move(selected, false).then(note => { if (note) setSelection(null) }) }}><Trash2 size={15} aria-hidden="true" /></button></>}</div></header>
         <article ref={reader} className="pn-reader-scroll" aria-label={ownedSelection?.referenced ? '引用的笔记' : '笔记全文'}>
           <div className="pn-reader-paper"><h2>{selected.title}</h2><div className="pn-reader-meta"><time dateTime={selected.updatedAt}>更新于 {new Date(selected.updatedAt).toLocaleString('zh-CN')}</time><span>{selected.content.length.toLocaleString()} 字</span></div>
             {selected.deletedAt && <p className="pn-notice">这条笔记已移至回收站，恢复后可继续编辑。</p>}
@@ -111,5 +120,10 @@ export default function NotesAppWorkspace({ client, userName, acceptParentRefres
         <footer className="pn-reader-footer"><span><ShieldCheck size={13} aria-hidden="true" />{selected.wisdom?.status === 'synced' ? '已共享到知识库检索' : selected.wisdom?.status === 'pending' ? '检索副本同步中…' : selected.wisdom?.status === 'error' ? selected.wisdom.error : '仅本人可见'}</span>{client.share && !selected.deletedAt && <button type="button" className="pn-button pn-text-button" disabled={busy} onClick={() => { void share(selected) }}>{selected.wisdom?.enabled ? '撤下共享' : '共享到知识库检索'}</button>}</footer>
       </> : <div className="pn-reader-placeholder"><BookOpen size={38} aria-hidden="true" /><h2>让每一条思考都有自己的位置</h2><p>从左侧列表选择笔记，在这里阅读全文。</p><button type="button" className="pn-button pn-primary" onClick={create}><Plus size={15} aria-hidden="true" />写下第一条笔记</button></div>}
     </main>
+    {pendingPurge?.client === client && !collection.accessLost && <NotePurgeDialog title={pendingPurge.note.title} onClose={() => setPendingPurge(null)} onConfirm={async () => {
+      if (pendingPurge.client !== activeClient.current) return
+      const removed = await purge(pendingPurge.note)
+      if (removed && pendingPurge.client === activeClient.current) { setPendingPurge(null); setSelection(null); setDetailOpen(false) }
+    }} />}
   </section>
 }

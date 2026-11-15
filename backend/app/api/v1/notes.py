@@ -8,10 +8,10 @@ from typing import Literal
 from urllib.parse import urlsplit
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import delete, func, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -293,6 +293,50 @@ def restore(
     if not row.deleted_at:
         raise HTTPException(409, "笔记已恢复")
     return change(db, row, claims, payload.revision, {"deleted_at": None})
+
+
+@router.post("/{note_id}/purge", status_code=204)
+def purge(
+    note_id: str,
+    payload: NoteRevision,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(identity),
+):
+    """Remove a trashed note only after its durable search projection is clean."""
+    try:
+        # The worker holds the session-level form of this same lock across its
+        # commits and remote requests. A transaction lock prevents deletion while
+        # it can still publish a previously recorded operation, without waiting.
+        if db.get_bind().dialect.name == "postgresql" and not db.scalar(
+            text("SELECT pg_try_advisory_xact_lock(:key)"), {"key": note_sync.LOCK}
+        ):
+            raise HTTPException(409, "知识库检索副本正在同步，请稍后重试彻底删除")
+        row = get_note(db, note_id, claims)
+        if not row.deleted_at:
+            raise HTTPException(409, "请先将笔记移至回收站")
+        if row.revision != payload.revision:
+            raise HTTPException(409, "笔记已在其他页面更新，请刷新后重试")
+        mirror = db.get(NoteWisdomSync, row.id)
+        if mirror and (mirror.published_path or mirror.operation):
+            # An ambiguous in-flight publish must be reconciled by the existing
+            # worker. Keep its outbox and canonical note until that is complete.
+            raise HTTPException(409, "知识库检索副本尚未清理完成，请稍后重试彻底删除")
+        removed = db.execute(
+            delete(PersonalNote).where(
+                PersonalNote.id == row.id,
+                owned(claims),
+                PersonalNote.revision == payload.revision,
+                PersonalNote.deleted_at.is_not(None),
+            )
+        ).rowcount
+        if not removed:
+            raise HTTPException(409, "笔记已在其他页面更新，请刷新后重试")
+        db.execute(delete(NoteWisdomSync).where(NoteWisdomSync.note_id == note_id))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return Response(status_code=204)
 
 
 class NoteShare(NoteRevision):
