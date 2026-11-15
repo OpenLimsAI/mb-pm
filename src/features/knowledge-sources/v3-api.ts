@@ -1,4 +1,4 @@
-import axios from 'axios'
+import axios, { type AxiosProgressEvent } from 'axios'
 import { API_BASE, camelize, snakeize } from '../../api/client'
 import type { SourcePaper } from './api'
 
@@ -18,7 +18,7 @@ export function decodeKnowledgeV3<T>(data:unknown):T {
 export const knowledgeV3Get = <T,>(path: string, signal?: AbortSignal) => client.get(path, { signal }).then(r => decodeKnowledgeV3<T>(r.data))
 export const knowledgeV3Post = <T,>(path: string, body: unknown, signal?: AbortSignal) => client.post(path, snakeize(body), { signal }).then(r => decodeKnowledgeV3<T>(r.data))
 export const knowledgeV3Patch = <T,>(path: string, body: unknown, signal?: AbortSignal) => client.patch(path, snakeize(body), { signal }).then(r => decodeKnowledgeV3<T>(r.data))
-export const knowledgeV3Upload = <T,>(path: string, body: FormData, signal?: AbortSignal) => client.post(path, body, { signal }).then(r => decodeKnowledgeV3<T>(r.data))
+export const knowledgeV3Upload = <T,>(path: string, body: FormData, signal?: AbortSignal, onUploadProgress?: (event: AxiosProgressEvent) => void) => client.post(path, body, { signal, onUploadProgress }).then(r => decodeKnowledgeV3<T>(r.data))
 export async function knowledgeV3Download(path: string, body: unknown, filename: string) {
   const result = await client.post(path, snakeize(body), { responseType: 'blob' })
   const url = URL.createObjectURL(result.data)
