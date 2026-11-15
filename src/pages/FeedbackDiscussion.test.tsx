@@ -24,7 +24,7 @@ afterEach(() => {
   window.history.replaceState({}, '', '/')
 })
 async function discussion() {
-  await userEvent.click(await screen.findByRole('button', { name: /回复与进展/ }))
+  await userEvent.click(await screen.findByRole('button', { name: /^回复/ }))
   const dialog = await screen.findByRole('dialog', { name: '反馈详情' })
   await waitFor(() => expect(within(dialog).getByLabelText('回复内容')).toBeEnabled())
   return dialog
@@ -51,23 +51,23 @@ it('sends a plain reply without overwriting a newer status and updates the reply
   expect(within(dialog).getByText('修复同事')).toBeInTheDocument()
 })
 
-it('lets the fixer explain investigation and start processing in the same reply', async () => {
+it('lets any colleague explain the repair and mark it fixed in the same reply', async () => {
   let payload: Record<string, unknown> = {}
-  const activity = { ...responseActivity, kind: 'status', body: '已定位缓存失效逻辑，开始处理。', from_status: 'open', to_status: 'in_progress' }
+  const activity = { ...responseActivity, kind: 'status', body: '已修复缓存失效逻辑。', from_status: 'open', to_status: 'fixed' }
   server.use(
     http.get('*/api/v1/feedback/issue/activities', () => HttpResponse.json({ items: [], next_cursor: null })),
     http.post('*/api/v1/feedback/issue/replies', async ({ request }) => {
       payload = await request.json() as Record<string, unknown>
-      return HttpResponse.json({ feedback: { ...item, status: 'in_progress', reply_count: 1 }, activity }, { status: 201 })
+      return HttpResponse.json({ feedback: { ...item, status: 'fixed', reply_count: 1 }, activity }, { status: 201 })
     }),
   )
   mount()
   const dialog = await discussion()
   await userEvent.type(within(dialog).getByLabelText('回复内容'), activity.body)
-  await userEvent.selectOptions(within(dialog).getByLabelText('处理状态'), 'in_progress')
+  await userEvent.selectOptions(within(dialog).getByLabelText('处理状态'), 'fixed')
   await userEvent.click(within(dialog).getByRole('button', { name: '发送回复' }))
   expect(await within(dialog).findByText(activity.body)).toBeInTheDocument()
-  expect(payload.status).toBe('in_progress')
+  expect(payload.status).toBe('fixed')
   expect(within(dialog).getByText('修复同事')).toBeInTheDocument()
 })
 
@@ -97,7 +97,7 @@ it('shows a failed history load, prevents blind submission and allows retry', as
   let loads = 0
   server.use(http.get('*/api/v1/feedback/issue/activities', () => ++loads === 1 ? HttpResponse.json({ detail: '记录读取失败' }, { status: 503 }) : HttpResponse.json({ items: [responseActivity], next_cursor: null })))
   mount()
-  await userEvent.click(await screen.findByRole('button', { name: /回复与进展/ }))
+  await userEvent.click(await screen.findByRole('button', { name: /^回复/ }))
   const dialog = await screen.findByRole('dialog', { name: '反馈详情' })
   expect(await within(dialog).findByRole('alert')).toHaveTextContent('记录读取失败')
   expect(within(dialog).getByRole('button', { name: '发送回复' })).toBeDisabled()
@@ -117,7 +117,7 @@ it('protects the unsent reply and returns focus after explicit discard', async (
   await userEvent.keyboard('{Escape}')
   await userEvent.click(within(dialog).getByRole('button', { name: /放弃并关闭/ }))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-  expect(screen.getByRole('button', { name: /回复与进展/ })).toHaveFocus()
+  expect(screen.getByRole('button', { name: /^回复/ })).toHaveFocus()
 })
 
 it('loads earlier activity without losing the recent replies', async () => {
@@ -134,8 +134,8 @@ it('loads earlier activity without losing the recent replies', async () => {
 it('replays the original reply and state payload after refreshing ambiguous network results', async () => {
   const requests: Record<string, unknown>[] = []
   let reads = 0
-  const activity = { ...responseActivity, kind: 'status', from_status: 'open', to_status: 'in_progress' }
-  const fixed = { ...item, status: 'in_progress', reply_count: 1 }
+  const activity = { ...responseActivity, kind: 'status', from_status: 'open', to_status: 'fixed' }
+  const fixed = { ...item, status: 'fixed', reply_count: 1 }
   server.use(
     http.get('*/api/v1/feedback/issue/activities', () => HttpResponse.json(++reads === 1 ? { items: [], next_cursor: null, feedback: item } : { items: [activity], next_cursor: null, feedback: fixed })),
     http.post('*/api/v1/feedback/issue/replies', async ({ request }) => {
@@ -146,7 +146,7 @@ it('replays the original reply and state payload after refreshing ambiguous netw
   mount()
   const dialog = await discussion()
   await userEvent.type(within(dialog).getByLabelText('回复内容'), activity.body)
-  await userEvent.selectOptions(within(dialog).getByLabelText('处理状态'), 'in_progress')
+  await userEvent.selectOptions(within(dialog).getByLabelText('处理状态'), 'fixed')
   await userEvent.click(within(dialog).getByRole('button', { name: '发送回复' }))
   expect(await within(dialog).findByRole('alert')).toHaveTextContent('响应中断')
   await userEvent.click(within(dialog).getByRole('button', { name: '刷新处理记录' }))
@@ -157,29 +157,22 @@ it('replays the original reply and state payload after refreshing ambiguous netw
   await waitFor(() => expect(within(dialog).getByLabelText('回复内容')).toHaveValue(''))
   expect(requests).toHaveLength(2)
   expect(requests[0]).toEqual(requests[1])
-  expect(requests[1].status).toBe('in_progress')
+  expect(requests[1].status).toBe('fixed')
   expect(within(dialog).getAllByText(activity.body)).toHaveLength(1)
 })
 
-it('filters by server ownership and reply count, sorts activity, and counts processing separately', async () => {
-  const own = { ...item, id: 'own', description: '我提交的反馈', status: 'in_progress', reply_count: 2, last_activity_at: '2026-11-04T12:00:00Z' }
-  const other = { ...item, id: 'other', description: '其他人的未回复反馈', is_mine: false, can_delete: true, created_at: '2026-11-02T12:00:00Z' }
+it('keeps ownership filtering while showing only the two simple current statuses', async () => {
+  const own = { ...item, id: 'own', description: '我提交的反馈', status: 'in_progress', reply_count: 2 }
+  const other = { ...item, id: 'other', description: '其他人的反馈', is_mine: false, created_at: '2026-11-02T12:00:00Z' }
   mount([own, other])
   expect(await screen.findByText(own.description)).toBeInTheDocument()
-  expect(screen.getAllByRole('article')[0]).toHaveTextContent(other.description)
-  const summary = screen.getByRole('region', { name: '反馈概况' })
-  const processing = within(summary).getByText('处理中').parentElement!
-  const resolved = within(summary).getByText('已修复').parentElement!
-  expect(processing).toHaveTextContent('1')
-  expect(resolved).toHaveTextContent('0')
-  await userEvent.selectOptions(screen.getByLabelText('反馈排序'), 'active')
-  expect(screen.getAllByRole('article')[0]).toHaveTextContent(own.description)
+  const row = screen.getByText(own.description).closest('article')!
+  expect(within(row).getByText('待处理')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '处理工作台' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('option', { name: '待验证' })).not.toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: '我的反馈' }))
   expect(screen.queryByText(other.description)).not.toBeInTheDocument()
   expect(screen.getByText(own.description)).toBeInTheDocument()
-  await userEvent.click(screen.getByRole('button', { name: '未回复' }))
-  expect(screen.queryByText(own.description)).not.toBeInTheDocument()
-  expect(screen.getByText(other.description)).toBeInTheDocument()
 })
 
 

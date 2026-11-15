@@ -360,14 +360,14 @@ def test_discussion_reply_status_history_and_ownership(wall):
     )
     assert result.status_code == 201, result.text
     body = result.json()
-    assert body["feedback"]["status"] == "in_progress"
+    assert body["feedback"]["status"] == "open"
     assert body["feedback"]["reply_count"] == 1
     activity = body["activity"]
-    assert activity["kind"] == "status" and activity["body"] == "已复现，正在排查"
+    assert activity["kind"] == "comment" and activity["body"] == "已复现，正在排查"
     assert (activity["author_name"], activity["from_status"], activity["to_status"]) == (
         "REPAIRER",
-        "open",
-        "in_progress",
+        None,
+        None,
     )
     assert "author_id" not in activity and "client_request_id" not in activity
     result = client.patch(url, json={"status": "fixed", "note": " 已修复并验证 "})
@@ -388,16 +388,14 @@ def test_discussion_reply_status_history_and_ownership(wall):
     listed = client.get(base).json()[0]
     assert listed["reply_count"] == 3
     assert listed["last_activity_at"] >= listed["created_at"]
-    assert (
-        client.patch(url, json={"status": "fixed", "note": "相同状态不是新处理"}).status_code == 409
-    )
+    assert client.patch(url, json={"status": "fixed", "note": "补充修复说明"}).status_code == 200
     assert client.patch(url, json={"status": "fixed"}).status_code == 200
-    assert len(client.get(url + "/activities").json()["items"]) == 3
+    assert len(client.get(url + "/activities").json()["items"]) == 4
     assert client.patch(url, json={"status": "open"}).json()["status"] == "open"
     events = client.get(url + "/activities").json()["items"]
-    assert len(events) == 4 and events[-1]["body"] == ""
+    assert len(events) == 5 and events[-1]["body"] == ""
     assert (events[-1]["from_status"], events[-1]["to_status"]) == ("fixed", "open")
-    assert client.get(base).json()[0]["reply_count"] == 3
+    assert client.get(base).json()[0]["reply_count"] == 4
 
 
 def test_discussion_validation_identity_and_tenant_boundaries(wall, monkeypatch):

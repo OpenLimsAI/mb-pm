@@ -33,7 +33,7 @@ afterEach(() => {
 })
 function mount(search = '') { window.history.replaceState({}, '', '/feedback' + search); render(<App />) }
 async function openDetails() {
-  await userEvent.click(await screen.findByRole('button', { name: /回复与进展/ }))
+  await userEvent.click(await screen.findByRole('button', { name: /^回复/ }))
   const dialog = await screen.findByRole('dialog', { name: '反馈详情' })
   await waitFor(() => expect(within(dialog).getByLabelText('回复内容')).toBeEnabled())
   return dialog
@@ -65,38 +65,78 @@ it('keeps a freshly loaded deep link and read state when an older list snapshot 
   mount('?feedback=FB-0123')
   const dialog = await screen.findByRole('dialog', { name: '反馈详情' })
   expect(within(dialog).getByText(item.description)).toBeInTheDocument()
-  await waitFor(() => expect(screen.getByRole('button', { name: '通知中心' })).toBeInTheDocument())
+  await waitFor(() => expect(screen.getByRole('button', { name: '通知' })).toBeInTheDocument())
   completeList?.()
   expect(await screen.findByText('其他列表反馈')).toBeInTheDocument()
   expect(within(dialog).getByText(item.description)).toBeInTheDocument()
   expect(within(dialog).queryByText('迟到列表中的旧版本说明')).not.toBeInTheDocument()
-  expect(within(dialog).getByRole('region', { name: '原始反馈' })).toHaveTextContent('处理中')
+  expect(within(dialog).getByRole('region', { name: '原始反馈' })).toHaveTextContent('待处理')
   const row = screen.getByText(item.description, { selector: 'article > p' }).closest('article')!
   expect(within(row).queryByText('1 条未读')).not.toBeInTheDocument()
 })
 
-it('updates same-problem votes and follows only after successful idempotent enabled requests', async () => {
+it('lets a colleague repair and reopen a listed issue without a management role or opening details', async () => {
   const requests: unknown[] = []
+  const ordinary = { ...item, can_manage: false, can_edit: false, can_delete: false, is_mine: false }
   server.use(
-    http.put('*/api/v1/feedback/issue-canonical/vote', async ({ request }) => { requests.push(await request.json()); return HttpResponse.json({ ...item, vote_count: 3, has_voted: true }) }),
-    http.put('*/api/v1/feedback/issue-canonical/follow', async ({ request }) => { requests.push(await request.json()); return HttpResponse.json({ ...item, vote_count: 3, has_voted: true, is_following: true }) }),
+    http.get('*/api/v1/feedback', () => HttpResponse.json([ordinary])),
+    http.patch('*/api/v1/feedback/issue-canonical', async ({ request }) => {
+      const payload = await request.json() as { status: string }; requests.push(payload)
+      return HttpResponse.json({ ...ordinary, status: payload.status, revision: requests.length + 4 })
+    }),
   )
   mount()
-  await userEvent.click(await screen.findByRole('button', { name: '有同样问题 2' }))
-  expect(await screen.findByRole('button', { name: '有同样问题 3', pressed: true })).toBeInTheDocument()
-  await userEvent.click(screen.getByRole('button', { name: '关注反馈' }))
-  expect(await screen.findByRole('button', { name: '已关注', pressed: true })).toBeInTheDocument()
-  expect(requests).toEqual([{ enabled: true }, { enabled: true }])
-  await userEvent.click(screen.getByRole('button', { name: '我关注的' }))
-  expect(screen.getByText(item.description)).toBeInTheDocument()
+  await userEvent.click(await screen.findByRole('button', { name: '标记已修复' }))
+  expect(await screen.findByRole('button', { name: '重新打开' })).toBeInTheDocument()
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '删除反馈' })).not.toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: '重新打开' }))
+  expect(await screen.findByRole('button', { name: '标记已修复' })).toBeInTheDocument()
+  expect(requests).toEqual([{ status: 'fixed' }, { status: 'open' }])
 })
 
-it('preserves the impact count when a vote fails', async () => {
-  server.use(http.put('*/api/v1/feedback/issue-canonical/vote', () => HttpResponse.json({ detail: '投票暂时无法保存' }, { status: 503 })))
+it('keeps failed one-click updates visible and retryable without claiming the issue is repaired', async () => {
+  server.use(http.patch('*/api/v1/feedback/issue-canonical', () => HttpResponse.json({ detail: '修复状态暂时无法保存' }, { status: 503 })))
   mount()
-  await userEvent.click(await screen.findByRole('button', { name: '有同样问题 2' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent('投票暂时无法保存')
-  expect(screen.getByRole('button', { name: '有同样问题 2', pressed: false })).toBeEnabled()
+  await userEvent.click(await screen.findByRole('button', { name: '标记已修复' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('暂时无法保存')
+  expect(screen.getByRole('button', { name: '标记已修复' })).toBeEnabled()
+  expect(screen.queryByRole('button', { name: '重新打开' })).not.toBeInTheDocument()
+})
+
+it('prevents an independent status change while history or a reply is still being saved', async () => {
+  let releaseHistory: (() => void) | undefined
+  let releaseReply: (() => void) | undefined
+  let replies = 0
+  let statusRequests = 0
+  server.use(
+    http.get('*/api/v1/feedback/:id/activities', async () => {
+      await new Promise<void>(resolve => { releaseHistory = resolve })
+      return HttpResponse.json({ items: [], next_cursor: null })
+    }),
+    http.post('*/api/v1/feedback/:id/replies', async () => {
+      replies++
+      await new Promise<void>(resolve => { releaseReply = resolve })
+      return HttpResponse.json({ feedback: { ...item, reply_count: 1, revision: 5 }, activity: { id: 'comment-after-load', kind: 'comment', body: '正在补充问题说明', author_name: '报告人', created_at: item.created_at } }, { status: 201 })
+    }),
+    http.patch('*/api/v1/feedback/issue-canonical', () => { statusRequests++; return HttpResponse.json({ ...item, status: 'fixed', revision: 6 }) }),
+  )
+  mount()
+  const dialog = await openDetails()
+  const repair = within(dialog).getByRole('button', { name: '标记已修复' })
+  expect(repair).toBeDisabled()
+  await waitFor(() => expect(releaseHistory).toBeTypeOf('function'))
+  releaseHistory?.()
+  await waitFor(() => expect(repair).toBeEnabled())
+  await userEvent.type(within(dialog).getByLabelText('回复内容'), '正在补充问题说明')
+  await userEvent.click(within(dialog).getByRole('button', { name: '发送回复' }))
+  await waitFor(() => expect(replies).toBe(1))
+  expect(repair).toBeDisabled()
+  await userEvent.click(repair)
+  expect(statusRequests).toBe(0)
+  releaseReply?.()
+  expect(await within(dialog).findByText('回复已发送。')).toBeInTheDocument()
+  expect(repair).toBeEnabled()
 })
 
 it('opens notification feedback outside the loaded list and clears only the authenticated notification', async () => {
@@ -185,29 +225,20 @@ it('remounts draft-bearing UI when the verified identity changes and never saves
   expect(vi.mocked(saveDraft).mock.calls.filter(call => call[0] === 'tenant:second').every(call => !JSON.stringify(call[2]).includes('仅限原账号'))).toBe(true)
 })
 
-it('protects unsaved repair notes on close and restores them from the per-feedback draft', async () => {
+it('recovers text from the retired management draft without bringing back mandatory verification', async () => {
+  vi.mocked(loadDraft).mockResolvedValue({ value: { body: '还未发出的补充回复', statusChoice: '', management: { changes: {}, resolution: '历史草稿里的修复说明', verification: '旧验证步骤', version: '旧版本', note: '原备注' } }, files: [], savedAt: '2026-11-04T14:00:00Z' })
   mount()
   const dialog = await openDetails()
-  await userEvent.type(within(dialog).getByLabelText('修复说明'), '尚未提交的修复解释')
-  await userEvent.type(within(dialog).getByLabelText('验证步骤'), '重新选择知识库后检查资料')
-  await userEvent.keyboard('{Escape}')
-  const confirmation = screen.getByRole('dialog', { name: '放弃未发送的回复？' })
-  expect(confirmation).toHaveTextContent('处理说明还未保存')
-  await userEvent.click(within(confirmation).getByRole('button', { name: '继续编辑' }))
-  expect(screen.getByLabelText('修复说明')).toHaveValue('尚未提交的修复解释')
-  await userEvent.keyboard('{Escape}')
-  await userEvent.click(screen.getByRole('button', { name: '保留草稿并关闭' }))
-  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-  const saved = vi.mocked(saveDraft).mock.calls.findLast(call => call[0] === 'tenant:reporter' && call[1] === 'reply:' + item.id)
-  expect(saved).toBeDefined()
-  vi.mocked(loadDraft).mockResolvedValueOnce({ value: saved![2], files: [], savedAt: '2026-11-04T14:00:00Z' })
-  const reopened = await openDetails()
-  await userEvent.click(await within(reopened).findByRole('button', { name: '恢复草稿' }))
-  expect(within(reopened).getByLabelText('修复说明')).toHaveValue('尚未提交的修复解释')
-  expect(within(reopened).getByLabelText('验证步骤')).toHaveValue('重新选择知识库后检查资料')
+  await userEvent.click(await within(dialog).findByRole('button', { name: '恢复草稿' }))
+  expect(within(dialog).getByLabelText('回复内容')).toHaveValue('还未发出的补充回复')
+  await userEvent.click(within(dialog).getByText('之前保存的补充说明'))
+  expect(within(dialog).getByText('历史草稿里的修复说明', { exact: false })).toBeVisible()
+  expect(within(dialog).queryByLabelText('验证步骤')).not.toBeInTheDocument()
+  expect(within(dialog).queryByLabelText('发布版本')).not.toBeInTheDocument()
+  expect(within(dialog).getByRole('button', { name: '标记已修复' })).toBeEnabled()
 })
 
-it('lets keyboard users tab from the release-version field to its submit action inside the dialog', async () => {
+it('shows old repaired states as fixed and retains the keyboard-accessible reopen action', async () => {
   const ready = { ...item, status: 'ready', resolution: '修复完成', verification_steps: '重复原步骤' }
   server.use(
     http.get('*/api/v1/feedback', () => HttpResponse.json([ready])),
@@ -216,9 +247,41 @@ it('lets keyboard users tab from the release-version field to its submit action 
   )
   mount()
   const dialog = await openDetails()
-  const version = within(dialog).getByLabelText('发布版本')
-  await userEvent.click(version)
-  await userEvent.type(version, '2026.11.04')
-  await userEvent.tab()
-  expect(within(dialog).getByRole('button', { name: '登记上线' })).toHaveFocus()
+  const status = within(dialog).getByRole('region', { name: '反馈处理状态' })
+  expect(status).toHaveTextContent('已修复')
+  const reopen = within(status).getByRole('button', { name: '重新打开' })
+  reopen.focus()
+  expect(reopen).toHaveFocus()
+  expect(within(dialog).queryByRole('button', { name: '登记上线' })).not.toBeInTheDocument()
+  expect(within(dialog).queryByRole('button', { name: '确认已解决' })).not.toBeInTheDocument()
+})
+
+it('keeps an unsent reply and screenshot when the separate repair button is clicked', async () => {
+  server.use(http.patch('*/api/v1/feedback/issue-canonical', () => HttpResponse.json({ ...item, status: 'fixed', revision: 5 })))
+  mount()
+  const dialog = await openDetails()
+  await userEvent.type(within(dialog).getByLabelText('回复内容'), '准备补充的处理说明')
+  await userEvent.upload(within(dialog).getByLabelText('添加回复图片'), new File(['pixels'], 'retained.png', { type: 'image/png' }))
+  await userEvent.click(within(dialog).getByRole('button', { name: '标记已修复' }))
+  expect(await within(dialog).findByRole('button', { name: '重新打开' })).toBeInTheDocument()
+  expect(within(dialog).getByLabelText('回复内容')).toHaveValue('准备补充的处理说明')
+  expect(within(dialog).getByRole('img', { name: '回复待发送图片 retained.png' })).toBeInTheDocument()
+})
+
+it('shows and filters legacy pending and repaired states without exposing deployment or validation controls', async () => {
+  server.use(http.get('*/api/v1/feedback', () => HttpResponse.json([
+    { ...item, id: 'processing', description: '历史处理中问题', status: 'in_progress' },
+    { ...item, id: 'ready', description: '历史待发布问题', status: 'ready' },
+    { ...item, id: 'released', description: '历史待验证问题', status: 'released' },
+  ])))
+  mount()
+  const row = (await screen.findByText('历史处理中问题')).closest('article')!
+  expect(within(row).getByText('待处理')).toBeInTheDocument()
+  expect(within(screen.getByText('历史待发布问题').closest('article')!).getByText('已修复')).toBeInTheDocument()
+  expect(within(screen.getByText('历史待验证问题').closest('article')!).getByText('已修复')).toBeInTheDocument()
+  await userEvent.selectOptions(screen.getByLabelText('状态'), 'fixed')
+  expect(screen.queryByText('历史处理中问题')).not.toBeInTheDocument()
+  expect(screen.getAllByRole('button', { name: '重新打开' })).toHaveLength(2)
+  expect(screen.queryByRole('button', { name: '处理工作台' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('option', { name: /待发布|待验证/ })).not.toBeInTheDocument()
 })

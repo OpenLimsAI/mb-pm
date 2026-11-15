@@ -14,6 +14,9 @@ export function applicationLabel(value?: string | null): string {
 
 export type Category = 'bug' | 'feature'
 export type FeedbackStatus = 'open' | 'in_progress' | 'ready' | 'released' | 'fixed'
+export type SimpleFeedbackStatus = 'open' | 'fixed'
+export function normalizeFeedbackStatus(value: FeedbackStatus): SimpleFeedbackStatus { return value === 'fixed' || value === 'ready' || value === 'released' ? 'fixed' : 'open' }
+export function normalizeFeedbackItem(item: FeedbackItem): FeedbackItem { return { ...item, status: normalizeFeedbackStatus(item.status) } }
 export type FeedbackSource = { application?: FeedbackApplication; path?: string; browser?: string; captured_at?: string }
 export type FeedbackPriority = 'p0' | 'p1' | 'p2' | 'p3'
 export const priorityLabels: Record<FeedbackPriority, string> = { p0: 'P0 紧急', p1: 'P1 高', p2: 'P2 普通', p3: 'P3 低' }
@@ -47,6 +50,7 @@ export type FeedbackItem = {
   release_version?: string
   can_edit?: boolean
   can_manage?: boolean
+  can_update_status?: boolean
   can_assign?: boolean
   can_claim?: boolean
   can_unclaim?: boolean
