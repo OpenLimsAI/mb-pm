@@ -402,6 +402,90 @@ def test_pagination_and_literal_search(note_client):
     assert f.client.get(PREFIX, params={"offset": -1}).status_code == 422
 
 
+def test_counts_include_all_pages_independently_of_list_filters(note_client):
+    f = note_client
+    assert f.client.get(f"{PREFIX}/counts").json() == dict(
+        all=0, trash=0, solutions=0, knowledge=0, information=0, manual=0
+    )
+    for source, count in (("solutions", 51), ("knowledge", 2), ("information", 1)):
+        f.db.add_all(
+            PersonalNote(
+                id=str(uuid4()),
+                issuer=notes.settings.casdoor_issuer,
+                owner_id="author",
+                title=f"{source}-{index}",
+                content="正文",
+                source_app=source,
+            )
+            for index in range(count)
+        )
+    f.db.commit()
+    assert len(f.client.get(PREFIX).json()["items"]) == 50
+    result = f.client.get(
+        f"{PREFIX}/counts",
+        params={"search": "不存在", "source_app": "manual", "trashed": True, "offset": 50},
+    )
+    assert result.status_code == 200
+    assert result.json() == dict(
+        all=54, trash=0, solutions=51, knowledge=2, information=1, manual=0
+    )
+
+
+def test_counts_follow_trash_restore_and_keep_owner_and_issuer_isolation(note_client):
+    f = note_client
+    row = create(f, source_app="knowledge")
+    f.db.add(
+        PersonalNote(
+            id=str(uuid4()),
+            issuer="https://other-issuer.example",
+            owner_id="author",
+            title="Other issuer",
+            content="正文",
+            source_app="solutions",
+        )
+    )
+    f.db.commit()
+    f.login("another-person")
+    create(f, source_app="manual")
+    assert f.client.get(f"{PREFIX}/counts").json() == dict(
+        all=1, trash=0, solutions=0, knowledge=0, information=0, manual=1
+    )
+    f.login("author")
+    assert f.client.get(f"{PREFIX}/counts").json() == dict(
+        all=1, trash=0, solutions=0, knowledge=1, information=0, manual=0
+    )
+    trashed = f.client.post(f"{PREFIX}/{row['id']}/trash", json={"revision": 1}).json()
+    assert f.client.get(f"{PREFIX}/counts").json() == dict(
+        all=0, trash=1, solutions=0, knowledge=0, information=0, manual=0
+    )
+    assert (
+        f.client.post(
+            f"{PREFIX}/{row['id']}/restore", json={"revision": trashed["revision"]}
+        ).status_code
+        == 200
+    )
+    assert f.client.get(f"{PREFIX}/counts").json() == dict(
+        all=1, trash=0, solutions=0, knowledge=1, information=0, manual=0
+    )
+
+
+def test_counts_require_authenticated_matching_page_identity(note_client):
+    f = note_client
+    create(f)
+    assert f.client.get(f"{PREFIX}/counts").status_code == 200
+    for headers in (
+        {"X-Notes-Portal-Identity": "stale-page"},
+        {"X-Notes-Identity": "wrong-knowledge-identity"},
+        {"X-Notes-Issuer": "https://other-issuer.example", "X-Notes-Subject": "author"},
+    ):
+        assert f.client.get(f"{PREFIX}/counts", headers=headers).status_code == 403
+    f.client.headers.pop("X-Notes-Portal-Identity")
+    assert f.client.get(f"{PREFIX}/counts").status_code == 403
+    f.login()
+    f.client.cookies.clear()
+    assert f.client.get(f"{PREFIX}/counts").status_code == 401
+
+
 def test_migration_independent_and_repeatable():
     from alembic.migration import MigrationContext
     from alembic.operations import Operations

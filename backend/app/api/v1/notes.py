@@ -191,6 +191,26 @@ def listing(
     return {"items": [output(row, db) for row in rows], "total": total}
 
 
+@router.get("/counts")
+def counts(db: Session = Depends(get_db), claims: dict = Depends(identity)):
+    """Account-wide sidebar totals, independent of list filters and pagination."""
+    totals = dict(all=0, trash=0, solutions=0, knowledge=0, information=0, manual=0)
+    trashed = PersonalNote.deleted_at.is_not(None)
+    rows = db.execute(
+        select(PersonalNote.source_app, trashed, func.count())
+        .where(owned(claims))
+        .group_by(PersonalNote.source_app, trashed)
+    )
+    for source, is_trashed, count in rows:
+        if is_trashed:
+            totals["trash"] += count
+        else:
+            totals["all"] += count
+            if source in ("solutions", "knowledge", "information", "manual"):
+                totals[source] += count
+    return totals
+
+
 @router.get("/{note_id}")
 def detail(note_id: str, db: Session = Depends(get_db), claims: dict = Depends(identity)):
     row = get_note(db, note_id, claims)

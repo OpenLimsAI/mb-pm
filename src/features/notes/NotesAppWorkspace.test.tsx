@@ -53,6 +53,9 @@ it('edits and creates in the right pane, returning to the saved content', async 
   fireEvent.click(screen.getByRole('button', { name: '保存笔记' }))
   await screen.findByRole('heading', { name: '新想法' })
   expect((await client.list()).total).toBe(3)
+  const nav = within(screen.getByRole('navigation', { name: '笔记分类' }))
+  await waitFor(() => expect(nav.getByRole('button', { name: '全部笔记' }).querySelector('.pn-nav-count')).toHaveTextContent(/^3$/))
+  expect(nav.getByRole('button', { name: '个人记录' }).querySelector('.pn-nav-count')).toHaveTextContent(/^2$/)
 })
 it('retains unsaved content when switching and offers an inline choice without discarding silently', async () => {
   await fixture()

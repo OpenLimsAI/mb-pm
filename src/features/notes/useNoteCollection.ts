@@ -90,7 +90,7 @@ export function useNoteCollection(client: NotesClient, acceptParentRefresh = fal
   }
   return {
     ...query, items: result.client === client ? result.items : [], total: result.client === client ? result.total : 0,
-    loading, error, notice, busy, undo: undoEntry?.client === client ? undoEntry.note : null, accessLost: deniedClient === client, refresh, filter, move, share, setNotice,
+    refreshVersion: reload, loading, error, notice, busy, undo: undoEntry?.client === client ? undoEntry.note : null, accessLost: deniedClient === client, refresh, filter, move, share, setNotice,
     loadMore: () => setQuery(value => ({ ...value, offset: result.items.length })),
   }
 }

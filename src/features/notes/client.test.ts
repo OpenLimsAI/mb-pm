@@ -73,6 +73,7 @@ describe('independent personal notes', () => {
       return HttpResponse.json(request.method === 'GET' && new URL(request.url).pathname.endsWith('/notes') ? { items: [], total: 0 } : note)
     }))
     const api = mode === 'portal' ? createPortalNotesApi('opening-identity') : createNotesApi('opening-identity')
+    await api.counts!()
     await api.list()
     await api.get!(input.id)
     await api.create(input.id, input)
@@ -80,7 +81,7 @@ describe('independent personal notes', () => {
     await api.trash(note)
     await api.restore(note)
     await api.share!(note, true)
-    expect(requests).toEqual(['GET', 'GET', 'POST', 'PUT', 'POST', 'POST', 'POST'])
+    expect(requests).toEqual(['GET', 'GET', 'GET', 'POST', 'PUT', 'POST', 'POST', 'POST'])
   })
   it('never sends an unbound portal request when the verified identity is missing', async () => {
     server.use(http.post('*/api/v1/notes', ({ request }) => {
