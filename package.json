@@ -16,7 +16,8 @@
     "build:production": "node scripts/build-production.mjs",
     "verify:production-build": "node scripts/verify-production-build.mjs",
     "test:production-build": "node --test scripts/production-build.test.mjs scripts/chrome-startup.test.mjs",
-    "test:production-login": "node scripts/test-production-login.mjs"
+    "test:production-login": "node scripts/test-production-login.mjs",
+    "test:project-layout": "node scripts/test-project-layout.mjs"
   },
   "dependencies": {
     "@tiptap/extension-bold": "^3.32.2",

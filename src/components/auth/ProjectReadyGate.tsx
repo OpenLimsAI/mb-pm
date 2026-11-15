@@ -3,7 +3,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { bootstrap, watchIdentity } from '../../data/bootstrap'
 import { useAuth } from '../../store/auth'
 import { useDataStore } from '../../store/data'
-import { BootSplash, IdentityProblem, IdentityRetryNotice } from './AuthStatus'
+import { BootSplash, IdentityProblem } from './AuthStatus'
 import { ForcedPasswordChange } from './ForcedPasswordChange'
 import { changePassword } from '../../api/auth'
 
@@ -12,8 +12,6 @@ export default function ProjectReadyGate() {
   const ready = useDataStore((s) => s.ready)
   const status = useAuth((s) => s.status)
   const error = useAuth((s) => s.error)
-  const refreshError = useAuth((s) => s.refreshError)
-  const refresh = useAuth((s) => s.refresh)
   const logout = useAuth((s) => s.logout)
   const mustChangePassword = useAuth((s) => s.mustChangePassword)
   const currentUser = useAuth((s) => s.currentUser)
@@ -33,5 +31,5 @@ export default function ProjectReadyGate() {
     return <ForcedPasswordChange name={currentUser?.displayName} submit={changePassword} onDone={() => window.location.assign('/login?signed_out=1&password_changed=1&local=1&app=pm')} onLogout={logout} />
   }
   if (!ready) return <BootSplash />
-  return <>{refreshError && <IdentityRetryNotice message={refreshError} onRetry={() => { void refresh() }} />}<Outlet /></>
+  return <Outlet />
 }
