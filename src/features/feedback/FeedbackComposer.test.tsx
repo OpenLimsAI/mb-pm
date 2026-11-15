@@ -24,6 +24,9 @@ beforeEach(() => {
   server.use(http.post('*/api/v1/feedback/similar', () => HttpResponse.json({ items: [] })))
 })
 afterEach(() => { vi.unstubAllGlobals() })
+async function extras() {
+  await userEvent.click(screen.getByText(/补充信息/, { selector: 'summary' }))
+}
 
 it('submits the source context and structured bug template alongside the normal description', async () => {
   let submitted: Record<string, FormDataEntryValue> | undefined
@@ -32,6 +35,7 @@ it('submits the source context and structured bug template alongside the normal 
     return HttpResponse.json(created, { status: 201 })
   }))
   render(<FeedbackComposer {...props} />)
+  await extras()
   expect(screen.getByLabelText('所属应用')).toHaveValue('kb')
   expect(screen.getByRole('complementary', { name: '问题发生位置' })).toHaveTextContent('/#research')
   await userEvent.type(screen.getByLabelText(/问题或建议/), created.description)
@@ -62,6 +66,7 @@ it('sends the feature scenario and benefit without leaking hidden bug-template f
     return HttpResponse.json({ ...created, category: 'feature' }, { status: 201 })
   }))
   render(<FeedbackComposer {...props} />)
+  await extras()
   await userEvent.type(screen.getByLabelText('复现步骤'), '不再适用的步骤')
   await userEvent.click(screen.getByRole('button', { name: /新功能建议/ }))
   await userEvent.type(screen.getByLabelText(/问题或建议/), '希望支持按应用归类')
@@ -81,6 +86,7 @@ it('shows similar feedback as optional links without posting or merging the new 
     http.post('*/api/v1/feedback', () => { posts++; return HttpResponse.json(created, { status: 201 }) }),
   )
   render(<FeedbackComposer {...props} />)
+  await extras()
   await userEvent.type(screen.getByLabelText(/问题或建议/), '知识库页面异常')
   await userEvent.click(screen.getByRole('button', { name: '查找相似反馈' }))
   const match = await screen.findByRole('link', { name: /FB-0009.*类似的旧反馈/ })
@@ -91,21 +97,22 @@ it('shows similar feedback as optional links without posting or merging the new 
   expect(screen.getByLabelText(/问题或建议/)).toHaveValue('知识库页面异常')
 })
 
-it('automatically looks for similar reports before submission without claiming an exact match', async () => {
-  let payload: unknown
-  let creates = 0
-  server.use(
-    http.post('*/api/v1/feedback/similar', async ({ request }) => { payload = await request.json(); return HttpResponse.json({ items: [{ ...created, id: 'existing-auto', number: 'FB-0010', description: '可能相关的旧反馈', similarity_score: 0.6 }] }) }),
-    http.post('*/api/v1/feedback', () => { creates++; return HttpResponse.json(created) }),
-  )
+it('keeps advanced information folded and does not interrupt simple submission with automatic lookups', async () => {
+  let searches = 0
+  server.use(http.post('*/api/v1/feedback/similar', () => { searches++; return HttpResponse.json({ items: [] }) }))
   render(<FeedbackComposer {...props} />)
+  expect(screen.getByText(/补充信息/, { selector: 'summary' }).parentElement).not.toHaveAttribute('open')
   await userEvent.type(screen.getByLabelText(/问题或建议/), '连续切换知识库之后资料列表没有更新')
-  expect(await screen.findByRole('link', { name: /FB-0010.*可能相关的旧反馈/ })).toBeInTheDocument()
-  expect(payload).toEqual({ description: '连续切换知识库之后资料列表没有更新', application: 'kb' })
-  expect(creates).toBe(0)
+  await new Promise(resolve => setTimeout(resolve, 750))
+  expect(searches).toBe(0)
+  expect(screen.getByRole('button', { name: '提交反馈' })).toBeEnabled()
+  await extras()
+  await userEvent.click(screen.getByRole('button', { name: '查找相似反馈' }))
+  expect(await screen.findByText('未找到相似反馈，你可以继续提交。')).toBeInTheDocument()
+  expect(searches).toBe(1)
 })
 
-it('ends an aborted similar search when the description becomes short again', async () => {
+it('discards a manually requested similar result when the draft changes', async () => {
   let release: (() => void) | undefined
   let started = false
   server.use(http.post('*/api/v1/feedback/similar', async () => {
@@ -114,8 +121,10 @@ it('ends an aborted similar search when the description becomes short again', as
     return HttpResponse.json({ items: [{ ...created, id: 'stale', description: '过时查询的结果' }] })
   }))
   render(<FeedbackComposer {...props} />)
+  await extras()
   const description = screen.getByLabelText(/问题或建议/)
   await userEvent.type(description, '连续切换知识库之后资料列表没有更新')
+  await userEvent.click(screen.getByRole('button', { name: '查找相似反馈' }))
   await waitFor(() => expect(started).toBe(true))
   await userEvent.clear(description)
   await userEvent.type(description, '新问题')
