@@ -12,6 +12,8 @@
   background: var(--workbench-bg, #f4f7f7);
 }
 .pn-three-pane > .pn-sidebar { position: static; height: auto; min-height: 0; overflow-y: auto; padding-top: 24px; }
+.pn-three-pane .pn-nav-count { margin-left: auto; flex-shrink: 0; min-width: 24px; padding: 1px 6px; border-radius: 5px; background: var(--workbench-soft, #e7f3f3); color: var(--pn-muted); font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 20px; text-align: center; }
+.pn-three-pane .pn-nav[aria-current='page'] .pn-nav-count { color: var(--pn-navy); background: var(--workbench-panel, #fff); }
 .pn-note-list { display: flex; flex-direction: column; min-height: 0; min-width: 0; border-right: 1px solid var(--pn-border); }
 .pn-list-header { flex-shrink: 0; padding: 24px 18px 13px; border-bottom: 1px solid var(--pn-border); }
 .pn-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 18px; }
@@ -118,3 +120,5 @@
   .pn-unsaved-banner { margin-inline: 14px; }.pn-inline-editor .pn-editor-fields { padding: 24px; }
   .pn-inline-editor textarea { min-height: 260px; }.pn-inline-editor footer { padding-inline: 20px; }
 }
+
+@media (max-width: 900px) { .pn-three-pane .pn-nav-count { margin-left: 2px; min-width: 20px; padding: 0 4px; font-size: 10px; line-height: 18px; } }

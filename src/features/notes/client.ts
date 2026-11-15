@@ -6,7 +6,9 @@ export interface NoteInput { title: string; content: string; sourceApp: NoteSour
 export interface NoteWisdom { enabled: boolean; status: string; error: string }
 export interface PersonalNote extends NoteInput { wisdom?: NoteWisdom; id: string; revision: number; createdAt: string; updatedAt: string; deletedAt: string | null }
 export interface NoteQuery { search?: string; sourceApp?: NoteSource; trashed?: boolean; offset?: number }
+export type NoteCounts = Record<NoteSource | 'all' | 'trash', number>
 export interface NotesClient {
+  counts?(): Promise<NoteCounts>
   get?(id: string): Promise<PersonalNote>
   list(query?: NoteQuery): Promise<{ items: PersonalNote[]; total: number }>
   create(id: string, input: NoteInput): Promise<PersonalNote>
@@ -40,6 +42,7 @@ function createIdentityNotesApi(identityHeader: string, expectedIdentity: string
     return Promise.reject(Object.assign(new Error(status === 409 ? '笔记已在其他页面更新，请保留当前内容并重新打开核对。' : status === 401 ? '登录已失效，请重新登录。' : status === 403 ? mismatchMessage : status === 422 ? '笔记未通过校验，请检查标题、正文长度及来源链接。' : '笔记操作未完成，请检查连接后重试。'), { status }))
   })
   return {
+    counts: async () => (await http.get('/counts')).data,
     get: async id => (await http.get(`/${encodeURIComponent(id)}`)).data,
     list: async query => (await http.get('', { params: query })).data,
     create: async (id, input) => { validateNote(input); return (await http.post('', { ...input, id })).data },
@@ -78,6 +81,11 @@ export function createPreviewNotesClient(namespace: string, storage: Storage = l
     write(rows.map(row => row.id === current.id ? next : row)); return structuredClone(next)
   }
   return {
+    counts: async () => {
+      const counts: NoteCounts = { all: 0, trash: 0, solutions: 0, knowledge: 0, information: 0, manual: 0 }
+      for (const note of read()) { if (note.deletedAt) counts.trash++; else { counts.all++; counts[note.sourceApp]++ } }
+      return counts
+    },
     get: async id => { const note = read().find(row => row.id === id && !row.deletedAt); if (!note) throw new Error('笔记不存在或已移至回收站。'); return structuredClone(note) },
     list: async (query = {}) => {
       const search = query.search?.trim().toLocaleLowerCase() || ''

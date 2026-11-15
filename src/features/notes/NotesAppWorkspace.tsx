@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { ArrowLeft, BookOpen, ExternalLink, FileText, FolderOpen, Link2, LoaderCircle, NotebookPen, PencilLine, Plus, Radio, RefreshCw, RotateCcw, Search, ShieldCheck, Trash2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { safeMarkdownLink } from '../../components/markdownSafety'
@@ -10,6 +10,7 @@ import { newNote } from './draft'
 import type { NoteDraft } from './draft'
 import NoteEditor from './NoteEditor'
 import { useNoteCollection } from './useNoteCollection'
+import { useNoteCounts } from './useNoteCounts'
 import './notes.css'
 import './notes-workspace.css'
 
@@ -19,6 +20,9 @@ const excerpt = (content: string) => content.replaceAll('<span></span>', '').rep
 
 export default function NotesAppWorkspace({ client, userName, acceptParentRefresh = false }: { client: NotesClient; userName?: string; acceptParentRefresh?: boolean }) {
   const collection = useNoteCollection(client, acceptParentRefresh)
+  const counts = useNoteCounts(client, collection.refreshVersion, collection.accessLost)
+  const countId = useId()
+  const countBadge = (key: keyof NonNullable<typeof counts>) => <span id={`${countId}-${key}`} className="pn-nav-count" title={counts ? `${counts[key].toLocaleString()} 条笔记` : '暂未取得数量'}>{counts ? counts[key].toLocaleString() : '—'}</span>
   const { items, total, search, source, trashed, loading, error, notice, undo, busy, refresh, filter, move, share } = collection
   const [selection, setSelection] = useState<{ client: NotesClient; id: string; linked?: PersonalNote; referenced?: boolean } | null>(null)
   const [editing, setEditing] = useState<PersonalNote | NoteDraft | null>(null)
@@ -67,11 +71,11 @@ export default function NotesAppWorkspace({ client, userName, acceptParentRefres
     <aside className="pn-sidebar">
       <nav aria-label="笔记分类">
         <p className="pn-nav-label">我的空间</p>
-        <button type="button" className="pn-nav" aria-current={!source && !trashed ? 'page' : undefined} onClick={() => browse('')}><FolderOpen size={18} aria-hidden="true" /><span>全部笔记</span></button>
+        <button type="button" className="pn-nav" aria-label="全部笔记" aria-describedby={`${countId}-all`} aria-current={!source && !trashed ? 'page' : undefined} onClick={() => browse('')}><FolderOpen size={18} aria-hidden="true" /><span>全部笔记</span>{countBadge('all')}</button>
         <p className="pn-nav-label">按来源浏览</p>
-        {Object.entries(noteSourceNames).map(([key, label]) => { const Icon = sourceIcons[key as NoteSource]; return <button type="button" key={key} className="pn-nav" aria-current={source === key && !trashed ? 'page' : undefined} onClick={() => browse(key as NoteSource)}><Icon size={18} aria-hidden="true" /><span>{label}</span></button> })}
+        {Object.entries(noteSourceNames).map(([key, label]) => { const Icon = sourceIcons[key as NoteSource]; return <button type="button" key={key} className="pn-nav" aria-label={label} aria-describedby={`${countId}-${key}`} aria-current={source === key && !trashed ? 'page' : undefined} onClick={() => browse(key as NoteSource)}><Icon size={18} aria-hidden="true" /><span>{label}</span>{countBadge(key as NoteSource)}</button> })}
         <div className="pn-nav-divider" />
-        <button type="button" className="pn-nav" aria-current={trashed ? 'page' : undefined} onClick={() => browse('', true)}><Trash2 size={18} aria-hidden="true" /><span>回收站</span></button>
+        <button type="button" className="pn-nav" aria-label="回收站" aria-describedby={`${countId}-trash`} aria-current={trashed ? 'page' : undefined} onClick={() => browse('', true)}><Trash2 size={18} aria-hidden="true" /><span>回收站</span>{countBadge('trash')}</button>
       </nav>
       <div className="pn-sidebar-account"><span className="pn-avatar">{Array.from(userName || '我')[0]}</span><div><strong title={userName || '我的空间'}>{userName || '我的空间'}</strong><span><ShieldCheck size={11} aria-hidden="true" />个人笔记</span></div></div>
     </aside>
