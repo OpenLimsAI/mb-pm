@@ -229,7 +229,7 @@ def test_task_filters_distinguish_overdue_delayed_and_blocked(admin_user, projec
 
 
 def test_filtered_queries_still_enforce_task_visibility(admin_user, iam_user, project_factory):
-    uid = iam_user("filtered-query-member", "rd")
+    uid = iam_user("filter-member", "rd")
     pid = project_factory(admin_user, member_ids=(uid,))
     with SessionLocal.begin() as db:
         own = set_task(db, pid, 1, -2, "进行中", owner_id=uid)
