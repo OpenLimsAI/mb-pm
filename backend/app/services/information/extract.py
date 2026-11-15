@@ -41,7 +41,10 @@ def main():
         parts = []
         size = 0
         for number, page in enumerate(reader.pages, 1):
-            text = page.extract_text(extraction_mode="plain") or ""
+            # Some PDF font mappings yield NUL for missing glyphs. NUL cannot
+            # be stored in PostgreSQL text or accepted by the KB import API;
+            # discard only that sentinel, leaving the original PDF untouched.
+            text = (page.extract_text(extraction_mode="plain") or "").replace("\x00", "")
             size += len(text)
             if size > 2_000_000:
                 raise ValueError("PDF 正文超过解析大小上限")

@@ -32,7 +32,18 @@ export const mutateKnowledgeSources = (method: 'post' | 'patch', path: string, v
 export function sourceError(error: unknown): string {
   if (axios.isAxiosError(error)) {
     const detail = error.response?.data?.detail
-    return typeof detail === 'string' ? detail : error.response?.status === 409 ? '资料或任务状态已更新，请刷新后重试。' : error.response?.status === 403 ? '当前账号没有此操作权限，请检查知识库角色。' : error.response?.status === 429 ? '来源请求过于频繁，请稍后重试。' : error.response?.status === 422 ? '操作参数未通过校验，请检查选择数量与设置。' : error.code === 'ECONNABORTED' ? '响应超时，已加载资料仍保留，请重试连接。' : '暂时无法连接知识源，已加载资料仍保留，请重试连接。'
+    const message = typeof detail === 'string' ? detail : detail && typeof detail === 'object' ? detail.message : undefined
+    if (typeof message === 'string' && message.trim() && message.length <= 1000 && !/<[!/a-z][^>]*>/i.test(message) && !/(?:Traceback\b|(?:^|\n)\s*(?:File ".+?", line \d+|at \S+))/m.test(message)) return message
+    const status = error.response?.status
+    if (status === 413) return '请求内容过大，请减少本次提交的内容后重试。'
+    if (status === 409) return '资料或任务状态已更新，请刷新后重试。'
+    if (status === 403) return '当前账号没有此操作权限，请检查知识库角色。'
+    if (status === 429) return '来源请求过于频繁，请稍后重试。'
+    if (status === 422) return '操作参数未通过校验，请检查选择数量与设置。'
+    if (status === 408 || status === 504 || error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') return '响应超时，已加载资料仍保留，请核对保存结果后重试。'
+    if (status === 502 || status === 503) return '知识源或知识库服务暂不可用，请稍后重试。'
+    if (status !== undefined && status >= 500) return '知识源服务处理失败，请稍后重试。'
+    return '暂时无法连接知识源，已加载资料仍保留，请重试连接。'
   }
   return '暂时无法完成操作，请刷新后重试。'
 }
