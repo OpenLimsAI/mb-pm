@@ -15,6 +15,7 @@ export interface NotesClient {
   save(note: PersonalNote, input: NoteInput): Promise<PersonalNote>
   trash(note: PersonalNote): Promise<PersonalNote>
   restore(note: PersonalNote): Promise<PersonalNote>
+  purge?(note: PersonalNote): Promise<void>
   share?(note: PersonalNote, enabled: boolean): Promise<PersonalNote>
 }
 export const noteSourceNames: Record<NoteSource, string> = { solutions: '研究报告', knowledge: '知识库', information: '行业信息', manual: '个人记录' }
@@ -39,7 +40,10 @@ function createIdentityNotesApi(identityHeader: string, expectedIdentity: string
   http.interceptors.response.use(response => { response.data = camelize(response.data); return response }, (error: unknown) => {
     const status = axios.isAxiosError(error) ? error.response?.status : undefined
     if (status === 401) window.dispatchEvent(new Event('portal:unauthorized'))
-    return Promise.reject(Object.assign(new Error(status === 409 ? '笔记已在其他页面更新，请保留当前内容并重新打开核对。' : status === 401 ? '登录已失效，请重新登录。' : status === 403 ? mismatchMessage : status === 422 ? '笔记未通过校验，请检查标题、正文长度及来源链接。' : '笔记操作未完成，请检查连接后重试。'), { status }))
+    const purgeMessages = ['请先将笔记移至回收站', '笔记已在其他页面更新，请刷新后重试', '知识库检索副本正在同步，请稍后重试彻底删除', '知识库检索副本尚未清理完成，请稍后重试彻底删除']
+    const detail = axios.isAxiosError(error) ? error.response?.data?.detail : undefined
+    const purgeConflict = status === 409 && axios.isAxiosError(error) && error.config?.url?.endsWith('/purge') && purgeMessages.includes(detail) ? detail : undefined
+    return Promise.reject(Object.assign(new Error(purgeConflict || (status === 409 ? '笔记已在其他页面更新，请保留当前内容并重新打开核对。' : status === 401 ? '登录已失效，请重新登录。' : status === 403 ? mismatchMessage : status === 422 ? '笔记未通过校验，请检查标题、正文长度及来源链接。' : '笔记操作未完成，请检查连接后重试。')), { status }))
   })
   return {
     counts: async () => (await http.get('/counts')).data,
@@ -50,6 +54,7 @@ function createIdentityNotesApi(identityHeader: string, expectedIdentity: string
     trash: async note => (await http.post(`/${encodeURIComponent(note.id)}/trash`, { revision: note.revision })).data,
     share: async (note, enabled) => (await http.post(`/${encodeURIComponent(note.id)}/wisdom`, { revision: note.revision, enabled })).data,
     restore: async note => (await http.post(`/${encodeURIComponent(note.id)}/restore`, { revision: note.revision })).data,
+    purge: async note => { await http.post(`/${encodeURIComponent(note.id)}/purge`, { revision: note.revision }) },
   }
 }
 export function createNotesApi(expectedIdentity: string): NotesClient {
@@ -105,5 +110,11 @@ export function createPreviewNotesClient(namespace: string, storage: Storage = l
     save: async (note, input) => { validateNote(input); return change(note, input, false) },
     trash: async note => change(note, { deletedAt: new Date().toISOString() }, false),
     restore: async note => change(note, { deletedAt: null }, true),
+    purge: async note => {
+      const rows = read(), current = rows.find(row => row.id === note.id)
+      if (!current) throw new Error('笔记不存在。')
+      if (current.revision !== note.revision || !current.deletedAt) throw new Error('笔记已在其他页面更新，请保留当前内容并重新打开核对。')
+      write(rows.filter(row => row.id !== note.id))
+    },
   }
 }

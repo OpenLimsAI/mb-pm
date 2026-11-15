@@ -74,6 +74,23 @@ export function useNoteCollection(client: NotesClient, acceptParentRefresh = fal
     } catch (reason) { if (owner === currentClient.current) setError(reason instanceof Error ? reason.message : '操作未完成，请重试。') }
     finally { pending.current = false; setBusy(false) }
   }
+  async function purge(note: PersonalNote) {
+    if (!client.purge || !note.deletedAt || pending.current || deniedClient === client) return false
+    const owner = client
+    pending.current = true; setBusy(true); setError('')
+    try {
+      await client.purge(note)
+      if (owner !== currentClient.current) return false
+      request.current++
+      setUndo(null)
+      setResult(previous => ({ ...previous, items: previous.items.filter(item => item.id !== note.id), total: Math.max(0, previous.total - 1) }))
+      setNotice('笔记已彻底删除，无法恢复。'); refresh()
+      return true
+    } catch (reason) {
+      if (owner !== currentClient.current) return false
+      throw reason instanceof Error ? reason : new Error('删除未完成，请重试。')
+    } finally { pending.current = false; setBusy(false) }
+  }
   async function share(note: PersonalNote) {
     if (!client.share || pending.current) return
     const enabled = !note.wisdom?.enabled
@@ -90,7 +107,7 @@ export function useNoteCollection(client: NotesClient, acceptParentRefresh = fal
   }
   return {
     ...query, items: result.client === client ? result.items : [], total: result.client === client ? result.total : 0,
-    refreshVersion: reload, loading, error, notice, busy, undo: undoEntry?.client === client ? undoEntry.note : null, accessLost: deniedClient === client, refresh, filter, move, share, setNotice,
+    refreshVersion: reload, loading, error, notice, busy, undo: undoEntry?.client === client ? undoEntry.note : null, accessLost: deniedClient === client, refresh, filter, move, purge, share, setNotice,
     loadMore: () => setQuery(value => ({ ...value, offset: result.items.length })),
   }
 }
