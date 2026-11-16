@@ -106,3 +106,39 @@
   #knowledge-source-app .kso-catalog-compact .kso-catalog-row { padding-block: 8px; gap: 4px; }
   #knowledge-source-app .kso-catalog-row-meta > .kso-chip { white-space: normal; }
 }
+/* Simple source workspace: one catalogue, explicit selection, optional filters. */
+#knowledge-source-app.kso-simple-workspace .kso-source-card{padding:16px 18px;border-radius:8px;box-shadow:none}
+#knowledge-source-app.kso-simple-workspace .kso-source-card-head{gap:12px;padding-bottom:10px}
+#knowledge-source-app.kso-simple-workspace .kso-source-logo{width:40px;height:40px;border-radius:8px;font-size:13px}
+#knowledge-source-app.kso-simple-workspace .kso-source-card-head h2{font-size:15px}
+#knowledge-source-app.kso-simple-workspace .kso-source-card-head a{font-size:11px}
+#knowledge-source-app.kso-simple-workspace .kso-source-searchbar{padding:10px 0;gap:12px}
+#knowledge-source-app.kso-simple-workspace .kso-source-settings{border-top:1px solid var(--kso-line);margin-top:5px}
+#knowledge-source-app.kso-simple-workspace .kso-source-settings>summary{padding:8px 0;font-size:12px}
+#knowledge-source-app.kso-simple-workspace .kso-source-settings>summary span{display:none}
+#knowledge-source-app.kso-simple-workspace .kso-source-display{position:relative;font-size:12px;color:var(--kso-muted)}
+#knowledge-source-app.kso-simple-workspace .kso-source-display>summary{cursor:pointer;padding:7px}
+#knowledge-source-app.kso-simple-workspace .kso-source-display>label{position:absolute;right:0;top:100%;z-index:5;width:190px;padding:12px;border:1px solid var(--kso-line);border-radius:7px;background:var(--kso-surface);display:grid;gap:6px}
+#knowledge-source-app.kso-simple-workspace .kso-source-picker{display:flex;gap:12px;align-items:center;font-size:12px;color:var(--kso-muted)}
+#knowledge-source-app.kso-simple-workspace .kso-catalog-heading{padding:14px 16px}
+#knowledge-source-app.kso-simple-workspace .kso-catalog-heading h2{font-size:15px}
+#knowledge-source-app.kso-simple-workspace .kso-catalog-heading p{font-size:11px}
+#knowledge-source-app.kso-simple-workspace .kso-catalog-tools{padding:10px 16px;display:flex;gap:8px}
+#knowledge-source-app.kso-simple-workspace .kso-catalog-tools>.kso-search{flex:1;min-width:0}
+#knowledge-source-app.kso-simple-workspace .kso-catalog-advanced{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:0 16px 12px;background:var(--kso-surface)}
+#knowledge-source-app.kso-simple-workspace .kso-catalog-scopes{padding:8px 16px}
+#knowledge-source-app.kso-simple-workspace .kso-catalog-scopes>span{display:none}
+#knowledge-source-app.kso-simple-workspace .kso-catalog-selectbar{font-size:11px;padding:8px 16px;gap:12px}
+#knowledge-source-app.kso-simple-workspace .kso-catalog-selectbar>span{margin-left:auto}
+#knowledge-source-app.kso-simple-workspace .kso-selection-summary{padding:8px 16px;font-size:12px;background:var(--kso-blue-bg)}
+#knowledge-source-app.kso-simple-workspace .kso-selection-summary>div>span{display:none}
+#knowledge-source-app.kso-simple-workspace .kso-catalog-row{padding:10px 16px;gap:16px}
+#knowledge-source-app.kso-simple-workspace .kso-catalog-row strong{font-size:13px;line-height:1.5;font-weight:500}
+#knowledge-source-app.kso-simple-workspace .kso-catalog-row small{font-size:11px}
+#knowledge-source-app.kso-simple-workspace .kso-catalog-footer{padding:12px 16px}
+#knowledge-source-app.kso-simple-workspace .kso-catalog-footer p{font-size:11px}
+@media(max-width:760px){#knowledge-source-app.kso-simple-workspace .kso-source-display{display:none}#knowledge-source-app.kso-simple-workspace .kso-catalog-selectbar>span{display:none}#knowledge-source-app.kso-simple-workspace .kso-catalog-row{padding:10px}.kso-catalog-advanced .kso-select{flex:1;min-width:130px}}
+
+#knowledge-source-app.kso-simple-workspace .kso-download-simple{padding:12px 16px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}#knowledge-source-app.kso-simple-workspace .kso-download-summary{display:flex;align-items:center;gap:14px;flex-wrap:wrap}#knowledge-source-app.kso-simple-workspace .kso-download-summary>small{font-size:11px;color:var(--kso-muted)}#knowledge-source-app.kso-simple-workspace .kso-download-summary .kso-catalog-destination{display:flex;align-items:center;gap:8px;font-size:12px;margin:0}#knowledge-source-app.kso-simple-workspace .kso-download-options{font-size:12px;position:relative}#knowledge-source-app.kso-simple-workspace .kso-download-options>summary{cursor:pointer;color:var(--kso-muted)}#knowledge-source-app.kso-simple-workspace .kso-download-options[open]{flex-basis:100%}#knowledge-source-app.kso-simple-workspace .kso-download-options>small{display:block;font-size:11px;color:var(--kso-muted)}#knowledge-source-app.kso-simple-workspace .kso-download-record-link{display:block;margin:5px 12px;font-size:11px}
+
+#knowledge-source-app.kso-simple-workspace .kso-download-simple .kso-download-summary{display:flex;align-items:center;gap:14px;flex-direction:row}#knowledge-source-app.kso-simple-workspace .kso-download-simple .kso-download-summary>small{display:inline}#knowledge-source-app.kso-simple-workspace .kso-download-simple .kso-download-options[open]{padding-top:8px}#knowledge-source-app.kso-simple-workspace .kso-download-simple .kso-download-options:not([open]){flex-basis:auto}

@@ -1,6 +1,7 @@
 import { useState, type DragEvent } from 'react'
 import { ChevronDown, ChevronRight, Folder, FolderDown, Search, X } from 'lucide-react'
 import type { SourceFolder } from './api'
+import FolderActionMenu, { type FolderMenuAction } from './FolderActionMenu'
 
 function folderTree(folders: SourceFolder[]) {
   const ids = new Set(folders.map(f => f.id))
@@ -12,8 +13,9 @@ function dragPaperIds(event: DragEvent): string[] {
     return Array.isArray(value) ? [...new Set(value.filter((id): id is string => typeof id === 'string' && id.trim().length > 0 && id.length <= 1100))] : []
   } catch { return [] }
 }
-export default function FolderTree({ folders, current, counts = {}, canOrganize, onOpen, onDrop }: {
+export default function FolderTree({ folders, current, counts = {}, canOrganize, onOpen, onDrop, onFolderAction, busy = false }: {
   folders: SourceFolder[]; current: string; counts?: Record<string, number>; canOrganize: boolean
+  busy?: boolean; onFolderAction?: (id: string, action: FolderMenuAction) => void
   onOpen: (id: string) => void; onDrop: (folder: string, ids: string[], move: boolean) => void
 }) {
   const [expanded, setExpanded] = useState<string[]>([]), [over, setOver] = useState(''),[query,setQuery]=useState('')
@@ -28,6 +30,7 @@ export default function FolderTree({ folders, current, counts = {}, canOrganize,
       onDragLeave={() => setOver('')} onDrop={event => { event.preventDefault(); setOver(''); const ids = dragPaperIds(event); if (canOrganize && ids.length) onDrop(folder.id, ids, event.shiftKey) }}>
       {children.length > 0 ? <button type="button" className="kso-icon-btn" aria-label={`${open ? '收起' : '展开'}${folder.name}`} aria-expanded={open} onClick={() => setExpanded(open ? expanded.filter(id => id !== folder.id) : [...expanded, folder.id])}>{open ? <ChevronDown /> : <ChevronRight />}</button> : <span className="ksv-tree-spacer" />}
       <button type="button" className={`kso-nav${folder.id === current ? ' is-active' : ''}`} onClick={() => onOpen(folder.id)} aria-current={folder.id === current ? 'page' : undefined}>{folder.kind === 'source' ? <FolderDown /> : <Folder />}<span>{folder.name}</span>{counts[folder.id] !== undefined && <small>{counts[folder.id]}</small>}</button>
+      {canOrganize && onFolderAction && <FolderActionMenu name={folder.name} disabled={busy} onAction={action=>onFolderAction(folder.id,action)}/>}
     </div>{open && children.map(child => branch(child, [...ancestors, folder.id]))}</div>
   }
   return <div className="ksv-folder-tree" aria-label="论文目录树"><label className="ksv-tree-search"><Search size={14}/><input type="search" aria-label="搜索论文文件夹" placeholder="搜索文件夹…" maxLength={100} value={query} onChange={event=>setQuery(event.target.value)}/>{query&&<button type="button" className="kso-icon-btn" aria-label="清除文件夹搜索" onClick={()=>setQuery('')}><X size={13}/></button>}</label><div className="ksv-tree-content">{folderTree(folders).map(folder => branch(folder, []))}{term&&!visible.size&&<p className="kso-small">没有匹配的文件夹</p>}</div>{over && <small className="kso-small">放入此文件夹 · 按住 Shift 移动</small>}</div>
