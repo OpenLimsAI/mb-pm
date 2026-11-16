@@ -41,7 +41,7 @@ describe('knowledge source unified intake',()=>{
   const input=container.querySelector('input[type=file]')!;const file=new File(['%PDF-1.7'],'study.pdf',{type:'application/pdf'});fireEvent.change(input,{target:{files:[file]}})
   fireEvent.change(screen.getByLabelText('收录目标文件夹'),{target:{value:'topic'}});fireEvent.click(screen.getByRole('button',{name:'上传 1 份 PDF'}))
   await waitFor(()=>expect(api.upload).toHaveBeenCalledOnce());const [path,body]=api.upload.mock.calls[0] as [string,FormData]
-  expect(path).toBe('/upload');expect(body.get('file')).toBe(file);expect(body.get('folderId')).toBe('topic');expect(body.get('parse')).toBe('false')
+  expect(path).toMatch(/^\/upload\?upload_trace=[0-9a-f]{32}$/);expect(body.get('file')).toBe(file);expect(body.get('folderId')).toBe('topic');expect(body.get('parse')).toBe('false')
   await waitFor(()=>expect(refresh).toHaveBeenCalledOnce())
  })
  it('preserves a confirmed upload and its undo receipt when the next upload fails, refreshing once',async()=>{
@@ -97,6 +97,22 @@ describe('knowledge source unified intake',()=>{
   const {container,unmount}=render(<AcquisitionWorkspace folders={folders} canManage onImported={refresh}/>);fireEvent.click(screen.getByRole('tab',{name:'上传 PDF'}))
   fireEvent.change(container.querySelector('input[type=file]')!,{target:{files:[new File(['%PDF-1.7'],'cancel-first.pdf'),new File(['%PDF-1.7'],'cancel-second.pdf')]}});fireEvent.click(screen.getByRole('button',{name:'上传 2 份 PDF'}));await waitFor(()=>expect(api.upload).toHaveBeenCalledOnce())
   await act(async()=>unmount());expect(signal.aborted).toBe(true);act(()=>progress(progressEvent(100,100)));expect(api.upload).toHaveBeenCalledOnce();expect(refresh).not.toHaveBeenCalled()
+ })
+ it('provides a trace with no HTTP reply or progress, without exposing raw errors or file information',async()=>{
+  api.upload.mockRejectedValueOnce({isAxiosError:true,code:'ERR_NETWORK',message:'private/file.pdf',config:{headers:{Cookie:'private-cookie'},url:'private-url'},request:{private:'private-request'}})
+  const {container}=render(<AcquisitionWorkspace folders={folders} canManage/>);fireEvent.click(screen.getByRole('tab',{name:'上传 PDF'}));const file=new File(['%PDF-1.7'],'local-name.pdf');fireEvent.change(container.querySelector('input[type=file]')!,{target:{files:[file]}});fireEvent.click(screen.getByRole('button',{name:'上传 1 份 PDF'}))
+  await screen.findByRole('alert');const [path,body]=api.upload.mock.calls[0] as [string,FormData],trace=new URL(path,'https://example.test').searchParams.get('upload_trace')!
+  expect(trace).toMatch(/^[0-9a-f]{32}$/);expect(body.get('file')).toBe(file)
+  const details=screen.getByText('查看技术摘要').parentElement!;expect(details).not.toHaveAttribute('open');fireEvent.click(screen.getByText('查看技术摘要'))
+  expect(details).toHaveTextContent(trace);expect(details).toHaveTextContent('ERR_NETWORK');expect(details).toHaveTextContent('未收到HTTP回执');expect(details).toHaveTextContent('未报告');expect(details).not.toHaveTextContent('local-name.pdf');expect(details).not.toHaveTextContent('private')
+ })
+ it('uses a new trace for each file and records the last browser byte progress while waiting for a reply',async()=>{
+  let progress!:(event:AxiosProgressEvent)=>void,reject!:(error:unknown)=>void
+  api.upload.mockResolvedValueOnce({registered:false}).mockImplementationOnce((_path,_body,_signal,onProgress)=>{progress=onProgress;return new Promise((_resolve,no)=>{reject=no})})
+  const {container}=render(<AcquisitionWorkspace folders={folders} canManage/>);fireEvent.click(screen.getByRole('tab',{name:'上传 PDF'}));fireEvent.change(container.querySelector('input[type=file]')!,{target:{files:[new File(['%PDF-1.7'],'first.pdf'),new File(['%PDF-1.7'],'second.pdf')]}});fireEvent.click(screen.getByRole('button',{name:'上传 2 份 PDF'}));await waitFor(()=>expect(api.upload).toHaveBeenCalledTimes(2))
+  const traces=api.upload.mock.calls.map(([path])=>new URL(path,'https://example.test').searchParams.get('upload_trace'));expect(traces.every(trace=>/^[0-9a-f]{32}$/.test(trace!))).toBe(true);expect(new Set(traces).size).toBe(2)
+  act(()=>progress(progressEvent(1024,1024)));await act(async()=>reject({isAxiosError:true,code:'ERR_NETWORK'}))
+  const details=screen.getByText('查看技术摘要').parentElement!;expect(details).toHaveTextContent(traces[1]!);expect(details).toHaveTextContent('等待服务器回执');expect(details.querySelectorAll('dd')).toHaveLength(7);expect(details).toHaveTextContent('1024 B');expect(screen.getByText('first.pdf',{selector:'strong'})).toBeInTheDocument();expect(screen.getByRole('button',{name:'上传 1 份 PDF'})).toBeEnabled()
  })
  it('disables writes for a read-only user',()=>{render(<AcquisitionWorkspace folders={folders} canManage={false}/>);expect(screen.getByLabelText('待收录的标识符与链接')).toBeDisabled();expect(screen.getByRole('button',{name:'收录 0 项资料'})).toBeDisabled()})
 })
