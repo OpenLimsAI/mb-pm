@@ -16,6 +16,24 @@ beforeEach(() => {
 const category = (label: string) => within(screen.getByRole('group', { name: 'ICH分类筛选' })).getByRole('button', { name: label })
 
 describe('source catalogue workflow', () => {
+  it('allows switching after a source deep link and follows a new external source focus', () => {
+    data.sources.push({...data.sources[0],id:'second',name:'第二来源'})
+    data.documents.push(doc('第二来源正文',{sourceId:'second'}))
+    const onAdd=vi.fn(),onDownloads=vi.fn()
+    const manager=(focusSource:string,focusDocument?:string)=><div id="knowledge-source-app"><SourceManager data={data} busy={false} mutate={mutate} onAdd={onAdd} onDownloads={onDownloads} focusSource={focusSource} focusDocument={focusDocument}/></div>
+    const view=render(manager('ich'))
+    expect(screen.getByRole('combobox',{name:'下载来源'})).toHaveValue('ich')
+    fireEvent.change(screen.getByRole('combobox',{name:'下载来源'}),{target:{value:'second'}})
+    expect(screen.getByRole('region',{name:'第二来源来源与论文'})).toBeInTheDocument()
+    expect(screen.queryByRole('region',{name:'ICH来源与论文'})).not.toBeInTheDocument()
+    fireEvent.change(screen.getByRole('combobox',{name:'下载来源'}),{target:{value:'ich'}})
+    view.rerender(manager('second'))
+    expect(screen.getByRole('combobox',{name:'下载来源'})).toHaveValue('second')
+    expect(screen.getByRole('region',{name:'第二来源来源与论文'})).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('combobox',{name:'下载来源'}),{target:{value:'ich'}})
+    view.rerender(manager('second','第二来源正文'))
+    expect(screen.getByRole('combobox',{name:'下载来源'})).toHaveValue('second')
+  })
   it('combines novelty, download state, type and category without widening the selection', async () => {
     mount()
     fireEvent.click(category('Q 质量'))

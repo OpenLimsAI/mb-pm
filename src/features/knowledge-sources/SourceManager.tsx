@@ -18,7 +18,8 @@ const versionLabel = (doc: SourceDocument) => !saved(doc) ? '未下载' : doc.ve
 
 export default function SourceManager({ data, busy, mutate, onAdd, onDownloads, storageKey, density = 'compact', onDensityChange, focusSource, focusDocument }: Props) {
   const [chosenSource,setChosenSource]=useState(focusSource || data.sources[0]?.id || '')
-  const selectedSource=data.sources.find(item=>item.id===(focusSource || chosenSource)) || data.sources[0]
+  useEffect(()=>{if(focusSource)setChosenSource(focusSource)},[focusSource,focusDocument])
+  const selectedSource=data.sources.find(item=>item.id===chosenSource) || data.sources[0]
   return <>
     <div className="kso-head"><div><div className="kso-breadcrumb">收录资料</div><h1>从来源下载</h1><p>选中官网资料，直接下载到文件夹。</p></div><div className="kso-actions">{onDensityChange && <details className="kso-source-display"><summary>显示设置</summary><label className="kso-small">列表密度 <select className="kso-select" aria-label="来源列表密度" value={density} onChange={event => onDensityChange(event.target.value as 'compact' | 'standard')}><option value="compact">紧凑</option><option value="standard">标准</option></select></label></details>}{data.canManage && <button type="button" className="kso-btn" onClick={onAdd}><Plus />添加搜索源</button>}</div></div>
     {data.sources.length>1&&<label className="kso-source-picker">下载来源<select className="kso-select" value={selectedSource?.id || ''} onChange={event=>setChosenSource(event.target.value)}>{data.sources.map(item=><option value={item.id} key={item.id}>{item.name}</option>)}</select></label>}
