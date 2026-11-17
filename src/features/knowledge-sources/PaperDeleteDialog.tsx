@@ -15,6 +15,7 @@ export default function PaperDeleteDialog({ paper, storageKey, onClose, onDelete
   const key = `${storageKey}:delete:${paper.id}`
   const [plan, setPlan] = useState<DeletePlan | null>(null), [status, setStatus] = useState<DeleteStatus | null>(null)
   const [loading, setLoading] = useState(true), [submitted, setSubmitted] = useState(false), [error, setError] = useState('')
+  const [retryConfirmation, setRetryConfirmation] = useState(false)
   const box = useRef<HTMLDivElement>(null), active = useRef(true), pending = useRef<AbortController | null>(null), timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const lock = useRef(false), done = useRef(onDeleted); done.current = onDeleted
   function save(value: Pending | null) { try { if (value) localStorage.setItem(key, JSON.stringify(value)); else localStorage.removeItem(key) } catch { /* The server operation remains durable. */ } }
@@ -24,19 +25,26 @@ export default function PaperDeleteDialog({ paper, storageKey, onClose, onDelete
   }
   function acceptStatus(value: DeleteStatus, expected: DeletePlan) {
     if (!value || value.operationId !== expected.planId || value.path !== expected.path || !['running', 'succeeded', 'failed'].includes(value.status) || value.total !== expected.pages.length + 1 || value.completed < 0 || value.completed > value.total || (value.status === 'succeeded' && value.completed !== value.total)) throw new Error('删除结果暂未确认，请重新查询。')
-    setStatus(value)
+    setStatus(value); setRetryConfirmation(false)
     if (value.status === 'succeeded') { save(null); done.current() }
     return value
   }
   async function query(expected: DeletePlan) {
     if (!active.current || lock.current) return
-    lock.current = true; setLoading(true); setError('')
+    lock.current = true; setLoading(true); setError(''); setRetryConfirmation(false)
     const abort = new AbortController(); pending.current = abort
     try {
       const value = await knowledgeV3Get<DeleteStatus>(`/library/delete-status?operationId=${encodeURIComponent(expected.planId)}`, abort.signal)
       if (!active.current) return
       if (acceptStatus(value, expected).status === 'running') timer.current = setTimeout(() => void query(expected), 1500)
-    } catch (e) { if (active.current && !abort.signal.aborted) setError(sourceError(e)) }
+    } catch (e) {
+      if (active.current && !abort.signal.aborted) {
+        if (axios.isAxiosError(e) && e.response?.status === 404) {
+          // Keep the same plan: an accepted request may still race with this status lookup.
+          setRetryConfirmation(true); setStatus(null); setError('尚未查询到已启动的删除任务，可使用原确认单重试。')
+        } else setError(sourceError(e))
+      }
+    }
     finally { lock.current = false; if (active.current) setLoading(false) }
   }
   async function preview() {
@@ -50,8 +58,8 @@ export default function PaperDeleteDialog({ paper, storageKey, onClose, onDelete
     finally { lock.current = false; if (active.current) setLoading(false) }
   }
   async function confirm(retry = false) {
-    if (!plan || (submitted && !(retry && status?.status === 'failed')) || lock.current) return
-    lock.current = true; setLoading(true); setError(''); setSubmitted(true); save({ plan, submitted: true })
+    if (!plan || (submitted && !(retry && (status?.status === 'failed' || retryConfirmation))) || lock.current) return
+    lock.current = true; setLoading(true); setError(''); setRetryConfirmation(false); setSubmitted(true); save({ plan, submitted: true })
     const abort = new AbortController(); pending.current = abort
     try {
       const value = await knowledgeV3Post<DeleteStatus>('/library/delete', { paperId: paper.id, planId: plan.planId }, abort.signal)
@@ -88,5 +96,5 @@ export default function PaperDeleteDialog({ paper, storageKey, onClose, onDelete
     {loading && <p role="status"><LoaderCircle className="if-spin" />{submitted ? '正在确认删除进度…' : '正在检查删除范围…'}</p>}
     {status && <p role="status">{status.status === 'succeeded' ? '文件已删除。' : status.status === 'failed' ? `删除未完成：${status.message || '请核对后重试查询。'}` : `正在删除 ${status.completed} / ${status.total} 项…`}</p>}
     {error && <p role="alert" className="kso-error">{error}</p>}
-  </div><div className="kso-dialog-foot"><button type="button" className="kso-btn" onClick={onClose}>{submitted ? '关闭' : '取消'}</button>{submitted && plan ? <><button type="button" className="kso-btn" disabled={loading} onClick={() => void query(plan)}>查询删除结果</button>{status?.status==='failed'&&<button type="button" className="kso-btn danger" disabled={loading} onClick={()=>void confirm(true)}>继续删除</button>}</> : error ? <button type="button" className="kso-btn" disabled={loading || !validPath(paper.id)} onClick={() => void preview()}>重新检查</button> : <button type="button" className="kso-btn danger" disabled={!plan || loading} onClick={() => void confirm()}><Trash2 />确认删除文件</button>}</div></div></div>
+  </div><div className="kso-dialog-foot"><button type="button" className="kso-btn" onClick={onClose}>{submitted ? '关闭' : '取消'}</button>{submitted && plan ? <><button type="button" className="kso-btn" disabled={loading} onClick={() => void query(plan)}>查询删除结果</button>{(status?.status==='failed'||retryConfirmation)&&<button type="button" className="kso-btn danger" disabled={loading} onClick={()=>void confirm(true)}>{retryConfirmation?'重试确认删除':'继续删除'}</button>}</> : error ? <button type="button" className="kso-btn" disabled={loading || !validPath(paper.id)} onClick={() => void preview()}>重新检查</button> : <button type="button" className="kso-btn danger" disabled={!plan || loading} onClick={() => void confirm()}><Trash2 />确认删除文件</button>}</div></div></div>
 }
