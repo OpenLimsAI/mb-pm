@@ -14,7 +14,7 @@ beforeEach(() => {
   mocks.preview = false; mocks.allowed = true
   snapshot = {
     papers: [{ id: 'sources/existing.md', title: '已有研究论文', sourceName: '知识库', folderIds: ['topic'], saved: false, indexStatus: 'unknown', kbUrl: 'https://kb.openlims.ai/?paper=existing' }, { id: 'archive:version', title: '已下载的ICH指南', sourceName: 'ICH', sourceId: 'ich', folderIds: ['ich'], saved: true, indexStatus: 'failed', originalUrl: '/api/v1/knowledge-sources/documents/doc/versions/v/original', documentId: 'doc', versionId: 'v', createdAt: '2026-11-01T10:00:00Z' }],
-    folders: [{ id: 'topic', name: '稳定性研究', writable: true }, { id: 'ich', name: 'ICH', writable: true }],
+    folders: [{ id: 'topic', name: '稳定性研究', writable: true }, { id: 'ich', name: 'ICH', writable: true }, {id:'inbox',name:'待整理',systemRole:'inbox',writable:true}],
     sources: [{ id: 'ich', name: 'ICH', url: 'https://www.ich.org', scopes: ['Q', 'S', 'E', 'M'], folderId: 'ich', frequency: 'daily', enabled: false, adapter: 'ich', status: 'ok', scopeStatus: {}, lastCheckedAt: '2026-11-01T10:00:00Z' }],
     documents: [{ id: 'newdoc', sourceId: 'ich', title: '官方新指南', url: 'https://database.ich.org/sites/default/files/new.pdf', scopes: ['Q'], folderIds: [], format: 'PDF', language: '英文', documentType: 'Guideline', discoveredAt: '2026-11-01T10:00:00Z', status: 'discovered', versions: [] }],
     jobs: [], catalogRevision: 4, canManage: true, canOrganize: true, starred: [], integration: { status: 'ready', message: '已连接' },
@@ -24,6 +24,31 @@ beforeEach(() => {
 })
 const mount = () => render(<MemoryRouter><KnowledgeSourceApp /></MemoryRouter>)
 const savedVersion = { id: 'saved', sha256: 'a'.repeat(64), size: 100, createdAt: '2026-11-01T10:00:00Z', parseStatus: 'ready', indexStatus: 'ready' }
+
+it('shows unfiled and inbox papers together, excluding papers already in ICH or a topic', async () => {
+  snapshot.folders[1].kind='source'
+  snapshot.papers.push({id:'sources/unfiled.md',title:'未分类新资料',folderIds:[],saved:true,indexStatus:'not_requested'})
+  snapshot.papers.push({id:'sources/inbox.md',title:'尚未归类资料',folderIds:['inbox'],saved:true,indexStatus:'not_requested'})
+  mount();await screen.findByRole('button',{name:/已有研究论文/})
+  fireEvent.click(screen.getByRole('button',{name:/^待整理/}))
+  expect(screen.getByRole('button',{name:/未分类新资料/})).toBeInTheDocument()
+  expect(screen.getByRole('button',{name:/尚未归类资料/})).toBeInTheDocument()
+  expect(screen.queryByRole('button',{name:/已下载的ICH指南/})).not.toBeInTheDocument()
+  expect(screen.queryByRole('button',{name:/已有研究论文/})).not.toBeInTheDocument()
+})
+it('opens PDF intake in the active folder and defaults to the real inbox from all papers', async () => {
+  mount();await screen.findByRole('button',{name:/已有研究论文/})
+  fireEvent.click(screen.getByRole('button',{name:/^稳定性研究/}))
+  fireEvent.click(screen.getByRole('button',{name:'添加资料'}))
+  expect(screen.getByRole('combobox',{name:'收录目标文件夹'})).toHaveValue('topic')
+  expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button',{name:'关闭添加资料'}))
+  fireEvent.click(screen.getByRole('button',{name:/^全部资料/}))
+  fireEvent.click(screen.getByRole('button',{name:'添加资料'}))
+  expect(screen.getByRole('combobox',{name:'收录目标文件夹'})).toHaveValue('inbox')
+  expect(screen.getByRole('option',{name:'待整理'})).toBeInTheDocument()
+  expect(screen.queryByRole('option',{name:'默认文件夹'})).not.toBeInTheDocument()
+})
 
 describe('knowledge source real-data application', () => {
   it('lists existing KB papers and archived files without treating discovery as saved or unknown indexing as ready', async () => {
@@ -106,7 +131,7 @@ describe('knowledge source real-data application', () => {
     snapshot.folders.push({ id: 'empty', name: '上游工艺开发' }, { id: 'analysis', name: '分析方法质量表征' }, { id: 'fifth', name: '第五个分类' })
     mount(); await screen.findByRole('button', { name: /已有研究论文/ })
     const folders = screen.getByRole('region', { name: /^论文文件夹\s*\d/ })
-    expect(within(folders).getAllByRole('listitem')).toHaveLength(5)
+    expect(within(folders).getAllByRole('listitem')).toHaveLength(6)
     expect(within(folders).getByRole('listitem', { name: '文件夹 ICH' })).toHaveTextContent('来源归档')
     expect(within(folders).getByRole('listitem', { name: '文件夹 上游工艺开发' })).toHaveTextContent('空文件夹')
     fireEvent.click(screen.getByRole('checkbox', { name: '选择 已有研究论文' }))
@@ -300,4 +325,21 @@ describe('direct folder menu actions',()=>{
     expect(screen.getByRole('dialog')).toHaveTextContent('重命名文件夹')
     expect(screen.getByRole('heading',{name:'全部资料'})).toBeInTheDocument()
   })
+})
+
+it('creates the actual inbox once when missing and lists it under folders',async()=>{
+ snapshot.folders=snapshot.folders.filter(folder=>folder.id!=='inbox')
+ mocks.mutate.mockImplementation(async(_method,path)=>{if(path==='/folders/inbox')snapshot.folders.push({id:'created-inbox',name:'待整理',systemRole:'inbox'});return {id:'created-inbox',name:'待整理',systemRole:'inbox'}})
+ mount();await screen.findByRole('button',{name:/^待整理/})
+ expect(mocks.mutate).toHaveBeenCalledExactlyOnceWith('post','/folders/inbox',{})
+ const folderSection=document.querySelector('.kso-folder-section')!
+ expect(within(folderSection as HTMLElement).getByRole('button',{name:/^待整理/})).toBeInTheDocument()
+ expect(screen.queryByRole('button',{name:'待整理的文件夹操作'})).not.toBeInTheDocument()
+ fireEvent.click(screen.getByRole('button',{name:/^待整理/}));fireEvent.click(screen.getByRole('button',{name:'添加资料'}))
+ expect(screen.getByLabelText('收录目标文件夹')).toHaveValue('created-inbox')
+})
+it('does not provision folders for read-only viewers',async()=>{
+ snapshot.folders=snapshot.folders.filter(folder=>folder.id!=='inbox');snapshot.canOrganize=false;snapshot.canManage=false
+ mount();await screen.findByRole('button',{name:/已有研究论文/})
+ expect(mocks.mutate).not.toHaveBeenCalled()
 })

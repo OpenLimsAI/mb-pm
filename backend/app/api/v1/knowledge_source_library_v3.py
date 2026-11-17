@@ -28,6 +28,7 @@ from app.models.information import InformationText
 from app.models.note import PersonalNote
 from app.services.information.extract import extract_pdf
 from app.services.information.store import Store, iso
+from app.services.knowledge_source_inbox import inbox_id, normalized_folder_ids
 
 router = APIRouter(prefix="/knowledge-sources/v3/library", tags=["knowledge-sources"])
 upload_router = APIRouter(prefix="/knowledge-sources/v3", tags=["knowledge-sources"])
@@ -55,6 +56,28 @@ class PaperInput(Input):
     query: str = Field("", max_length=500)
     offset: int = Field(0, ge=0, le=4000000)
     limit: int = Field(48000, ge=1000, le=64000)
+
+
+class DeletePaperInput(Input):
+    paper_id: str = Field(alias="paperId", min_length=1, max_length=1024)
+
+
+class ConfirmDeletePaperInput(DeletePaperInput):
+    plan_id: str = Field(
+        alias="planId", pattern=r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+    )
+
+
+def _deletable_path(value: str):
+    if (
+        not value.startswith("sources/")
+        or not value.endswith(".md")
+        or any(part in ("", ".", "..") for part in value.split("/"))
+        or "\\" in value
+        or any(ord(char) < 32 or ord(char) == 127 for char in value)
+    ):
+        raise HTTPException(422, "此资料尚未登记到知识库，暂不能在此删除")
+    return value
 
 
 class TagInput(Input):
@@ -238,19 +261,7 @@ def _archive_candidates(store, body, summary, actor, extra_queries=None, note_hi
         active.update(p["path"] for p in permitted.get("papers", []))
     live_documents = {v["documentId"] for v in versions if v.get("kbPath") in active}
     papers = []
-    source_ids = {s.get("archiveFolderId") or s.get("folderId") for s in sources.values()}
-    source_names = {
-        "ICH" if s.get("adapter") == "ich" else s.get("name")
-        for s in sources.values()
-        if s.get("adapter") != "manual"
-    }
-    source_folders = {
-        f["id"]
-        for f in summary.get("folders", [])
-        if f.get("kind") == "source"
-        or (not f.get("kind") and (f["id"] in source_ids or f["name"] in source_names))
-    }
-    known = {f["id"] for f in summary.get("folders", [])}
+    inbox = inbox_id(summary)
     query = body.query.casefold()
     for version in latest.values():
         if version["documentId"] in guarded and version["documentId"] not in live_documents:
@@ -268,9 +279,9 @@ def _archive_candidates(store, body, summary, actor, extra_queries=None, note_hi
                 and item.get("documentId") == version.get("kbDocumentId", version["documentId"])
             )
             paper.update(kbUrl=None, indexStatus=proof["indexStatus"])
-        paper["folderIds"] = [f for f in paper["folderIds"] if f in known]
+        paper["folderIds"] = normalized_folder_ids(paper["folderIds"], summary)
         folders = set(paper["folderIds"])
-        if body.folder_id == "unsorted" and folders - source_folders:
+        if body.folder_id == "unsorted" and folders - {inbox}:
             continue
         if (
             body.folder_id not in ("all", "unsorted", "recent", "starred")
@@ -373,7 +384,9 @@ def library_statistics(store, actor, summary):
         for paper in page.get("papers", []):
             if paper["path"] in versions:
                 document = versions[paper["path"]]["documentId"]
-                core_folders.setdefault(document, set()).update(paper.get("folderIds", []))
+                core_folders.setdefault(document, set()).update(
+                    normalized_folder_ids(paper.get("folderIds", []), summary)
+                )
     counts = dict(summary.get("folderCounts", {}))
     for paper in extras:
         for ident in paper.get("folderIds", []):
@@ -389,14 +402,16 @@ def query_library(
 ):
     store = Store(db, actor["tenant"])
     summary = library_statistics(store, actor, connected("librarySummary", actor["subject"]))
+    is_inbox = body.folder_id == inbox_id(summary)
     options = {
         "query": body.query,
         "searchMode": body.search_mode,
         "folderIds": []
-        if body.folder_id in ("all", "recent", "unsorted", "starred")
+        if is_inbox
+        or body.folder_id in ("all", "recent", "unsorted", "starred")
         or body.folder_id.startswith("batch:")
         else [body.folder_id],
-        "unfiled": body.folder_id == "unsorted",
+        "unfiled": is_inbox or body.folder_id == "unsorted",
         "tags": body.tag_ids,
         "sort": body.sort,
     }
@@ -527,6 +542,7 @@ def query_library(
 
     reading = public_workspace(store, actor["subject"])["reading"]
     for paper in papers:
+        paper["folderIds"] = normalized_folder_ids(paper.get("folderIds", []), summary)
         paper["reading"] = reading_for(paper, reading)
         if paper["id"] in note_hits:
             paper["matches"] = [*paper.get("matches", []), *note_hits[paper["id"]]][:4]
@@ -616,6 +632,29 @@ def paper_detail(body: PaperInput, db: Session = Depends(get_db), actor: dict = 
         "kbUrl": result.get("url"),
         "canWrite": result.get("canWrite", False),
     }
+
+
+@router.post("/delete-preview")
+def preview_paper_delete(body: DeletePaperInput, actor: dict = Depends(principal)):
+    return connected("deletePaperPreview", actor["subject"], path=_deletable_path(body.paper_id))
+
+
+@router.post("/delete")
+def confirm_paper_delete(body: ConfirmDeletePaperInput, actor: dict = Depends(principal)):
+    return connected(
+        "deletePaper", actor["subject"], path=_deletable_path(body.paper_id), planId=body.plan_id
+    )
+
+
+@router.get("/delete-status")
+def paper_delete_status(
+    operation_id: str = Query(
+        alias="operationId",
+        pattern=r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+    ),
+    actor: dict = Depends(principal),
+):
+    return connected("deletePaperStatus", actor["subject"], operationId=operation_id)
 
 
 @router.get("/original")
@@ -750,6 +789,7 @@ def refresh_index(actor: dict = Depends(principal)):
 def upload_paper(
     file: UploadFile = File(...),
     folder_id: str = Form("", alias="folderId"),
+    no_folder: bool = Form(False, alias="noFolder"),
     parse: bool = Form(False),
     db: Session = Depends(get_db),
     actor: dict = Depends(principal),
@@ -759,6 +799,8 @@ def upload_paper(
         raise HTTPException(403, "上传需要知识库负责人权限")
     if parse:
         raise HTTPException(422, "上传先保留原件，请在知识库中主动建立问答索引")
+    if no_folder and folder_id:
+        raise HTTPException(422, "请选择文件夹或待整理，不能同时指定")
     original = file.file.read(25 * 1024 * 1024 + 1)
     file.file.close()
     if len(original) > 25 * 1024 * 1024:
@@ -785,6 +827,7 @@ def upload_paper(
         sha256=hashlib.sha256(original).hexdigest(),
         text=text,
         **({"folderId": folder_id} if folder_id else {}),
+        **({"noFolder": True} if no_folder else {}),
         parse=False,
     )
     store = Store(db, actor["tenant"])
@@ -820,8 +863,32 @@ def upload_paper(
             "status": "archived",
             "discoveredAt": iso(),
         }
-    document["folderIds"] = sorted(set(document.get("folderIds", [])) | {result["folderId"]})
+    destination = result.get("folderId")
+    if "folderIds" in result:
+        document["folderIds"] = result["folderIds"]
+    else:
+        document["folderIds"] = normalized_folder_ids(
+            set(document.get("folderIds", [])) | ({destination} if destination else set()),
+            catalogue,
+        )
+        # The first default upload can create the inbox after the initial summary.
+        if (
+            destination
+            and destination not in document["folderIds"]
+            and not any(folder["id"] == destination for folder in catalogue.get("folders", []))
+        ):
+            document["folderIds"].append(destination)
     store.put("document", document)
+    classification_key = store.key("ks_classification", document_id)
+    classification = store.get("ks_classification", classification_key, required=False)
+    if classification is not None:
+        previous = set(classification.get("folderIds", []))
+        current = set(document["folderIds"])
+        classification["folderIds"] = document["folderIds"]
+        classification["removedFolderIds"] = sorted(
+            (set(classification.get("removedFolderIds", [])) | (previous - current)) - current
+        )
+        store.put("ks_classification", classification)
     version = store.archive(
         document_id, original, text, parse_status="ready" if text else "failed", error=issue
     )
@@ -838,7 +905,12 @@ def upload_paper(
     filing = None
     from app.services.knowledge_source_workspace_v3 import apply_enabled_rules, workspace
 
-    if any(rule.get("enabled") for rule in workspace(store, actor["subject"])["rules"]):
+    if (
+        not no_folder
+        and folder_id
+        and folder_id != inbox_id(catalogue)
+        and any(rule.get("enabled") for rule in workspace(store, actor["subject"])["rules"])
+    ):
         try:
             from app.api.v1.knowledge_source_workspace_v3 import context
 

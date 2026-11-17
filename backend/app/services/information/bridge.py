@@ -15,8 +15,9 @@ from app.core.config import settings
 class BridgeError(ValueError):
     """Preserve actionable permission/conflict statuses without exposing credentials."""
 
-    def __init__(self, status, message):
+    def __init__(self, status, message, code=None):
         self.status = status
+        self.code = code
         super().__init__(message)
 
 
@@ -58,7 +59,14 @@ def call(operation, subject, **values):
                 if operation in ("import", "uploadPaper")
                 else 35
                 if operation
-                in ("readOriginal", "readPaper", "indexUploadedPaper", "statusUploadedPaper")
+                in (
+                    "readOriginal",
+                    "readPaper",
+                    "indexUploadedPaper",
+                    "statusUploadedPaper",
+                    "deletePaperPreview",
+                    "ensureInboxFolder",
+                )
                 else 12,
                 connect=5,
             ),
@@ -70,7 +78,12 @@ def call(operation, subject, **values):
             raise ValueError("知识库返回了无效结果")
         if response.status_code != 200:
             message = data.get("error", {}).get("message", "知识库暂时无法处理此请求")
-            raise BridgeError(response.status_code, str(message)[:500])
+            code = data.get("error", {}).get("code")
+            raise BridgeError(
+                response.status_code,
+                str(message)[:500],
+                code if code == "paper_delete_plan_expired" else None,
+            )
         return data
     except (httpx.HTTPError, json.JSONDecodeError) as exc:
         raise ValueError("无法连接知识库服务，请检查服务状态后重试") from exc

@@ -1,0 +1,6 @@
+#knowledge-source-app.kso-simple-workspace .kso-shell.kso-resizable-shell{grid-template-columns:min(var(--kso-sidebar-width,212px),calc(100% - 347px)) 7px minmax(0,1fr)}
+#knowledge-source-app .kso-resizable-shell>.kso-sidebar{min-width:0;border-right:0}
+#knowledge-source-app .kso-sidebar-resizer{position:relative;cursor:col-resize;touch-action:none;user-select:none;outline-offset:-2px;background:var(--kso-bg)}
+#knowledge-source-app .kso-sidebar-resizer::before{content:'';position:absolute;inset:0 3px;background:var(--kso-line);transition:background .15s}
+#knowledge-source-app .kso-sidebar-resizer:hover::before,#knowledge-source-app .kso-sidebar-resizer:focus-visible::before,#knowledge-source-app .kso-sidebar-resizer:active::before{background:var(--kso-blue);inset-inline:2px}
+@media(max-width:760px){#knowledge-source-app.kso-simple-workspace .kso-resizable-shell{display:block}#knowledge-source-app .kso-sidebar-resizer{display:none}}

@@ -1,0 +1,4 @@
+#knowledge-source-app .kso-paper-delete .kso-dialog-body>strong{overflow-wrap:anywhere;font-size:14px}
+#knowledge-source-app .kso-paper-delete p{line-height:1.7}
+#knowledge-source-app .ksv-paper-delete-button{flex-shrink:0;color:var(--kso-muted);opacity:.7;min-width:26px;min-height:28px}
+#knowledge-source-app .ksv-paper-delete-button:hover,#knowledge-source-app .ksv-paper-delete-button:focus-visible{color:var(--kso-red);opacity:1;background:var(--kso-red-bg)}

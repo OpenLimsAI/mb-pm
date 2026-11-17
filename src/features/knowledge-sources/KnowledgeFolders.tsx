@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { Pin, ChevronDown, Check, ChevronRight, Folder, FolderDown, FolderPlus, Pencil, Search, X } from 'lucide-react'
-import type { SourceFolder, SourcePaper } from './api'
+import { isInboxFolder, type SourceFolder, type SourcePaper } from './api'
 import './knowledge-folders.css'
 import { useKnowledgePreference } from './preferences'
 
@@ -48,7 +48,7 @@ export default function KnowledgeFolders({ storageKey = 'kso:folders', folders, 
     (!query || folder.name.toLocaleLowerCase().includes(query)) &&
     (kind === 'all' || (kind === 'source' ? sourceIds.has(folder.id) : !sourceIds.has(folder.id))),
   )
-  visibleFolders.sort((a,b)=>Number(pins.includes(b.id))-Number(pins.includes(a.id)) || (sort==='count' ? (counts.get(b.id)||0)-(counts.get(a.id)||0) : a.name.localeCompare(b.name)))
+  visibleFolders.sort((a,b)=>Number(isInboxFolder(b))-Number(isInboxFolder(a)) || Number(pins.includes(b.id))-Number(pins.includes(a.id)) || (sort==='count' ? (counts.get(b.id)||0)-(counts.get(a.id)||0) : a.name.localeCompare(b.name)))
   const pathOf=(id:string):string=>{const seen=new Set<string>();const names:string[]=[];let item=folders.find(f=>f.id===id);while(item&&!seen.has(item.id)){seen.add(item.id);names.unshift(item.name);item=folders.find(f=>f.id===item?.parentId)}return names.join(' / ')}
   const filters: { id: FolderKind; label: string; count: number }[] = [
     { id: 'all', label: '全部', count: folders.length },
@@ -82,12 +82,12 @@ export default function KnowledgeFolders({ storageKey = 'kso:folders', folders, 
         const FolderIcon = fromSource ? FolderDown : Folder
         return <article className={`kso-folder-manager-card${fromSource ? ' kso-folder-manager-card-source' : ''}`} role="listitem" key={folder.id} aria-label={`文件夹 ${folder.name}`}>
           <button type="button" className="kso-folder-manager-open" aria-label={`打开文件夹 ${folder.name}，${count} 篇论文`} onClick={() => onOpen(folder.id)}>
-            <span className="kso-folder-manager-identity"><span className="kso-folder-manager-icon"><FolderIcon size={24} aria-hidden="true" /></span><span className="kso-folder-manager-copy"><strong className="kso-folder-manager-name" title={pathOf(folder.id)}>{pathOf(folder.id)}</strong><span className="kso-folder-manager-kind">{fromSource ? '来源归档' : '主题分类'}</span></span></span>
+            <span className="kso-folder-manager-identity"><span className="kso-folder-manager-icon"><FolderIcon size={24} aria-hidden="true" /></span><span className="kso-folder-manager-copy"><strong className="kso-folder-manager-name" title={pathOf(folder.id)}>{pathOf(folder.id)}</strong><span className="kso-folder-manager-kind">{isInboxFolder(folder) ? '待归类资料' : fromSource ? '来源归档' : '主题分类'}</span></span></span>
             <span className="kso-folder-manager-count"><span><b>{count}</b> 篇论文</span><span className="kso-folder-manager-enter">打开<ChevronRight size={15} aria-hidden="true" /></span></span>
             <span className={`kso-folder-manager-hint${count === 0 ? ' kso-folder-manager-hint-empty' : ''}`}>{count === 0 ? '空文件夹 · 选中论文后可放入' : fromSource ? '来源下载后归入这里，再按主题整理' : '浏览此分类中的论文与原件'}</span>
           </button>
-          <button type="button" className="kso-folder-pin" aria-label={`${pins.includes(folder.id)?'取消置顶':'置顶'}文件夹 ${folder.name}`} aria-pressed={pins.includes(folder.id)} onClick={()=>setPins(pins.includes(folder.id)?pins.filter(id=>id!==folder.id):[...pins,folder.id])}><Pin size={14}/></button>{writable && <button type="button" className="kso-folder-manager-rename" aria-label={`重命名文件夹 ${folder.name}`} title="重命名文件夹" disabled={busy} onClick={() => onRename(folder.id)}><Pencil size={15} aria-hidden="true" /></button>}
-          {writable && selectedPapers.length > 0 && <div className="kso-folder-manager-assign-area"><button type="button" className={`kso-folder-manager-assign${alreadyAssigned ? ' kso-folder-manager-assigned' : ''}`} disabled={busy || alreadyAssigned} aria-label={alreadyAssigned ? `所选论文已全部在 ${folder.name}` : `将选中的 ${selectedPapers.length} 篇论文放入 ${folder.name}`} onClick={() => onAssign(folder.id)}>{alreadyAssigned ? <Check size={15} aria-hidden="true" /> : <FolderPlus size={15} aria-hidden="true" />}{busy ? '处理中…' : alreadyAssigned ? '所选论文已全部归入' : '放入此文件夹'}</button></div>}
+          {!isInboxFolder(folder)&&<button type="button" className="kso-folder-pin" aria-label={`${pins.includes(folder.id)?'取消置顶':'置顶'}文件夹 ${folder.name}`} aria-pressed={pins.includes(folder.id)} onClick={()=>setPins(pins.includes(folder.id)?pins.filter(id=>id!==folder.id):[...pins,folder.id])}><Pin size={14}/></button>}{writable && !isInboxFolder(folder) && <button type="button" className="kso-folder-manager-rename" aria-label={`重命名文件夹 ${folder.name}`} title="重命名文件夹" disabled={busy} onClick={() => onRename(folder.id)}><Pencil size={15} aria-hidden="true" /></button>}
+          {writable && !isInboxFolder(folder) && selectedPapers.length > 0 && <div className="kso-folder-manager-assign-area"><button type="button" className={`kso-folder-manager-assign${alreadyAssigned ? ' kso-folder-manager-assigned' : ''}`} disabled={busy || alreadyAssigned} aria-label={alreadyAssigned ? `所选论文已全部在 ${folder.name}` : `将选中的 ${selectedPapers.length} 篇论文放入 ${folder.name}`} onClick={() => onAssign(folder.id)}>{alreadyAssigned ? <Check size={15} aria-hidden="true" /> : <FolderPlus size={15} aria-hidden="true" />}{busy ? '处理中…' : alreadyAssigned ? '所选论文已全部归入' : '放入此文件夹'}</button></div>}
         </article>
       })}
     </div> : <div className="kso-folder-manager-empty">

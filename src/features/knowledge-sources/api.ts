@@ -11,7 +11,9 @@ export interface SourcePaper {
 export interface SourceDocument extends InformationDocument { isNew?: boolean; unread?: boolean; versionStatus?: 'not_saved' | 'unverified' | 'current' | 'update_available'; verifiedAt?: string; downloadStatus?: 'not_requested' | 'available' | 'unavailable' | 'failed'; downloadErrorCode?: string; currentVersionId?: string; verifiedSha256?: string }
 export interface SourceDefinition extends InformationSource { archiveFolderId?: string; schedule?: { frequency: 'off' | 'daily' | 'weekly'; downloadUpdates: boolean; indexUpdates: boolean; nextCheckAt?: string } }
 export type SourceJob = Omit<InformationJob, 'items'> & { kind?: string; app?: string; summary?: Record<string, number>; canUndoRuleFiling?: boolean; ruleFiling?: {status:string;ruleApplications?:number;undoTokens?:string[];error?:string}; items: (InformationJob['items'][number] & { phase?: string; failurePhase?: string; result?: string; scope?: string; errorCode?: string; retryable?: boolean })[] }
-export interface SourceFolder { id: string; name: string; writable?: boolean; kind?: 'topic' | 'source'; parentId?: string | null }
+export interface SourceFolder { id: string; name: string; writable?: boolean; kind?: 'topic' | 'source'; parentId?: string | null; systemRole?: 'inbox' }
+export const isInboxFolder = (folder: SourceFolder) => folder.systemRole === 'inbox' || (!folder.parentId && folder.name === '待整理')
+export const findInboxFolder = (folders: SourceFolder[]) => folders.find(isInboxFolder)
 export interface KnowledgeSourceSnapshot {
   papers: SourcePaper[]; folders: SourceFolder[]; sources: SourceDefinition[]
   jobs: SourceJob[]; documents: SourceDocument[]
@@ -28,7 +30,7 @@ client.interceptors.response.use(response => response, error => {
 })
 export const getKnowledgeSources = (signal?: AbortSignal) => client.get('/snapshot', { signal, params: { summary: true } }).then(r => camelize<KnowledgeSourceSnapshot>(r.data))
 export const getKnowledgeSourceJobs = () => client.get('/jobs/status').then(r => camelize<{ jobs: SourceJob[]; refreshedAt: string }>(r.data))
-export const mutateKnowledgeSources = (method: 'post' | 'patch', path: string, value: unknown) => client.request({ method, url: path, data: snakeize(value) }).then(r => camelize(r.data))
+export const mutateKnowledgeSources = (method: 'post' | 'patch', path: string, value: unknown) => client.request({ method, url: path, data: snakeize(value), ...(path === '/folders/inbox' ? { timeout: 60000 } : {}) }).then(r => camelize(r.data))
 export function sourceError(error: unknown): string {
   if (axios.isAxiosError(error)) {
     const detail = error.response?.data?.detail

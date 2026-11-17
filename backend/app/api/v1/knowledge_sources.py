@@ -21,6 +21,7 @@ from app.services.information import bridge
 from app.services.information.store import Store, iso, tenant_key
 from app.services.information.worker import active_account, can_manage
 from app.services.knowledge_source_folders import folder_action, organize_papers, undo_organization
+from app.services.knowledge_source_inbox import inbox_id, normalized_folder_ids
 from app.services.knowledge_source_status import (
     job_revision,
     public_jobs,
@@ -152,6 +153,8 @@ def connected(operation, subject, **values):
         return bridge.call(operation, subject, **values)
     except bridge.BridgeError as exc:
         status = exc.status if exc.status in (400, 401, 403, 404, 409, 422) else 503
+        if exc.code == "paper_delete_plan_expired":
+            raise HTTPException(status, {"message": str(exc), "code": exc.code}) from exc
         raise HTTPException(status, str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(503, str(exc)) from exc
@@ -262,6 +265,7 @@ def paper_snapshot(store, actor, result):
     prefs = store.preferences(actor["subject"])
     stars = prefs.get("knowledgeSourceStars", [])
     for paper in papers:
+        paper["folderIds"] = normalized_folder_ids(paper["folderIds"], result)
         alias = "archive:" + paper["versionId"] if paper.get("versionId") else None
         paper["starred"] = paper["id"] in stars or alias in stars
     return papers
@@ -416,7 +420,9 @@ def writable_library(actor, store=None):
 
 
 def mutate_folder(actor, body):
-    writable_library(actor)
+    catalogue = writable_library(actor)
+    if inbox_id(catalogue) and body.get("folderId") == inbox_id(catalogue):
+        raise HTTPException(409, "待整理是系统文件夹，不能重命名")
     return connected("folderMutation", actor["subject"], mutation=body)
 
 
@@ -425,6 +431,13 @@ def create_folder(body: FolderInput, actor: dict = Depends(principal)):
     return mutate_folder(
         actor, {"operation": "create", "name": body.name, "revision": body.revision}
     )
+
+
+@router.post("/folders/inbox")
+def ensure_inbox_folder(actor: dict = Depends(principal)):
+    # Explicit, idempotent creation: read-only snapshot requests never create folders.
+    # The signed bridge rechecks the current KB manager role before changing storage.
+    return connected("ensureInboxFolder", actor["subject"])
 
 
 @router.patch("/folders/{ident}")
