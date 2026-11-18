@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { AxiosProgressEvent } from 'axios'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AcquisitionWorkspace from './AcquisitionWorkspace'
@@ -57,6 +57,48 @@ describe('knowledge source unified intake',()=>{
   fireEvent.change(screen.getByLabelText('收录目标文件夹'),{target:{value:'other'}})
   view.rerender(<AcquisitionWorkspace folders={[...folders,other,next]} initialFolderId="next" canManage/>)
   expect(screen.getByLabelText('收录目标文件夹')).toHaveValue('other')
+ })
+ it('keeps eligible files from a mixed selection and identifies each rejected file', async () => {
+   render(<AcquisitionWorkspace folders={folders} canManage />)
+   const input = screen.getByLabelText('选择文件')
+   const oversized = new File([], '附件.pdf')
+   Object.defineProperty(oversized, 'size', { value: 25 * 1024 * 1024 + 1 })
+   const pdf = new File(['%PDF-1.7'], '研究资料.PDF')
+   fireEvent.change(input, { target: { files: [new File([], '笔记.txt'), pdf, oversized] } })
+
+   const skipped = within(screen.getByRole('status'))
+   expect(skipped.getByText('本次有 2 份文件未加入')).toBeInTheDocument()
+   expect(skipped.getByText('笔记.txt · 仅支持 PDF 文件')).toBeInTheDocument()
+   expect(skipped.getByText('附件.pdf · 超过每份 25 MB 的限制')).toBeInTheDocument()
+   expect(screen.getByText(/还可添加 9 份/)).toBeInTheDocument()
+   fireEvent.click(screen.getByRole('button', { name: '上传 1 份 PDF' }))
+   await screen.findByText('已上传 1 / 1 份')
+   expect(api.upload).toHaveBeenCalledOnce()
+   expect(api.upload.mock.calls[0][1].get('file').name).toBe(pdf.name)
+ })
+ it('fills remaining slots on drop and lets a skipped file be selected after a removal', () => {
+   render(<AcquisitionWorkspace folders={folders} canManage />)
+   const input = screen.getByLabelText('选择文件')
+   const original = Array.from({ length: 9 }, (_, i) => new File([], `已有${i + 1}.pdf`))
+   fireEvent.change(input, { target: { files: original } })
+   const lastSlot = new File([], '正好25MB.pdf')
+   Object.defineProperty(lastSlot, 'size', { value: 25 * 1024 * 1024 })
+   const extra = [new File([], '下一份.pdf'), new File([], '最后一份.pdf')]
+   fireEvent.drop(screen.getByText('将 PDF 拖到这里'), { dataTransfer: { files: [lastSlot, ...extra] } })
+
+   const queued = within(screen.getByLabelText('待上传文件'))
+   expect(queued.getByText('已有1.pdf')).toBeInTheDocument()
+   expect(queued.getByText('正好25MB.pdf')).toBeInTheDocument()
+   expect(queued.getByText(/还可添加 0 份/)).toBeInTheDocument()
+   for (const file of extra) {
+     expect(queued.queryByText(file.name)).not.toBeInTheDocument()
+     expect(screen.getByText(`${file.name} · 本批已满 10 份，可在下一批上传`)).toBeInTheDocument()
+   }
+   fireEvent.click(queued.getByRole('button', { name: '移除 已有1.pdf' }))
+   fireEvent.change(input, { target: { files: [extra[0]] } })
+   expect(queued.getByText('下一份.pdf')).toBeInTheDocument()
+   expect(screen.queryByText(/本次有 .* 份文件未加入/)).not.toBeInTheDocument()
+   expect(screen.getByRole('button', { name: '上传 10 份 PDF' })).toBeEnabled()
  })
  it('explains an unreadable local file before attempting any network upload',async()=>{
   const read=vi.spyOn(FileReader.prototype,'readAsArrayBuffer').mockImplementation(function(this:FileReader){Object.defineProperty(this,'error',{value:new DOMException('private local path','NotReadableError')});this.dispatchEvent(new ProgressEvent('error'))})

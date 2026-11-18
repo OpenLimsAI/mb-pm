@@ -332,7 +332,7 @@ def snapshot(
     folders = [{**f, "writable": bool(result.get("canWrite"))} for f in result.get("folders", [])]
     sources = []
     for source in store.records("source"):
-        if source.get("adapter") == "manual":
+        if source.get("adapter") in {"manual", "folder"}:
             continue
         if not source.get("archiveFolderId"):
             canonical = "ICH" if source["adapter"] == "ich" else source["name"]
@@ -866,6 +866,10 @@ def original(
     version = store.get("version", version_id)
     if version["documentId"] != document_id:
         raise HTTPException(404, "原文版本不存在")
+    source = store.get("source", document["sourceId"])
+    if source.get("adapter") == "folder" and not version.get("kbPath"):
+        # A staged connector upload is never a substitute for current KB access.
+        connected("librarySummary", actor["subject"])
     if version.get("kbPath"):
         catalogue = library(
             actor,
@@ -885,7 +889,8 @@ def original(
     return FileResponse(
         path,
         media_type="application/pdf",
-        filename=f'{"Paper" if document.get("originApp") else "ICH"}-{version["sha256"][:12]}.pdf',
+        filename=document.get("originalFilename")
+        or f'{"Paper" if document.get("originApp") else "ICH"}-{version["sha256"][:12]}.pdf',
         content_disposition_type="inline",
         headers={
             "X-Content-Type-Options": "nosniff",

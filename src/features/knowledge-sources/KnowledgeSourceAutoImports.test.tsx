@@ -1,0 +1,52 @@
+import { fireEvent, render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+import { beforeEach, expect, it, vi } from 'vitest'
+import KnowledgeSourceApp from './KnowledgeSourceApp'
+
+const api = vi.hoisted(() => ({ snapshot: vi.fn(), bootstrap: vi.fn(), workspace: vi.fn() }))
+vi.mock('../../components/portal/context', () => ({ usePortalContext: () => ({ preview: false, identityNamespace: 'auto-test', user: { id: 'person', username: 'reader' }, applications: [{ id: 'knowledge-sources', enabled: true }] }) }))
+vi.mock('./api', async original => ({ ...await original<typeof import('./api')>(), getKnowledgeSources: api.snapshot }))
+vi.mock('./folder-import-api', async original => ({ ...await original<typeof import('./folder-import-api')>(), getFolderImports: api.bootstrap }))
+vi.mock('./v3-api', async original => ({ ...await original<typeof import('./v3-api')>(), knowledgeV3Get: api.workspace }))
+vi.mock('./LibraryWorkbench', () => ({ default: () => <div>资料列表</div> }))
+beforeEach(() => {
+  localStorage.clear(); sessionStorage.clear(); vi.clearAllMocks(); window.history.replaceState({}, '', '/knowledge-sources')
+  api.snapshot.mockResolvedValue({ papers: [], folders: [{ id: 'topic', name: '上游工艺开发', writable: true }, { id: 'other', name: '其他主题', writable: true }, { id: 'inbox', name: '待整理', systemRole: 'inbox', writable: true }], sources: [], jobs: [], documents: [], catalogRevision: 1, canManage: true, canOrganize: true, starred: [], integration: { status: 'ready', message: '已连接' } })
+  api.bootstrap.mockResolvedValue({ tasks: [], roots: [], canWrite: true, workerEnabled: true, maxFileMb: 100, connectorOnlineSeconds: 90 })
+  api.workspace.mockResolvedValue({ location: { folderId: 'topic' } })
+})
+const mount = () => render(<MemoryRouter><KnowledgeSourceApp /></MemoryRouter>)
+it('opens automatic import from the intake destination and replaces the upload panel', async () => {
+  mount(); fireEvent.click(await screen.findByRole('button', { name: /^上游工艺开发/ }))
+  fireEvent.click(screen.getByRole('button', { name: '上传 PDF' }))
+  expect(screen.getByRole('combobox', { name: '收录目标文件夹' })).toHaveValue('topic')
+  fireEvent.change(screen.getByRole('combobox', { name: '收录目标文件夹' }), { target: { value: 'other' } })
+  fireEvent.click(screen.getByRole('button', { name: '从文件夹自动导入' }))
+  fireEvent.click(await screen.findByRole('button', { name: '下一步' }))
+  expect(screen.getByRole('combobox', { name: '自动导入目标文件夹' })).toHaveValue('other')
+  expect(screen.queryByLabelText('统一添加资料')).not.toBeInTheDocument()
+  expect(new URLSearchParams(window.location.search).get('view')).toBe('imports')
+})
+it('defaults a new automation to the real inbox when launched from all documents', async () => {
+  mount(); fireEvent.click(await screen.findByRole('button', { name: '上传 PDF' }))
+  fireEvent.click(screen.getByRole('button', { name: '从文件夹自动导入' }))
+  fireEvent.click(await screen.findByRole('button', { name: '下一步' }))
+  expect(screen.getByRole('combobox', { name: '自动导入目标文件夹' })).toHaveValue('inbox')
+  fireEvent.click(screen.getByRole('button', { name: '资料库' }))
+  expect(screen.queryByRole('form', { name: '新建自动导入设置' })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '自动导入' }))
+  expect(await screen.findByRole('heading', { name: '自动导入' })).toBeInTheDocument()
+  expect(screen.queryByRole('form', { name: '新建自动导入设置' })).not.toBeInTheDocument()
+})
+it('honors the explicit automatic-import URL without the saved library location taking over', async () => {
+  const previous = await api.snapshot()
+  api.snapshot.mockResolvedValue({ ...previous, libraryV3: true })
+  window.history.replaceState({}, '', '/knowledge-sources?view=imports')
+  mount()
+  expect(await screen.findByRole('heading', { name: '自动导入' })).toBeInTheDocument()
+  expect(api.workspace).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: '资料库' }))
+  fireEvent.click(screen.getByRole('button', { name: /^上游工艺开发/ }))
+  expect(screen.getByRole('heading', { name: '上游工艺开发' })).toBeInTheDocument()
+  expect(new URLSearchParams(window.location.search).has('view')).toBe(false)
+})

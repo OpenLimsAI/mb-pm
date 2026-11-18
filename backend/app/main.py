@@ -30,6 +30,7 @@ from app.api.v1 import (
     knowledge_ai,
     knowledge_base,
     knowledge_source_acquisition_v3,
+    knowledge_source_folder_imports,
     knowledge_source_library_v3,
     knowledge_source_manual_index_v3,
     knowledge_source_workspace_v3,
@@ -368,6 +369,7 @@ app.include_router(portal_settings.router, prefix=API_PREFIX)
 app.include_router(information.router, prefix=API_PREFIX)
 app.include_router(knowledge_sources.router, prefix=API_PREFIX)
 app.include_router(knowledge_source_library_v3.router, prefix=API_PREFIX)
+app.include_router(knowledge_source_folder_imports.router, prefix=API_PREFIX)
 app.include_router(knowledge_source_manual_index_v3.router, prefix=API_PREFIX)
 app.include_router(knowledge_source_library_v3.upload_router, prefix=API_PREFIX)
 app.include_router(knowledge_source_workspace_v3.router, prefix=API_PREFIX)

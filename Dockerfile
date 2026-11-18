@@ -65,6 +65,7 @@ RUN groupadd --gid 10001 app && useradd --uid 10001 --gid app --no-create-home a
 COPY backend/app ./app
 COPY backend/alembic ./alembic
 COPY backend/alembic.ini ./alembic.ini
+COPY scripts/knowledge-folder-connector.py ./scripts/
 
 # 前端构建产物 → 后端同源托管目录
 COPY --from=frontend /web/dist ./static

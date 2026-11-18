@@ -39,12 +39,13 @@ it('shows unfiled and inbox papers together, excluding papers already in ICH or 
 it('opens PDF intake in the active folder and defaults to the real inbox from all papers', async () => {
   mount();await screen.findByRole('button',{name:/已有研究论文/})
   fireEvent.click(screen.getByRole('button',{name:/^稳定性研究/}))
-  fireEvent.click(screen.getByRole('button',{name:'添加资料'}))
+  fireEvent.click(screen.getByRole('button',{name:'上传 PDF'}))
   expect(screen.getByRole('combobox',{name:'收录目标文件夹'})).toHaveValue('topic')
+  expect(screen.queryByRole('table')).not.toBeInTheDocument()
   expect(screen.queryByRole('tab')).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('button',{name:'关闭添加资料'}))
   fireEvent.click(screen.getByRole('button',{name:/^全部资料/}))
-  fireEvent.click(screen.getByRole('button',{name:'添加资料'}))
+  fireEvent.click(screen.getByRole('button',{name:'上传 PDF'}))
   expect(screen.getByRole('combobox',{name:'收录目标文件夹'})).toHaveValue('inbox')
   expect(screen.getByRole('option',{name:'待整理'})).toBeInTheDocument()
   expect(screen.queryByRole('option',{name:'默认文件夹'})).not.toBeInTheDocument()
@@ -276,7 +277,7 @@ it('opens the imported reference category and highlights its document from a sam
     mount()
     expect(await screen.findByRole('heading',{name:'从来源下载'})).toBeInTheDocument()
     expect(screen.getByRole('article',{name:'链接带入的论文'})).toHaveClass('kso-reference-focused')
-    fireEvent.click(screen.getByRole('button',{name:/全部资料/}))
+    fireEvent.click(screen.getByRole('button',{name:'资料库'}))
     expect(screen.getByRole('heading',{name:'全部资料'})).toBeInTheDocument()
   } finally { window.history.replaceState({},'', '/') }
 })
@@ -335,11 +336,22 @@ it('creates the actual inbox once when missing and lists it under folders',async
  const folderSection=document.querySelector('.kso-folder-section')!
  expect(within(folderSection as HTMLElement).getByRole('button',{name:/^待整理/})).toBeInTheDocument()
  expect(screen.queryByRole('button',{name:'待整理的文件夹操作'})).not.toBeInTheDocument()
- fireEvent.click(screen.getByRole('button',{name:/^待整理/}));fireEvent.click(screen.getByRole('button',{name:'添加资料'}))
+ fireEvent.click(screen.getByRole('button',{name:/^待整理/}));fireEvent.click(screen.getByRole('button',{name:'上传 PDF'}))
  expect(screen.getByLabelText('收录目标文件夹')).toHaveValue('created-inbox')
 })
 it('does not provision folders for read-only viewers',async()=>{
  snapshot.folders=snapshot.folders.filter(folder=>folder.id!=='inbox');snapshot.canOrganize=false;snapshot.canManage=false
  mount();await screen.findByRole('button',{name:/已有研究论文/})
  expect(mocks.mutate).not.toHaveBeenCalled()
+})
+
+it('keeps four explicit workspace destinations and restores folders only in the library', async () => {
+  mount(); await screen.findByRole('heading',{name:'全部资料'})
+  const navigation=screen.getByRole('navigation',{name:'知识源功能'})
+  expect(within(navigation).getAllByRole('button').map(button=>button.textContent)).toEqual(['资料库','来源下载','自动导入','下载记录'])
+  fireEvent.click(within(navigation).getByRole('button',{name:'来源下载'}))
+  expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+  expect(within(navigation).getByRole('button',{name:'来源下载'})).toHaveAttribute('aria-current','page')
+  fireEvent.click(within(navigation).getByRole('button',{name:'资料库'}))
+  expect(screen.getByRole('button',{name:/^稳定性研究/})).toBeInTheDocument()
 })
