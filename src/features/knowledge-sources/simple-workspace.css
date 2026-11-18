@@ -64,3 +64,41 @@
 @media(pointer:coarse){#knowledge-source-app button.kso-folder-more{opacity:1;min-width:36px;min-height:36px}}
 [data-application-theme=dark] .kso-folder-action-menu{background:#172b3d;color:#e4edf5;border-color:#3a4f63}
 [data-application-theme=dark] .kso-folder-action-menu button:hover,[data-application-theme=dark] .kso-folder-action-menu button:focus-visible{background:#263e54}
+
+/* One persistent navigation level; folders belong to the library only. */
+#knowledge-source-app.kso-simple-workspace .kso-workspace-tabs{display:flex;align-items:stretch;gap:26px;padding:0 28px;background:var(--kso-surface);border-bottom:1px solid var(--kso-line)}
+#knowledge-source-app.kso-simple-workspace .kso-workspace-tabs>button{position:relative;padding:13px 4px;font-size:13px;color:var(--kso-muted);white-space:nowrap;border-bottom:2px solid transparent}
+#knowledge-source-app.kso-simple-workspace .kso-workspace-tabs>button[aria-current=page]{color:var(--kso-blue);border-bottom-color:var(--kso-blue);font-weight:600}
+#knowledge-source-app.kso-simple-workspace .kso-workspace-tabs>button:hover{color:var(--kso-blue)}
+#knowledge-source-app.kso-simple-workspace .kso-section-shell{width:100%;max-width:1120px;margin:0 auto;min-height:calc(100vh - 195px)}
+#knowledge-source-app.kso-simple-workspace .kso-header-refresh{display:inline-flex;gap:5px;width:auto;height:auto;color:var(--kso-muted);font-size:12px}
+#knowledge-source-app.kso-simple-workspace .kso-header-refresh svg{width:15px;height:15px}
+#knowledge-source-app.kso-simple-workspace .kso-sidebar .kso-location-content{display:flex;flex-direction:column;gap:24px;min-width:0}
+#knowledge-source-app.kso-simple-workspace .kso-location-toggle{display:none}
+#knowledge-source-app.kso-simple-workspace .kso-folder-create{color:var(--kso-blue);font-size:12px;padding:3px 0;letter-spacing:0}
+#knowledge-source-app.kso-simple-workspace .kso-intake-page{width:100%;max-width:880px;margin:0 auto}
+#knowledge-source-app.kso-simple-workspace .kso-intake-page .kso-v3-acquire{margin:0}
+@media(max-width:760px){
+ #knowledge-source-app.kso-simple-workspace .kso-workspace-tabs{gap:0;padding:0 10px;justify-content:space-between}
+ #knowledge-source-app.kso-simple-workspace .kso-workspace-tabs>button{flex:1;min-width:0;font-size:12px;padding:11px 5px}
+ #knowledge-source-app.kso-simple-workspace .kso-sidebar{position:relative;top:auto;height:auto;padding:8px 14px;display:block;min-height:0}
+ #knowledge-source-app.kso-simple-workspace .kso-location-toggle{display:flex;align-items:center;gap:8px;width:100%;font-size:12px;min-height:32px;text-align:left;color:var(--kso-blue)}
+ #knowledge-source-app.kso-simple-workspace .kso-location-toggle>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ #knowledge-source-app.kso-simple-workspace .kso-location-toggle small{color:var(--kso-muted);font-size:11px}
+ #knowledge-source-app.kso-simple-workspace .kso-location-toggle svg{width:15px;height:15px;flex-shrink:0}
+ #knowledge-source-app.kso-simple-workspace .kso-sidebar>.kso-location-content{display:none}
+ #knowledge-source-app.kso-simple-workspace.mobile-folders-open .kso-sidebar>.kso-location-content{display:flex;position:absolute;left:14px;right:14px;top:calc(100% - 1px);z-index:40;max-height:65vh;overflow:auto;padding:14px;background:var(--kso-surface);border:1px solid var(--kso-line);border-radius:0 0 8px 8px;box-shadow:0 8px 25px #1e466b22;gap:16px}
+ #knowledge-source-app.kso-simple-workspace .kso-location-content .kso-side-label{display:flex}
+ #knowledge-source-app.kso-simple-workspace .kso-location-content .kso-side-group{display:flex;flex-direction:column}
+ #knowledge-source-app.kso-simple-workspace .kso-location-content .kso-folder-section>.kso-side-group{display:block;position:static;width:auto;max-height:none;padding:0;border:0;box-shadow:none;overflow:visible}
+ #knowledge-source-app.kso-simple-workspace .kso-sidebar>.kso-side-end{display:none}
+ #knowledge-source-app.kso-simple-workspace .kso-section-shell{min-height:calc(100vh - 205px)}
+}
+
+@media(max-width:700px){
+ #knowledge-source-app.kso-simple-workspace .kso-top{display:grid;grid-template-columns:minmax(0,1fr) auto;row-gap:8px}
+ #knowledge-source-app.kso-simple-workspace .kso-brand{grid-column:1;grid-row:1}
+ #knowledge-source-app.kso-simple-workspace .kso-header-actions{display:contents}
+ #knowledge-source-app.kso-simple-workspace .kso-header-refresh{grid-column:2;grid-row:1}
+ #knowledge-source-app.kso-simple-workspace .application-actions{grid-column:1/-1;grid-row:2;justify-content:flex-end;flex-wrap:nowrap}
+}

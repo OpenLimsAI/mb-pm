@@ -115,7 +115,6 @@
 #knowledge-source-app.kso-simple-workspace .kso-source-searchbar{padding:10px 0;gap:12px}
 #knowledge-source-app.kso-simple-workspace .kso-source-settings{border-top:1px solid var(--kso-line);margin-top:5px}
 #knowledge-source-app.kso-simple-workspace .kso-source-settings>summary{padding:8px 0;font-size:12px}
-#knowledge-source-app.kso-simple-workspace .kso-source-settings>summary span{display:none}
 #knowledge-source-app.kso-simple-workspace .kso-source-display{position:relative;font-size:12px;color:var(--kso-muted)}
 #knowledge-source-app.kso-simple-workspace .kso-source-display>summary{cursor:pointer;padding:7px}
 #knowledge-source-app.kso-simple-workspace .kso-source-display>label{position:absolute;right:0;top:100%;z-index:5;width:190px;padding:12px;border:1px solid var(--kso-line);border-radius:7px;background:var(--kso-surface);display:grid;gap:6px}
@@ -142,3 +141,46 @@
 #knowledge-source-app.kso-simple-workspace .kso-download-simple{padding:12px 16px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}#knowledge-source-app.kso-simple-workspace .kso-download-summary{display:flex;align-items:center;gap:14px;flex-wrap:wrap}#knowledge-source-app.kso-simple-workspace .kso-download-summary>small{font-size:11px;color:var(--kso-muted)}#knowledge-source-app.kso-simple-workspace .kso-download-summary .kso-catalog-destination{display:flex;align-items:center;gap:8px;font-size:12px;margin:0}#knowledge-source-app.kso-simple-workspace .kso-download-options{font-size:12px;position:relative}#knowledge-source-app.kso-simple-workspace .kso-download-options>summary{cursor:pointer;color:var(--kso-muted)}#knowledge-source-app.kso-simple-workspace .kso-download-options[open]{flex-basis:100%}#knowledge-source-app.kso-simple-workspace .kso-download-options>small{display:block;font-size:11px;color:var(--kso-muted)}#knowledge-source-app.kso-simple-workspace .kso-download-record-link{display:block;margin:5px 12px;font-size:11px}
 
 #knowledge-source-app.kso-simple-workspace .kso-download-simple .kso-download-summary{display:flex;align-items:center;gap:14px;flex-direction:row}#knowledge-source-app.kso-simple-workspace .kso-download-simple .kso-download-summary>small{display:inline}#knowledge-source-app.kso-simple-workspace .kso-download-simple .kso-download-options[open]{padding-top:8px}#knowledge-source-app.kso-simple-workspace .kso-download-simple .kso-download-options:not([open]){flex-basis:auto}
+
+/* A compact source overview keeps the catalogue as the main work area. */
+#knowledge-source-app .kso-source-overview-head{justify-content:space-between;align-items:center;gap:12px}
+#knowledge-source-app .kso-source-identity{display:flex;align-items:center;gap:12px;min-width:0;flex:1}
+#knowledge-source-app .kso-source-identity>div:last-child{min-width:0}
+#knowledge-source-app .kso-source-identity h2{overflow-wrap:anywhere}
+#knowledge-source-app .kso-source-identity .kso-source-logo{flex-shrink:0}
+#knowledge-source-app .kso-source-origin{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px;margin-top:4px}
+#knowledge-source-app .kso-source-origin a{color:var(--kso-muted)}
+#knowledge-source-app .kso-source-origin svg{width:11px;height:11px}
+#knowledge-source-app .kso-source-facts{display:flex;align-items:flex-start;flex-wrap:wrap;gap:12px 32px;margin:0;padding:0;font-size:12px}
+#knowledge-source-app .kso-source-facts>div{display:flex;gap:8px;min-width:0;align-items:baseline}
+#knowledge-source-app .kso-source-facts dt{color:var(--kso-muted);flex-shrink:0}
+#knowledge-source-app .kso-source-facts dd{margin:0;color:var(--kso-ink);overflow-wrap:anywhere}
+#knowledge-source-app .kso-source-settings>summary>svg:last-child{margin-left:auto;width:14px;height:14px}
+#knowledge-source-app .kso-source-settings>summary .kso-source-unsaved{display:inline;color:var(--kso-warn);margin-left:4px;text-align:left;font-size:11px}
+#knowledge-source-app .kso-source-destination-setting{max-width:440px}
+#knowledge-source-app .kso-source-explanation{font-size:12px;color:var(--kso-muted)}
+#knowledge-source-app .kso-source-explanation>summary{display:flex;align-items:center;justify-content:flex-start;gap:8px;min-height:30px;list-style:none;cursor:pointer}
+#knowledge-source-app .kso-source-explanation>summary>svg{width:12px;height:12px}
+#knowledge-source-app .kso-source-explanation:not([open])>summary>svg{transform:none}
+#knowledge-source-app .kso-source-explanation[open]>summary>svg{transform:rotate(180deg)}
+#knowledge-source-app .kso-source-explanation>div{display:grid;gap:10px;padding-top:8px;line-height:1.7;overflow-wrap:anywhere}
+#knowledge-source-app .kso-source-explanation .kso-btn{justify-self:start}
+#knowledge-source-app .kso-selection-summary>.kso-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex-shrink:0}
+#knowledge-source-app .kso-catalog-selectbar>.kso-btn:last-child{min-width:90px}
+#knowledge-source-app.kso-simple-workspace .kso-source-section{gap:12px}
+#knowledge-source-app.kso-simple-workspace .kso-source-section>.kso-source-card{gap:12px;padding:16px 18px 6px}
+#knowledge-source-app.kso-simple-workspace .kso-source-overview-head{padding-bottom:0}
+#knowledge-source-app.kso-simple-workspace .kso-source-overview-head .kso-search-again{min-height:34px}
+#knowledge-source-app.kso-simple-workspace .kso-source-settings{padding-top:0;margin-top:0}
+#knowledge-source-app.kso-simple-workspace .kso-source-settings>summary{min-height:35px;padding:8px 0}
+#knowledge-source-app.kso-simple-workspace .kso-source-settings-body{padding:4px 0 12px;gap:14px}
+#knowledge-source-app.kso-simple-workspace .kso-source-settings-actions{border-top:1px solid var(--kso-line);padding-top:12px}
+@media(max-width:760px){
+ #knowledge-source-app .kso-source-overview-head{align-items:flex-start}
+ #knowledge-source-app .kso-source-facts{display:grid;gap:7px;font-size:12px}
+ #knowledge-source-app .kso-source-facts>div{display:grid;grid-template-columns:60px minmax(0,1fr);gap:8px}
+ #knowledge-source-app .kso-source-origin{gap:6px}
+ #knowledge-source-app .kso-selection-summary>.kso-actions{width:100%;justify-content:flex-end}
+ #knowledge-source-app .kso-source-settings-actions{flex-wrap:wrap}
+ #knowledge-source-app .kso-source-settings-actions>.kso-btn{margin-left:auto}
+}

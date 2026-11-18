@@ -54,7 +54,7 @@ def call(operation, subject, **values):
             },
             timeout=httpx.Timeout(
                 120
-                if operation == "exportPapers"
+                if operation in ("exportPapers", "folderImportPaper")
                 else 90
                 if operation in ("import", "uploadPaper")
                 else 35
@@ -66,6 +66,8 @@ def call(operation, subject, **values):
                     "statusUploadedPaper",
                     "deletePaperPreview",
                     "ensureInboxFolder",
+                    "indexFolderPaper",
+                    "statusFolderPaper",
                 )
                 else 12,
                 connect=5,
@@ -82,7 +84,15 @@ def call(operation, subject, **values):
             raise BridgeError(
                 response.status_code,
                 str(message)[:500],
-                code if code == "paper_delete_plan_expired" else None,
+                code
+                if code
+                in {
+                    "paper_delete_plan_expired",
+                    "folder_source_deleted",
+                    "folder_target_missing",
+                    "folder_scoped_index_unavailable",
+                }
+                else None,
             )
         return data
     except (httpx.HTTPError, json.JSONDecodeError) as exc:

@@ -16,6 +16,51 @@ beforeEach(() => {
 const category = (label: string) => within(screen.getByRole('group', { name: 'ICH分类筛选' })).getByRole('button', { name: label })
 
 describe('source catalogue workflow', () => {
+  it('shows the destination and persisted manual mode beside a text settings entry', () => {
+    mount()
+    const overview = screen.getByLabelText('ICH来源概况')
+    expect(overview).toHaveTextContent('保存到ICH')
+    expect(overview).toHaveTextContent('更新方式仅手动搜索')
+    const settings = screen.getByText('来源与自动下载设置', { selector: 'summary' })
+    expect(settings.closest('details')).not.toHaveAttribute('open')
+    expect(settings.querySelector('.lucide-settings-2')).toBeNull()
+    fireEvent.click(settings)
+    fireEvent.change(screen.getByRole('combobox', { name: 'ICH定期检查频率' }), { target: { value: 'weekly' } })
+    expect(overview).toHaveTextContent('仅手动搜索')
+    expect(screen.getByText('有未保存修改')).toBeInTheDocument()
+    expect(mutate).not.toHaveBeenCalled()
+  })
+  it.each([
+    [{ frequency: 'weekly' as const, downloadUpdates: false, indexUpdates: false }, '每周检查更新，不自动下载'],
+    [{ frequency: 'daily' as const, downloadUpdates: true, indexUpdates: false }, '每天自动下载'],
+    [{ frequency: 'daily' as const, downloadUpdates: true, indexUpdates: true }, '每天自动下载并建立索引'],
+  ])('distinguishes a saved check-only plan from automatic download and indexing', (schedule, expected) => {
+    data.sources[0].schedule = schedule
+    mount()
+    expect(screen.getByLabelText('ICH来源概况')).toHaveTextContent(expected)
+  })
+  it('keeps selection controls stable and places detailed counts after the document rows', () => {
+    const view = mount()
+    const bar = view.container.querySelector('.kso-catalog-selectbar')!
+    const before = bar.children.length
+    expect(within(bar as HTMLElement).getByRole('button', { name: '仅看已选' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择 Q 正文' }))
+    expect(bar.children).toHaveLength(before)
+    expect(within(bar as HTMLElement).getByRole('button', { name: '仅看已选' })).toBeEnabled()
+    const rows = view.container.querySelector('.kso-catalog-results')!
+    const summary = screen.getByRole('region', { name: 'ICH已选清单汇总' })
+    expect(rows.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '清空选择' }))
+    expect(screen.queryByRole('region', { name: 'ICH已选清单汇总' })).not.toBeInTheDocument()
+    expect(bar.children).toHaveLength(before)
+  })
+  it('keeps source failures visible while the settings remain closed', () => {
+    data.sources[0].scopeStatus = { Q: { status: 'failed' } }
+    mount()
+    expect(screen.getByText(/Q 范围搜索未成功/)).toBeVisible()
+    expect(screen.getByText(/Q 范围搜索未成功/).closest('details')).toBeNull()
+    expect(screen.getByText('来源与自动下载设置', { selector: 'summary' }).closest('details')).not.toHaveAttribute('open')
+  })
   it('allows switching after a source deep link and follows a new external source focus', () => {
     data.sources.push({...data.sources[0],id:'second',name:'第二来源'})
     data.documents.push(doc('第二来源正文',{sourceId:'second'}))

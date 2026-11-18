@@ -67,9 +67,9 @@ it('rejects late automatic UI writeback after an explicit done state',async()=>{
 })
 
 it('keeps type and index status ANDed with query, folder and reading filters',async()=>{
- setup({folder:'topic'});await screen.findByRole('checkbox',{name:'选择 Paper 1'});fireEvent.change(screen.getByRole('textbox',{name:'全文搜索资料'}),{target:{value:'protein'}});fireEvent.click(screen.getByRole('button',{name:'筛选'}));fireEvent.change(screen.getByRole('combobox',{name:'阅读状态'}),{target:{value:'unread'}});fireEvent.change(screen.getByRole('combobox',{name:'筛选资料类型'}),{target:{value:'Guideline'}});fireEvent.change(screen.getByRole('combobox',{name:'筛选问答索引状态'}),{target:{value:'failed'}})
- await waitFor(()=>expect(api.post).toHaveBeenCalledWith('/library/query',expect.objectContaining({query:'protein',folderId:'topic',readingStatus:'unread',type:'Guideline',indexStatus:'failed',offset:0}),expect.any(AbortSignal)))
- fireEvent.click(screen.getByRole('button',{name:'重置筛选'}));await waitFor(()=>expect(api.post).toHaveBeenLastCalledWith('/library/query',expect.objectContaining({query:'',readingStatus:undefined,type:undefined,indexStatus:undefined}),expect.any(AbortSignal)))
+ setup({folder:'topic'});await screen.findByRole('checkbox',{name:'选择 Paper 1'});fireEvent.change(screen.getByRole('textbox',{name:'全文搜索资料'}),{target:{value:'protein'}});fireEvent.click(screen.getByRole('button',{name:'筛选'}));fireEvent.change(screen.getByRole('combobox',{name:'搜索范围'}),{target:{value:'title'}});fireEvent.change(screen.getByRole('combobox',{name:'阅读状态'}),{target:{value:'unread'}});fireEvent.change(screen.getByRole('combobox',{name:'筛选资料类型'}),{target:{value:'Guideline'}});fireEvent.change(screen.getByRole('combobox',{name:'筛选问答索引状态'}),{target:{value:'failed'}})
+ await waitFor(()=>expect(api.post).toHaveBeenCalledWith('/library/query',expect.objectContaining({query:'protein',searchMode:'title',folderId:'topic',readingStatus:'unread',type:'Guideline',indexStatus:'failed',offset:0}),expect.any(AbortSignal)))
+ fireEvent.click(screen.getByRole('button',{name:'重置筛选'}));await waitFor(()=>expect(api.post).toHaveBeenLastCalledWith('/library/query',expect.objectContaining({query:'',searchMode:'all',readingStatus:undefined,type:undefined,indexStatus:undefined}),expect.any(AbortSignal)))
 })
 
 it('polls an active text index despite unrelated reading page updates',async()=>{

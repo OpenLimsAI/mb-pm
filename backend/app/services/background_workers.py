@@ -35,6 +35,9 @@ def running_workers(shutdown_seconds: int = 5):
             )
 
             workers.append(start_knowledge_source_worker())
+            from app.services.folder_imports import start_worker as start_folder_import_worker
+
+            workers.append(start_folder_import_worker())
         if settings.NOTES_WISDOM_WORKER_ENABLED:
             from app.services.note_sync import start_worker as start_notes_worker
 

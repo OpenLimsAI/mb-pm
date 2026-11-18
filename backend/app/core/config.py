@@ -70,6 +70,9 @@ class Settings(BaseSettings):
     # New manual downloads use a separate queue; never resume retired monitoring jobs.
     KNOWLEDGE_SOURCE_APP_ENABLED: bool = True
     KNOWLEDGE_SOURCE_WORKER_ENABLED: bool = False
+    # Explicitly mounted, read-only source roots. Never accept arbitrary server paths.
+    KNOWLEDGE_FOLDER_IMPORT_ROOTS: str = "[]"
+    KNOWLEDGE_FOLDER_IMPORT_MAX_FILE_MB: int = Field(default=100, ge=1, le=100)
 
     # Private server-side backup agent; never expose these settings to browsers.
     DATA_BACKUP_AGENT_URL: str = ""

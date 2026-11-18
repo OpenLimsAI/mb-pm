@@ -75,7 +75,9 @@
 #knowledge-source-app .ksv-simple-library .ksv-simple-toolbar .kso-search{flex:1;min-width:150px}
 #knowledge-source-app .ksv-simple-library .ksv-filterbar{gap:10px 16px;padding:12px;background:var(--kso-soft)}
 #knowledge-source-app .ksv-simple-library .ksv-filterbar label{font-size:12px;gap:6px}
-#knowledge-source-app .ksv-filter-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+#knowledge-source-app .ksv-active-filters{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 9px}
+#knowledge-source-app .ksv-filter-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border:1px solid var(--kso-line);border-radius:5px;background:var(--kso-soft);color:var(--kso-blue-ink);font-size:12px;overflow-wrap:anywhere}
+#knowledge-source-app .ksv-filter-chip:hover{background:var(--kso-blue-bg)}
 #knowledge-source-app .ksv-simple-library .ksv-list{height:clamp(380px,65dvh,820px)}
 #knowledge-source-app .ksv-simple-library .ksv-paper-row{align-items:center;gap:10px;padding:9px 12px}
 #knowledge-source-app .ksv-simple-library.kso-density-compact .ksv-paper-row{padding-block:8px}
@@ -88,8 +90,12 @@
 #knowledge-source-app .ksv-simple-library .ksv-save-state{display:inline-block;font-size:11px;padding:3px 7px;border-radius:4px;background:var(--kso-soft);white-space:nowrap}
 #knowledge-source-app .ksv-simple-library .ksv-save-state.ready{color:var(--kso-muted)}
 #knowledge-source-app .ksv-simple-library .ksv-save-state.failed{color:var(--kso-red)}
-#knowledge-source-app .ksv-row-more{opacity:0;flex-shrink:0}
+#knowledge-source-app .ksv-row-more{opacity:1;flex-shrink:0}
 #knowledge-source-app .ksv-paper-row:hover .ksv-row-more,#knowledge-source-app .ksv-paper-row:focus-within .ksv-row-more{opacity:1}
+#knowledge-source-app .ksv-paper-row>.ksv-text-action{width:auto;min-width:34px;flex-shrink:0;padding:4px;font-size:12px;line-height:22px;color:var(--kso-muted);white-space:nowrap;opacity:1}
+#knowledge-source-app .ksv-paper-row>.ksv-text-action:hover{color:var(--kso-blue);background:var(--kso-blue-bg);border-radius:4px}
+#knowledge-source-app .ksv-context-menu .ksv-delete-menu-item{color:var(--kso-red)}
+#knowledge-source-app .ksv-selection-actions>.ksv-clear-selection{padding:5px;font-size:12px;min-width:0}
 #knowledge-source-app .ksv-selection-toolbar{height:48px;flex:none;display:flex;align-items:center;gap:12px;padding:0 12px;border-bottom:1px solid var(--kso-line);font-size:12px;color:var(--kso-muted);position:relative;z-index:5}
 #knowledge-source-app .ksv-selection-toolbar.has-selection{background:var(--kso-blue-bg);color:var(--kso-blue-ink)}
 #knowledge-source-app .ksv-page-check{flex-shrink:0;white-space:nowrap}
@@ -112,3 +118,9 @@
 @media(hover:none){#knowledge-source-app .ksv-row-more{opacity:1}}
 @media(max-width:620px){#knowledge-source-app .ksv-simple-library .ksv-simple-toolbar{flex-wrap:wrap}#knowledge-source-app .ksv-simple-library .ksv-simple-toolbar>.kso-search{flex-basis:100%}#knowledge-source-app .ksv-simple-library .ksv-save-state{display:none}#knowledge-source-app .ksv-row-more{opacity:1}#knowledge-source-app .ksv-simple-library .ksv-paper-row{gap:7px}#knowledge-source-app .ksv-more-tools>summary>span{display:none}#knowledge-source-app .ksv-selection-toolbar{gap:8px;padding-inline:10px}#knowledge-source-app .ksv-selection-toolbar.has-selection .ksv-page-check>span{display:none}#knowledge-source-app .ksv-selection-actions{gap:4px}#knowledge-source-app .ksv-selection-actions .kso-btn{padding-inline:7px}#knowledge-source-app .ksv-bulk-more>div{right:0;left:auto}}
 @media(max-width:620px){#knowledge-source-app .ksv-selection-actions .ksv-bulk-more{position:static}#knowledge-source-app .ksv-selection-actions .ksv-bulk-more>div{left:10px;right:10px;min-width:0;max-width:none}}
+@media(max-width:480px){
+  #knowledge-source-app .ksv-selection-toolbar{height:76px;display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:24px 36px;align-content:center;gap:3px 8px}
+  #knowledge-source-app .ksv-selection-toolbar.has-selection .ksv-page-check>span{display:inline}
+  #knowledge-source-app .ksv-selection-actions{grid-column:1/-1;gap:5px}
+  #knowledge-source-app .ksv-selection-actions .ksv-bulk-more>summary{padding-inline:5px}
+}
