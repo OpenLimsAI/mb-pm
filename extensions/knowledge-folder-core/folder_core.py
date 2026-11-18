@@ -16,7 +16,7 @@ import re
 import types
 from pathlib import Path, PurePosixPath
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from dikw_core import api_ingest
@@ -31,7 +31,7 @@ from dikw_core.providers import build_embedder
 from dikw_core.schemas import Layer
 from dikw_core.server.auth import make_dependency
 from dikw_core.server.runtime import get_runtime
-from dikw_core.server.routes_tasks import _handle, IngestSubmit
+from dikw_core.server.routes_tasks import _handle, IngestSubmit, TaskHandle
 from dikw_core.server.tasks.manager import _params_digest
 
 UPSTREAM_SHA256 = "2c16b3410c5ce87cbd42db147fa0b4dcd2beb28bd4b0eaafa94a5855e4b39426"
@@ -600,22 +600,16 @@ def install(app, auth):
         except (OSError, UnicodeError, ValueError) as exc:
             raise HTTPException(404, "Source version is unavailable") from exc
 
-    # Replace only the HTTP global ingest runner. Installed engine APIs and
-    # globals stay intact. Every source writer must use this extended server;
-    # running an independent unextended Core writer against the same base is
-    # intentionally unsupported and documented.
-    app.router.routes[:] = [
-        route
-        for route in app.router.routes
-        if not (
-            getattr(route, "path", None) == "/v1/ingest"
-            and "POST" in getattr(route, "methods", set())
-        )
-    ]
+    # Match the HTTP ingest path first. FastAPI can keep included routers as
+    # groups rather than small path-bearing routes, so filtering the outer
+    # list for '/v1/ingest' can leave the unguarded upstream handler in place.
+    # Installed engine APIs remain unchanged.
     guarded = APIRouter(dependencies=[Depends(make_dependency(auth))])
 
-    @guarded.post("/v1/ingest")
-    async def global_ingest(request: Request, body: IngestSubmit = IngestSubmit()):
+    @guarded.post("/v1/ingest", response_model=TaskHandle, include_in_schema=False)
+    async def global_ingest(
+        request: Request, body: IngestSubmit = Body(default_factory=IngestSubmit)
+    ) -> TaskHandle:
         rt = get_runtime(request.app)
 
         async def runner(reporter):
@@ -630,7 +624,10 @@ def install(app, auth):
             )
         )
 
-    app.include_router(router)
+    route_count = len(app.router.routes)
     app.include_router(guarded)
+    guarded_routes = app.router.routes[route_count:]
+    app.router.routes[:] = guarded_routes + app.router.routes[:route_count]
+    app.include_router(router)
     app.state.folder_extension = True
     return app
