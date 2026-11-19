@@ -115,6 +115,7 @@ def create_job(store, actor, paper_id, *, connector=bridge.call):
     manager_authority(store.db, actor["subject"])
     document, source, version, _ = resolve_manual(store, actor["subject"], paper_id, connector)
     source = store.lock("source", source["id"])
+    store.get("version", version["id"])
     # The source row lock serializes concurrent confirmations across both PM instances.
     for old in store.active_jobs():
         if old.get("app") != APP or old["sourceId"] != source["id"]:

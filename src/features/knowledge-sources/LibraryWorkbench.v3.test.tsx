@@ -31,6 +31,19 @@ beforeEach(()=>{
 })
 
 describe('knowledge source library workbench paging and evidence',()=>{
+ it('offers file deletion only through the row button', async () => {
+  const onDelete = vi.fn()
+  renderWorkbench({ onDelete })
+  fireEvent.click(await screen.findByRole('button', { name: '更多操作 Paper 2' }))
+  const menu = screen.getByRole('menu')
+  expect(within(menu).getByRole('menuitem', { name: '页内阅读' })).toBeInTheDocument()
+  expect(within(menu).queryByRole('menuitem', { name: /删除/ })).not.toBeInTheDocument()
+
+  fireEvent.click(screen.getByRole('button', { name: '删除文件 Paper 2' }))
+  expect(onDelete).toHaveBeenCalledExactlyOnceWith(row(2))
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+ })
+
  it('keeps advanced tools and filters out of the default list',async()=>{
   renderWorkbench();await screen.findByRole('checkbox',{name:'选择 Paper 1'})
   expect(screen.queryByRole('combobox',{name:'搜索范围'})).not.toBeInTheDocument();expect(screen.queryByRole('button',{name:'打开跨页原文证据'})).not.toBeInTheDocument()

@@ -38,6 +38,19 @@ it('keeps uncertain operation receipts and resumes by querying instead of deleti
 it('does not offer fake whole-library deletion for an unregistered archive',async()=>{
  render(<PaperDeleteDialog paper={{...paper,id:'archive:v1'}} folders={folders} storageKey="user" onClose={vi.fn()} onDeleted={vi.fn()}/>);expect(await screen.findByRole('alert')).toHaveTextContent('尚未登记');expect(api.post).not.toHaveBeenCalled()
 })
+it('previews and confirms deletion of a pending PDF using its archive ID', async () => {
+ const original = { ...paper, id: 'archive:' + 'a'.repeat(64), indexStatus: 'not_requested' as const }
+ const done = vi.fn()
+ api.post.mockResolvedValue({ ...plan, path: original.id, scope: 'original' })
+ render(<PaperDeleteDialog paper={original} folders={folders} storageKey="user" onClose={vi.fn()} onDeleted={done}/>)
+ const confirm = await screen.findByRole('button', { name: '确认删除原件' })
+ expect(api.post).toHaveBeenCalledExactlyOnceWith('/library/delete-preview', { paperId: original.id }, expect.any(AbortSignal))
+ expect(done).not.toHaveBeenCalled()
+ api.post.mockResolvedValue({ operationId: plan.planId, path: original.id, status: 'succeeded', completed: 1, total: 1 })
+ fireEvent.click(confirm)
+ await waitFor(() => expect(done).toHaveBeenCalledOnce())
+ expect(api.post).toHaveBeenLastCalledWith('/library/delete', { paperId: original.id, planId: plan.planId }, expect.any(AbortSignal))
+})
 it('continues a confirmed failed deletion with the same plan instead of creating a new one',async()=>{
  localStorage.setItem('user:delete:'+paper.id,JSON.stringify({plan,submitted:true}))
  api.get.mockResolvedValue({operationId:plan.planId,path:paper.id,status:'failed',completed:0,total:1,message:'temporary interruption'})
