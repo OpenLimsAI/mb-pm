@@ -16,6 +16,7 @@ import secrets
 import stat
 import threading
 import time
+from contextlib import ExitStack, contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path, PurePosixPath
 from uuid import uuid4
@@ -48,6 +49,8 @@ ONLINE_SECONDS = 90
 ACTIVE = {"queued", "scanning", "transferring", "processing", "waiting_quota"}
 TERMINAL_ITEMS = {"completed", "failed", "unchanged", "ignored"}
 SHA = re.compile(r"^[a-f0-9]{64}$")
+DIRECTORY_LIST_LIMIT = 200
+DIRECTORY_ENTRY_LIMIT = 20000
 
 
 class LeaseLostError(RuntimeError):
@@ -68,11 +71,28 @@ def roots():
         ):
             raise HTTPException(503, "自动导入目录配置无效，请联系管理员")
         path = Path(value["path"])
-        if not path.is_absolute() or path.is_symlink():
+        if not path.is_absolute() or ".." in path.parts or path.is_symlink():
             raise HTTPException(503, "自动导入根目录必须是已挂载的实际绝对路径")
-        result.append({"id": value["id"], "name": value["name"], "path": str(path.resolve())})
+        root = {"id": value["id"], "name": value["name"], "path": str(path)}
+        display = value.get("displayPath")
+        if display is not None:
+            if (
+                not isinstance(display, str)
+                or len(display) > 1500
+                or not display.startswith("/")
+                or display.startswith("//")
+                or "\\" in display
+                or ".." in PurePosixPath(display).parts
+                or any(ord(c) < 32 or ord(c) == 127 or 0xD800 <= ord(c) <= 0xDFFF for c in display)
+            ):
+                raise HTTPException(503, "自动导入的宿主显示路径必须是有效的绝对目录路径")
+            root["displayPath"] = str(PurePosixPath(display))
+        result.append(root)
     if len({r["id"] for r in result}) != len(result):
         raise HTTPException(503, "自动导入根目录标识重复")
+    display_paths = [r["displayPath"] for r in result if "displayPath" in r]
+    if len(set(display_paths)) != len(display_paths):
+        raise HTTPException(503, "自动导入的宿主显示路径重复，请核对目录配置")
     return result
 
 
@@ -89,38 +109,100 @@ def relative_path(value, *, allow_empty=False):
     return value
 
 
-def _server_directory(config):
-    root = next((r for r in roots() if r["id"] == config.get("serverRootId")), None)
+def _directory_name_allowed(name):
+    return (
+        not name.startswith(".")
+        and "\\" not in name
+        and ":" not in name
+        and not any(ord(c) < 32 or ord(c) == 127 or 0xD800 <= ord(c) <= 0xDFFF for c in name)
+    )
+
+
+@contextmanager
+def _open_directory_parts(base, parts, *, device=None):
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    # Walking an ancestor needs search permission. Only the selected directory needs to be listable.
+    search_flags = (
+        os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_PATH", getattr(os, "O_SEARCH", os.O_RDONLY))
+    )
+    fd = os.dup(base) if isinstance(base, int) else os.open(base, search_flags if parts else flags)
+    try:
+        for index, part in enumerate(parts):
+            next_fd = os.open(part, flags if index == len(parts) - 1 else search_flags, dir_fd=fd)
+            os.close(fd)
+            fd = next_fd
+            if device is not None and os.fstat(fd).st_dev != device:
+                raise OSError("目录位于其他挂载")
+        yield fd
+    finally:
+        os.close(fd)
+
+
+@contextmanager
+def _open_server_directory(root_id, path, expected_device=None):
+    root = next((r for r in roots() if r["id"] == root_id), None)
     if root is None:
         raise HTTPException(422, "请选择管理员已授权的服务器或 NAS 目录")
     base = Path(root["path"])
-    relative = relative_path(config.get("path", ""), allow_empty=True)
-    candidate = base
-    for part in PurePosixPath(relative).parts:
-        candidate = candidate / part
-        if candidate.is_symlink():
-            raise HTTPException(422, "扫描目录不能包含符号链接")
+    parts = PurePosixPath(relative_path(path, allow_empty=True)).parts
+    if any(not _directory_name_allowed(part) for part in parts):
+        raise HTTPException(422, "请选择扫描目录中可见的文件夹")
     try:
-        candidate.resolve().relative_to(base.resolve())
-        if not candidate.is_dir():
-            raise OSError()
-        if (
-            config.get("sourceDevice") is not None
-            and candidate.stat().st_dev != config["sourceDevice"]
-        ):
-            raise HTTPException(409, "扫描目录的挂载已变化，请核对 NAS 连接后重新保存设置")
-        # Probe access without confusing a disconnected source with an empty directory.
-        with os.scandir(candidate):
-            pass
-    except (OSError, ValueError) as exc:
+        # Pin each component before opening its child. The configured root may itself be a mount.
+        with _open_directory_parts(base.anchor, base.parts[1:]) as root_fd:
+            device = os.fstat(root_fd).st_dev
+            if expected_device is not None and expected_device != device:
+                raise HTTPException(409, "扫描目录的挂载已变化，请核对 NAS 连接后重新保存设置")
+            with _open_directory_parts(root_fd, parts, device=device) as fd:
+                yield fd
+    except OSError as exc:
         raise HTTPException(409, "扫描文件夹不可访问，请检查挂载或目录权限") from exc
-    return candidate.resolve()
+
+
+def _server_directory(config):
+    return _open_server_directory(
+        config.get("serverRootId"), config.get("path", ""), config.get("sourceDevice")
+    )
+
+
+def list_directories(root_id, path="", query=""):
+    directories, truncated = [], False
+    query = query.casefold()
+    with _open_server_directory(root_id, path) as fd, os.scandir(fd) as entries:
+        device = os.fstat(fd).st_dev
+        for index, entry in enumerate(entries):
+            if index >= DIRECTORY_ENTRY_LIMIT:
+                truncated = True
+                break
+            name = entry.name
+            if (
+                not _directory_name_allowed(name)
+                or len(f"{path}/{name}" if path else name) > 1500
+                or query not in name.casefold()
+                or not entry.is_dir(follow_symlinks=False)
+            ):
+                continue
+            try:
+                attrs = entry.stat(follow_symlinks=False)
+            except FileNotFoundError:
+                continue
+            if stat.S_ISDIR(attrs.st_mode) and attrs.st_dev == device:
+                if len(directories) == DIRECTORY_LIST_LIMIT:
+                    truncated = True
+                    break
+                directories.append(name)
+    return {
+        "directories": sorted(directories, key=lambda n: (n.casefold(), n)),
+        "truncated": truncated,
+    }
 
 
 def source_path(config):
     if config["kind"] == "server":
         root = next((r for r in roots() if r["id"] == config.get("serverRootId")), None)
-        return str(Path(root["path"]) / config.get("path", "")) if root else "目录连接已失效"
+        if not root:
+            return "目录连接已失效"
+        return str(PurePosixPath(root.get("displayPath", root["path"])) / config.get("path", ""))
     return config.get("path") or config.get("localFolderName") or "尚未连接本机文件夹"
 
 
@@ -157,7 +239,8 @@ def normalize_config(value):
     except (ZoneInfoNotFoundError, ValueError) as exc:
         raise HTTPException(422, "扫描时区无效") from exc
     if value["kind"] == "server":
-        value["sourceDevice"] = _server_directory(value).stat().st_dev
+        with _server_directory(value) as fd:
+            value["sourceDevice"] = os.fstat(fd).st_dev
     elif value["path"] and (len(value["path"]) > 1500 or "\x00" in value["path"]):
         raise HTTPException(422, "本机文件夹路径无效")
     return value
@@ -1044,35 +1127,21 @@ def retry_run(store, ident, actor, connector=bridge.call, *, item_ids=None):
 
 
 def safe_read(root, relative, max_bytes, *, now=None, heartbeat=None):
-    relative = relative_path(relative)
-    current = root
-    for part in relative.split("/"):
-        current = current / part
-        if current.is_symlink():
-            raise ValueError("跳过符号链接，不读取授权目录之外的文件")
+    parts = relative_path(relative).split("/")
+    name = parts[-1]
     try:
-        current.resolve().relative_to(root.resolve())
-        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
-        directory_fd = None
-        try:
-            directory_fd = os.open(
-                root, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        with ExitStack() as opened:
+            root_fd = opened.enter_context(_open_directory_parts(root, ()))
+            device = os.fstat(root_fd).st_dev
+            parent_fd = opened.enter_context(
+                _open_directory_parts(root_fd, parts[:-1], device=device)
             )
-            for segment in relative.split("/")[:-1]:
-                next_fd = os.open(
-                    segment,
-                    os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
-                    dir_fd=directory_fd,
-                )
-                os.close(directory_fd)
-                directory_fd = next_fd
-            fd = os.open(relative.split("/")[-1], flags, dir_fd=directory_fd)
-        finally:
-            if directory_fd is not None:
-                os.close(directory_fd)
-        with os.fdopen(fd, "rb") as stream:
+            flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+            fd = os.open(name, flags, dir_fd=parent_fd)
+            opened.callback(os.close, fd)
+            stream = opened.enter_context(os.fdopen(fd, "rb", closefd=False))
             before = os.fstat(stream.fileno())
-            if not stat.S_ISREG(before.st_mode):
+            if not stat.S_ISREG(before.st_mode) or before.st_dev != device:
                 raise ValueError("文件不是可读取的普通文件")
             if before.st_size <= 0 or before.st_size > max_bytes:
                 raise ValueError("文件为空或超过自动导入大小上限")
@@ -1091,7 +1160,7 @@ def safe_read(root, relative, max_bytes, *, now=None, heartbeat=None):
                     raise ValueError("文件读取期间超过大小上限")
             content = b"".join(chunks)
             after = os.fstat(stream.fileno())
-            current_stat = current.stat(follow_symlinks=False)
+            current_stat = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
             if (
                 (before.st_size, before.st_mtime_ns, before.st_ino, before.st_dev)
                 != (after.st_size, after.st_mtime_ns, after.st_ino, after.st_dev)
@@ -1105,45 +1174,54 @@ def safe_read(root, relative, max_bytes, *, now=None, heartbeat=None):
 
 
 def scan_server(task, heartbeat=None):
-    root = _server_directory(task)
     paths = []
 
-    def walk(directory):
-        with os.scandir(directory) as entries:
+    def walk(directory_fd, prefix, device):
+        with os.scandir(directory_fd) as entries:
             for entry in entries:
                 if heartbeat:
                     heartbeat()
                 if entry.name.startswith(".") or entry.is_symlink():
                     continue
-                if entry.is_dir(follow_symlinks=False) and task["includeSubfolders"]:
-                    walk(Path(entry.path))
-                elif entry.is_file(follow_symlinks=False) and entry.name.lower().endswith(".pdf"):
-                    paths.append(Path(entry.path).relative_to(root).as_posix())
+                attrs = entry.stat(follow_symlinks=False)
+                if attrs.st_dev != device:
+                    continue
+                path = prefix + entry.name
+                if (
+                    stat.S_ISDIR(attrs.st_mode)
+                    and task["includeSubfolders"]
+                    and _directory_name_allowed(entry.name)
+                ):
+                    with _open_directory_parts(directory_fd, (entry.name,), device=device) as fd:
+                        walk(fd, path + "/", device)
+                elif stat.S_ISREG(attrs.st_mode) and entry.name.lower().endswith(".pdf"):
+                    paths.append(path)
 
-    try:
-        walk(root)
-    except OSError as exc:
-        raise HTTPException(409, "扫描目录断连或部分目录不可访问，未把文件判断为删除") from exc
-    paths.sort()
-    cursor = task.get("scanCursor", "")
-    ordered = [p for p in paths if p > cursor] + [p for p in paths if p <= cursor]
-    selected = ordered[: task["maxFilesPerScan"]]
-    files, errors = [], []
-    for path in selected:
+    with _server_directory(task) as root_fd:
         try:
-            content, attrs = safe_read(
-                root, path, task["maxFileMb"] * 1024 * 1024, heartbeat=heartbeat
-            )
-            files.append(
-                {
-                    "relativePath": path,
-                    "size": len(content),
-                    "mtime": attrs.st_mtime,
-                    "sha256": hashlib.sha256(content).hexdigest(),
-                }
-            )
-        except (ValueError, HTTPException) as exc:
-            errors.append({"relativePath": path, "error": safe_error(exc)})
+            walk(root_fd, "", os.fstat(root_fd).st_dev)
+        except OSError as exc:
+            raise HTTPException(409, "扫描目录断连或部分目录不可访问，未把文件判断为删除") from exc
+        paths.sort()
+        cursor = task.get("scanCursor", "")
+        ordered = [p for p in paths if p > cursor] + [p for p in paths if p <= cursor]
+        selected = ordered[: task["maxFilesPerScan"]]
+        files, errors = [], []
+        for path in selected:
+            try:
+                content, attrs = safe_read(
+                    root_fd, path, task["maxFileMb"] * 1024 * 1024, heartbeat=heartbeat
+                )
+                files.append(
+                    {
+                        "relativePath": path,
+                        "size": len(content),
+                        "mtime": attrs.st_mtime,
+                        "sha256": hashlib.sha256(content).hexdigest(),
+                    }
+                )
+            except (ValueError, HTTPException) as exc:
+                errors.append({"relativePath": path, "error": safe_error(exc)})
     return files, errors, len(paths) > len(selected), selected[-1] if selected else ""
 
 
@@ -1232,12 +1310,13 @@ def process_item(
         if not item.get("originalSaved"):
             if task["kind"] != "server":
                 return False
-            content, attrs = safe_read(
-                _server_directory(task),
-                item["relativePath"],
-                task["maxFileMb"] * 1024 * 1024,
-                heartbeat=heartbeat,
-            )
+            with _server_directory(task) as root_fd:
+                content, attrs = safe_read(
+                    root_fd,
+                    item["relativePath"],
+                    task["maxFileMb"] * 1024 * 1024,
+                    heartbeat=heartbeat,
+                )
             actual_sha = hashlib.sha256(content).hexdigest()
             if item.get("allowChangedFingerprint") or not SHA.fullmatch(item["sha256"]):
                 item.update(

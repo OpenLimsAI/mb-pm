@@ -4,7 +4,17 @@
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+)
 from fastapi.responses import FileResponse
 from pydantic import Field, StrictBool
 from sqlalchemy.orm import Session
@@ -107,6 +117,18 @@ def bootstrap(db: Session = Depends(get_db), actor=Depends(principal)):
         "maxFileMb": settings.KNOWLEDGE_FOLDER_IMPORT_MAX_FILE_MB,
         "connectorOnlineSeconds": service.ONLINE_SECONDS,
     }
+
+
+@router.get("/directories")
+def directories(
+    root_id: str = Query(min_length=1, max_length=100),
+    path: str = Query("", max_length=1500),
+    q: str = Query("", max_length=255),
+    db: Session = Depends(get_db),
+    actor=Depends(manager),
+):
+    service.require_authority(_store(db, actor), actor["subject"], connected)
+    return service.list_directories(root_id, path, q)
 
 
 @router.post("/probe")

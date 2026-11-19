@@ -2,6 +2,7 @@
 """Real authenticated routes, connector bearer isolation and resumable upload protocol."""
 
 import hashlib
+import json
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,7 @@ from test_information_live import catalogue, store
 from test_information_portal import information_portal
 from test_knowledge_sources import F1, headers, ks, records
 
+from app.core.config import settings
 from app.services import folder_imports as folders
 from app.services.information import bridge
 
@@ -36,6 +38,85 @@ def body(**updates):
     return {"name": "本机论文", "kind": "local", "folderId": F1, "path": "", **updates}
 
 
+def test_browse_server_directories_only_and_use_the_selected_source(
+    folder_api, tmp_path, monkeypatch
+):
+    client, _, session, role, state, _ = folder_api
+    base = tmp_path / "server"
+    selected = base / "资料" / "USP_EP"
+    selected.mkdir(parents=True)
+    (selected / "sample.pdf").write_bytes(pdf_bytes())
+    (base / "ICH").mkdir()
+    (base / ".hidden").mkdir()
+    (base / "readme.txt").write_text("readme")
+    (base / "alias").symlink_to(tmp_path, target_is_directory=True)
+    monkeypatch.setattr(
+        settings,
+        "KNOWLEDGE_FOLDER_IMPORT_ROOTS",
+        json.dumps(
+            [{"id": "papers", "name": "论文", "path": str(base), "displayPath": "/srv/papers/"}]
+        ),
+    )
+    endpoint = PREFIX + "/directories"
+    params = {"root_id": "papers"}
+    assert client.get(endpoint, params=params).status_code == 401
+    roots = client.get(PREFIX + "/bootstrap", headers=session()).json()["roots"]
+    assert roots == [
+        {"id": "papers", "name": "论文", "path": str(base), "displayPath": "/srv/papers"}
+    ]
+    assert client.get(endpoint, headers=session(), params=params).json() == {
+        "directories": ["ICH", "资料"],
+        "truncated": False,
+    }
+    nested = client.get(endpoint, headers=session(), params={**params, "path": "资料"}).json()
+    assert nested == {"directories": ["USP_EP"], "truncated": False}
+    assert client.get(
+        endpoint, headers=session(), params={**params, "path": "资料/USP_EP"}
+    ).json() == {"directories": [], "truncated": False}
+    for path in ("/", "..", "资料/../ICH", "alias", "readme.txt", ".hidden", "不存在"):
+        assert client.get(
+            endpoint, headers=session(), params={**params, "path": path}
+        ).status_code in (409, 422)
+    assert client.get(endpoint, headers=session(), params={"root_id": "其他"}).status_code == 422
+    source = body(kind="server", serverRootId="papers", path="资料/USP_EP")
+    response = client.post(PREFIX + "/tasks", headers=headers(session), json=source)
+    assert (
+        response.status_code == 201
+        and response.json()["task"]["sourcePath"] == "/srv/papers/资料/USP_EP"
+    )
+    state["canWrite"] = False
+    assert client.get(endpoint, headers=session(), params=params).status_code == 403
+    state["canWrite"] = True
+    role["value"] = "kb_viewer"
+    assert client.get(endpoint, headers=session(), params=params).status_code == 403
+    assert client.get(PREFIX + "/bootstrap", headers=session()).json()["roots"] == []
+
+
+def test_large_directory_search_and_limits(folder_api, tmp_path, monkeypatch):
+    client, _, session, _, _, _ = folder_api
+    monkeypatch.setattr(
+        settings,
+        "KNOWLEDGE_FOLDER_IMPORT_ROOTS",
+        json.dumps([{"id": "papers", "name": "论文", "path": str(tmp_path)}]),
+    )
+    for name in ("first", "another", "MyChosenFolder"):
+        (tmp_path / name).mkdir()
+    roots = client.get(PREFIX + "/bootstrap", headers=session()).json()["roots"]
+    assert roots == [{"id": "papers", "name": "论文", "path": str(tmp_path)}]
+    monkeypatch.setattr(folders, "DIRECTORY_LIST_LIMIT", 2)
+    endpoint = PREFIX + "/directories"
+    params = {"root_id": "papers"}
+    result = client.get(endpoint, headers=session(), params=params).json()
+    assert len(result["directories"]) == 2 and result["truncated"]
+    assert client.get(endpoint, headers=session(), params={**params, "q": "chosen"}).json() == {
+        "directories": ["MyChosenFolder"],
+        "truncated": False,
+    }
+    monkeypatch.setattr(folders, "DIRECTORY_ENTRY_LIMIT", 1)
+    result = client.get(endpoint, headers=session(), params={**params, "q": "unknown"}).json()
+    assert result == {"directories": [], "truncated": True}
+
+
 def test_connector_script_download_uses_packaged_runtime_layout(folder_api, monkeypatch, tmp_path):
     from app.api.v1 import knowledge_source_folder_imports as api
 
@@ -45,7 +126,9 @@ def test_connector_script_download_uses_packaged_runtime_layout(folder_api, monk
     image_root = tmp_path / "code"
     (image_root / "scripts").mkdir(parents=True)
     (image_root / "scripts" / filename).write_bytes(content)
-    monkeypatch.setattr(api, "__file__", str(image_root / "app/api/v1/knowledge_source_folder_imports.py"))
+    monkeypatch.setattr(
+        api, "__file__", str(image_root / "app/api/v1/knowledge_source_folder_imports.py")
+    )
     response = client.get(PREFIX + "/connector/script")
     assert response.status_code == 200
     assert response.content == content

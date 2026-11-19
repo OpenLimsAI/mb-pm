@@ -77,6 +77,72 @@
 #knowledge-source-app .kso-local-path-input{width:100%}
 #knowledge-source-app .kso-create-fields .kso-setup-local{justify-items:stretch}
 #knowledge-source-app .kso-create-fields .kso-setup-choice{padding:10px 12px}
+#knowledge-source-app .kso-server-source-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+#knowledge-source-app .kso-server-browser,
+#knowledge-source-app .kso-server-empty {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--kso-line);
+  border-radius: 7px;
+  background: var(--kso-surface);
+}
+#knowledge-source-app .kso-server-empty p { color: var(--kso-muted); }
+#knowledge-source-app .kso-server-empty .kso-btn { justify-self: start; }
+#knowledge-source-app .kso-server-path { color: var(--kso-muted); font-size: 12px; }
+#knowledge-source-app .kso-server-path strong { color: var(--kso-ink); margin-inline-start: 8px; overflow-wrap: anywhere; }
+#knowledge-source-app .kso-server-location,
+#knowledge-source-app .kso-server-browser-actions,
+#knowledge-source-app .kso-server-browser-error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+#knowledge-source-app .kso-server-location strong {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+#knowledge-source-app .kso-server-search { display: flex; gap: 8px; }
+#knowledge-source-app .kso-server-search input { flex: 1; min-width: 0; }
+#knowledge-source-app .kso-server-location > svg,
+#knowledge-source-app .kso-server-children svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--kso-blue);
+}
+#knowledge-source-app .kso-server-children {
+  max-height: 220px;
+  overflow-y: auto;
+  border-block: 1px solid var(--kso-line);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+#knowledge-source-app .kso-server-children button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 34px;
+  padding: 4px 8px;
+  text-align: left;
+}
+#knowledge-source-app .kso-server-children button:hover,
+#knowledge-source-app .kso-server-children button:focus-visible { background: var(--kso-blue-bg); }
+#knowledge-source-app .kso-server-children button:focus-visible { outline: 2px solid var(--kso-blue); outline-offset: -2px; }
+#knowledge-source-app .kso-server-children button span { flex: 1; overflow-wrap: anywhere; }
+@media(max-width:560px) {
+  #knowledge-source-app .kso-server-source-row { grid-template-columns: minmax(0, 1fr); }
+  #knowledge-source-app .kso-server-source-row > .kso-btn { justify-self: start; }
+}
 @media(max-width:560px){
   #knowledge-source-app .kso-create-fields{padding:14px}
   #knowledge-source-app .kso-create-fields .kso-setup-choices{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}

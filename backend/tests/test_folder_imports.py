@@ -7,6 +7,7 @@ import json
 import os
 import time
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
@@ -306,6 +307,40 @@ def test_server_root_symlink_escape_and_incomplete_scan_do_not_mark_missing(envi
     second = finish(store, task["id"], connector)
     assert second["truncated"] and second["new"] == 1
     assert not any(f.get("sourceMissing") for f in store.records(folders.FILE))
+
+
+def test_directory_selection_and_reads_use_the_root_device(environment, monkeypatch):
+    _, source, _, _, _, _, _, put = environment
+    put("other-volume/paper.pdf", pdf_bytes())
+    mounted_inode = (source / "other-volume").stat().st_ino
+    real_fstat = os.fstat
+
+    def mounted_device(fd):
+        value = real_fstat(fd)
+        if value.st_ino == mounted_inode:
+            return SimpleNamespace(st_dev=value.st_dev + 1)
+        return value
+
+    monkeypatch.setattr(os, "fstat", mounted_device)
+    with pytest.raises(HTTPException) as browse_error:
+        folders.list_directories("mounted", "other-volume")
+    assert browse_error.value.status_code == 409
+    with pytest.raises(HTTPException) as save_error:
+        folders.normalize_config(config(path="other-volume"))
+    assert save_error.value.status_code == 409
+    with pytest.raises(ValueError):
+        folders.safe_read(source, "other-volume/paper.pdf", 1000000)
+
+
+def test_scanning_subfolder_keeps_its_open_directory_when_renamed(environment):
+    _, source, _, _, _, _, _, put = environment
+    original = pdf_bytes(1)
+    put("selected/paper.pdf", original)
+    with folders._server_directory(config(path="selected")) as directory:
+        (source / "selected").rename(source / "previous")
+        put("selected/paper.pdf", pdf_bytes(2))
+        content, _ = folders.safe_read(directory, "paper.pdf", 1000000)
+    assert content == original
 
 
 def test_schedule_timezone_weekly_and_same_task_no_overlap(environment):

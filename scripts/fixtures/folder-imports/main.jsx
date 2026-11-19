@@ -75,7 +75,13 @@ axios.defaults.adapter = async config => {
   else if (/\/sources\/[^/]+\/(check|verify)$/.test(path)) { sources = sources.map(source => ({ ...source, lastCheckedAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString() })); data = { saved: true } }
   else if (path.endsWith('/jobs') && config.method === 'post') { const id = `fixture-job-${jobs.length}`, selected = documents.filter(document => body.documentIds.includes(document.id)); jobs = [...jobs, { id, sourceId: body.sourceId, folderId: body.folderId || 'ich', kind: 'download', parse: body.parse, status: 'queued', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), total: selected.length, processed: 0, saved: 0, failed: 0, pending: selected.length, items: selected.map(document => ({ documentId: document.id, status: 'pending', phase: 'download' })) }]; data = { jobId: id } }
   else if (/\/jobs\/[^/]+\/control$/.test(path)) { jobs = jobs.map(job => job.id === path.split('/').at(-2) ? { ...job, status: body.action === 'cancel' ? 'cancelled' : body.action === 'pause' ? 'paused' : 'queued' } : job); data = { saved: true } }
-  else if (path.endsWith('/bootstrap')) data = { tasks, roots: [{ id: 'root', name: '研究共享目录' }], canWrite: true, workerEnabled: true, maxFileMb: 100, connectorOnlineSeconds: 90 }
+  else if (path.endsWith('/bootstrap')) data = { tasks, roots: new URLSearchParams(window.location.search).get('roots') === 'empty' ? [] : [{ id: 'root', name: '研究共享目录', displayPath: '/srv/research' }], canWrite: true, workerEnabled: true, maxFileMb: 100, connectorOnlineSeconds: 90 }
+  else if (path.endsWith('/directories')) {
+    const directories = { '': ['papers', 'USP_EP'], papers: ['2026'], 'papers/2026': [], USP_EP: ['USP', '欧洲药典'], 'USP_EP/USP': [], 'USP_EP/欧洲药典': [] }
+    if (config.params.root_id !== 'root' || !Object.hasOwn(directories, config.params.path)) throw new Error('目录不可访问')
+    const query = (config.params.q || '').toLocaleLowerCase()
+    data = { directories: directories[config.params.path].filter(name => name.toLocaleLowerCase().includes(query)), truncated: false }
+  }
   else if (path.endsWith('/probe')) data = { valid: true, fileCount: 10, totalBytes: 12000000 }
   else if (path.endsWith('/tasks') && config.method === 'post') { const task = { ...body, id: `task-new-${tasks.length}`, status: body.kind === 'local' ? 'offline' : 'queued', paused: false }; tasks = [...tasks, task]; data = { task } }
   else if (/\/tasks\/[^/]+$/.test(path) && config.method === 'patch') { const id = path.split('/').pop(); tasks = tasks.map(task => task.id === id ? { ...task, ...body } : task); data = { task: tasks.find(task => task.id === id) } }
