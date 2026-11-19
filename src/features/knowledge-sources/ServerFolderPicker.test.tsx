@@ -1,11 +1,11 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import FolderImportSettings from './FolderImportSettings'
 import type { FolderImportBootstrap } from './folder-import-api'
 
-const api = vi.hoisted(() => ({ list: vi.fn(), probe: vi.fn(), save: vi.fn() }))
+const api = vi.hoisted(() => ({ list: vi.fn(), search: vi.fn(), probe: vi.fn(), save: vi.fn() }))
 vi.mock('./folder-import-api', () => ({
-  listFolderImportDirectories: api.list, probeFolderImport: api.probe, saveFolderImport: api.save,
+  searchFolderImportDirectories: api.search, listFolderImportDirectories: api.list, probeFolderImport: api.probe, saveFolderImport: api.save,
 }))
 const roots = [{ id: 'research', name: '研究共享目录' }, { id: 'other', name: '其他目录' }]
 const bootstrap: FolderImportBootstrap = { roots, tasks: [], canWrite: true, workerEnabled: true, maxFileMb: 100, connectorOnlineSeconds: 90 }
@@ -13,16 +13,16 @@ const settings = { bootstrap, folders: [{ id: 'target', name: '研究资料', wr
 const button = (name: string) => screen.getByRole('button', { name })
 const server = () => fireEvent.click(screen.getByRole('radio', { name: '服务器 / NAS' }))
 const choose = () => fireEvent.click(button('选择服务器文件夹'))
-const folderPath = () => screen.getByRole('textbox', { name: '服务器子目录' })
-const rootSelect = () => screen.getByRole('textbox', { name: '服务器已连接目录' })
+const folderPath = () => screen.getByRole('textbox', { name: '扫描文件夹' })
 function selectRoot(query: string, label: string) {
-  fireEvent.change(rootSelect(), { target: { value: query } })
+  fireEvent.change(folderPath(), { target: { value: query } })
   fireEvent.click(screen.getByRole('button', { name: new RegExp(label) }))
 }
 const listing = (...directories: string[]) => ({ directories, truncated: false })
 
 beforeEach(() => {
   vi.resetAllMocks()
+  api.search.mockResolvedValue(listing())
   api.probe.mockResolvedValue({ valid: true, fileCount: 10, totalBytes: 10000 })
   api.save.mockResolvedValue({ task: { id: 'new-task' } })
 })
@@ -32,24 +32,26 @@ describe('server source folder selection', () => {
     const single = { id: 'usp', name: '药典资料', displayPath: '/srv/research/USP_EP' }
     render(<FolderImportSettings {...settings} bootstrap={{ ...bootstrap, roots: [single] }} />)
     server()
-    const matches = () => screen.queryByRole('list', { name: '匹配的共享目录' })
-    fireEvent.focus(rootSelect())
-    fireEvent.click(rootSelect())
+    const matches = () => screen.queryByRole('list', { name: '匹配的扫描文件夹' })
+    expect(within(screen.getByRole('region', { name: '扫描来源' })).getAllByRole('textbox')).toHaveLength(1)
+    fireEvent.focus(folderPath())
+    fireEvent.click(folderPath())
     expect(matches()).not.toBeInTheDocument()
     expect(screen.queryByText(single.name)).not.toBeInTheDocument()
     expect(button('选择服务器文件夹')).toBeDisabled()
-    fireEvent.change(rootSelect(), { target: { value: '  ' } })
+    fireEvent.change(folderPath(), { target: { value: '  ' } })
     expect(matches()).not.toBeInTheDocument()
-    fireEvent.change(rootSelect(), { target: { value: '无关' } })
+    expect(api.search).not.toHaveBeenCalled()
+    fireEvent.change(folderPath(), { target: { value: '无关' } })
     expect(matches()).not.toBeInTheDocument()
-    expect(screen.getByText('未找到匹配的共享目录。')).toBeVisible()
+    expect(await screen.findByText(/未找到匹配的/)).toBeVisible()
     fireEvent.change(folderPath(), { target: { value: '任意相对路径' } })
     fireEvent.blur(folderPath())
     expect(button('检查目录')).toBeDisabled()
     expect(button('开始导入')).toBeDisabled()
-    fireEvent.change(rootSelect(), { target: { value: 'uSp' } })
+    fireEvent.change(folderPath(), { target: { value: 'uSp' } })
     expect(matches()).toBeVisible()
-    expect(folderPath()).toHaveValue('')
+    expect(folderPath()).toHaveValue('uSp')
     expect(button('选择服务器文件夹')).toBeDisabled()
     expect(api.list).not.toHaveBeenCalled()
     expect(api.probe).not.toHaveBeenCalled()
@@ -58,7 +60,7 @@ describe('server source folder selection', () => {
     expect(button('选择服务器文件夹')).toBeEnabled()
     fireEvent.click(button('检查目录'))
     await screen.findByText('发现 10 份 PDF')
-    fireEvent.change(rootSelect(), { target: { value: '' } })
+    fireEvent.change(folderPath(), { target: { value: '' } })
     expect(matches()).not.toBeInTheDocument()
     expect(folderPath()).toHaveValue('')
     expect(button('检查目录')).toBeDisabled()
@@ -75,25 +77,104 @@ describe('server source folder selection', () => {
     render(<FolderImportSettings {...settings} bootstrap={{ ...bootstrap, roots: configured }} />)
     server()
     for (const query of ['药典', 'pharm', 'usp']) {
-      fireEvent.change(rootSelect(), { target: { value: query } })
+      fireEvent.change(folderPath(), { target: { value: query } })
       expect(screen.getByRole('button', { name: /药典资料/ })).toBeVisible()
       expect(screen.queryByRole('button', { name: /研究资料/ })).not.toBeInTheDocument()
       expect(button('开始导入')).toBeDisabled()
     }
-    fireEvent.change(rootSelect(), { target: { value: '/srv/research/USP_EP/欧洲 药典/2026' } })
-    expect(button('选择服务器文件夹')).toBeDisabled()
-    fireEvent.keyDown(rootSelect(), { key: 'Enter' })
-    expect(rootSelect()).toHaveValue('药典资料')
+    fireEvent.change(folderPath(), { target: { value: '/srv/research/USP_EP/欧洲 药典/2026' } })
+    expect(screen.getByRole('list', { name: '匹配的扫描文件夹' })).toBeVisible()
+    fireEvent.keyDown(folderPath(), { key: 'Enter' })
     expect(folderPath()).toHaveValue('/srv/research/USP_EP/欧洲 药典/2026')
     fireEvent.click(button('开始导入'))
     await waitFor(() => expect(api.save).toHaveBeenCalledWith(expect.objectContaining({ serverRootId: 'pharmacopoeia', path: '欧洲 药典/2026', folderId: 'target' }), undefined))
+  })
+
+  it('requires a choice when one name matches two folders', async () => {
+    const options = [
+      { id: 'first', name: '药典一组', displayPath: '/imports/one' },
+      { id: 'second', name: '药典二组', displayPath: '/imports/two' },
+    ]
+    render(<FolderImportSettings {...settings} bootstrap={{ ...bootstrap, roots: options }} />)
+    server()
+    fireEvent.change(folderPath(), { target: { value: '药典' } })
+    expect(screen.getByRole('button', { name: /药典一组/ })).toBeVisible()
+    expect(screen.getByRole('button', { name: /药典二组/ })).toBeVisible()
+    fireEvent.keyDown(folderPath(), { key: 'Enter' })
+    expect(button('开始导入')).toBeDisabled()
+    expect(api.probe).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: /药典二组/ }))
+    expect(folderPath()).toHaveValue('/imports/two')
+    fireEvent.click(button('开始导入'))
+    await waitFor(() => expect(api.save).toHaveBeenCalledWith(expect.objectContaining({ serverRootId: 'second', path: '' }), undefined))
+  })
+
+  it('distinguishes matching subfolders in different shares and saves the chosen path', async () => {
+    const configured = [
+      { id: 'one', name: '一组', displayPath: '/archive/a' },
+      { id: 'two', name: '二组', displayPath: '/archive/b' },
+    ]
+    api.search.mockResolvedValue({ directories: [
+      { rootId: 'one', path: '项目/分析方法' }, { rootId: 'two', path: '培训/分析方法' },
+    ], truncated: false })
+    render(<FolderImportSettings {...settings} bootstrap={{ ...bootstrap, roots: configured }} />)
+    server()
+    fireEvent.change(folderPath(), { target: { value: '分析方法' } })
+    const first = await screen.findByRole('button', { name: /分析方法.*\/archive\/a\/项目\/分析方法/ })
+    const second = screen.getByRole('button', { name: /分析方法.*\/archive\/b\/培训\/分析方法/ })
+    expect(first).toBeVisible()
+    fireEvent.keyDown(folderPath(), { key: 'Enter' })
+    expect(button('开始导入')).toBeDisabled()
+    fireEvent.click(second)
+    expect(folderPath()).toHaveValue('/archive/b/培训/分析方法')
+    fireEvent.click(button('开始导入'))
+    await waitFor(() => expect(api.save).toHaveBeenCalledWith(expect.objectContaining({ serverRootId: 'two', path: '培训/分析方法' }), undefined))
+    expect(api.probe.mock.calls[0][0]).toMatchObject({ serverRootId: 'two', path: '培训/分析方法' })
+  })
+
+  it('only confirms a unique name with Enter after the search completes without truncation', async () => {
+    api.search.mockResolvedValueOnce({ directories: [], truncated: true }).mockResolvedValueOnce(listing())
+    render(<FolderImportSettings {...settings} />)
+    server()
+    fireEvent.change(folderPath(), { target: { value: '研究' } })
+    fireEvent.keyDown(folderPath(), { key: 'Enter' })
+    expect(button('开始导入')).toBeDisabled()
+    await screen.findByText(/仅显示部分匹配项/)
+    fireEvent.keyDown(folderPath(), { key: 'Enter' })
+    expect(button('开始导入')).toBeDisabled()
+    fireEvent.change(folderPath(), { target: { value: '其他' } })
+    await waitFor(() => expect(screen.queryByText(/正在查找文件夹/)).not.toBeInTheDocument())
+    fireEvent.keyDown(folderPath(), { key: 'Enter' })
+    expect(folderPath()).toHaveValue('其他目录')
+    expect(button('开始导入')).toBeEnabled()
+  })
+
+  it('discards a delayed name search when the query changes or is cleared', async () => {
+    type Results = { directories: { rootId: string; path: string }[]; truncated: boolean }
+    let completeFirst!: (value: Results) => void
+    let completeSecond!: (value: Results) => void
+    api.search.mockImplementationOnce(() => new Promise<Results>(resolve => { completeFirst = resolve }))
+      .mockImplementationOnce(() => new Promise<Results>(resolve => { completeSecond = resolve }))
+    render(<FolderImportSettings {...settings} />)
+    server()
+    fireEvent.change(folderPath(), { target: { value: '指南' } })
+    await waitFor(() => expect(api.search).toHaveBeenCalledTimes(1))
+    fireEvent.change(folderPath(), { target: { value: '培训' } })
+    await waitFor(() => expect(api.search).toHaveBeenCalledTimes(2))
+    expect(api.search.mock.calls[0][1].aborted).toBe(true)
+    await act(async () => completeFirst({ directories: [{ rootId: 'research', path: '过时指南' }], truncated: false }))
+    expect(screen.queryByRole('button', { name: /过时指南/ })).not.toBeInTheDocument()
+    fireEvent.change(folderPath(), { target: { value: '' } })
+    expect(api.search.mock.calls[1][1].aborted).toBe(true)
+    await act(async () => completeSecond({ directories: [{ rootId: 'research', path: '培训目录' }], truncated: false }))
+    expect(screen.queryByRole('list', { name: '匹配的扫描文件夹' })).not.toBeInTheDocument()
+    expect(button('检查目录')).toBeDisabled()
   })
 
   it('leaves a single connected folder blank and forgets the selected folder and its check when the path is cleared', async () => {
     const single = { ...roots[0], displayPath: '/srv/research/USP_EP' }
     render(<FolderImportSettings {...settings} initialFolderId={undefined} bootstrap={{ ...bootstrap, roots: [single] }} />)
     server()
-    expect(rootSelect()).toHaveValue('')
     expect(folderPath()).toHaveValue('')
     expect(screen.getByRole('combobox', { name: '自动导入目标文件夹' })).toHaveValue('')
     expect(button('检查目录')).toBeDisabled()
@@ -108,7 +189,7 @@ describe('server source folder selection', () => {
     await screen.findByText('发现 10 份 PDF')
     fireEvent.change(folderPath(), { target: { value: '' } })
     fireEvent.blur(folderPath())
-    expect(rootSelect()).toHaveValue('')
+    expect(folderPath()).toHaveValue('')
     expect(button('检查目录')).toBeDisabled()
     expect(button('开始导入')).toBeDisabled()
     expect(screen.queryByText('发现 10 份 PDF')).not.toBeInTheDocument()
@@ -128,7 +209,7 @@ describe('server source folder selection', () => {
     fireEvent.click(await screen.findByRole('button', { name: '2026' }))
     await screen.findByText(/没有可浏览的子文件夹/)
     fireEvent.click(button('使用当前文件夹'))
-    expect(folderPath()).toHaveValue('药典 & 指南/2026')
+    expect(folderPath()).toHaveValue('研究共享目录/药典 & 指南/2026')
     fireEvent.click(button('开始导入'))
     await waitFor(() => expect(api.save).toHaveBeenCalledWith(expect.objectContaining({ kind: 'server', serverRootId: 'research', path: '药典 & 指南/2026', folderId: 'target' }), undefined))
   })
@@ -139,11 +220,11 @@ describe('server source folder selection', () => {
     server()
     fireEvent.change(folderPath(), { target: { value: '旧来源' } })
     selectRoot('其他', '其他目录')
-    expect(folderPath()).toHaveValue('')
+    expect(folderPath()).toHaveValue('其他目录')
     choose()
     await screen.findByText(/没有可浏览的子文件夹/)
     fireEvent.click(button('使用当前文件夹'))
-    expect(folderPath()).toHaveValue('')
+    expect(folderPath()).toHaveValue('其他目录')
     fireEvent.change(folderPath(), { target: { value: '另一个目录' } })
     fireEvent.click(screen.getByRole('radio', { name: '我的电脑' }))
     server()
@@ -175,7 +256,7 @@ describe('server source folder selection', () => {
     fireEvent.click(await screen.findByRole('button', { name: '药典文献' }))
     await screen.findByText(/没有可浏览的子文件夹/)
     fireEvent.click(button('使用当前文件夹'))
-    expect(folderPath()).toHaveValue('药典文献')
+    expect(folderPath()).toHaveValue('研究共享目录/药典文献')
     expect(button('选择服务器文件夹')).toHaveFocus()
     expect(api.save).not.toHaveBeenCalled()
   })
@@ -191,7 +272,7 @@ describe('server source folder selection', () => {
     fireEvent.click(await screen.findByRole('button', { name: '资料' }))
     await screen.findByText(/没有可浏览的子文件夹/)
     fireEvent.click(button('收起'))
-    expect(folderPath()).toHaveValue('')
+    expect(folderPath()).toHaveValue('研究共享目录')
   })
 
   it('shows how to reconnect an empty source list and makes newly connected roots selectable in the same form', async () => {
@@ -199,12 +280,12 @@ describe('server source folder selection', () => {
     const view = render(<FolderImportSettings {...settings} bootstrap={{ ...bootstrap, roots: [] }} onRefreshRoots={onRefreshRoots} />)
     server()
     expect(screen.getByText('尚无已连接目录')).toBeVisible()
-    expect(screen.queryByRole('textbox', { name: '服务器已连接目录' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: '扫描文件夹' })).not.toBeInTheDocument()
     expect(button('开始导入')).toBeDisabled()
     fireEvent.click(button('刷新目录列表'))
     await waitFor(() => expect(onRefreshRoots).toHaveBeenCalledOnce())
     view.rerender(<FolderImportSettings {...settings} onRefreshRoots={onRefreshRoots} />)
-    expect(rootSelect()).toHaveValue('')
+    expect(folderPath()).toHaveValue('')
     expect(button('开始导入')).toBeDisabled()
     expect(button('选择服务器文件夹')).toBeDisabled()
     selectRoot('研究', '研究共享目录')
@@ -219,14 +300,12 @@ describe('server source folder selection', () => {
     const configured = [{ ...roots[0], displayPath: '/srv/research' }, { ...roots[1], displayPath: '/srv/research/USP_EP' }]
     render(<FolderImportSettings {...settings} bootstrap={{ ...bootstrap, roots: configured }} />)
     server()
-    expect(rootSelect()).toHaveValue('')
     expect(folderPath()).toHaveValue('')
     expect(screen.queryByText('服务器完整路径')).not.toBeInTheDocument()
     fireEvent.change(folderPath(), { target: { value: full } })
-    expect(rootSelect()).toHaveValue('')
-    fireEvent.blur(folderPath())
-    expect(rootSelect()).toHaveValue('其他目录')
     expect(folderPath()).toHaveValue(full)
+    fireEvent.blur(folderPath())
+    expect(folderPath()).toHaveValue(full.replace(/\/$/, ''))
     expect(screen.queryByText(full.replace(/\/$/, ''))).not.toBeInTheDocument()
     fireEvent.click(button('开始导入'))
     await waitFor(() => expect(api.save).toHaveBeenCalledWith(expect.objectContaining({ serverRootId: 'other', path: relative }), undefined))
@@ -267,10 +346,10 @@ describe('server source folder selection', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('未提供服务器完整路径')
     expect(button('开始导入')).toBeDisabled()
     selectRoot('研究', '研究共享目录')
-    fireEvent.change(folderPath(), { target: { value: 'papers' } })
+    fireEvent.change(folderPath(), { target: { value: '研究共享目录/papers' } })
     expect(screen.queryByText('研究共享目录 / papers')).not.toBeInTheDocument()
     fireEvent.keyDown(folderPath(), { key: 'Enter' })
-    expect(screen.getByText('研究共享目录 / papers')).toBeVisible()
+    expect(folderPath()).toHaveValue('研究共享目录/papers')
     fireEvent.click(button('开始导入'))
     await waitFor(() => expect(api.save).toHaveBeenCalledWith(expect.objectContaining({ serverRootId: 'research', path: 'papers' }), undefined))
   })

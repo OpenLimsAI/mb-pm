@@ -92,6 +92,42 @@ def test_browse_server_directories_only_and_use_the_selected_source(
     assert client.get(PREFIX + "/bootstrap", headers=session()).json()["roots"] == []
 
 
+def test_search_matches_nested_directory_names_across_authorized_roots(
+    folder_api, tmp_path, monkeypatch
+):
+    client, _, session, role, state, _ = folder_api
+    roots = []
+    for ident in ("research", "archive"):
+        base = tmp_path / ident
+        (base / "shared" / "MethodNotes").mkdir(parents=True)
+        (base / ".private" / "MethodNotes").mkdir(parents=True)
+        (base / "MethodNotes.pdf").touch()
+        (base / "MethodAlias").symlink_to(tmp_path, target_is_directory=True)
+        roots.append({"id": ident, "name": ident, "path": str(base)})
+    monkeypatch.setattr(settings, "KNOWLEDGE_FOLDER_IMPORT_ROOTS", json.dumps(roots))
+    endpoint = PREFIX + "/directories/search"
+    params = {"q": "method"}
+    assert client.get(endpoint, params=params).status_code == 401
+    assert client.get(endpoint, params=params, headers=session()).json() == {
+        "directories": [
+            {"rootId": "archive", "path": "shared/MethodNotes"},
+            {"rootId": "research", "path": "shared/MethodNotes"},
+        ],
+        "truncated": False,
+    }
+    assert folders.search_directories(" ") == {"directories": [], "truncated": False}
+    monkeypatch.setattr(folders, "DIRECTORY_SEARCH_MATCH_LIMIT", 1)
+    partial = client.get(endpoint, params=params, headers=session()).json()
+    assert partial["truncated"] and len(partial["directories"]) == 1
+    monkeypatch.setattr(folders, "DIRECTORY_SEARCH_VISIT_LIMIT", 1)
+    assert folders.search_directories("method") == {"directories": [], "truncated": True}
+    state["canWrite"] = False
+    assert client.get(endpoint, params=params, headers=session()).status_code == 403
+    state["canWrite"] = True
+    role["value"] = "kb_viewer"
+    assert client.get(endpoint, params=params, headers=session()).status_code == 403
+
+
 def test_large_directory_search_and_limits(folder_api, tmp_path, monkeypatch):
     client, _, session, _, _, _ = folder_api
     monkeypatch.setattr(

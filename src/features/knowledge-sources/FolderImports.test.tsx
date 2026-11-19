@@ -4,8 +4,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import FolderImports from './FolderImports'
 import type { FolderImportBootstrap, FolderImportRun, FolderImportTask } from './folder-import-api'
 
-const api = vi.hoisted(() => ({ bootstrap: vi.fn(), save: vi.fn(), probe: vi.fn(), control: vi.fn(), remove: vi.fn(), pair: vi.fn(), runs: vi.fn(), run: vi.fn(), retry: vi.fn(), read: vi.fn() }))
-vi.mock('./folder-import-api', () => ({ getFolderImports: api.bootstrap, saveFolderImport: api.save, probeFolderImport: api.probe, controlFolderImport: api.control, deleteFolderImport: api.remove, pairFolderImport: api.pair, getFolderImportRuns: api.runs, getFolderImportRun: api.run, retryFolderImportRun: api.retry, readFolderImportRun: api.read, folderConnectorScriptUrl: '/api/v1/knowledge-sources/v3/folder-imports/connector/script' }))
+const api = vi.hoisted(() => ({ bootstrap: vi.fn(), search: vi.fn(), save: vi.fn(), probe: vi.fn(), control: vi.fn(), remove: vi.fn(), pair: vi.fn(), runs: vi.fn(), run: vi.fn(), retry: vi.fn(), read: vi.fn() }))
+vi.mock('./folder-import-api', () => ({ getFolderImports: api.bootstrap, searchFolderImportDirectories: api.search, saveFolderImport: api.save, probeFolderImport: api.probe, controlFolderImport: api.control, deleteFolderImport: api.remove, pairFolderImport: api.pair, getFolderImportRuns: api.runs, getFolderImportRun: api.run, retryFolderImportRun: api.retry, readFolderImportRun: api.read, folderConnectorScriptUrl: '/api/v1/knowledge-sources/v3/folder-imports/connector/script' }))
 const folders = [{ id: 'topic', name: '上游工艺开发', writable: true }, { id: 'inbox', name: '待整理', systemRole: 'inbox' as const, writable: true }]
 function task(patch: Partial<FolderImportTask> = {}): FolderImportTask {
   return { id: 'task-1', name: '目录任务', kind: 'server', path: 'papers', serverRootId: 'root-1', folderId: 'topic', folderName: '上游工艺开发', sourcePath: '/authorized/papers', includeSubfolders: true, preserveHierarchy: false, schedule: { frequency: 'daily', time: '08:00', timezone: 'Asia/Shanghai', weekday: 0 }, maxFileMb: 100, maxFilesPerScan: 1000, dailyFileLimit: 1000, paused: false, status: 'idle', nextScanAt: '2026-11-18T00:00:00Z', ...patch }
@@ -15,6 +15,7 @@ let bootstrap: FolderImportBootstrap
 beforeEach(() => {
   vi.clearAllMocks(); localStorage.clear(); sessionStorage.clear()
   bootstrap = { tasks: [], roots: [{ id: 'root-1', name: '研究资料目录' }], canWrite: true, workerEnabled: true, maxFileMb: 100, connectorOnlineSeconds: 90 }
+  api.search.mockResolvedValue({ directories: [], truncated: false })
   api.bootstrap.mockImplementation(async () => structuredClone(bootstrap))
   api.probe.mockResolvedValue({ valid: true, fileCount: 10, totalBytes: 12 * 1024 * 1024 })
   api.save.mockImplementation(async config => {
@@ -29,7 +30,7 @@ const mount = (props: Partial<Parameters<typeof FolderImports>[0]> = {}) => rend
 const newTask = async () => fireEvent.click(await screen.findByRole('button', { name: '新建自动导入' }))
 const editTask = async () => fireEvent.click(await screen.findByRole('button', { name: '自动导入设置 目录任务' }))
 function chooseResearchRoot() {
-  fireEvent.change(screen.getByRole('textbox', { name: '服务器已连接目录' }), { target: { value: '研究' } })
+  fireEvent.change(screen.getByRole('textbox', { name: '扫描文件夹' }), { target: { value: '研究' } })
   fireEvent.click(screen.getByRole('button', { name: '研究资料目录' }))
 }
 const expand = (name: string) => fireEvent.click(screen.getByRole('button', { name }))
@@ -101,7 +102,7 @@ describe('folder auto import setup', () => {
     fireEvent.change(form.getByRole('combobox', { name: '自动导入目标文件夹' }), { target: { value: 'inbox' } })
     fireEvent.change(form.getByLabelText('扫描时间', { selector: 'input' }), { target: { value: '19:15' } })
     fireEvent.click(form.getByRole('radio', { name: '服务器 / NAS' }))
-    expect(form.getByRole('textbox', { name: '服务器子目录' })).toBeVisible()
+    expect(form.getByRole('textbox', { name: '扫描文件夹' })).toBeVisible()
     expect(form.getByRole('combobox', { name: '自动导入目标文件夹' })).toHaveValue('inbox')
     expect(form.getByLabelText('扫描时间', { selector: 'input' })).toHaveValue('19:15')
     view.unmount(); mount({ openCreate: 2 })
@@ -123,9 +124,9 @@ describe('folder auto import setup', () => {
     mount({ initialFolderId: 'topic' }); await newTask()
     fireEvent.click(screen.getByRole('radio', { name: '服务器 / NAS' }))
     chooseResearchRoot()
-    fireEvent.change(screen.getByRole('textbox', { name: '服务器子目录' }), { target: { value: 'papers' } })
-    fireEvent.blur(screen.getByRole('textbox', { name: '服务器子目录' }))
-    expect(screen.getByRole('textbox', { name: '服务器已连接目录' })).toHaveValue('研究资料目录')
+    fireEvent.change(screen.getByRole('textbox', { name: '扫描文件夹' }), { target: { value: '研究资料目录/papers' } })
+    fireEvent.blur(screen.getByRole('textbox', { name: '扫描文件夹' }))
+    expect(screen.getByRole('textbox', { name: '扫描文件夹' })).toHaveValue('研究资料目录/papers')
     const destination = screen.getByRole('combobox', { name: '自动导入目标文件夹' })
     expect(destination).toHaveValue('')
     fireEvent.change(destination, { target: { value: 'topic' } })
@@ -139,15 +140,15 @@ describe('folder auto import setup', () => {
     api.probe.mockResolvedValue({ valid: false, fileCount: null, totalBytes: null, message: '目录不在授权范围内。' })
     mount(); await newTask(); fireEvent.click(screen.getByRole('radio', { name: '服务器 / NAS' }))
     chooseResearchRoot()
-    fireEvent.change(screen.getByRole('textbox', { name: '服务器子目录' }), { target: { value: 'private' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '扫描文件夹' }), { target: { value: '研究资料目录/private' } })
     fireEvent.change(screen.getByRole('combobox', { name: '自动导入目标文件夹' }), { target: { value: 'topic' } })
     fireEvent.change(screen.getByLabelText('扫描时间', { selector: 'input' }), { target: { value: '21:30' } })
     fireEvent.click(screen.getByRole('button', { name: '开始导入' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('目录不在授权范围内')
-    expect(screen.getByRole('textbox', { name: '服务器子目录' })).toHaveValue('private')
+    expect(screen.getByRole('textbox', { name: '扫描文件夹' })).toHaveValue('研究资料目录/private')
     expect(api.save).not.toHaveBeenCalled()
     api.probe.mockResolvedValue({ valid: true, fileCount: 10, totalBytes: 12000 })
-    fireEvent.change(screen.getByRole('textbox', { name: '服务器子目录' }), { target: { value: 'papers' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '扫描文件夹' }), { target: { value: '研究资料目录/papers' } })
     expect(screen.getByRole('combobox', { name: '自动导入目标文件夹' })).toHaveValue('topic')
     expect(screen.getByLabelText('扫描时间', { selector: 'input' })).toHaveValue('21:30')
     fireEvent.click(screen.getByRole('button', { name: '开始导入' }))
@@ -260,15 +261,15 @@ describe('folder auto import setup', () => {
     expect(screen.queryByRole('button', { name: '目录任务' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '新建自动导入' })).not.toBeInTheDocument()
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '更改扫描文件夹' })).toHaveTextContent('研究资料目录 / papers')
+    expect(screen.getByRole('button', { name: '更改扫描文件夹' })).toHaveTextContent('研究资料目录/papers')
     expect(screen.getByRole('button', { name: '更改保存位置' })).toHaveTextContent('上游工艺开发')
     expect(screen.getByRole('button', { name: '更改扫描时间' })).toHaveTextContent('每天 08:00 · 北京时间')
     expect(screen.getByRole('button', { name: '保存设置' })).toBeDisabled()
     expand('更改扫描文件夹')
-    expect(screen.getByRole('textbox', { name: '服务器已连接目录' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: '扫描文件夹' })).toHaveValue('研究资料目录/papers')
     expect(screen.queryByRole('radio', { name: '我的电脑' })).not.toBeInTheDocument()
     expand('更改保存位置')
-    expect(screen.queryByRole('textbox', { name: '服务器已连接目录' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: '扫描文件夹' })).not.toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: '自动导入目标文件夹' })).toBeInTheDocument()
     expand('更改扫描时间')
     expect(screen.queryByRole('combobox', { name: '自动导入目标文件夹' })).not.toBeInTheDocument()
@@ -292,12 +293,12 @@ describe('folder auto import setup', () => {
     bootstrap.tasks = [task()]
     mount(); await editTask(); expand('更改扫描文件夹')
     fireEvent.click(screen.getByRole('button', { name: '检查目录' })); await screen.findByText('发现 10 份 PDF')
-    fireEvent.change(screen.getByRole('textbox', { name: '服务器子目录' }), { target: { value: 'another' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '扫描文件夹' }), { target: { value: '研究资料目录/another' } })
     expect(screen.queryByText('发现 10 份 PDF')).not.toBeInTheDocument()
     api.probe.mockRejectedValueOnce(new Error('source unavailable'))
     expand('更改扫描时间'); fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
     expect(await screen.findByRole('alert')).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: '服务器子目录' })).toHaveValue('another')
+    expect(screen.getByRole('textbox', { name: '扫描文件夹' })).toHaveValue('研究资料目录/another')
     expect(api.probe).toHaveBeenCalledTimes(2); expect(api.save).not.toHaveBeenCalled()
   })
   it('keeps missing targets explicit and prevents losing edited settings when connecting a computer', async () => {
@@ -311,7 +312,7 @@ describe('folder auto import setup', () => {
     expand('更改扫描文件夹')
     expect(screen.getByRole('button', { name: '连接电脑' })).toBeDisabled()
     expect(screen.getByText('请先保存修改，再连接电脑。')).toBeInTheDocument()
-    expect(screen.queryByRole('textbox', { name: '服务器子目录' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: '扫描文件夹' })).not.toBeInTheDocument()
     expect(api.pair).not.toHaveBeenCalled()
   })
 })

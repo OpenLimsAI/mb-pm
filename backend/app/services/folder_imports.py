@@ -16,6 +16,7 @@ import secrets
 import stat
 import threading
 import time
+from collections import deque
 from contextlib import ExitStack, contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path, PurePosixPath
@@ -51,6 +52,9 @@ TERMINAL_ITEMS = {"completed", "failed", "unchanged", "ignored"}
 SHA = re.compile(r"^[a-f0-9]{64}$")
 DIRECTORY_LIST_LIMIT = 200
 DIRECTORY_ENTRY_LIMIT = 20000
+DIRECTORY_SEARCH_MATCH_LIMIT = 40
+DIRECTORY_SEARCH_VISIT_LIMIT = 256
+DIRECTORY_SEARCH_SECONDS = 2.0
 
 
 class LeaseLostError(RuntimeError):
@@ -138,11 +142,15 @@ def _open_directory_parts(base, parts, *, device=None):
         os.close(fd)
 
 
-@contextmanager
 def _open_server_directory(root_id, path, expected_device=None):
     root = next((r for r in roots() if r["id"] == root_id), None)
     if root is None:
         raise HTTPException(422, "请选择管理员已授权的服务器或 NAS 目录")
+    return _open_configured_directory(root, path, expected_device)
+
+
+@contextmanager
+def _open_configured_directory(root, path, expected_device=None):
     base = Path(root["path"])
     parts = PurePosixPath(relative_path(path, allow_empty=True)).parts
     if any(not _directory_name_allowed(part) for part in parts):
@@ -165,6 +173,21 @@ def _server_directory(config):
     )
 
 
+def _child_directory(entry, path, device):
+    name = entry.name
+    child = f"{path}/{name}" if path else name
+    if not _directory_name_allowed(name) or len(child) > 1500:
+        return None
+    try:
+        if entry.is_dir(follow_symlinks=False):
+            attrs = entry.stat(follow_symlinks=False)
+            if stat.S_ISDIR(attrs.st_mode) and attrs.st_dev == device:
+                return child
+    except FileNotFoundError:
+        pass
+    return None
+
+
 def list_directories(root_id, path="", query=""):
     directories, truncated = [], False
     query = query.casefold()
@@ -174,27 +197,56 @@ def list_directories(root_id, path="", query=""):
             if index >= DIRECTORY_ENTRY_LIMIT:
                 truncated = True
                 break
-            name = entry.name
-            if (
-                not _directory_name_allowed(name)
-                or len(f"{path}/{name}" if path else name) > 1500
-                or query not in name.casefold()
-                or not entry.is_dir(follow_symlinks=False)
-            ):
-                continue
-            try:
-                attrs = entry.stat(follow_symlinks=False)
-            except FileNotFoundError:
-                continue
-            if stat.S_ISDIR(attrs.st_mode) and attrs.st_dev == device:
+            if query in entry.name.casefold() and _child_directory(entry, path, device):
                 if len(directories) == DIRECTORY_LIST_LIMIT:
                     truncated = True
                     break
-                directories.append(name)
+                directories.append(entry.name)
     return {
         "directories": sorted(directories, key=lambda n: (n.casefold(), n)),
         "truncated": truncated,
     }
+
+
+def search_directories(query):
+    term = query.strip().casefold()
+    result = {"directories": [], "truncated": False}
+    if not term or "/" in term or not _directory_name_allowed(term):
+        return result
+    pending = deque((root, "") for root in roots())
+    deadline = time.monotonic() + DIRECTORY_SEARCH_SECONDS
+    entries_left = DIRECTORY_ENTRY_LIMIT
+    visits_left = DIRECTORY_SEARCH_VISIT_LIMIT
+    while pending:
+        if visits_left <= 0 or entries_left <= 0 or time.monotonic() >= deadline:
+            result["truncated"] = True
+            break
+        root, path = pending.popleft()
+        visits_left -= 1
+        try:
+            with _open_configured_directory(root, path) as fd, os.scandir(fd) as entries:
+                if path and term in path.rsplit("/", 1)[-1].casefold():
+                    if len(result["directories"]) == DIRECTORY_SEARCH_MATCH_LIMIT:
+                        result["truncated"] = True
+                        break
+                    result["directories"].append({"rootId": root["id"], "path": path})
+                device = os.fstat(fd).st_dev
+                for entry in entries:
+                    if entries_left <= 0 or time.monotonic() >= deadline:
+                        result["truncated"] = True
+                        break
+                    entries_left -= 1
+                    child = _child_directory(entry, path, device)
+                    if child:
+                        pending.append((root, child))
+        except HTTPException as exc:
+            if exc.status_code != 409:
+                raise
+            result["truncated"] = True
+    result["directories"].sort(
+        key=lambda item: (item["path"].casefold(), item["rootId"], item["path"])
+    )
+    return result
 
 
 def source_path(config):

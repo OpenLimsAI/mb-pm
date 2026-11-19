@@ -131,6 +131,16 @@ def directories(
     return service.list_directories(root_id, path, q)
 
 
+@router.get("/directories/search")
+def search_directories(
+    q: str = Query(min_length=1, max_length=255),
+    db: Session = Depends(get_db),
+    actor=Depends(manager),
+):
+    service.require_authority(_store(db, actor), actor["subject"], connected)
+    return service.search_directories(q)
+
+
 @router.post("/probe")
 def probe(body: TaskInput, db: Session = Depends(get_db), actor=Depends(manager)):
     service.require_authority(_store(db, actor), actor["subject"], connected)
