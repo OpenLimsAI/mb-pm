@@ -14,6 +14,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import HTTPException
+from sqlalchemy import text as sql
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 
@@ -321,9 +322,20 @@ class Store:
             raise HTTPException(500, "原文归档路径无效")
         return path
 
+    def lock_original(self, sha256):
+        # Originals are shared across documents in a tenant, so serialize writes
+        # and deletion by content hash, even when the document IDs differ.
+        if self.db.get_bind().dialect.name == "postgresql":
+            digest = hashlib.sha256(f"{self.tenant}:original:{sha256}".encode()).digest()
+            self.db.execute(
+                sql("SELECT pg_advisory_xact_lock(:key)"),
+                {"key": int.from_bytes(digest[:8], "big", signed=True)},
+            )
+
     def archive(self, document_id, content, text="", *, parse_status="pending", error=None):
         doc = self.get("document", document_id)
         sha = hashlib.sha256(content).hexdigest()
+        self.lock_original(sha)
         ident = self.key("version", document_id + sha)
         version = self.get("version", ident, required=False)
         if version:

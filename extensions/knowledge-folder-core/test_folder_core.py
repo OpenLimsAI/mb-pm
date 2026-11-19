@@ -250,6 +250,63 @@ class CoreAcceptance(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(version.status_code, 200)
             self.assertIn("dedicated endpoint", version.json()["content"])
 
+    async def test_discard_pending_manual_upload_without_embedding(self):
+        app = FastAPI()
+        install_handlers(app)
+        app.state.runtime = self.rt
+        install(app, AuthConfig(host="127.0.0.1", token="test-only-folder-token"))
+        url = "/v1/folder-import/discard-manual-original"
+        headers = {"Authorization": "Bearer test-only-folder-token"}
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://core.test"
+        ) as client:
+            for shared in (False, True):
+                original = f"%PDF-1.7\nSynthetic pending upload {shared}".encode()
+                sha = hashlib.sha256(original).hexdigest()
+                pdf = self.root / "sources" / f"{sha}.pdf"
+                md = self.root / "sources" / f"upload-{sha[:21]}.md"
+                pdf.write_bytes(original)
+                content = (
+                    f'---\nsource_kind: "manual-upload"\noriginal_sha256: "{sha}"\n---\n'
+                    f"# Pending upload\n<!-- ![PDF]({sha}.pdf) -->\n"
+                ).encode()
+                md.write_bytes(content)
+                if shared:
+                    self.write("other-source", f"![PDF]({sha}.pdf)")
+                body = {
+                    "path": f"sources/{md.name}",
+                    "sha256": sha,
+                    "sourceHash": hashlib.sha256(content).hexdigest(),
+                }
+                self.assertEqual((await client.post(url, json=body)).status_code, 401)
+                mismatch = await client.post(
+                    url, json={**body, "sourceHash": "a" * 64}, headers=headers
+                )
+                self.assertEqual(mismatch.status_code, 409)
+                self.assertTrue(md.is_file() and pdf.is_file())
+                deleted = await client.post(url, json=body, headers=headers)
+                self.assertEqual(deleted.status_code, 200, deleted.text)
+                self.assertEqual(deleted.json()["sharedOriginalRetained"], shared)
+                self.assertFalse(md.exists())
+                self.assertEqual(pdf.exists(), shared)
+                self.assertEqual(
+                    (await client.post(url, json=body, headers=headers)).json(),
+                    deleted.json(),
+                )
+                self.assertIsNone(
+                    await self.rt.storage.get_document(
+                        doc_id_for(Layer.SOURCE, f"sources/{md.name}")
+                    )
+                )
+                if not shared:
+                    # Re-import and register the same source before confirming a retry.
+                    md.write_bytes(content)
+                    pdf.write_bytes(original)
+                    await self.index(f"sources/{md.name}", "deleted-and-reimported")
+                    conflict = await client.post(url, json=body, headers=headers)
+                    self.assertEqual(conflict.status_code, 409)
+                    self.assertTrue(md.is_file() and pdf.is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

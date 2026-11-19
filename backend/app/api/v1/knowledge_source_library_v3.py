@@ -26,6 +26,7 @@ from app.api.v1.knowledge_sources import (
 from app.db.session import get_db
 from app.models.information import InformationText
 from app.models.note import PersonalNote
+from app.services import knowledge_source_original_delete as original_delete
 from app.services.information.extract import extract_pdf
 from app.services.information.store import Store, iso
 from app.services.knowledge_source_inbox import inbox_id, normalized_folder_ids
@@ -635,12 +636,24 @@ def paper_detail(body: PaperInput, db: Session = Depends(get_db), actor: dict = 
 
 
 @router.post("/delete-preview")
-def preview_paper_delete(body: DeletePaperInput, actor: dict = Depends(principal)):
+def preview_paper_delete(
+    body: DeletePaperInput, actor: dict = Depends(principal), db: Session = Depends(get_db)
+):
+    if original_delete.archive_id(body.paper_id):
+        return original_delete.preview(
+            Store(db, actor["tenant"]), actor["subject"], body.paper_id, connected
+        )
     return connected("deletePaperPreview", actor["subject"], path=_deletable_path(body.paper_id))
 
 
 @router.post("/delete")
-def confirm_paper_delete(body: ConfirmDeletePaperInput, actor: dict = Depends(principal)):
+def confirm_paper_delete(
+    body: ConfirmDeletePaperInput, actor: dict = Depends(principal), db: Session = Depends(get_db)
+):
+    if original_delete.archive_id(body.paper_id):
+        return original_delete.confirm(
+            Store(db, actor["tenant"]), actor["subject"], body.paper_id, body.plan_id, connected
+        )
     return connected(
         "deletePaper", actor["subject"], path=_deletable_path(body.paper_id), planId=body.plan_id
     )
@@ -653,8 +666,10 @@ def paper_delete_status(
         pattern=r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
     ),
     actor: dict = Depends(principal),
+    db: Session = Depends(get_db),
 ):
-    return connected("deletePaperStatus", actor["subject"], operationId=operation_id)
+    status = original_delete.status(Store(db, actor["tenant"]), actor["subject"], operation_id)
+    return status or connected("deletePaperStatus", actor["subject"], operationId=operation_id)
 
 
 @router.get("/original")
@@ -819,19 +834,20 @@ def upload_paper(
                 text, issue = "", "正文超过解析大小上限，原件保留，可拆分后另行索引"
         except (ValueError, OSError) as exc:
             issue = str(exc)[:200]
+    store = Store(db, actor["tenant"])
+    sha = hashlib.sha256(original).hexdigest()
+    store.lock_original(sha)
     result = connected(
         "uploadPaper",
         actor["subject"],
         name=(file.filename or "文献.pdf")[:200],
         originalBase64=base64.b64encode(original).decode(),
-        sha256=hashlib.sha256(original).hexdigest(),
+        sha256=sha,
         text=text,
         **({"folderId": folder_id} if folder_id else {}),
         **({"noFolder": True} if no_folder else {}),
         parse=False,
     )
-    store = Store(db, actor["tenant"])
-    sha = hashlib.sha256(original).hexdigest()
     source_id, document_id = (
         store.key("source", "manual-upload"),
         store.key("document", "manual:" + sha),

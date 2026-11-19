@@ -14,6 +14,7 @@ import importlib.metadata
 import inspect
 import re
 import types
+from urllib.parse import unquote_to_bytes
 from pathlib import Path, PurePosixPath
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
@@ -29,6 +30,7 @@ from dikw_core.domains.data.path_norm import doc_id_for
 from dikw_core.domains.data.sources import iter_source_files
 from dikw_core.providers import build_embedder
 from dikw_core.schemas import Layer
+from dikw_core.md_inspect import sha256_file
 from dikw_core.server.auth import make_dependency
 from dikw_core.server.runtime import get_runtime
 from dikw_core.server.routes_tasks import _handle, IngestSubmit, TaskHandle
@@ -39,6 +41,58 @@ TABLES = (
     "CREATE TABLE IF NOT EXISTS mberp_folder_families (family_key TEXT PRIMARY KEY, path TEXT NOT NULL)",
     "CREATE TABLE IF NOT EXISTS mberp_folder_versions (family_key TEXT NOT NULL, path TEXT NOT NULL, PRIMARY KEY(family_key,path))",
 )
+
+
+class ManualOriginal(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    sourceHash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    path: str = Field(pattern=r"^sources/upload-[0-9a-f]{21,64}\.md$")
+
+
+def discard_manual_files(root, upload):
+    """Trash one verified upload package, preserving PDFs referenced elsewhere."""
+    source_dir = root / "sources"
+    pdf_name = f"{upload.sha256}.pdf"
+    markdown = root / upload.path
+    pdf = source_dir / pdf_name
+    trash = root / "trash" / "manual-uploads" / upload.sourceHash
+    trashed_source = trash / markdown.name
+    trashed_pdf = trash / pdf_name
+    for path in (markdown, pdf, trashed_source, trashed_pdf):
+        parts = path.relative_to(root).parts
+        if any(
+            root.joinpath(*parts[:i]).is_symlink() for i in range(1, len(parts) + 1)
+        ):
+            raise HTTPException(409, "原件存储路径异常，请联系管理员")
+    proof = markdown if markdown.is_file() else trashed_source
+    if not proof.is_file() or sha256_file(proof) != upload.sourceHash:
+        raise HTTPException(409, "原件与上传记录不一致，请刷新后重试")
+    if not proof.read_bytes().startswith(
+        f'---\nsource_kind: "manual-upload"\noriginal_sha256: "{upload.sha256}"\n'.encode()
+    ):
+        raise HTTPException(409, "无法确认文件属于这次手动上传")
+    original = pdf if pdf.is_file() else trashed_pdf
+    if not original.is_file() or sha256_file(original) != upload.sha256:
+        raise HTTPException(409, "无法核对 PDF 原件，请联系管理员")
+    trash.mkdir(mode=0o700, parents=True, exist_ok=True)
+    # Moving Markdown first also prevents ordinary ingest from discovering it
+    # after a partial failure. The same request can resume using the trash copy.
+    if markdown.is_file():
+        markdown.replace(trashed_source)
+    if pdf.is_file():
+        for name in ("sources", "knowledge", "wisdom"):
+            for page in (root / name).rglob("*.md"):
+                if (
+                    page.is_symlink()
+                    or not page.resolve().is_relative_to(root)
+                    or not page.is_file()
+                ):
+                    continue
+                if pdf_name.encode() in unquote_to_bytes(page.read_bytes()):
+                    return {"discarded": True, "sharedOriginalRetained": True}
+        pdf.replace(trashed_pdf)
+    return {"discarded": True, "sharedOriginalRetained": False}
 
 
 def verified_source():
@@ -507,8 +561,26 @@ def install(app, auth):
             "version": 1,
             "scopedIngest": compatible,
             "atomicVersionPromotion": compatible,
+            "manualOriginalDelete": compatible,
             "maxPaths": 1,
         }
+
+    @router.post("/discard-manual-original")
+    async def discard_manual_original(request: Request, body: ManualOriginal):
+        rt = get_runtime(request.app)
+        if body.path not in (
+            f"sources/upload-{body.sha256[:21]}.md",
+            f"sources/upload-{body.sha256}.md",
+        ):
+            raise HTTPException(409, "原件路径与上传记录不一致")
+        async with rt.ingest_lock:
+            if (
+                await rt.storage.get_document(doc_id_for(Layer.SOURCE, body.path))
+                is not None
+            ):
+                raise HTTPException(409, "资料已有知识库记录，请刷新后使用全库删除")
+            result = await asyncio.to_thread(discard_manual_files, rt.root, body)
+            return {"path": body.path, **result}
 
     @router.post("/ingest")
     async def submit(request: Request, body: Submit):
