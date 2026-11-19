@@ -160,8 +160,6 @@
 :root .ks-app .ks-new-card { min-height: 160px; gap: 8px; color: var(--workbench-brand-strong); background: var(--workbench-soft); border-color: var(--workbench-line); }
 :root .ks-app .ks-new-card > span { color: var(--workbench-muted); }
 
-/* 保留现有应用明暗切换；浅色顶栏与内容一起切换，不再反转回旧深蓝。 */
-
 /* 登录也使用同一套精简尺度。 */
 :root .mb-login { background: var(--workbench-bg); color: var(--workbench-ink); }
 :root .mb-login-header { min-height: 64px; padding-block: 10px; }
