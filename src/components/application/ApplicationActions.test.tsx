@@ -1,10 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { afterEach, expect, it } from 'vitest'
 import ApplicationActions from './ApplicationActions'
 
-afterEach(() => { localStorage.clear(); delete document.documentElement.dataset.applicationTheme })
-it('shows the workspace and signed-in account, and persists a reversible theme choice', () => {
-  const first = render(<ApplicationActions userName="郭清城" preview={false} />)
+afterEach(() => { localStorage.clear() })
+it('shows the workspace and signed-in account, even with a saved dark theme', () => {
+  localStorage.setItem('maibo.application.theme', 'dark')
+  render(<ApplicationActions userName="郭清城" preview={false} />)
   const feedback = screen.getByRole('link', { name: '回音壁（新标签页打开）' })
   const workspace = screen.getByRole('link', { name: '应用工作台' })
   expect(workspace).toHaveAttribute('href', '/')
@@ -16,16 +17,8 @@ it('shows the workspace and signed-in account, and persists a reversible theme c
   expect(screen.queryByText('当前登录账号')).not.toBeInTheDocument()
   expect(screen.getByRole('link', { name: '郭清城 · 我的设置' })).toHaveAttribute('href', '/settings')
   expect(screen.queryByRole('button', { name: '退出登录' })).not.toBeInTheDocument()
-  const toggle = screen.getByRole('button', { name: '切换主题' })
-  fireEvent.click(toggle)
-  expect(toggle).toHaveAttribute('aria-pressed', 'true')
-  expect(document.documentElement.dataset.applicationTheme).toBe('dark')
-  expect(localStorage.getItem('maibo.application.theme')).toBe('dark')
-  first.unmount()
-  render(<ApplicationActions userName="郭清城" preview />)
-  expect(screen.getByRole('button', { name: '切换主题' })).toHaveAttribute('aria-pressed', 'true')
-  fireEvent.click(screen.getByRole('button', { name: '切换主题' }))
-  expect(document.documentElement.dataset.applicationTheme).toBe('light')
+  expect(screen.queryByRole('button', { name: '切换主题' })).not.toBeInTheDocument()
+  expect(document.documentElement.dataset.applicationTheme).toBeUndefined()
 })
 
 it('preserves the application source without copying private URL parameters', () => {

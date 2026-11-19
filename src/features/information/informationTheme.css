@@ -2,7 +2,7 @@
 .information-app {
   --if-navy: var(--workbench-brand-strong); --if-bg: var(--workbench-bg); --if-panel: #fff; --if-ink: var(--workbench-ink);
   --if-muted: var(--workbench-muted); --if-border: var(--workbench-line); --if-teal: var(--workbench-brand); --if-soft: var(--workbench-soft); --if-warn: #a76b27;
-  color-scheme: light;
+  color-scheme: only light;
   font-family: 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: var(--if-bg);
 }

@@ -230,10 +230,6 @@
   font-weight: 550;
 }
 
-:root .application-theme-toggle {
-  color: var(--workbench-muted);
-}
-
 :root .application-action-divider {
   margin-inline: 1px;
 }
