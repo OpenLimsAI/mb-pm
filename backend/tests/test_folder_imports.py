@@ -343,6 +343,39 @@ def test_scanning_subfolder_keeps_its_open_directory_when_renamed(environment):
     assert content == original
 
 
+def test_probe_reports_the_distinct_file_read_failures(environment, monkeypatch):
+    _, _, _, _, _, _, _, put = environment
+    for name in ("ready.pdf", "denied.pdf", "gone.pdf", "disk.pdf"):
+        put(name, pdf_bytes())
+    put("empty.pdf", b"")
+    put("large.pdf", b"x" * (1024**2 + 1))
+    os.utime(put("writing.pdf", pdf_bytes()), None)
+
+    open_file = os.open
+
+    def open_with_errors(path, flags, *args, **kwargs):
+        if path == "denied.pdf":
+            raise PermissionError()
+        if path == "gone.pdf":
+            raise FileNotFoundError()
+        if path == "disk.pdf":
+            raise OSError()
+        return open_file(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(os, "open", open_with_errors)
+    result = folders.probe(config(maxFileMb=1))
+    assert result["valid"] and result["fileCount"] == 7 and result["totalBytes"] > 0
+    reasons = {item["relativePath"]: item["error"] for item in result["errors"]}
+    assert reasons == {
+        "denied.pdf": "知识源没有读取该文件的权限",
+        "gone.pdf": "文件已移走或删除，请重新检查目录",
+        "disk.pdf": "读取原文件失败，请检查服务器或 NAS 存储连接",
+        "empty.pdf": "文件为空",
+        "large.pdf": "超过本任务单份 PDF 的大小上限（1 MB）",
+        "writing.pdf": "文件仍在写入，稳定后可重试",
+    }
+
+
 def test_schedule_timezone_weekly_and_same_task_no_overlap(environment):
     store, _, connector, _, _, _, _, _ = environment
     now = datetime(2026, 11, 17, 0, 1, tzinfo=UTC).timestamp()

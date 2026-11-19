@@ -57,6 +57,8 @@ function Workspace({ preview, allowed, userName, storageKey }: { preview: boolea
   const [search, setSearch] = useKnowledgePreference(`${storageKey}:search`, ''), [filter, setFilter] = useState('all'), [sort, setSort] = useState('recent'), [details, setDetails] = useKnowledgePreference(`${storageKey}:details`, false)
   const [density, setDensity] = useKnowledgePreference<'compact' | 'standard'>(`${storageKey}:density`, 'compact'), [recentDays, setRecentDays] = useState('30'), [shown, setShown] = useState(100), [progress, setProgress] = useState('')
   const [refreshedAt,setRefreshedAt]=useState(''), lastFullRefresh=useRef(0)
+  const [jobsError, setJobsError] = useState('')
+  const [snapshotError, setSnapshotError] = useState('')
   const [acquisition, setAcquisition] = useState<{ folderId?: string; key: number } | null>(null), [v3Counts, setV3Counts] = useState<Record<string, number>>({})
   const [importCreate,setImportCreate]=useState<{folderId?:string;key:number}|null>(null)
   const [showImportDrawer, setShowImportDrawer] = useState(false)
@@ -87,11 +89,11 @@ function Workspace({ preview, allowed, userName, storageKey }: { preview: boolea
           await inboxRequest.current
           result = await getKnowledgeSources()
           if (!findInboxFolder(result.folders)) folderError = '待整理文件夹尚未创建，请重试。'
-        } catch (e) { folderError = sourceError(e) }
+        } catch (e) { folderError = sourceError(e, '待整理文件夹') }
       }
-      if (alive.current && id === requestId.current) { setData(result); setRefreshedAt(new Date().toISOString()); lastFullRefresh.current=Date.now(); setError(folderError) }
+      if (alive.current && id === requestId.current) { setData(result); setRefreshedAt(new Date().toISOString()); lastFullRefresh.current=Date.now(); setSnapshotError(folderError); setJobsError('') }
     }
-    catch (e) { if (alive.current && id === requestId.current) setError(sourceError(e)) }
+    catch (e) { if (alive.current && id === requestId.current) setSnapshotError(sourceError(e, '知识库资料和目标文件夹')) }
     finally { if (alive.current && id === requestId.current) setLoading(false) }
   }, [])
   useEffect(() => { alive.current = true; if (!preview && allowed) void Promise.resolve().then(() => { if (alive.current) return refresh() }); return () => { alive.current = false; requestId.current += 1 } }, [preview, allowed, refresh])
@@ -106,12 +108,31 @@ function Workspace({ preview, allowed, userName, storageKey }: { preview: boolea
     return()=>abort.abort()
   },[libraryV3Ready,restoreFolderIds,preview,allowed,setView,setFolder])
   const running = data?.jobs.some(j => active(j.status))
+  const pollDownloads = view !== 'imports' && !showImportDrawer
   useEffect(() => {
-    if (preview || !allowed || !data) return
-    let stopped=false
-    const timer=window.setTimeout(async()=>{try{const result=await getKnowledgeSourceJobs();if(stopped)return;const changed=JSON.stringify(result.jobs)!==JSON.stringify(data.jobs);setData(previous=>previous ? {...previous,jobs:result.jobs}:previous);if(changed && (!result.jobs.some(j=>active(j.status)) || Date.now()-lastFullRefresh.current>15000)) await refresh()}catch(e){if(!stopped)setError(sourceError(e))}},running ? 2500 : 15000)
-    return()=>{stopped=true;window.clearTimeout(timer)}
-  },[running,data,preview,allowed,refresh])
+    if (preview || !allowed || !data || !pollDownloads) return
+    const abort = new AbortController()
+    const delay = running ? 2500 : 15000
+    let timer: number
+    const poll = async () => {
+      try {
+        const result = await getKnowledgeSourceJobs(abort.signal)
+        if (abort.signal.aborted) return
+        const changed = JSON.stringify(result.jobs) !== JSON.stringify(data.jobs)
+        setJobsError('')
+        if (changed) {
+          setData(previous => previous ? { ...previous, jobs: result.jobs } : previous)
+          if (!result.jobs.some(j => active(j.status)) || Date.now() - lastFullRefresh.current > 15000) await refresh()
+        }
+      } catch (e) {
+        if (!abort.signal.aborted) setJobsError(sourceError(e, '下载任务状态'))
+      } finally {
+        if (!abort.signal.aborted) timer = window.setTimeout(poll, delay)
+      }
+    }
+    timer = window.setTimeout(poll, delay)
+    return () => { abort.abort(); window.clearTimeout(timer) }
+  }, [running, data, preview, allowed, pollDownloads, refresh])
   useEffect(() => { if (!notice) return; const timer = window.setTimeout(() => setNotice(''), 6000); return () => window.clearTimeout(timer) }, [notice])
   const mutate: Mutation = async (method, path, body, success) => {
     if (preview || mutationLock.current) return false
@@ -131,7 +152,7 @@ function Workspace({ preview, allowed, userName, storageKey }: { preview: boolea
     catch (e) { if (alive.current) { if(path==='/papers/folders') await refresh(); setError(sourceError(e)); } return false }
     finally { mutationLock.current = false; if (alive.current) {setBusy(false);setProgress('')} }
   }
-  function go(v: View, target = folder) { setAllSearch(undefined); setShowImportDrawer(false); if(v!=='imports')setImportCreate(null); setAcquisition(null); setMobileFolders(false); navigationRevision.current+=1; const url=new URL(window.location.href); for(const key of ['source','document','job','folder','paper','view'])url.searchParams.delete(key);if(v==='library')url.searchParams.set('folder',target);if(v==='imports')url.searchParams.set('view','imports');window.history.replaceState(null,'',url); setEntry({ source: '', document: '', job: '', folder: '' }); setView(v); setFolder(target); setSearch(''); setFilter('all'); setPicks([]);setShown(100) }
+  function go(v: View, target = folder) { setError(''); setAllSearch(undefined); setShowImportDrawer(false); if(v!=='imports')setImportCreate(null); setAcquisition(null); setMobileFolders(false); navigationRevision.current+=1; const url=new URL(window.location.href); for(const key of ['source','document','job','folder','paper','view'])url.searchParams.delete(key);if(v==='library')url.searchParams.set('folder',target);if(v==='imports')url.searchParams.set('view','imports');window.history.replaceState(null,'',url); setEntry({ source: '', document: '', job: '', folder: '' }); setView(v); setFolder(target); setSearch(''); setFilter('all'); setPicks([]);setShown(100) }
   const open = (m: ModalState) => { focusBack.current = document.activeElement as HTMLElement; setModal(m) }
   const close = useCallback(() => { if (mutationLock.current) return; setModal(null); window.setTimeout(() => focusBack.current?.isConnected && focusBack.current.focus(), 0) }, [setModal])
   const d = data || EMPTY
@@ -170,19 +191,21 @@ function Workspace({ preview, allowed, userName, storageKey }: { preview: boolea
       paperIds: [target.id], folderIds: [], fromFolderId: folder, mode: 'remove', revision: d.catalogRevision,
     }, `已从「${currentFolder.name}」移出。${location}`)
   }
-  function openAcquisition() { setAcquisition(previous => ({ folderId: view === 'library' && currentFolder ? currentFolder.id : inbox?.id, key: (previous?.key || 0) + 1 })) }
-  function openAutoImport(folderId?:string){setImportCreate(previous=>({folderId:folderId || (view==='library'&&currentFolder?currentFolder.id:inbox?.id),key:(previous?.key || 0)+1}));go('imports')}
+  function openAcquisition() { setAcquisition(previous => ({ folderId: view === 'library' ? currentFolder?.id : undefined, key: (previous?.key || 0) + 1 })) }
+  function openAutoImport(folderId?:string){setImportCreate(previous=>({folderId,key:(previous?.key || 0)+1}));go('imports')}
   function folderAction(id: string, action: FolderMenuAction) {
     if (d.folders.some(f => f.id === id && isInboxFolder(f))) return
     open({kind:action==='rename'?'rename-folder':action==='delete'?'delete-folder':'manage-folder',folderId:id})
   }
   function nav(v: View, f: string, label: string, icon: ReactNode, count?: number) { return <button type="button" className={`kso-nav${view === v && (v !== 'library' || folder === f) ? ' is-active' : ''}`} onClick={() => go(v, f)} aria-current={view === v && (v !== 'library' || folder === f) ? 'page' : undefined}>{icon}<span>{label}</span>{count !== undefined && <small>{count}</small>}</button> }
   async function assignFolder(folderId: string) { if (await mutate('post', '/papers/folders', { paperIds: visiblePicks, folderIds: [folderId], mode: 'add', revision: d.catalogRevision }, `已将所选论文放入「${folderName(folderId)}」，原件保留。`)) setPicks([]) }
+  const importPanelVisible = !!data && (view === 'imports' || showImportDrawer && d.canOrganize && !!currentFolder && currentFolder.writable !== false)
+  const visibleError = error || (!importPanelVisible && data ? snapshotError : '') || (pollDownloads ? jobsError : '')
   return <div id="knowledge-source-app" className={`kso-density-${density} kso-simple-workspace${mobileFolders ? ' mobile-folders-open' : ''}`}>
     <a className="kso-skip" href="#kso-content">跳至知识源内容</a>
     <header className="kso-top kso-source-header"><div className="kso-brand"><div className="kso-mark"><FolderSearch aria-hidden="true" /></div><strong>知识源</strong><span>资料收录与整理</span>{preview && <small className="kso-preview">界面预览 · 未连接数据</small>}</div><div className="kso-header-actions"><button type="button" className="kso-btn quiet kso-header-refresh" aria-label="刷新知识源" title="刷新知识源" onClick={() => { void refresh() }} disabled={busy || loading || preview || !allowed}><RefreshCw aria-hidden="true" />刷新</button><ApplicationActions userName={userName} preview={preview} /></div></header>
     <nav className="kso-workspace-tabs" aria-label="知识源功能">{([['library','资料库'],['sources','来源下载'],['imports','自动导入'],['downloads','下载记录']] as const).map(([target,label]) => <button type="button" key={target} aria-current={(view==='updates'?'sources':view)===target?'page':undefined} onClick={()=>go(target,target==='library'?(currentFolder?.id || 'all'):folder)}>{label}</button>)}</nav>
-    {notice && <div role="status" className="kso-inline-status">{notice}</div>}{progress && <div role="status" className="kso-inline-status">{progress}</div>}{error && <div role="alert" className="kso-inline-status kso-inline-error">{error}<Button quiet onClick={() => { void refresh() }} disabled={busy}>重试连接</Button>{refreshedAt && <small>已加载资料时间：{dateText(refreshedAt)}</small>}</div>}
+    {notice && <div role="status" className="kso-inline-status">{notice}</div>}{progress && <div role="status" className="kso-inline-status">{progress}</div>}{visibleError && <div role="alert" className="kso-inline-status kso-inline-error">{visibleError}<Button quiet onClick={() => { void refresh() }} disabled={busy}>重试连接</Button>{refreshedAt && <small>已加载资料时间：{dateText(refreshedAt)}</small>}</div>}
     <WorkspaceLayout showFolders={view==='library'} storageKey={storageKey} sidebar={<aside ref={locationMenu} className="kso-sidebar" onKeyDown={event=>{if(event.key==='Escape'&&mobileFolders){setMobileFolders(false);locationToggle.current?.focus()}}}>
       <button ref={locationToggle} type="button" className="kso-location-toggle" aria-label="切换资料位置" aria-expanded={mobileFolders} aria-controls="kso-library-locations" onClick={()=>setMobileFolders(!mobileFolders)}><Folder /><span>{title}</span><small>切换</small><ChevronDown /></button>
       <div id="kso-library-locations" className="kso-location-content">
@@ -191,10 +214,10 @@ function Workspace({ preview, allowed, userName, storageKey }: { preview: boolea
       </div><div className="kso-side-end"><Database /><span>与知识库共用资料</span></div>
     </aside>}>
       <main id="kso-content" className="kso-main" aria-busy={loading || busy}>
-        {preview ? <Empty title="知识源界面预览">预览不连接知识库。请正常登录后查看真实论文、文件夹和来源下载任务。</Empty> : !allowed ? <Empty title="知识源暂不可用">请返回工作台刷新应用权限，或联系管理员。</Empty> : loading ? <Empty title="正在读取知识库"><LoaderCircle className="if-spin" />正在加载论文、文件夹和来源状态。</Empty> : !data ? <Empty title="知识库尚未连接">{error || '请检查连接后刷新，当前没有可确认的论文清单。'}</Empty> : <>
+        {preview ? <Empty title="知识源界面预览">预览不连接知识库。请正常登录后查看真实论文、文件夹和来源下载任务。</Empty> : !allowed ? <Empty title="知识源暂不可用">请返回工作台刷新应用权限，或联系管理员。</Empty> : loading ? <Empty title="正在读取知识库"><LoaderCircle className="if-spin" />正在加载论文、文件夹和来源状态。</Empty> : !data ? <Empty title="知识库资料尚未加载"><div role="alert">{snapshotError || '尚未取得资料和文件夹清单。'} <Button onClick={() => { void refresh() }}>重新加载</Button></div></Empty> : <>
 
           {d.integration.status !== 'ready' && <div className="kso-connection" role="status">{d.integration.message}</div>}
-          {acquisition ? <div className="kso-intake-page"><AcquisitionWorkspace key={acquisition.key} initialFolderId={acquisition.folderId} folders={d.folders} canManage={d.canOrganize} onImported={() => { void refresh() }} onClose={() => setAcquisition(null)} onAutoImport={openAutoImport} /></div> : view === 'imports' ? <FolderImports folders={d.folders} initialFolderId={importCreate?.folderId || currentFolder?.id || inbox?.id} openCreate={importCreate?.key} canManage={d.canOrganize} onImported={() => { void refresh() }} onOpenFolder={id=>go('library',id)} /> : view === 'sources' ? <><SourceManager focusSource={entry.source} focusDocument={entry.document} storageKey={storageKey} density={density} onDensityChange={setDensity} data={d} busy={busy} mutate={mutate} onAdd={() => open({ kind: 'source' })} onDownloads={() => go('downloads')} /><details className="kso-more-source-tools" onToggle={event=>setMoreTools(event.currentTarget.open)}><summary>更多来源工具</summary>{moreTools&&<><button className="kso-btn" onClick={() => openAcquisition()}>上传 PDF</button>{d.libraryV3&&<SourceWatchPanel sources={d.sources} onDocument={id=>{const document=d.documents.find(item=>item.id===id);if(document)setEntry({source:document.sourceId,document:id,job:'',folder:''})}}/>}<button className="kso-btn" onClick={()=>go('updates')}>查看更新与用量</button></>}</details></> : view === 'updates' ? <SourceInsights data={d} busy={busy} mutate={mutate}/> : view === 'downloads' ? <DownloadTasks focusJob={entry.job} data={d} busy={busy} mutate={mutate} go={go} /> : <>
+          {acquisition ? <div className="kso-intake-page"><AcquisitionWorkspace key={acquisition.key} initialFolderId={acquisition.folderId} folders={d.folders} canManage={d.canOrganize} onImported={() => { void refresh() }} onClose={() => setAcquisition(null)} onAutoImport={openAutoImport} /></div> : view === 'imports' ? <FolderImports folders={d.folders} workspaceError={snapshotError} onRefreshWorkspace={refresh} initialFolderId={importCreate?.folderId} openCreate={importCreate?.key} canManage={d.canOrganize} onImported={() => { void refresh() }} onOpenFolder={id=>go('library',id)} /> : view === 'sources' ? <><SourceManager focusSource={entry.source} focusDocument={entry.document} storageKey={storageKey} density={density} onDensityChange={setDensity} data={d} busy={busy} mutate={mutate} onAdd={() => open({ kind: 'source' })} onDownloads={() => go('downloads')} /><details className="kso-more-source-tools" onToggle={event=>setMoreTools(event.currentTarget.open)}><summary>更多来源工具</summary>{moreTools&&<><button className="kso-btn" onClick={() => openAcquisition()}>上传 PDF</button>{d.libraryV3&&<SourceWatchPanel sources={d.sources} onDocument={id=>{const document=d.documents.find(item=>item.id===id);if(document)setEntry({source:document.sourceId,document:id,job:'',folder:''})}}/>}<button className="kso-btn" onClick={()=>go('updates')}>查看更新与用量</button></>}</details></> : view === 'updates' ? <SourceInsights data={d} busy={busy} mutate={mutate}/> : view === 'downloads' ? <DownloadTasks focusJob={entry.job} data={d} busy={busy} mutate={mutate} go={go} /> : <>
             <div><div className="kso-head"><div><h1>{title}</h1><p>{(folder === 'unsorted' || currentFolder && isInboxFolder(currentFolder)) ? '选择资料，放入合适的文件夹。' : source ? '从此来源收录的资料。' : '点击标题阅读，勾选资料后整理到文件夹。'}</p></div><div className="kso-actions">{d.canOrganize && currentFolder && !isInboxFolder(currentFolder) && <FolderActionMenu name={currentFolder.name} disabled={busy} onAction={action=>folderAction(folder,action)}/>}{d.canOrganize && currentFolder && currentFolder.writable !== false && <Button disabled={busy} onClick={() => setShowImportDrawer(true)}>自动导入设置</Button>}{d.canManage && <Button className="kso-source-shortcut" onClick={() => go('sources')}><Download />从来源下载</Button>}{!d.libraryV3&&d.canOrganize&&<Button primary onClick={()=>openAcquisition()}><Plus />上传 PDF</Button>}</div></div></div>
             {source && !d.libraryV3 && <div className="kso-source-strip"><div><Link2 /><div><strong>已关联下载源 {source.name}</strong><span> · 下载后自动归入此文件夹，整理时复用原件</span></div></div><Button quiet onClick={() => go('sources')}>管理来源<ArrowUpRight /></Button></div>}
             {folder === 'all' && !d.libraryV3 && <KnowledgeFolders storageKey={storageKey} folders={d.folders} papers={d.papers} sourceFolderIds={sourceFolderIds} selectedIds={visiblePicks} canOrganize={d.canOrganize} busy={busy} onOpen={id => go('library', id)} onCreate={() => open({ kind: 'new-folder' })} onRename={id => open({ kind: 'rename-folder', folderId: id })} onAssign={id => { void assignFolder(id) }} />}
@@ -207,7 +230,7 @@ function Workspace({ preview, allowed, userName, storageKey }: { preview: boolea
       </main></WorkspaceLayout>
     <footer className="kso-app-footer"><span><Database aria-hidden="true" />与知识库共用资料</span><span>迈博药业 · 数字化工作空间</span></footer>
     {showImportDrawer && d.canOrganize && currentFolder && currentFolder.writable !== false &&
-      <FolderImports key={currentFolder.id} folders={d.folders} drawerFolderId={currentFolder.id} canManage={d.canOrganize}
+      <FolderImports key={currentFolder.id} folders={d.folders} workspaceError={snapshotError} onRefreshWorkspace={refresh} drawerFolderId={currentFolder.id} canManage={d.canOrganize}
         onCloseDrawer={() => setShowImportDrawer(false)} onImported={() => { void refresh() }} />}
     {deletingPaper && data && <PaperDeleteDialog key={deletingPaper.id} paper={deletingPaper} folders={d.folders} storageKey={storageKey} onClose={()=>setDeletingPaper(null)} onDeleted={()=>{setDeletingPaper(null);setSelected('');setPicks([]);setNotice('文件已从整个知识库删除。');void refresh()}}/>}
     {modal && data && <Dialog key={`${modal.kind}:${modal.folderId || ''}`} modal={modal} data={d} busy={busy} remoteError={error} mutate={mutate} onClose={close} onNavigate={target=>{setModal(null);go(target)}} onDone={() => { const removed=modal.kind==='delete-folder' || modal.kind==='manage-folder'; const target=modal.folderId; setModal(null); setPicks([]); if(removed&&target===folder)go('library','all') }} />}

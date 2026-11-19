@@ -15,8 +15,10 @@ interface Props {
   onOpenFolder?: (id: string) => void
   drawerFolderId?: string
   onCloseDrawer?: () => void
+  workspaceError?: string
+  onRefreshWorkspace?: () => Promise<void>
 }
-type Panel = { kind: 'create' } | { kind: 'created'; savedTask: FolderImportTask } | { kind: 'settings' | 'history' | 'pair' | 'delete'; taskId: string } | null
+type Panel = { kind: 'create'; folderId?: string } | { kind: 'created'; savedTask: FolderImportTask } | { kind: 'settings' | 'history' | 'pair' | 'delete'; taskId: string } | null
 const running = (status: string) => ['queued', 'running', 'scanning', 'transferring', 'processing', 'waiting_quota'].includes(status)
 const statuses: Record<string, string> = { idle: '等待扫描', queued: '等待处理', scanning: '正在扫描', transferring: '正在传输', processing: '正在处理', offline: '等待电脑连接', paused: '已暂停', waiting_quota: '等待明日额度', needs_attention: '需要处理', completed: '已完成', partial: '部分完成', failed: '失败', interrupted: '等待恢复', cancelled: '已取消' }
 const phases: Record<string, string> = { scan: '正在扫描', transfer: '正在传输', process: '正在处理', waiting_connector: '等待电脑连接', waiting_file: '等待文件就绪', saved: '原件已保存', archive: '正在归档', parse: '正在解析', index: '正在建立问答索引', done: '已完成' }
@@ -30,29 +32,34 @@ function scheduleText(task: FolderImportTask) {
 }
 function taskStatus(task: FolderImportTask) { return task.paused ? '已暂停' : task.kind === 'local' && !task.connectorOnline && !running(task.status) ? '等待电脑连接' : statuses[task.status] || '等待扫描' }
 
-export default function FolderImports({ folders, initialFolderId, openCreate, canManage, onImported, onOpenFolder, drawerFolderId, onCloseDrawer }: Props) {
+export default function FolderImports({ folders, initialFolderId, openCreate, canManage, onImported, onOpenFolder, drawerFolderId, onCloseDrawer, workspaceError, onRefreshWorkspace }: Props) {
   const [data, setData] = useState<FolderImportBootstrap | null>(null)
   const [loading, setLoading] = useState(true), [error, setError] = useState(''), [notice, setNotice] = useState('')
-  const [panel, setPanel] = useState<Panel>(openCreate ? { kind: 'create' } : null), [working, setWorking] = useState('')
+  const [listError, setListError] = useState<{ message: string; background: boolean } | null>(null)
+  const [panel, setPanel] = useState<Panel>(openCreate ? { kind: 'create', folderId: initialFolderId } : null), [working, setWorking] = useState('')
   const [pairing, setPairing] = useState<FolderImportPairing | null>(null)
   const alive = useRef(true), request = useRef(0), actionLock = useRef(false), requestedCreate = useRef(openCreate)
   const drawerInitialized = useRef(false)
   const drawerFolder = folders.find(folder => folder.id === drawerFolderId)
   const canCreateInFolder = !drawerFolderId || !!drawerFolder && drawerFolder.writable !== false
-  const refresh = useCallback(async (signal?: AbortSignal) => {
+  const refresh = useCallback(async (signal?: AbortSignal, background = false) => {
     const id = ++request.current
     try {
       const value = await getFolderImports(signal)
-      if (!alive.current || id !== request.current) return
+      if (signal?.aborted || !alive.current || id !== request.current) return
       setData(value)
-      setError('')
+      setListError(null)
       if (drawerFolderId && !drawerInitialized.current) {
         drawerInitialized.current = true
         if (canManage && canCreateInFolder && value.canWrite && !value.tasks.some(task => task.folderId === drawerFolderId)) {
           setPanel({ kind: 'create' })
         }
       }
-    } catch (e) { if (!signal?.aborted && alive.current && id === request.current) setError(sourceError(e)) }
+    } catch (e) {
+      if (!signal?.aborted && alive.current && id === request.current) {
+        setListError({ message: sourceError(e, '自动导入任务和共享目录'), background })
+      }
+    }
     finally { if (alive.current && id === request.current) setLoading(false) }
   }, [canCreateInFolder, canManage, drawerFolderId])
   useEffect(() => {
@@ -62,17 +69,26 @@ export default function FolderImports({ folders, initialFolderId, openCreate, ca
   }, [refresh])
   const visibleTasks = data?.tasks.filter(task => !drawerFolderId || task.folderId === drawerFolderId) ?? []
   const active = visibleTasks.some(task => running(task.status) && task.status !== 'waiting_quota')
+  const editing = panel?.kind === 'create' || panel?.kind === 'settings'
+  const loaded = data !== null
   useEffect(() => {
+    if (editing || !loaded) return
     const abort = new AbortController()
-    const timer = window.setTimeout(() => { void refresh(abort.signal) }, active ? 2500 : 15000)
+    const delay = active ? 2500 : 15000
+    let timer: number
+    const poll = async () => {
+      await refresh(abort.signal, true)
+      if (!abort.signal.aborted) timer = window.setTimeout(poll, delay)
+    }
+    timer = window.setTimeout(poll, delay)
     return () => { window.clearTimeout(timer); abort.abort() }
-  }, [data, active, refresh])
+  }, [editing, loaded, active, refresh])
   useEffect(() => {
-    if (openCreate && openCreate !== requestedCreate.current) { requestedCreate.current = openCreate; setPanel({ kind: 'create' }); setPairing(null) }
-  }, [openCreate])
+    if (openCreate && openCreate !== requestedCreate.current) { requestedCreate.current = openCreate; setPanel({ kind: 'create', folderId: initialFolderId }); setError(''); setPairing(null) }
+  }, [openCreate, initialFolderId])
   const writable = canManage && !!data?.canWrite
   const task = panel && 'taskId' in panel ? data?.tasks.find(value => value.id === panel.taskId) : undefined
-  function open(value: Panel) { if (actionLock.current) return; setPanel(value); setPairing(null); setNotice('') }
+  function open(value: Panel) { if (actionLock.current) return; setPanel(value); setPairing(null); setNotice(''); setError('') }
   async function act(id: string, action: 'scan' | 'pause' | 'resume' | 'retry') {
     if (actionLock.current || !writable) return
     actionLock.current = true; setWorking(id); setError(''); setNotice('')
@@ -102,10 +118,20 @@ export default function FolderImports({ folders, initialFolderId, openCreate, ca
   }
   const createdTask = panel?.kind === 'created' ? data?.tasks.find(value => value.id === panel.savedTask.id) || panel.savedTask : undefined
   const focused = !!data && (panel?.kind === 'created' || panel?.kind === 'create' && canCreateInFolder || panel?.kind === 'settings' && !!task || panel?.kind === 'pair' && !!task)
-  const alerts = <>{error && <div className="kso-import-alert" role="alert">{error}<button className="kso-btn quiet" onClick={() => void refresh()}>重试连接</button></div>}{data && !data.workerEnabled && <p className="kso-note" role="status">自动导入处理服务尚未启用，任务会保留，暂不能完成后台处理。</p>}</>
+  const listMessage = listError && (!editing || !listError.background || !loaded) ? listError.message : ''
+  const loadMessage = [...new Set([workspaceError, listMessage].filter(Boolean))].join(' ')
+  function retryLoading() {
+    if (workspaceError) void onRefreshWorkspace?.()
+    if (listMessage) void refresh()
+  }
+  const alerts = <>
+    {loadMessage && <div className="kso-import-alert" role="alert"><span>{loadMessage}</span><button type="button" className="kso-btn quiet" onClick={retryLoading}>重新加载</button></div>}
+    {error && <div className="kso-import-alert" role="alert">{error}</div>}
+    {data && !data.workerEnabled && <p className="kso-note" role="status">自动导入处理服务尚未启用，任务会保留，暂不能完成后台处理。</p>}
+  </>
   const content = focused && data && panel ? <>
     {alerts}
-    {(panel.kind === 'create' || panel.kind === 'created' || panel.kind === 'settings') && <FolderImportSettings saved={!!createdTask} key={panel.kind !== 'settings' ? `new:${openCreate || ''}` : task!.id} task={panel.kind === 'settings' ? task : undefined} bootstrap={data} onRefreshRoots={refresh} folders={folders} initialFolderId={drawerFolderId || initialFolderId} canManage={writable} backLabel={drawerFolderId ? '返回导入任务' : undefined} onClose={() => open(null)} onDelete={panel.kind === 'settings' && task ? () => open({ kind: 'delete', taskId: task.id }) : undefined} onConnect={task ? () => void pair(task.id) : undefined} onSaved={async saved => {
+    {(panel.kind === 'create' || panel.kind === 'created' || panel.kind === 'settings') && <FolderImportSettings saved={!!createdTask} key={panel.kind !== 'settings' ? `new:${openCreate || ''}` : task!.id} task={panel.kind === 'settings' ? task : undefined} bootstrap={data} onRefreshRoots={refresh} folders={folders} initialFolderId={drawerFolderId || (panel.kind === 'create' ? panel.folderId : createdTask?.folderId)} canManage={writable} backLabel={drawerFolderId ? '返回导入任务' : undefined} onClose={() => open(null)} onDelete={panel.kind === 'settings' && task ? () => open({ kind: 'delete', taskId: task.id }) : undefined} onConnect={task ? () => void pair(task.id) : undefined} onSaved={async saved => {
       setPairing(null)
       if (panel.kind === 'create' && saved.kind === 'local') {
         setPanel({ kind: 'created', savedTask: saved })

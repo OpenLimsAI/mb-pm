@@ -1143,8 +1143,10 @@ def safe_read(root, relative, max_bytes, *, now=None, heartbeat=None):
             before = os.fstat(stream.fileno())
             if not stat.S_ISREG(before.st_mode) or before.st_dev != device:
                 raise ValueError("文件不是可读取的普通文件")
-            if before.st_size <= 0 or before.st_size > max_bytes:
-                raise ValueError("文件为空或超过自动导入大小上限")
+            if before.st_size == 0:
+                raise ValueError("文件为空")
+            if before.st_size > max_bytes:
+                raise ValueError(f"超过本任务单份 PDF 的大小上限（{max_bytes / 1024**2:g} MB）")
             if (time.time() if now is None else now) - before.st_mtime < 2:
                 raise ValueError("文件仍在写入，稳定后可重试")
             chunks, total = [], 0
@@ -1169,8 +1171,12 @@ def safe_read(root, relative, max_bytes, *, now=None, heartbeat=None):
             ):
                 raise ValueError("文件读取期间发生变化，稳定后可重试")
             return content, before
+    except PermissionError as exc:
+        raise ValueError("知识源没有读取该文件的权限") from exc
+    except FileNotFoundError as exc:
+        raise ValueError("文件已移走或删除，请重新检查目录") from exc
     except OSError as exc:
-        raise ValueError("原文件无法完整读取，请检查文件是否已下载到本机及访问权限") from exc
+        raise ValueError("读取原文件失败，请检查服务器或 NAS 存储连接") from exc
 
 
 def scan_server(task, heartbeat=None):

@@ -13,7 +13,7 @@ interface UploadSelection {
   skipped: { name: string; reason: string }[]
 }
 export interface AcquisitionWorkspaceProps {
-  folders: SourceFolder[]; initialFolderId?: string; canManage: boolean; onImported?:()=>void; onClose?:()=>void; onUndoTokens?:(tokens:string[])=>void; onAutoImport?:(folderId:string)=>void
+  folders: SourceFolder[]; initialFolderId?: string; canManage: boolean; onImported?:()=>void; onClose?:()=>void; onUndoTokens?:(tokens:string[])=>void; onAutoImport?:(folderId?:string)=>void
 }
 
 export default function AcquisitionWorkspace({folders,initialFolderId,canManage,onImported,onClose,onUndoTokens,onAutoImport}:AcquisitionWorkspaceProps) {
@@ -85,7 +85,7 @@ export default function AcquisitionWorkspace({folders,initialFolderId,canManage,
   }
   const fileSize=(size:number)=>size<1024*1024?`${Math.max(1,Math.round(size/1024))} KB`:`${(size/1024/1024).toFixed(1)} MB`
   return <section className="kso-v3-acquire kso-simple-acquire" aria-label="统一添加资料">
-    <div className="kso-v3-heading"><h2>上传 PDF</h2><div className="kso-actions">{onAutoImport&&<button type="button" className="kso-btn quiet" disabled={busy||!canManage||!targetExists} onClick={()=>onAutoImport(folderId)}>从文件夹自动导入</button>}{onClose&&<button type="button" className="kso-btn quiet" aria-label="关闭添加资料" disabled={busy} onClick={onClose}>返回</button>}</div></div>
+    <div className="kso-v3-heading"><h2>上传 PDF</h2><div className="kso-actions">{onAutoImport&&<button type="button" className="kso-btn quiet" disabled={busy||!canManage||!targetExists} onClick={()=>onAutoImport(chosenFolderId || undefined)}>从文件夹自动导入</button>}{onClose&&<button type="button" className="kso-btn quiet" aria-label="关闭添加资料" disabled={busy} onClick={onClose}>返回</button>}</div></div>
     {error&&<p role="alert" className="kso-error">{error}</p>}
       <div className={`kso-v3-drop ${dragging?'is-over':''}`} onDragOver={e=>{e.preventDefault();if(!busy&&canManage)setDragging(true)}} onDragLeave={()=>setDragging(false)} onDrop={e=>{e.preventDefault();setDragging(false);if(!busy&&canManage)chooseFiles(e.dataTransfer.files)}}><FileUp size={24}/><div><strong>将 PDF 拖到这里</strong><small>每次最多 {MAX_FILES} 份 · 每份不超过 {MAX_FILE_MB} MB</small></div><label className="kso-btn">选择文件<input type="file" accept="application/pdf,.pdf" multiple disabled={busy||!canManage} onChange={e=>{chooseFiles(e.target.files);e.target.value=''}}/></label></div>
       {skipped.length > 0 && <div className="kso-error" role="status">

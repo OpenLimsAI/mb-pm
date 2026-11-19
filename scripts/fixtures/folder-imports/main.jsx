@@ -42,10 +42,16 @@ const folderCounts = () => Object.fromEntries(folders.map(folder => [folder.id, 
 const snapshot = () => ({ papers, folders, sources, jobs, documents, catalogRevision: revision, canManage: true, canOrganize: true, canEdit: true, starred, libraryV3: true, libraryTotal: papers.length, folderCounts: folderCounts(), tags: tagCatalog, changes: [], integration: { status: 'ready', message: '合成资料 · 未连接真实知识库' } })
 const detailText = paper => `${paper.title}\n\n界面预览资料\n以下内容仅用于验证页内阅读、选择和归档等交互，不是官方指南正文。\n\n研究背景\n在药物研发中，需要系统整理实验观察、质量研究记录与参考文献，并保留资料来源与版本信息。\n\n资料整理\n用户可以将同一篇资料归类到多个文件夹；按标题、分类或共享标签检索，然后在页面中阅读。\n\n使用示例\n先阅读资料，再勾选需要整理的文件，选择拷贝到文件夹或移动到文件夹。`
 window.__folderImportFixtureRequests = []
+const scenario = new URLSearchParams(window.location.search).get('scenario')
+let snapshotRequests = 0, importBootstrapRequests = 0
 axios.defaults.adapter = async config => {
   const rawPath = `${config.baseURL || ''}${config.url || ''}`
   const path = rawPath.split('?')[0]
   window.__folderImportFixtureRequests.push({ method: config.method, path: rawPath })
+  if (scenario === 'retry' && (path.endsWith('/snapshot') && ++snapshotRequests === 2 ||
+      path.endsWith('/folder-imports/bootstrap') && ++importBootstrapRequests === 1)) {
+    throw new axios.AxiosError('测试连接中断', 'ERR_NETWORK', config)
+  }
   const body = typeof config.data === 'string' ? camel(JSON.parse(config.data)) : config.data || {}
   let data
   if (path.endsWith('/snapshot')) data = snapshot()
@@ -82,7 +88,10 @@ axios.defaults.adapter = async config => {
     const query = (config.params.q || '').toLocaleLowerCase()
     data = { directories: directories[config.params.path].filter(name => name.toLocaleLowerCase().includes(query)), truncated: false }
   }
-  else if (path.endsWith('/probe')) data = { valid: true, fileCount: 10, totalBytes: 12000000 }
+  else if (path.endsWith('/probe')) data = scenario === 'unreadable' ? {
+    valid: true, fileCount: 42, totalBytes: 0,
+    errors: Array.from({ length: 42 }, (_, i) => ({ relativePath: `测试资料-${i + 1}.pdf`, error: '没有读取该文件的权限' })),
+  } : { valid: true, fileCount: 10, totalBytes: 12000000 }
   else if (path.endsWith('/tasks') && config.method === 'post') { const task = { ...body, id: `task-new-${tasks.length}`, status: body.kind === 'local' ? 'offline' : 'queued', paused: false }; tasks = [...tasks, task]; data = { task } }
   else if (/\/tasks\/[^/]+$/.test(path) && config.method === 'patch') { const id = path.split('/').pop(); tasks = tasks.map(task => task.id === id ? { ...task, ...body } : task); data = { task: tasks.find(task => task.id === id) } }
   else if (/\/tasks\/[^/]+$/.test(path) && config.method === 'delete') { const id = path.split('/').pop(); tasks = tasks.filter(task => task.id !== id); data = { deleted: true } }
