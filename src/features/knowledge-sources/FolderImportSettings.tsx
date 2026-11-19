@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { ArrowLeft, ArrowRight, Check, ChevronDown, Clock3, FolderOpen, Laptop, Server } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, Clock3, FolderOpen, Laptop, Server } from 'lucide-react'
 import { findInboxFolder, sourceError, type SourceFolder } from './api'
 import { probeFolderImport, saveFolderImport, type FolderImportBootstrap, type FolderImportConfig, type FolderImportProbe, type FolderImportTask } from './folder-import-api'
 import './folder-import-settings.css'
@@ -9,6 +9,7 @@ interface Props {
   bootstrap: FolderImportBootstrap
   folders: SourceFolder[]
   initialFolderId?: string
+  saved?: boolean
   canManage: boolean
   backLabel?: string
   onClose: () => void
@@ -18,15 +19,17 @@ interface Props {
 }
 type Section = 'source' | 'destination' | 'schedule'
 const sections: Section[] = ['source', 'destination', 'schedule']
-const stepNames = ['选择来源', '保存位置', '扫描时间']
+type DirectoryPicker = (options: { mode: 'read' }) => Promise<{ name: string }>
+const pickerWindow = window as Window & { showDirectoryPicker?: DirectoryPicker }
+const fullFolderPath = (path: string) => /^(?:\/|~\/|[A-Za-z]:[\\/]|\\\\[^\\]+\\[^\\]+)/.test(path) && !/[\r\n\0]/.test(path) && path.length <= 1500
 const weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
 const zoneName = (zone: string) => zone === 'Asia/Shanghai' ? '北京时间' : zone === 'Asia/Singapore' ? '新加坡时间' : zone
 // Changing a destination, name or schedule does not invalidate a directory check.
 const sourceSignature = (value: FolderImportConfig) => JSON.stringify([value.kind, value.serverRootId, value.path, value.includeSubfolders, value.maxFileMb, value.maxFilesPerScan])
 
-export default function FolderImportSettings({ task, bootstrap, folders, initialFolderId, canManage, backLabel = '返回自动导入', onClose, onDelete, onConnect, onSaved }: Props) {
+export default function FolderImportSettings({ task, bootstrap, folders, initialFolderId, canManage, saved = false, backLabel = '返回自动导入', onClose, onDelete, onConnect, onSaved }: Props) {
   const [config, setConfig] = useState<FolderImportConfig>(() => task ? {
-    name: task.name, kind: task.kind, serverRootId: task.serverRootId, path: task.path, folderId: task.folderId,
+    name: task.name, kind: task.kind, serverRootId: task.serverRootId, localFolderName: task.localFolderName, path: task.path, folderId: task.folderId,
     includeSubfolders: task.includeSubfolders, preserveHierarchy: task.preserveHierarchy, schedule: { ...task.schedule },
     maxFileMb: task.maxFileMb, maxFilesPerScan: task.maxFilesPerScan, dailyFileLimit: task.dailyFileLimit || 1000,
   } : {
@@ -36,22 +39,34 @@ export default function FolderImportSettings({ task, bootstrap, folders, initial
     maxFileMb: bootstrap.maxFileMb || 100, maxFilesPerScan: 1000, dailyFileLimit: 1000,
   })
   const [initial] = useState(() => JSON.stringify(config))
-  const [step, setStep] = useState(0), [expanded, setExpanded] = useState<Section | null>(null)
+  const [expanded, setExpanded] = useState<Section | null>(null)
+  const [pickedName, setPickedName] = useState('')
+  const [manualPath, setManualPath] = useState('')
+  const [entry, setEntry] = useState<'browse' | 'path'>('browse')
+  const manualInput = useRef<HTMLInputElement>(null)
+  const pickerPending = useRef(false)
   const [more, setMore] = useState(false)
   const [busy, setBusy] = useState<'check' | 'save' | ''>(''), [error, setError] = useState('')
   const [probe, setProbe] = useState<{ signature: string; result: FolderImportProbe } | null>(null)
   const action = useRef(false), alive = useRef(true), pending = useRef<AbortController | null>(null)
   const heading = useRef<HTMLHeadingElement>(null)
   useEffect(() => { alive.current = true; return () => { alive.current = false; pending.current?.abort() } }, [])
-  useEffect(() => { heading.current?.focus() }, [step])
+  useEffect(() => { heading.current?.focus() }, [])
   const target = folders.find(folder => folder.id === config.folderId)
   const root = bootstrap.roots.find(value => value.id === config.serverRootId)
-  const sourceValid = config.kind === 'local' || !!root
+  const localPath = entry === 'path' ? manualPath.trim() : ''
+  const localName = entry === 'browse' ? pickedName : ''
+  const sourceValid = config.kind === 'local' ? !!task || !!localName || fullFolderPath(localPath) : !!root
   const targetValid = !!target && target.writable !== false
   const dirty = JSON.stringify(config) !== initial
-  const locked = !!busy || !canManage
-  const name = config.name.trim() || (config.kind === 'local' ? '我的电脑资料' : config.path.split(/[\\/]/).filter(Boolean).pop() || root?.name || '服务器资料')
-  const value = { ...config, name }
+  const locked = !!busy || !canManage || saved
+  const name = config.name.trim() || (config.kind === 'local' ? (localName || localPath.split(/[\\/]/).filter(Boolean).pop() || '我的电脑资料').slice(0, 100) : config.path.split(/[\\/]/).filter(Boolean).pop() || root?.name || '服务器资料')
+  const value: FolderImportConfig = { ...config, name }
+  if (!task && config.kind === 'local') {
+    value.path = localPath
+    value.localFolderName = localName || null
+    delete value.serverRootId
+  }
   const signature = sourceSignature(config)
   const checked = probe?.signature === signature ? probe.result : null
   const sourceTitle = config.kind === 'local' ? '我的电脑' : root?.name || '扫描目录不可用'
@@ -59,7 +74,26 @@ export default function FolderImportSettings({ task, bootstrap, folders, initial
   const plan = config.schedule.frequency === 'manual' ? '仅手动扫描' : `${config.schedule.frequency === 'weekly' ? `每${weekdays[config.schedule.weekday]}` : '每天'} ${config.schedule.time}`
   const summary = (section: Section) => section === 'source' ? sourcePath : section === 'destination' ? target ? `${target.name}${target.writable === false ? ' · 无写入权限，请重新选择' : ''}` : '请选择可用的文件夹' : `${plan}${config.schedule.frequency === 'manual' ? '' : ` · ${zoneName(config.schedule.timezone)}`}`
   function update(patch: Partial<FolderImportConfig>) { setConfig(current => ({ ...current, ...patch })); setError('') }
-  function reveal(section: Section) { setExpanded(section); setStep(sections.indexOf(section)) }
+  function reveal(section: Section) { setExpanded(section) }
+  function enterPath() {
+    setEntry('path'); setError('')
+    requestAnimationFrame(() => manualInput.current?.focus())
+  }
+  async function chooseDirectory() {
+    if (locked || pickerPending.current) return
+    if (!pickerWindow.showDirectoryPicker) {
+      enterPath(); setError('当前浏览器无法打开文件夹选择器，请输入完整路径。'); return
+    }
+    pickerPending.current = true
+    try {
+      const directory = await pickerWindow.showDirectoryPicker({ mode: 'read' })
+      if (alive.current) { setPickedName(directory.name); setEntry('browse'); setError('') }
+    } catch (e) {
+      if (alive.current && !(typeof e === 'object' && e !== null && 'name' in e && e.name === 'AbortError')) {
+        setError('无法打开文件夹选择器，可重试或输入完整路径。')
+      }
+    } finally { pickerPending.current = false }
+  }
 
   async function verifySource(): Promise<boolean> {
     const abort = new AbortController(); pending.current = abort
@@ -78,15 +112,11 @@ export default function FolderImportSettings({ task, bootstrap, folders, initial
   }
   async function submit(event: FormEvent) {
     event.preventDefault()
-    if (action.current || !canManage) return
-    if (!task && step < 2) {
-      if (step === 0 && !sourceValid || step === 1 && !targetValid) return
-      setStep(step + 1); setError(''); return
-    }
+    if (action.current || !canManage || saved) return
     if (!sourceValid) { reveal('source'); setError('请选择可用的扫描目录。'); return }
     if (!targetValid) { reveal('destination'); setError('请选择有写入权限的知识库文件夹。'); return }
     if (!Number.isInteger(config.maxFileMb) || config.maxFileMb < 1 || config.maxFileMb > (bootstrap.maxFileMb || 100) || !Number.isInteger(config.maxFilesPerScan) || config.maxFilesPerScan < 1 || config.maxFilesPerScan > 10000 || !Number.isInteger(config.dailyFileLimit) || config.dailyFileLimit < 1 || config.dailyFileLimit > 50000) {
-      setMore(true); setStep(2); setError('请检查更多选项中的文件大小、每次扫描和每日处理上限。'); return
+      setMore(true); setError('请检查更多选项中的文件大小、每次扫描和每日处理上限。'); return
     }
     if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(config.schedule.time)) { reveal('schedule'); setError('请填写有效的扫描时间。'); return }
     action.current = true; setError('')
@@ -108,11 +138,19 @@ export default function FolderImportSettings({ task, bootstrap, folders, initial
     {!task && <div className="kso-setup-choices" role="radiogroup" aria-label="扫描位置">{([
       ['local', '我的电脑', '电脑中的文件夹', <Laptop key="local" />],
       ['server', '服务器 / NAS', '已连接的共享目录', <Server key="server" />],
-    ] as const).map(([kind, title, description, icon]) => <label key={kind} className={`kso-setup-choice ${config.kind === kind ? 'selected' : ''}`}><input type="radio" name="import-source" aria-label={title} checked={config.kind === kind} disabled={locked} onChange={() => update({ kind, path: '' })} />{icon}<span><strong>{title}</strong><small>{description}</small></span><Check className="kso-setup-choice-check" aria-hidden="true" /></label>)}</div>}
+    ] as const).map(([kind, title, description, icon]) => <label key={kind} className={`kso-setup-choice ${config.kind === kind ? 'selected' : ''}`}><input type="radio" name="import-source" aria-label={title} checked={config.kind === kind} disabled={locked} onChange={() => update({ kind })} />{icon}<span><strong>{title}</strong><small>{description}</small></span><Check className="kso-setup-choice-check" aria-hidden="true" /></label>)}</div>}
     {config.kind === 'local' ? <div className="kso-setup-local">
       {task && <><div className="kso-setup-path"><Laptop /><span>{sourcePath}</span></div><p className="kso-small">{task.connectorOnline ? '电脑已连接。' : '等待电脑连接，上线后自动继续。'}</p></>}
-      <p className="kso-small">{task ? '更换电脑文件夹，需要重新连接。' : '下一步先选择知识库中的保存位置。设置完成后，在电脑上运行连接程序并选择要扫描的文件夹。'}</p>
-      {!task && <p className="kso-small">电脑需要保持开机联网，并安装 Python 3.10 或以上版本。</p>}
+      {task ? <p className="kso-small">更换电脑文件夹，需要重新连接。</p> : <>
+        <span className="kso-setup-field-title">电脑上的文件夹</span>
+        <div className="kso-setup-picker">
+          <button type="button" className="kso-btn" disabled={locked} onClick={() => void chooseDirectory()}><FolderOpen />{localName ? '更换文件夹' : '选择电脑文件夹'}</button>
+          {localName && <strong className="kso-setup-selected-folder" role="status">{localName}</strong>}
+          {entry !== 'path' && <button type="button" className="kso-btn quiet" disabled={locked} onClick={enterPath}>输入完整路径</button>}
+        </div>
+        {entry === 'path' && <label className="kso-field kso-local-path-input">本机文件夹完整路径<input ref={manualInput} aria-label="本机文件夹完整路径" value={manualPath} maxLength={1500} disabled={locked} placeholder="例如 /Users/me/Documents/论文 或 D:\论文" autoComplete="off" spellCheck={false} onChange={event => { setManualPath(event.target.value); setError('') }} />{manualPath && !fullFolderPath(localPath) && <small>请输入完整路径，例如 /Users/me/Documents/论文。</small>}</label>}
+        <p className="kso-small">定时扫描需要在这台电脑上运行连接程序，并保持开机联网。</p>
+      </>}
       {task && onConnect && <button type="button" className="kso-btn" disabled={locked || dirty} onClick={onConnect}>{task.connectorOnline ? '重新连接电脑' : '连接电脑'}</button>}
       {task && dirty && <small>请先保存修改，再连接电脑。</small>}
     </div> : <>
@@ -130,11 +168,11 @@ export default function FolderImportSettings({ task, bootstrap, folders, initial
   </>
   const destinationFields = <>
     {target?.writable === false && <p className="kso-error">当前文件夹无写入权限，请重新选择。</p>}
-    <label className="kso-field">知识库文件夹<select aria-label="自动导入目标文件夹" value={config.folderId} disabled={locked} onChange={event => update({ folderId: event.target.value })}>
+    <label className="kso-field">{task ? '知识库文件夹' : '拷贝到知识库文件夹'}<select aria-label="自动导入目标文件夹" value={config.folderId} disabled={locked} onChange={event => update({ folderId: event.target.value })}>
       {!target && <option value={config.folderId} disabled>{config.folderId ? '文件夹已不存在，请重新选择' : '正在准备待整理文件夹…'}</option>}
       {folders.map(folder => <option key={folder.id} value={folder.id} disabled={folder.writable === false}>{folder.name}</option>)}
     </select></label>
-    <p className="kso-small">{task ? '修改后，新导入的资料会保存到这里；已有资料保留在原文件夹。' : '导入的资料统一放在这里。之后也可以在知识源中移动或分类。'}</p>
+    {task && <p className="kso-small">之后导入的资料会保存到此文件夹。</p>}
   </>
   const scheduleFields = <>
     <div className="kso-setup-frequency" role="radiogroup" aria-label="扫描计划">{([['daily', '每天'], ['weekly', '每周'], ['manual', '仅手动']] as const).map(([frequency, label]) => <label key={frequency} className={config.schedule.frequency === frequency ? 'selected' : ''}><input type="radio" name="import-frequency" aria-label={label} checked={config.schedule.frequency === frequency} disabled={locked} onChange={() => update({ schedule: { ...config.schedule, frequency, ...(frequency === 'manual' && !config.schedule.time ? { time: '08:00' } : {}) } })} /><span>{label}</span></label>)}</div>
@@ -146,21 +184,23 @@ export default function FolderImportSettings({ task, bootstrap, folders, initial
   const fields: Record<Section, ReactNode> = { source: sourceFields, destination: destinationFields, schedule: scheduleFields }
   const titles: Record<Section, string> = { source: '扫描文件夹', destination: '保存位置', schedule: '扫描时间' }
   const icons: Record<Section, ReactNode> = { source: config.kind === 'local' ? <Laptop /> : <Server />, destination: <FolderOpen />, schedule: <Clock3 /> }
-  const canContinue = step === 0 ? sourceValid : targetValid
 
   return <form noValidate className="kso-import-setup" aria-label={task ? '自动导入设置' : '新建自动导入设置'} onSubmit={event => void submit(event)}>
     <button type="button" className="kso-setup-back" disabled={!!busy} onClick={onClose}><ArrowLeft />{backLabel}</button>
-    <header className="kso-setup-heading"><h1 ref={heading} tabIndex={-1}>{task ? task.name : '新建自动导入'}</h1><p>{task ? '查看当前设置，点击需要修改的项目。' : '把一个文件夹连接到知识库。'}</p></header>
+    <header className="kso-setup-heading"><h1 ref={heading} tabIndex={-1}>{task ? task.name : saved ? '自动导入已保存' : '新建自动导入'}</h1>{!saved && <p>{task ? '查看当前设置，点击需要修改的项目。' : '首次导入已有 PDF，之后按计划处理新增或更新的文件。'}</p>}</header>
     {!canManage && <p className="kso-note">当前账号无权修改自动导入设置。</p>}
-    {!task && <ol className="kso-setup-steps" aria-label="配置步骤">{stepNames.map((label, index) => <li key={label} aria-current={step === index ? 'step' : undefined} className={step > index ? 'complete' : ''}><span>{step > index ? <Check /> : index + 1}</span>{label}</li>)}</ol>}
     <div className={`kso-setup-sheet ${task ? 'editing' : ''}`}>
       {task ? sections.map(section => <section className={`kso-setup-section ${expanded === section ? 'expanded' : ''}`} key={section}>
         <button type="button" className="kso-setup-row" aria-label={`更改${titles[section]}`} aria-expanded={expanded === section} aria-controls={`import-${section}-fields`} disabled={locked} onClick={() => setExpanded(expanded === section ? null : section)}>
           <span className="kso-setup-row-icon">{icons[section]}</span><span className="kso-setup-row-copy"><span>{titles[section]}</span><strong>{summary(section)}</strong></span><span className="kso-setup-row-action">{expanded === section ? '收起' : '更改'}<ChevronDown /></span>
         </button>
         {expanded === section && <div id={`import-${section}-fields`} className="kso-setup-section-fields">{fields[section]}</div>}
-      </section>) : <section className="kso-setup-step-content" aria-label={stepNames[step]}><h2>{['文件在哪个位置？', '导入后保存到哪里？', '什么时候检查新文件？'][step]}</h2>{fields[sections[step]]}</section>}
-      {(!!task || step === 2) && <details className="kso-setup-options" open={more} onToggle={event => setMore(event.currentTarget.open)}><summary>更多选项<ChevronDown /></summary><div className="kso-setup-option-fields">
+      </section>) : <>
+        <section className="kso-create-fields" aria-label="扫描来源"><h2>扫描来源</h2>{sourceFields}</section>
+        <section className="kso-create-fields" aria-label="保存位置">{destinationFields}</section>
+        <section className="kso-create-fields" aria-label="扫描计划设置"><h2>扫描时间</h2><div className="kso-create-plan">{scheduleFields}</div></section>
+      </>}
+      <details className="kso-setup-options" open={more} onToggle={event => setMore(event.currentTarget.open)}><summary>更多选项<ChevronDown /></summary><div className="kso-setup-option-fields">
         <label className="kso-field">名称<input aria-label="自动导入名称" maxLength={100} disabled={locked} value={config.name} placeholder={name} onChange={event => update({ name: event.target.value })} /></label>
         <label className="kso-check"><input type="checkbox" checked={config.includeSubfolders} disabled={locked} onChange={event => update({ includeSubfolders: event.target.checked, ...(!event.target.checked ? { preserveHierarchy: false } : {}) })} />包含子文件夹</label>
         <label className="kso-check"><input type="checkbox" checked={config.preserveHierarchy} disabled={locked || !config.includeSubfolders} onChange={event => update({ preserveHierarchy: event.target.checked })} />在知识库中保留子文件夹分类</label>
@@ -168,17 +208,15 @@ export default function FolderImportSettings({ task, bootstrap, folders, initial
           <label className="kso-field">每次扫描上限（份）<input aria-label="每次扫描处理上限" type="number" min={1} max={10000} required disabled={locked} value={config.maxFilesPerScan} onChange={event => update({ maxFilesPerScan: Number(event.target.value) })} /></label>
           <label className="kso-field">每日处理上限（份）<input aria-label="每日处理上限" type="number" min={1} max={50000} required disabled={locked} value={config.dailyFileLimit} onChange={event => update({ dailyFileLimit: Number(event.target.value) })} /></label></div>
         <p className="kso-small">达到上限后保留进度，下次继续处理。</p>
-      </div></details>}
+      </div></details>
     </div>
-    {!task && step === 2 && <div className="kso-setup-review" aria-label="导入配置摘要"><div><span>从</span><strong>{sourcePath}</strong><ArrowRight /><span>保存到</span><strong>{target?.name || '请选择文件夹'}</strong></div><p>首次导入现有 PDF，之后只处理新增或更新。归档、解析和问答索引自动完成。</p></div>}
     {task && <p className="kso-setup-note">归档、解析和问答索引会自动完成。</p>}
     {error && <p className="kso-error kso-setup-error" role="alert">{error}</p>}
-    <footer className="kso-setup-footer">
+    {!saved && <footer className="kso-setup-footer">
       <span className="kso-setup-save-state" role="status">{busy === 'check' ? '正在检查扫描目录…' : busy === 'save' ? '正在保存…' : task && dirty ? '有未保存的修改' : ''}</span>
-      {!task && step > 0 && <button type="button" className="kso-btn" disabled={!!busy} onClick={() => { setStep(step - 1); setError('') }}>上一步</button>}
       <button type="button" className="kso-btn" disabled={!!busy} onClick={onClose}>取消</button>
-      <button type="submit" className="kso-btn primary" disabled={locked || (!task && step < 2 ? !canContinue : !sourceValid || !targetValid || !!task && !dirty)}>{busy ? busy === 'check' ? '正在检查…' : '正在保存…' : !task && step < 2 ? '下一步' : task ? '保存设置' : config.kind === 'local' ? '保存并连接电脑' : '开始导入'}{!busy && !task && step < 2 && <ArrowRight />}</button>
-    </footer>
+      <button type="submit" className="kso-btn primary" disabled={locked || !sourceValid || !targetValid || !!task && !dirty}>{busy ? busy === 'check' ? '正在检查…' : '正在保存…' : task ? '保存设置' : config.kind === 'local' ? '保存并连接电脑' : '开始导入'}</button>
+    </footer>}
     {task && onDelete && canManage && <details className="kso-setup-management"><summary>任务管理</summary><button type="button" className="kso-import-delete-link" disabled={!!busy} onClick={onDelete}>删除此自动导入任务</button><p className="kso-small">删除任务只停止扫描，已导入的资料会保留。</p></details>}
   </form>
 }

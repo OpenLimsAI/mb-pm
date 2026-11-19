@@ -16,7 +16,7 @@ interface Props {
   drawerFolderId?: string
   onCloseDrawer?: () => void
 }
-type Panel = { kind: 'create' } | { kind: 'settings' | 'history' | 'pair' | 'delete'; taskId: string } | null
+type Panel = { kind: 'create' } | { kind: 'created'; savedTask: FolderImportTask } | { kind: 'settings' | 'history' | 'pair' | 'delete'; taskId: string } | null
 const running = (status: string) => ['queued', 'running', 'scanning', 'transferring', 'processing', 'waiting_quota'].includes(status)
 const statuses: Record<string, string> = { idle: '等待扫描', queued: '等待处理', scanning: '正在扫描', transferring: '正在传输', processing: '正在处理', offline: '等待电脑连接', paused: '已暂停', waiting_quota: '等待明日额度', needs_attention: '需要处理', completed: '已完成', partial: '部分完成', failed: '失败', interrupted: '等待恢复', cancelled: '已取消' }
 const phases: Record<string, string> = { scan: '正在扫描', transfer: '正在传输', process: '正在处理', waiting_connector: '等待电脑连接', waiting_file: '等待文件就绪', saved: '原件已保存', archive: '正在归档', parse: '正在解析', index: '正在建立问答索引', done: '已完成' }
@@ -85,9 +85,10 @@ export default function FolderImports({ folders, initialFolderId, openCreate, ca
     } catch (e) { if (alive.current) setError(sourceError(e)) }
     finally { actionLock.current = false; if (alive.current) setWorking('') }
   }
-  async function pair(id: string) {
+  async function pair(id: string, inline = false) {
     if (actionLock.current || !writable) return
-    actionLock.current = true; setWorking(id); setPairing(null); setError(''); setPanel({ kind: 'pair', taskId: id })
+    actionLock.current = true; setWorking(id); setPairing(null); setError('')
+    if (!inline) setPanel({ kind: 'pair', taskId: id })
     try { const value = await pairFolderImport(id); if (alive.current) setPairing(value) }
     catch (e) { if (alive.current) setError(sourceError(e)) }
     finally { actionLock.current = false; if (alive.current) setWorking('') }
@@ -99,16 +100,22 @@ export default function FolderImports({ folders, initialFolderId, openCreate, ca
     catch (e) { if (alive.current) setError(sourceError(e)) }
     finally { actionLock.current = false; if (alive.current) setWorking('') }
   }
-  const focused = !!data && (panel?.kind === 'create' && canCreateInFolder || panel?.kind === 'settings' && !!task || panel?.kind === 'pair' && !!task)
+  const createdTask = panel?.kind === 'created' ? data?.tasks.find(value => value.id === panel.savedTask.id) || panel.savedTask : undefined
+  const focused = !!data && (panel?.kind === 'created' || panel?.kind === 'create' && canCreateInFolder || panel?.kind === 'settings' && !!task || panel?.kind === 'pair' && !!task)
   const alerts = <>{error && <div className="kso-import-alert" role="alert">{error}<button className="kso-btn quiet" onClick={() => void refresh()}>重试连接</button></div>}{data && !data.workerEnabled && <p className="kso-note" role="status">自动导入处理服务尚未启用，任务会保留，暂不能完成后台处理。</p>}</>
   const content = focused && data && panel ? <>
     {alerts}
-    {(panel.kind === 'create' || panel.kind === 'settings') && <FolderImportSettings key={panel.kind === 'create' ? `new:${openCreate || ''}` : task!.id} task={panel.kind === 'settings' ? task : undefined} bootstrap={data} folders={folders} initialFolderId={drawerFolderId || initialFolderId} canManage={writable} backLabel={drawerFolderId ? '返回导入任务' : undefined} onClose={() => open(null)} onDelete={panel.kind === 'settings' && task ? () => open({ kind: 'delete', taskId: task.id }) : undefined} onConnect={task ? () => void pair(task.id) : undefined} onSaved={async saved => {
-      setPanel(null); setPairing(null); await refresh()
-      if (!alive.current) return
-      setNotice('自动导入设置已保存。')
-      if (saved.kind === 'local' && panel.kind === 'create') await pair(saved.id)
+    {(panel.kind === 'create' || panel.kind === 'created' || panel.kind === 'settings') && <FolderImportSettings saved={!!createdTask} key={panel.kind !== 'settings' ? `new:${openCreate || ''}` : task!.id} task={panel.kind === 'settings' ? task : undefined} bootstrap={data} folders={folders} initialFolderId={drawerFolderId || initialFolderId} canManage={writable} backLabel={drawerFolderId ? '返回导入任务' : undefined} onClose={() => open(null)} onDelete={panel.kind === 'settings' && task ? () => open({ kind: 'delete', taskId: task.id }) : undefined} onConnect={task ? () => void pair(task.id) : undefined} onSaved={async saved => {
+      setPairing(null)
+      if (panel.kind === 'create' && saved.kind === 'local') {
+        setPanel({ kind: 'created', savedTask: saved })
+        setData(current => current && { ...current, tasks: [...current.tasks.filter(item => item.id !== saved.id), saved] })
+        await pair(saved.id, true)
+      } else {
+        setPanel(null); setNotice('自动导入设置已保存。'); await refresh()
+      }
     }} />}
+    {createdTask && <FolderImportConnection inline key={createdTask.id} task={createdTask} pairing={pairing} sourceFolderName={createdTask.localFolderName || undefined} sourceFolderPath={createdTask.path || undefined} busy={!!working} writable={writable} onClose={() => open(null)} onPair={() => void pair(createdTask.id, true)} />}
     {panel.kind === 'pair' && task && <FolderImportConnection key={task.id} task={task} pairing={pairing} busy={!!working} writable={writable} onClose={() => open(null)} onPair={() => void pair(task.id)} />}
   </> : <>
     {!drawerFolderId && <div className="kso-head"><div><h1>自动导入</h1><p>连接一个文件夹，新文件会自动归档、解析并建立问答索引。</p></div>{writable && <button className="kso-btn primary" disabled={!!working} onClick={() => open({ kind: 'create' })}><Plus />新建自动导入</button>}</div>}

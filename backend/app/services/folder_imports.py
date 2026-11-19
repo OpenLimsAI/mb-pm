@@ -121,7 +121,7 @@ def source_path(config):
     if config["kind"] == "server":
         root = next((r for r in roots() if r["id"] == config.get("serverRootId")), None)
         return str(Path(root["path"]) / config.get("path", "")) if root else "目录连接已失效"
-    return config.get("path") or "尚未连接本机文件夹"
+    return config.get("path") or config.get("localFolderName") or "尚未连接本机文件夹"
 
 
 def normalize_config(value):

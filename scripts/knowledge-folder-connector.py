@@ -17,6 +17,7 @@ import sys
 import subprocess
 import tempfile
 import time
+import unicodedata
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 from uuid import uuid4
@@ -577,6 +578,9 @@ def main(argv=None):
     parser.add_argument("--code", help="任务页面生成的一次性配对码")
     parser.add_argument("--folder", type=Path, help="授权扫描的本机目录")
     parser.add_argument(
+        "--expected-folder-name", help="首次配对时核对网页中所选的文件夹名称"
+    )
+    parser.add_argument(
         "--config",
         "--state",
         type=Path,
@@ -600,6 +604,8 @@ def main(argv=None):
     )
     args = parser.parse_args(argv)
     try:
+        if args.expected_folder_name is not None and not args.code:
+            raise ConnectorError("核对所选文件夹需要使用首次连接命令。")
         if args.remove_startup:
             startup(args.config.expanduser(), remove=True)
             return 0
@@ -609,6 +615,16 @@ def main(argv=None):
             root = args.folder.expanduser().resolve(strict=True)
             if not root.is_dir():
                 raise ConnectorError("请选择已存在的本机文件夹。")
+            if args.expected_folder_name is not None:
+                actual, expected = root.name, args.expected_folder_name
+                if sys.platform == "darwin":
+                    # Finder and browser APIs can expose different Unicode forms.
+                    actual = unicodedata.normalize("NFC", actual)
+                    expected = unicodedata.normalize("NFC", expected)
+                if not expected or actual != expected:
+                    raise ConnectorError(
+                        "当前目录与网页中所选的文件夹名称不一致。请在所选文件夹中打开终端或 PowerShell，再运行连接命令。"
+                    )
             server = server_origin(args.server)
             response = Client(server).post(
                 "/pair",
