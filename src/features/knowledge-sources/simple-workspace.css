@@ -62,8 +62,6 @@
 #knowledge-source-app .kso-delete-folder-copy{display:grid;gap:9px}
 #knowledge-source-app .kso-delete-folder-copy>.kso-note{display:grid;gap:10px}
 @media(pointer:coarse){#knowledge-source-app button.kso-folder-more{opacity:1;min-width:36px;min-height:36px}}
-[data-application-theme=dark] .kso-folder-action-menu{background:#172b3d;color:#e4edf5;border-color:#3a4f63}
-[data-application-theme=dark] .kso-folder-action-menu button:hover,[data-application-theme=dark] .kso-folder-action-menu button:focus-visible{background:#263e54}
 
 /* One persistent navigation level; folders belong to the library only. */
 #knowledge-source-app.kso-simple-workspace .kso-workspace-tabs{display:flex;align-items:stretch;gap:26px;padding:0 28px;background:var(--kso-surface);border-bottom:1px solid var(--kso-line)}

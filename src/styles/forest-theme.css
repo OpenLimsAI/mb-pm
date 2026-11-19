@@ -1,6 +1,6 @@
 /* Shared Maibo Blue Edition palette. Semantic business states keep their own colors. */
 :root {
-  color-scheme: light;
+  color-scheme: only light;
   --workbench-brand: #1e466b;
   --workbench-brand-strong: #153a5b;
   --workbench-ink: #0d0d0d;
@@ -37,42 +37,6 @@
   --forest-ink-500: 96 113 132;
   --forest-ink-300: 224 230 237;
   --forest-ink-100: 246 248 251;
-}
-
-html[data-application-theme="dark"] {
-  color-scheme: dark;
-  --workbench-brand: #67baf4;
-  --workbench-brand-strong: #a7d9fc;
-  --workbench-ink: #fafafa;
-  --workbench-text: #dbe7f1;
-  --workbench-muted: #b0c2d3;
-  --workbench-line: #314a60;
-  --workbench-line-strong: #627d94;
-  --workbench-soft: #203b52;
-  --workbench-bg: #0d141d;
-  --workbench-panel: #142332;
-  --workbench-panel-soft: #192e40;
-  --workbench-mark: #1e466b;
-  --workbench-on-brand: #0d2233;
-  --workbench-sky: #67baf4;
-  --workbench-highlight: #67baf4;
-  --workbench-on-sky: #0d2233;
-  --forest-brand-50: 20 35 50;
-  --forest-brand-100: 32 59 82;
-  --forest-brand-200: 49 74 96;
-  --forest-brand-300: 77 113 141;
-  --forest-brand-400: 103 186 244;
-  --forest-brand-500: 134 200 248;
-  --forest-brand-600: 167 217 252;
-  --forest-brand-700: 192 228 253;
-  --forest-brand-800: 218 239 254;
-  --forest-brand-900: 240 248 254;
-  --forest-ink-900: 250 250 250;
-  --forest-ink-700: 219 231 241;
-  --forest-ink-600: 198 215 231;
-  --forest-ink-500: 176 194 211;
-  --forest-ink-300: 49 74 96;
-  --forest-ink-100: 13 20 29;
 }
 
 body {
@@ -190,16 +154,6 @@ body {
 
 :root .mb-login :is(.mb-login-preview-link, .mb-login-reveal, .mb-login-switch):hover {
   background: var(--workbench-soft);
-}
-
-/* Tailwind's white surfaces follow the shared theme without recoloring
-   semantic red, amber and green health indicators. */
-html[data-application-theme="dark"] :is(.bg-white, .bg-white\/90, .bg-white\/95) {
-  background-color: var(--workbench-panel);
-}
-
-html[data-application-theme="dark"] :is(.btn-secondary, .input) {
-  color-scheme: dark;
 }
 
 @media (prefers-reduced-motion: reduce) {
