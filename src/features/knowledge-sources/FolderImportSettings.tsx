@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { ArrowLeft, Check, ChevronDown, Clock3, FolderOpen, Laptop, Server } from 'lucide-react'
 import { sourceError, type SourceFolder } from './api'
-import { probeFolderImport, saveFolderImport, type FolderImportBootstrap, type FolderImportConfig, type FolderImportProbe, type FolderImportTask } from './folder-import-api'
+import { probeFolderImport, saveFolderImport, searchFolderImportDirectories, type FolderImportDirectorySearch, type FolderImportBootstrap, type FolderImportConfig, type FolderImportProbe, type FolderImportTask } from './folder-import-api'
 import ServerFolderPicker from './ServerFolderPicker'
 import FolderImportProbeResult from './FolderImportProbeResult'
-import { resolveServerFolder, serverFolderLocation } from './server-folder-path'
+import { matchServerFolders, resolveServerFolder, serverFolderLocation, type ServerSelection } from './server-folder-path'
 import './folder-import-settings.css'
 
 interface Props {
@@ -48,8 +48,9 @@ export default function FolderImportSettings({ task, bootstrap, folders, initial
   const [manualPath, setManualPath] = useState('')
   const [entry, setEntry] = useState<'browse' | 'path'>('browse')
   const [browseRoot, setBrowseRoot] = useState<string | null>(null)
-  const [rootQuery, setRootQuery] = useState('')
-  const [pathEntered, setPathEntered] = useState(!!task)
+  const [folderQuery, setFolderQuery] = useState('')
+  const [showPathError, setShowPathError] = useState(false)
+  const [searchResult, setSearchResult] = useState<{ query: string; data?: FolderImportDirectorySearch } | null>(null)
   const serverBrowseTrigger = useRef<HTMLButtonElement>(null)
   const [refreshingRoots, setRefreshingRoots] = useState(false)
   const manualInput = useRef<HTMLInputElement>(null)
@@ -63,17 +64,36 @@ export default function FolderImportSettings({ task, bootstrap, folders, initial
   useEffect(() => { heading.current?.focus() }, [])
   const target = folders.find(folder => folder.id === config.folderId)
   const root = bootstrap.roots.find(value => value.id === config.serverRootId)
-  const resolution = config.kind === 'server' && (root || config.path && !config.serverRootId)
-    ? resolveServerFolder(config.path, bootstrap.roots, root) : undefined
-  const selection = resolution?.selection
+  const chosen = config.kind === 'server' && root ? resolveServerFolder(config.path, bootstrap.roots, root).selection : undefined
+  const query = folderQuery.trim()
+  const typed = matchServerFolders(query, bootstrap.roots)
+  const selection = chosen || typed.complete
   const selectedPath = selection ? serverFolderLocation(selection.root, selection.path) : ''
-  const browsedRoot = config.kind === 'server' && root?.id === browseRoot ? root : undefined
+  const browsedRoot = selection?.root.id === browseRoot ? selection.root : undefined
   const browsing = !!browsedRoot
-  const query = rootQuery.trim()
-  const queryPath = query.startsWith('/') ? resolveServerFolder(query, bootstrap.roots).selection : undefined
-  const matchedRoots = !root && query && query !== '/' && !queryPath
-    ? bootstrap.roots.filter(item => [item.name, item.id, item.displayPath].some(part => part?.toLocaleLowerCase().includes(query.toLocaleLowerCase())))
-    : []
+
+  const searchName = config.kind === 'server' && bootstrap.roots.length && !query.includes('/') && !typed.error ? query : ''
+  useEffect(() => {
+    if (!searchName) return
+    const controller = new AbortController()
+    const timer = window.setTimeout(async () => {
+      try {
+        const data = await searchFolderImportDirectories(searchName, controller.signal)
+        if (!controller.signal.aborted) setSearchResult({ query: searchName, data })
+      } catch {
+        if (!controller.signal.aborted) setSearchResult({ query: searchName })
+      }
+    }, 250)
+    return () => { window.clearTimeout(timer); controller.abort() }
+  }, [searchName])
+  const result = searchResult?.query === searchName ? searchResult : null
+  const matches = [...typed.matches]
+  for (const item of result?.data?.directories || []) {
+    const matchedRoot = bootstrap.roots.find(candidate => candidate.id === item.rootId)
+    if (!matchedRoot || item.path.startsWith('/') || matches.some(match => match.root.id === item.rootId && match.path === item.path)) continue
+    const { selection: match } = resolveServerFolder(item.path, bootstrap.roots, matchedRoot)
+    if (match) matches.push(match)
+  }
   const localPath = entry === 'path' ? manualPath.trim() : ''
   const localName = entry === 'browse' ? pickedName : ''
   const sourceValid = config.kind === 'local' ? !!task || !!localName || fullFolderPath(localPath) : !!selection
@@ -97,28 +117,29 @@ export default function FolderImportSettings({ task, bootstrap, folders, initial
   function update(patch: Partial<FolderImportConfig>) { setConfig(current => ({ ...current, ...patch })); setError('') }
   function changeSource(patch: Partial<FolderImportConfig>) {
     setBrowseRoot(null)
-    setRootQuery('')
+    setFolderQuery('')
+    setSearchResult(null)
+    setShowPathError(false)
     setProbe(null)
-    setPathEntered(!!patch.serverRootId)
     update({ serverRootId: '', path: '', ...patch })
   }
-  function enterServerPath(path: string) {
-    setRootQuery('')
-    setPathEntered(false)
+  function searchFolders(input: string) {
+    setFolderQuery(input)
+    if (input.trim() !== query) setSearchResult(null)
+    setBrowseRoot(null)
+    setShowPathError(false)
     setProbe(null)
-    update({ path, ...(!path || path.startsWith('/') ? { serverRootId: '' } : {}) })
+    update({ serverRootId: '', path: '' })
   }
-  function finishServerPath() {
-    if (!config.path) return
-    setPathEntered(true)
-    if (selection) update({ serverRootId: selection.root.id })
+  function chooseFolder(chosenFolder: ServerSelection) {
+    changeSource({ serverRootId: chosenFolder.root.id, path: chosenFolder.path })
   }
-  function searchRoots(input: string) {
-    changeSource({})
-    setRootQuery(input)
-  }
-  function commitQueryPath() {
-    if (queryPath) changeSource({ serverRootId: queryPath.root.id, path: serverFolderLocation(queryPath.root, queryPath.path) })
+  function finishFolderInput(enter = false) {
+    if (!query) return
+    const searchComplete = !searchName || result?.data && !result.data.truncated
+    const folder = typed.complete || (enter && searchComplete && matches.length === 1 ? matches[0] : undefined)
+    if (folder) chooseFolder(folder)
+    else setShowPathError(true)
   }
   function closeServerPicker() {
     setBrowseRoot(null)
@@ -212,37 +233,43 @@ export default function FolderImportSettings({ task, bootstrap, folders, initial
       {task && dirty && <small>请先保存修改，再连接电脑。</small>}
     </div> : <>
       {task && ['queued', 'scanning', 'transferring', 'processing', 'waiting_quota'].includes(task.status) && <p className="kso-small">当前扫描结束后才能更换来源。保存位置和扫描时间仍可修改。</p>}
-      {bootstrap.roots.length > 0 ? <>
-        <label className="kso-field">共享目录<input aria-label="服务器已连接目录" placeholder="输入共享目录名称或完整路径" disabled={locked}
-          value={root?.name || rootQuery} autoComplete="off" spellCheck={false} onChange={event => searchRoots(event.target.value)} onBlur={commitQueryPath}
-          onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); commitQueryPath() } }} /></label>
-        {matchedRoots.length > 0 && <ul className="kso-server-children" aria-label="匹配的共享目录">
-          {matchedRoots.map(item => <li key={item.id}><button type="button" disabled={locked} onClick={() => changeSource({ serverRootId: item.id, path: item.displayPath || '' })}>
-            <FolderOpen aria-hidden="true" /><span><strong>{item.name}</strong>{item.displayPath && <small>{item.displayPath}</small>}</span>
-          </button></li>)}
+      {bootstrap.roots.length ? <>
+        <div className="kso-server-source-row">
+          <label className="kso-field">扫描文件夹<input disabled={locked || browsing} value={chosen ? selectedPath : folderQuery}
+            placeholder="输入文件夹名称或粘贴完整路径" autoComplete="off" spellCheck={false} aria-invalid={showPathError && !!typed.error}
+            onChange={event => searchFolders(event.target.value)} onBlur={event => {
+              // A suggestion button handles its own selection after the input loses focus.
+              if (event.relatedTarget?.closest('.kso-server-children')) return
+              finishFolderInput()
+            }}
+            onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); finishFolderInput(true) } }} /></label>
+          <button ref={serverBrowseTrigger} type="button" className="kso-btn" aria-expanded={browsing} disabled={locked || !selection} onClick={() => setBrowseRoot(browsing ? null : selection?.root.id || null)}><FolderOpen />选择服务器文件夹</button>
+        </div>
+        {!chosen && !browsing && matches.length > 0 && <ul className="kso-server-children" aria-label="匹配的扫描文件夹">
+          {matches.map(match => {
+            const title = match.path.split('/').pop() || match.root.name
+            const location = serverFolderLocation(match.root, match.path)
+            const duplicate = matches.some(other => other.root.id !== match.root.id && serverFolderLocation(other.root, other.path) === location)
+            return <li key={JSON.stringify([match.root.id, match.path])}><button type="button" disabled={locked} onClick={() => chooseFolder(match)}>
+              <FolderOpen aria-hidden="true" /><span><strong>{title}</strong>{(location !== title || duplicate) && <small>{location}{duplicate && ' · ' + match.root.id}</small>}</span>
+            </button></li>
+          })}
         </ul>}
-        {!root && queryPath && <button type="button" disabled={locked} className="kso-btn quiet" onClick={commitQueryPath}>使用此路径</button>}
-        {!root && query && !queryPath && !matchedRoots.length && <p className="kso-small" role="status">未找到匹配的共享目录。</p>}
+        {searchName && !result && <p className="kso-small" role="status">正在查找文件夹…</p>}
+        {result && !result.data && <p className="kso-small" role="status">暂时无法查找子文件夹，可粘贴完整路径。</p>}
+        {result?.data?.truncated && <p className="kso-small">仅显示部分匹配项，可输入更具体的名称或粘贴完整路径。</p>}
+        {result?.data && !result.data.truncated && !matches.length && <p className="kso-small" role="status">未找到匹配的扫描文件夹。</p>}
+        {showPathError && typed.error && <p className="kso-error" role="alert">{typed.error}</p>}
         {config.serverRootId && !root && <p className="kso-small">目录连接已失效，请重新选择。</p>}
+        {browsedRoot && !locked && <ServerFolderPicker key={browsedRoot.id} root={browsedRoot} initialPath={selection?.path || ''} onClose={closeServerPicker} onChoose={path => {
+          chooseFolder({ root: browsedRoot, path })
+          closeServerPicker()
+        }} />}
+        {!browsing && <div className="kso-setup-check"><button type="button" className="kso-btn quiet" disabled={locked || !sourceValid} onClick={() => void check()}>{busy === 'check' ? '正在检查…' : '检查目录'}</button><span>保存时会自动检查目录是否可访问。</span></div>}
       </> : <div className="kso-server-empty">
         <strong>尚无已连接目录</strong><p>请管理员将资料目录连接到自动导入服务。连接后可在这里选择要扫描的文件夹。</p>
         {onRefreshRoots && <button type="button" className="kso-btn" disabled={refreshingRoots} onClick={() => void reloadRoots()}>{refreshingRoots ? '正在刷新…' : '刷新目录列表'}</button>}
       </div>}
-      {bootstrap.roots.length > 0 && <>
-        <div className="kso-server-source-row">
-          <label className="kso-field">扫描文件夹<input aria-label="服务器子目录" aria-invalid={pathEntered && !!resolution?.error} disabled={locked || browsing} value={config.path} placeholder="输入路径或选择服务器文件夹" autoComplete="off" spellCheck={false} onChange={event => enterServerPath(event.target.value)} onBlur={finishServerPath}
-            onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); finishServerPath() } }} /></label>
-          <button ref={serverBrowseTrigger} type="button" className="kso-btn" aria-expanded={browsing} disabled={locked || !root} onClick={() => setBrowseRoot(browsing ? null : root?.id || null)}><FolderOpen />选择服务器文件夹</button>
-        </div>
-        {!browsing && pathEntered && resolution?.error && <p className="kso-error" role="alert">{resolution.error}</p>}
-        {!browsing && pathEntered && selection && !config.path.startsWith('/') && <p className="kso-server-path">{selection.root.displayPath ? '服务器完整路径' : '扫描位置'}<strong>{selectedPath}</strong></p>}
-        {browsedRoot && !locked && <ServerFolderPicker key={browsedRoot.id} root={browsedRoot} initialPath={selection?.root.id === browsedRoot.id ? selection.path : ''} onClose={closeServerPicker} onChoose={path => {
-          setPathEntered(true); setProbe(null)
-          update({ serverRootId: browsedRoot.id, path: browsedRoot.displayPath ? serverFolderLocation(browsedRoot, path) : path })
-          closeServerPicker()
-        }} />}
-        {!browsing && <div className="kso-setup-check"><button type="button" className="kso-btn quiet" disabled={locked || !sourceValid} onClick={() => void check()}>{busy === 'check' ? '正在检查…' : '检查目录'}</button><span>保存时会自动检查目录是否可访问。</span></div>}
-      </>}
       {checked?.valid && <FolderImportProbeResult result={checked} />}
     </>}
   </>

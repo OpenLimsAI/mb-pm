@@ -46,6 +46,13 @@ const scenario = new URLSearchParams(window.location.search).get('scenario')
 const fixtureRoot = scenario === 'unreadable'
   ? { id: 'root', name: 'USP_EP', displayPath: '/srv/research/USP_EP' }
   : { id: 'root', name: '研究共享目录', displayPath: '/srv/research' }
+const fixtureRoots = scenario === 'unreadable' ? [fixtureRoot] : [fixtureRoot, { id: 'archive', name: '存档', displayPath: '/srv/archive' }]
+const fixtureDirectories = scenario === 'unreadable'
+  ? { root: { '': ['USP', '欧洲药典'], USP: [], 欧洲药典: [] } }
+  : {
+    root: { '': ['papers', 'USP_EP'], papers: ['2026'], 'papers/2026': [], USP_EP: ['USP', '欧洲药典'], 'USP_EP/USP': [], 'USP_EP/欧洲药典': [] },
+    archive: { '': ['培训'], 培训: ['欧洲药典'], '培训/欧洲药典': [] },
+  }
 let snapshotRequests = 0, importBootstrapRequests = 0
 axios.defaults.adapter = async config => {
   const rawPath = `${config.baseURL || ''}${config.url || ''}`
@@ -84,10 +91,17 @@ axios.defaults.adapter = async config => {
   else if (/\/sources\/[^/]+\/(check|verify)$/.test(path)) { sources = sources.map(source => ({ ...source, lastCheckedAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString() })); data = { saved: true } }
   else if (path.endsWith('/jobs') && config.method === 'post') { const id = `fixture-job-${jobs.length}`, selected = documents.filter(document => body.documentIds.includes(document.id)); jobs = [...jobs, { id, sourceId: body.sourceId, folderId: body.folderId || 'ich', kind: 'download', parse: body.parse, status: 'queued', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), total: selected.length, processed: 0, saved: 0, failed: 0, pending: selected.length, items: selected.map(document => ({ documentId: document.id, status: 'pending', phase: 'download' })) }]; data = { jobId: id } }
   else if (/\/jobs\/[^/]+\/control$/.test(path)) { jobs = jobs.map(job => job.id === path.split('/').at(-2) ? { ...job, status: body.action === 'cancel' ? 'cancelled' : body.action === 'pause' ? 'paused' : 'queued' } : job); data = { saved: true } }
-  else if (path.endsWith('/bootstrap')) data = { tasks, roots: new URLSearchParams(window.location.search).get('roots') === 'empty' ? [] : [fixtureRoot], canWrite: true, workerEnabled: true, maxFileMb: 100, connectorOnlineSeconds: 90 }
+  else if (path.endsWith('/bootstrap')) data = { tasks, roots: new URLSearchParams(window.location.search).get('roots') === 'empty' ? [] : fixtureRoots, canWrite: true, workerEnabled: true, maxFileMb: 100, connectorOnlineSeconds: 90 }
+  else if (path.endsWith('/directories/search')) {
+    const query = (config.params.q || '').trim().toLocaleLowerCase()
+    const directories = Object.entries(fixtureDirectories).flatMap(([rootId, entries]) =>
+      Object.keys(entries).filter(entry => query && entry.split('/').at(-1).toLocaleLowerCase().includes(query))
+        .map(entry => ({ rootId, path: entry })))
+    data = { directories, truncated: false }
+  }
   else if (path.endsWith('/directories')) {
-    const directories = { '': ['papers', 'USP_EP'], papers: ['2026'], 'papers/2026': [], USP_EP: ['USP', '欧洲药典'], 'USP_EP/USP': [], 'USP_EP/欧洲药典': [] }
-    if (config.params.root_id !== 'root' || !Object.hasOwn(directories, config.params.path)) throw new Error('目录不可访问')
+    const directories = fixtureDirectories[config.params.root_id]
+    if (!directories || !Object.hasOwn(directories, config.params.path)) throw new Error('目录不可访问')
     const query = (config.params.q || '').toLocaleLowerCase()
     data = { directories: directories[config.params.path].filter(name => name.toLocaleLowerCase().includes(query)), truncated: false }
   }

@@ -71,6 +71,12 @@ const decoded = <T,>(response: { data: unknown }) => camelize<T>(response.data)
 export const getFolderImports = (signal?: AbortSignal) => client.get('/bootstrap', { signal }).then(decoded<FolderImportBootstrap>)
 export const listFolderImportDirectories = (rootId: string, path: string, signal: AbortSignal, query?: string) =>
   client.get('/directories', { params: { root_id: rootId, path, q: query || undefined }, signal }).then(decoded<{ directories: string[]; truncated: boolean }>)
+export interface FolderImportDirectorySearch {
+  directories: { rootId: string; path: string }[]
+  truncated: boolean
+}
+export const searchFolderImportDirectories = (query: string, signal: AbortSignal) =>
+  client.get('/directories/search', { params: { q: query }, signal }).then(decoded<FolderImportDirectorySearch>)
 export const probeFolderImport = (config: FolderImportConfig, signal?: AbortSignal) => client.post('/probe', snakeize(config), { signal }).then(decoded<FolderImportProbe>)
 export const saveFolderImport = (config: FolderImportConfig, id?: string) => (id ? client.patch(`/tasks/${encodeURIComponent(id)}`, snakeize(config)) : client.post('/tasks', snakeize(config))).then(decoded<{ task: FolderImportTask }>)
 export const controlFolderImport = (id: string, action: 'scan' | 'pause' | 'resume' | 'retry') => client.post(`/tasks/${encodeURIComponent(id)}/${action}`, {}).then(decoded<{ task?: FolderImportTask; run?: FolderImportRun }>)
