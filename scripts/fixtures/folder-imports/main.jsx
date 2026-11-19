@@ -43,6 +43,9 @@ const snapshot = () => ({ papers, folders, sources, jobs, documents, catalogRevi
 const detailText = paper => `${paper.title}\n\n界面预览资料\n以下内容仅用于验证页内阅读、选择和归档等交互，不是官方指南正文。\n\n研究背景\n在药物研发中，需要系统整理实验观察、质量研究记录与参考文献，并保留资料来源与版本信息。\n\n资料整理\n用户可以将同一篇资料归类到多个文件夹；按标题、分类或共享标签检索，然后在页面中阅读。\n\n使用示例\n先阅读资料，再勾选需要整理的文件，选择拷贝到文件夹或移动到文件夹。`
 window.__folderImportFixtureRequests = []
 const scenario = new URLSearchParams(window.location.search).get('scenario')
+const fixtureRoot = scenario === 'unreadable'
+  ? { id: 'root', name: 'USP_EP', displayPath: '/srv/research/USP_EP' }
+  : { id: 'root', name: '研究共享目录', displayPath: '/srv/research' }
 let snapshotRequests = 0, importBootstrapRequests = 0
 axios.defaults.adapter = async config => {
   const rawPath = `${config.baseURL || ''}${config.url || ''}`
@@ -81,7 +84,7 @@ axios.defaults.adapter = async config => {
   else if (/\/sources\/[^/]+\/(check|verify)$/.test(path)) { sources = sources.map(source => ({ ...source, lastCheckedAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString() })); data = { saved: true } }
   else if (path.endsWith('/jobs') && config.method === 'post') { const id = `fixture-job-${jobs.length}`, selected = documents.filter(document => body.documentIds.includes(document.id)); jobs = [...jobs, { id, sourceId: body.sourceId, folderId: body.folderId || 'ich', kind: 'download', parse: body.parse, status: 'queued', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), total: selected.length, processed: 0, saved: 0, failed: 0, pending: selected.length, items: selected.map(document => ({ documentId: document.id, status: 'pending', phase: 'download' })) }]; data = { jobId: id } }
   else if (/\/jobs\/[^/]+\/control$/.test(path)) { jobs = jobs.map(job => job.id === path.split('/').at(-2) ? { ...job, status: body.action === 'cancel' ? 'cancelled' : body.action === 'pause' ? 'paused' : 'queued' } : job); data = { saved: true } }
-  else if (path.endsWith('/bootstrap')) data = { tasks, roots: new URLSearchParams(window.location.search).get('roots') === 'empty' ? [] : [{ id: 'root', name: '研究共享目录', displayPath: '/srv/research' }], canWrite: true, workerEnabled: true, maxFileMb: 100, connectorOnlineSeconds: 90 }
+  else if (path.endsWith('/bootstrap')) data = { tasks, roots: new URLSearchParams(window.location.search).get('roots') === 'empty' ? [] : [fixtureRoot], canWrite: true, workerEnabled: true, maxFileMb: 100, connectorOnlineSeconds: 90 }
   else if (path.endsWith('/directories')) {
     const directories = { '': ['papers', 'USP_EP'], papers: ['2026'], 'papers/2026': [], USP_EP: ['USP', '欧洲药典'], 'USP_EP/USP': [], 'USP_EP/欧洲药典': [] }
     if (config.params.root_id !== 'root' || !Object.hasOwn(directories, config.params.path)) throw new Error('目录不可访问')

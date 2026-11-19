@@ -28,6 +28,10 @@ beforeEach(() => {
 const mount = (props: Partial<Parameters<typeof FolderImports>[0]> = {}) => render(<FolderImports folders={folders} canManage {...props} />)
 const newTask = async () => fireEvent.click(await screen.findByRole('button', { name: '新建自动导入' }))
 const editTask = async () => fireEvent.click(await screen.findByRole('button', { name: '自动导入设置 目录任务' }))
+function chooseResearchRoot() {
+  fireEvent.change(screen.getByRole('textbox', { name: '服务器已连接目录' }), { target: { value: '研究' } })
+  fireEvent.click(screen.getByRole('button', { name: '研究资料目录' }))
+}
 const expand = (name: string) => fireEvent.click(screen.getByRole('button', { name }))
 
 describe('folder-scoped automatic import drawer', () => {
@@ -106,7 +110,7 @@ describe('folder auto import setup', () => {
   it('blocks saving to a missing target until a writable destination is selected', async () => {
     const view = mount({ initialFolderId: 'deleted', openCreate: 1 })
     fireEvent.click(await screen.findByRole('radio', { name: '服务器 / NAS' }))
-    fireEvent.change(screen.getByRole('combobox', { name: '服务器已连接目录' }), { target: { value: 'root-1' } })
+    chooseResearchRoot()
     expect(screen.getByRole('combobox', { name: '自动导入目标文件夹' })).toHaveValue('deleted')
     expect(screen.getByRole('button', { name: '开始导入' })).toBeDisabled()
     fireEvent.change(screen.getByRole('combobox', { name: '自动导入目标文件夹' }), { target: { value: 'topic' } })
@@ -118,9 +122,10 @@ describe('folder auto import setup', () => {
   it('automatically checks a server directory before saving without an extra required check action', async () => {
     mount({ initialFolderId: 'topic' }); await newTask()
     fireEvent.click(screen.getByRole('radio', { name: '服务器 / NAS' }))
+    chooseResearchRoot()
     fireEvent.change(screen.getByRole('textbox', { name: '服务器子目录' }), { target: { value: 'papers' } })
     fireEvent.blur(screen.getByRole('textbox', { name: '服务器子目录' }))
-    expect(screen.getByRole('combobox', { name: '服务器已连接目录' })).toHaveValue('root-1')
+    expect(screen.getByRole('textbox', { name: '服务器已连接目录' })).toHaveValue('研究资料目录')
     const destination = screen.getByRole('combobox', { name: '自动导入目标文件夹' })
     expect(destination).toHaveValue('')
     fireEvent.change(destination, { target: { value: 'topic' } })
@@ -133,6 +138,7 @@ describe('folder auto import setup', () => {
   it('keeps the source, destination and schedule visible when the automatic directory check fails', async () => {
     api.probe.mockResolvedValue({ valid: false, fileCount: null, totalBytes: null, message: '目录不在授权范围内。' })
     mount(); await newTask(); fireEvent.click(screen.getByRole('radio', { name: '服务器 / NAS' }))
+    chooseResearchRoot()
     fireEvent.change(screen.getByRole('textbox', { name: '服务器子目录' }), { target: { value: 'private' } })
     fireEvent.change(screen.getByRole('combobox', { name: '自动导入目标文件夹' }), { target: { value: 'topic' } })
     fireEvent.change(screen.getByLabelText('扫描时间', { selector: 'input' }), { target: { value: '21:30' } })
@@ -150,7 +156,7 @@ describe('folder auto import setup', () => {
   it('saves weekly dates and timezone without showing advanced fields until requested', async () => {
     mount(); await newTask()
     fireEvent.click(screen.getByRole('radio', { name: '服务器 / NAS' }))
-    fireEvent.change(screen.getByRole('combobox', { name: '服务器已连接目录' }), { target: { value: 'root-1' } })
+    chooseResearchRoot()
     fireEvent.change(screen.getByRole('combobox', { name: '自动导入目标文件夹' }), { target: { value: 'inbox' } })
     fireEvent.click(screen.getByRole('radio', { name: '每周' }))
     fireEvent.change(screen.getByRole('combobox', { name: '每周扫描日期' }), { target: { value: '6' } })
@@ -226,7 +232,7 @@ describe('folder auto import setup', () => {
   it('keeps manual-only scans available without displaying a misleading scheduled time', async () => {
     mount(); await newTask()
     fireEvent.click(screen.getByRole('radio', { name: '服务器 / NAS' }))
-    fireEvent.change(screen.getByRole('combobox', { name: '服务器已连接目录' }), { target: { value: 'root-1' } })
+    chooseResearchRoot()
     fireEvent.change(screen.getByRole('combobox', { name: '自动导入目标文件夹' }), { target: { value: 'inbox' } })
     fireEvent.click(screen.getByRole('radio', { name: '仅手动' }))
     expect(screen.queryByLabelText('扫描时间', { selector: 'input' })).not.toBeInTheDocument()
@@ -238,7 +244,7 @@ describe('folder auto import setup', () => {
   it('saves a daily allowance independently from the per-scan limit', async () => {
     mount(); await newTask()
     fireEvent.click(screen.getByRole('radio', { name: '服务器 / NAS' }))
-    fireEvent.change(screen.getByRole('combobox', { name: '服务器已连接目录' }), { target: { value: 'root-1' } })
+    chooseResearchRoot()
     fireEvent.change(screen.getByRole('combobox', { name: '自动导入目标文件夹' }), { target: { value: 'inbox' } })
     fireEvent.click(screen.getByText('更多选项'))
     const input = screen.getByRole('spinbutton', { name: '每日处理上限' })
@@ -259,10 +265,10 @@ describe('folder auto import setup', () => {
     expect(screen.getByRole('button', { name: '更改扫描时间' })).toHaveTextContent('每天 08:00 · 北京时间')
     expect(screen.getByRole('button', { name: '保存设置' })).toBeDisabled()
     expand('更改扫描文件夹')
-    expect(screen.getByRole('combobox', { name: '服务器已连接目录' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: '服务器已连接目录' })).toBeInTheDocument()
     expect(screen.queryByRole('radio', { name: '我的电脑' })).not.toBeInTheDocument()
     expand('更改保存位置')
-    expect(screen.queryByRole('combobox', { name: '服务器已连接目录' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: '服务器已连接目录' })).not.toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: '自动导入目标文件夹' })).toBeInTheDocument()
     expand('更改扫描时间')
     expect(screen.queryByRole('combobox', { name: '自动导入目标文件夹' })).not.toBeInTheDocument()
