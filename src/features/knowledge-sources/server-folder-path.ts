@@ -38,7 +38,6 @@ export function resolveServerFolder(input: string, roots: FolderImportRoot[], se
     root = matches.find(entry => entry.id === selected?.id) || matches[0]
     relative = path.slice(longest).replace(/^\//, '')
   }
-  if (!root && input && roots.length === 1) root = roots[0]
   if (!root) return { error: '请粘贴完整路径，或先选择共享目录再输入相对路径。' }
   if (relative.length > 1500 || relative && relative.split('/').some(part => !part || part.startsWith('.'))) {
     return { error: '请选择共享目录中可见的文件夹，并检查路径是否正确。' }

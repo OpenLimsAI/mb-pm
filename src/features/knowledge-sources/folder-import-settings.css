@@ -139,6 +139,7 @@
 #knowledge-source-app .kso-server-children button:focus-visible { background: var(--kso-blue-bg); }
 #knowledge-source-app .kso-server-children button:focus-visible { outline: 2px solid var(--kso-blue); outline-offset: -2px; }
 #knowledge-source-app .kso-server-children button span { flex: 1; overflow-wrap: anywhere; }
+#knowledge-source-app .kso-server-children button small { display: block; color: var(--kso-muted); }
 @media(max-width:560px) {
   #knowledge-source-app .kso-server-source-row { grid-template-columns: minmax(0, 1fr); }
   #knowledge-source-app .kso-server-source-row > .kso-btn { justify-self: start; }
