@@ -362,6 +362,32 @@ describe('folder auto import operations', () => {
     fireEvent.click(screen.getByRole('button', { name: '重试本次失败项' }))
     await waitFor(() => expect(api.retry).toHaveBeenLastCalledWith('run-1', undefined))
   })
+  it('deletes a paused task from its own card only after confirmation', async () => {
+    bootstrap.tasks = [task(), task({ id: 'paused', name: 'USP_EP', paused: true })]
+    api.remove.mockImplementationOnce(async id => { bootstrap.tasks = bootstrap.tasks.filter(item => item.id !== id); return { deleted: true } })
+    mount()
+    const trigger = await screen.findByRole('button', { name: '删除任务 USP_EP' })
+    const card = trigger.closest('article')!
+    fireEvent.click(trigger)
+    const confirmation = within(card).getByRole('group', { name: '删除自动导入任务' })
+    expect(confirmation).toHaveTextContent('删除「USP_EP」？')
+    fireEvent.click(within(confirmation).getByRole('button', { name: '取消' }))
+    expect(within(card).queryByRole('group', { name: '删除自动导入任务' })).not.toBeInTheDocument()
+    expect(api.remove).not.toHaveBeenCalled()
+    fireEvent.click(trigger)
+    fireEvent.click(within(card).getByRole('button', { name: '删除自动导入任务' }))
+    await waitFor(() => expect(trigger).not.toBeInTheDocument())
+    expect(api.remove).toHaveBeenCalledExactlyOnceWith('paused')
+    expect(screen.getByRole('button', { name: '删除任务 目录任务' })).toBeInTheDocument()
+    expect(api.control).not.toHaveBeenCalled()
+  })
+  it('hides the task deletion action for read-only users', async () => {
+    bootstrap.tasks = [task()]
+    bootstrap.canWrite = false
+    mount()
+    await screen.findByRole('button', { name: '目录任务' })
+    expect(screen.queryByRole('button', { name: /删除任务/ })).not.toBeInTheDocument()
+  })
   it('replaces settings with a clear delete confirmation that preserves documents', async () => {
     bootstrap.tasks = [task()]
     mount(); fireEvent.click(await screen.findByRole('button', { name: '自动导入设置 目录任务' }))
@@ -370,7 +396,7 @@ describe('folder auto import operations', () => {
     fireEvent.click(screen.getByRole('button', { name: '删除此自动导入任务' }))
     expect(screen.queryByRole('form', { name: '自动导入设置' })).not.toBeInTheDocument()
     const confirmation = screen.getByRole('group', { name: '删除自动导入任务' })
-    expect(confirmation).toHaveTextContent('不会删除原始文件或知识库中的资料')
+    expect(confirmation).toHaveTextContent('源文件和已导入的知识库资料都会保留')
     expect(api.remove).not.toHaveBeenCalled()
     fireEvent.click(within(confirmation).getByRole('button', { name: '删除自动导入任务' }))
     await waitFor(() => expect(api.remove).toHaveBeenCalledExactlyOnceWith('task-1'))

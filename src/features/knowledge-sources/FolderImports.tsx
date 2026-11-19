@@ -105,7 +105,7 @@ export default function FolderImports({ folders, initialFolderId, openCreate, ca
   const alerts = <>{error && <div className="kso-import-alert" role="alert">{error}<button className="kso-btn quiet" onClick={() => void refresh()}>重试连接</button></div>}{data && !data.workerEnabled && <p className="kso-note" role="status">自动导入处理服务尚未启用，任务会保留，暂不能完成后台处理。</p>}</>
   const content = focused && data && panel ? <>
     {alerts}
-    {(panel.kind === 'create' || panel.kind === 'created' || panel.kind === 'settings') && <FolderImportSettings saved={!!createdTask} key={panel.kind !== 'settings' ? `new:${openCreate || ''}` : task!.id} task={panel.kind === 'settings' ? task : undefined} bootstrap={data} folders={folders} initialFolderId={drawerFolderId || initialFolderId} canManage={writable} backLabel={drawerFolderId ? '返回导入任务' : undefined} onClose={() => open(null)} onDelete={panel.kind === 'settings' && task ? () => open({ kind: 'delete', taskId: task.id }) : undefined} onConnect={task ? () => void pair(task.id) : undefined} onSaved={async saved => {
+    {(panel.kind === 'create' || panel.kind === 'created' || panel.kind === 'settings') && <FolderImportSettings saved={!!createdTask} key={panel.kind !== 'settings' ? `new:${openCreate || ''}` : task!.id} task={panel.kind === 'settings' ? task : undefined} bootstrap={data} onRefreshRoots={refresh} folders={folders} initialFolderId={drawerFolderId || initialFolderId} canManage={writable} backLabel={drawerFolderId ? '返回导入任务' : undefined} onClose={() => open(null)} onDelete={panel.kind === 'settings' && task ? () => open({ kind: 'delete', taskId: task.id }) : undefined} onConnect={task ? () => void pair(task.id) : undefined} onSaved={async saved => {
       setPairing(null)
       if (panel.kind === 'create' && saved.kind === 'local') {
         setPanel({ kind: 'created', savedTask: saved })
@@ -124,12 +124,24 @@ export default function FolderImports({ folders, initialFolderId, openCreate, ca
     {notice && <p role="status" className="kso-import-notice">{notice}</p>}
     {data && !writable && <p className="kso-small">当前账号不能配置自动导入，可在资料库查看有权访问的资料。</p>}
     {data && drawerFolderId && !canCreateInFolder && <p className="kso-note">当前文件夹不可写入，请选择有写入权限的文件夹。</p>}
-    {panel?.kind === 'delete' && task && <div className="kso-import-panel" role="group" aria-label="删除自动导入任务"><h2>删除「{task.name}」？</h2><p>只停止这个文件夹的后续扫描，不会删除原始文件或知识库中的资料。</p><div className="kso-actions"><button className="kso-btn" disabled={!!working} onClick={() => open(null)}>取消</button><button className="kso-btn danger" disabled={!!working || !writable} onClick={() => void remove(task.id)}>删除自动导入任务</button></div></div>}
     {loading && !data ? <div className="kso-empty" role="status"><LoaderCircle className="if-spin" />正在读取自动导入任务…</div> : data && !visibleTasks.length ? <div className="kso-import-empty"><FolderClock /><h2>{drawerFolderId ? '此文件夹还没有导入任务' : '让文件夹自动加入知识库'}</h2><p>支持电脑本地文件夹，以及已连接的服务器或 NAS 目录。</p>{writable && canCreateInFolder && panel?.kind !== 'create' && <button className="kso-btn" onClick={() => open({ kind: 'create' })}>{drawerFolderId ? '新建自动导入' : '设置第一个文件夹'}</button>}</div> : data && <div className="kso-import-list">{visibleTasks.map(value => <article className="kso-import-task" key={value.id}>
       <div className="kso-import-task-top">
         <div className="kso-import-task-heading"><button className="kso-import-task-name" onClick={() => open(panel?.kind === 'history' && panel.taskId === value.id ? null : { kind: 'history', taskId: value.id })} aria-expanded={panel?.kind === 'history' && panel.taskId === value.id}><FolderClock /><strong>{value.name}</strong><ChevronDown /></button><span className={`kso-chip ${value.status === 'needs_attention' ? 'warn' : running(value.status) ? 'blue' : ''}`}>{taskStatus(value)}</span></div>
-        {writable && <div className="kso-actions kso-import-task-actions"><button className="kso-btn primary" disabled={!!working || value.paused || !data.workerEnabled} onClick={() => running(value.status) ? open({ kind: 'history', taskId: value.id }) : void act(value.id, 'scan')}>{running(value.status) ? '查看进度' : '立即扫描'}</button><button className="kso-btn" aria-label={`自动导入设置 ${value.name}`} disabled={!!working} onClick={() => open({ kind: 'settings', taskId: value.id })}>自动导入设置</button><button className="kso-btn quiet" aria-label={`${value.paused ? '恢复' : '暂停'} ${value.name}`} disabled={!!working} onClick={() => void act(value.id, value.paused ? 'resume' : 'pause')}>{value.paused ? '恢复' : '暂停'}</button></div>}
+        {writable && <div className="kso-actions kso-import-task-actions">
+          <button className="kso-btn primary" disabled={!!working || value.paused || !data.workerEnabled} onClick={() => running(value.status) ? open({ kind: 'history', taskId: value.id }) : void act(value.id, 'scan')}>{running(value.status) ? '查看进度' : '立即扫描'}</button>
+          <button className="kso-btn" aria-label={`自动导入设置 ${value.name}`} disabled={!!working} onClick={() => open({ kind: 'settings', taskId: value.id })}>自动导入设置</button>
+          <button className="kso-btn quiet" aria-label={`${value.paused ? '恢复' : '暂停'} ${value.name}`} disabled={!!working} onClick={() => void act(value.id, value.paused ? 'resume' : 'pause')}>{value.paused ? '恢复' : '暂停'}</button>
+          <button type="button" className="kso-btn quiet danger" aria-label={`删除任务 ${value.name}`} aria-expanded={panel?.kind === 'delete' && panel.taskId === value.id} disabled={!!working} onClick={() => open({ kind: 'delete', taskId: value.id })}>删除任务</button>
+        </div>}
       </div>
+      {writable && panel?.kind === 'delete' && panel.taskId === value.id && <div className="kso-import-panel" role="group" aria-label="删除自动导入任务">
+        <h3>删除「{value.name}」？</h3>
+        <p>删除后将停止此任务的扫描。源文件和已导入的知识库资料都会保留。</p>
+        <div className="kso-actions">
+          <button type="button" className="kso-btn" autoFocus disabled={!!working} onClick={() => open(null)}>取消</button>
+          <button type="button" className="kso-btn danger" disabled={!!working} onClick={() => void remove(value.id)}>删除自动导入任务</button>
+        </div>
+      </div>}
       <div className="kso-import-route" aria-label={`${value.name}文件夹流向`}>
         <div><span className="kso-import-route-label">扫描来源 · {value.kind === 'local' ? '我的电脑' : '服务器 / NAS'}</span><strong title={value.sourcePath || value.path}>{value.sourcePath || value.path || '连接电脑后选择文件夹'}</strong></div>
         <ArrowRight aria-hidden="true" />
