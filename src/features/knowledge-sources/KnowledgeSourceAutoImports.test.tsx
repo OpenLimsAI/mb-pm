@@ -1,11 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, expect, it, vi } from 'vitest'
 import KnowledgeSourceApp from './KnowledgeSourceApp'
 
-const api = vi.hoisted(() => ({ snapshot: vi.fn(), bootstrap: vi.fn(), workspace: vi.fn() }))
+const api = vi.hoisted(() => ({ snapshot: vi.fn(), jobs: vi.fn(), bootstrap: vi.fn(), workspace: vi.fn() }))
 vi.mock('../../components/portal/context', () => ({ usePortalContext: () => ({ preview: false, identityNamespace: 'auto-test', user: { id: 'person', username: 'reader' }, applications: [{ id: 'knowledge-sources', enabled: true }] }) }))
-vi.mock('./api', async original => ({ ...await original<typeof import('./api')>(), getKnowledgeSources: api.snapshot }))
+vi.mock('./api', async original => ({ ...await original<typeof import('./api')>(), getKnowledgeSources: api.snapshot, getKnowledgeSourceJobs: api.jobs }))
 vi.mock('./folder-import-api', async original => ({ ...await original<typeof import('./folder-import-api')>(), getFolderImports: api.bootstrap }))
 vi.mock('./v3-api', async original => ({ ...await original<typeof import('./v3-api')>(), knowledgeV3Get: api.workspace }))
 vi.mock('./LibraryWorkbench', () => ({ default: () => <div>资料列表</div> }))
@@ -13,6 +13,7 @@ beforeEach(() => {
   localStorage.clear(); sessionStorage.clear(); vi.clearAllMocks(); window.history.replaceState({}, '', '/knowledge-sources')
   api.snapshot.mockResolvedValue({ papers: [], folders: [{ id: 'topic', name: '上游工艺开发', writable: true }, { id: 'other', name: '其他主题', writable: true }, { id: 'inbox', name: '待整理', systemRole: 'inbox', writable: true }], sources: [], jobs: [], documents: [], catalogRevision: 1, canManage: true, canOrganize: true, starred: [], integration: { status: 'ready', message: '已连接' } })
   api.bootstrap.mockResolvedValue({ tasks: [], roots: [], canWrite: true, workerEnabled: true, maxFileMb: 100, connectorOnlineSeconds: 90 })
+  api.jobs.mockResolvedValue({ jobs: [] })
   api.workspace.mockResolvedValue({ location: { folderId: 'topic' } })
 })
 const mount = () => render(<MemoryRouter><KnowledgeSourceApp /></MemoryRouter>)
@@ -25,11 +26,15 @@ it('opens automatic import from the intake destination and replaces the upload p
   expect(await screen.findByRole('combobox', { name: '自动导入目标文件夹' })).toHaveValue('other')
   expect(screen.queryByLabelText('统一添加资料')).not.toBeInTheDocument()
   expect(new URLSearchParams(window.location.search).get('view')).toBe('imports')
+  fireEvent.click(screen.getByRole('button', { name: '取消' }))
+  fireEvent.click(screen.getByRole('button', { name: '新建自动导入' }))
+  expect(screen.getByRole('combobox', { name: '自动导入目标文件夹' })).toHaveValue('')
 })
-it('defaults a new automation to the real inbox when launched from all documents', async () => {
+it('keeps the automatic destination blank when the upload destination is only an inbox fallback', async () => {
   mount(); fireEvent.click(await screen.findByRole('button', { name: '上传 PDF' }))
+  expect(screen.getByRole('combobox', { name: '收录目标文件夹' })).toHaveValue('inbox')
   fireEvent.click(screen.getByRole('button', { name: '从文件夹自动导入' }))
-  expect(await screen.findByRole('combobox', { name: '自动导入目标文件夹' })).toHaveValue('inbox')
+  expect(await screen.findByRole('combobox', { name: '自动导入目标文件夹' })).toHaveValue('')
   fireEvent.click(screen.getByRole('button', { name: '资料库' }))
   expect(screen.queryByRole('form', { name: '新建自动导入设置' })).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: '自动导入' }))
@@ -47,4 +52,85 @@ it('honors the explicit automatic-import URL without the saved library location 
   fireEvent.click(screen.getByRole('button', { name: /^上游工艺开发/ }))
   expect(screen.getByRole('heading', { name: '上游工艺开发' })).toBeInTheDocument()
   expect(new URLSearchParams(window.location.search).has('view')).toBe(false)
+})
+
+it('keeps background task refreshes out of the form and recovers a failed list refresh on the next poll', async () => {
+  vi.useFakeTimers()
+  try {
+    window.history.replaceState({}, '', '/knowledge-sources?view=imports')
+    await act(async () => { mount() })
+    expect(api.bootstrap).toHaveBeenCalledTimes(1)
+    api.bootstrap.mockRejectedValueOnce({ isAxiosError: true, code: 'ERR_NETWORK' })
+    await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
+    expect(screen.getByRole('alert')).toHaveTextContent('自动导入任务和共享目录未能刷新')
+    fireEvent.click(screen.getByRole('button', { name: '新建自动导入' }))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    await act(async () => { await vi.advanceTimersByTimeAsync(45000) })
+    expect(api.bootstrap).toHaveBeenCalledTimes(2)
+    expect(api.jobs).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '取消' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('自动导入任务和共享目录未能刷新')
+    api.bootstrap.mockRejectedValueOnce({ isAxiosError: true, code: 'ERR_NETWORK' })
+    await act(async () => { await vi.advanceTimersByTimeAsync(30000) })
+    expect(api.bootstrap).toHaveBeenCalledTimes(4)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  } finally { vi.useRealTimers() }
+})
+
+it('keeps the initial import bootstrap failure visible and retries that endpoint', async () => {
+  api.bootstrap.mockRejectedValueOnce({ isAxiosError: true, code: 'ERR_NETWORK' })
+  window.history.replaceState({}, '', '/knowledge-sources?view=imports')
+  mount()
+  const alert = await screen.findByRole('alert')
+  expect(alert).toHaveTextContent('自动导入任务和共享目录未能刷新')
+  fireEvent.click(screen.getByRole('button', { name: '重新加载' }))
+  expect(await screen.findByRole('button', { name: '新建自动导入' })).toBeEnabled()
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  expect(api.bootstrap).toHaveBeenCalledTimes(2)
+})
+
+it('does not carry a failed download status into automatic imports', async () => {
+  vi.useFakeTimers()
+  try {
+    api.jobs.mockRejectedValueOnce({ isAxiosError: true, code: 'ERR_NETWORK' })
+    await act(async () => { mount() })
+    await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
+    expect(screen.getByRole('alert')).toHaveTextContent('下载任务状态未能刷新')
+    fireEvent.click(screen.getByRole('button', { name: '自动导入' }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(api.jobs).toHaveBeenCalledTimes(1)
+  } finally { vi.useRealTimers() }
+})
+
+it('offers one retry for both the workspace folders and the import task list when both reads fail', async () => {
+  window.history.replaceState({}, '', '/knowledge-sources?view=imports')
+  api.bootstrap.mockRejectedValueOnce({ isAxiosError: true, code: 'ERR_NETWORK' })
+  mount()
+  expect(await screen.findByRole('alert')).toHaveTextContent('自动导入任务和共享目录未能刷新')
+  api.snapshot.mockRejectedValueOnce({ isAxiosError: true, code: 'ERR_NETWORK' })
+  fireEvent.click(screen.getByRole('button', { name: '刷新知识源' }))
+  await act(async () => {})
+  expect(screen.getAllByRole('alert')).toHaveLength(1)
+  expect(screen.getByRole('alert')).toHaveTextContent('知识库资料和目标文件夹未能刷新')
+  expect(screen.getByRole('alert')).toHaveTextContent('自动导入任务和共享目录未能刷新')
+  fireEvent.click(screen.getByRole('button', { name: '重新加载' }))
+  expect(await screen.findByRole('button', { name: '新建自动导入' })).toBeEnabled()
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  expect(api.bootstrap).toHaveBeenCalledTimes(2)
+  expect(api.snapshot).toHaveBeenCalledTimes(3)
+})
+
+it('shows one retry for a cold workspace load and then loads the import list', async () => {
+  window.history.replaceState({}, '', '/knowledge-sources?view=imports')
+  api.snapshot.mockRejectedValueOnce({ isAxiosError: true, code: 'ERR_NETWORK' })
+  mount()
+  expect(await screen.findByRole('alert')).toHaveTextContent('知识库资料和目标文件夹未能刷新')
+  expect(screen.getAllByRole('alert')).toHaveLength(1)
+  expect(api.bootstrap).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: '重新加载' }))
+  expect(await screen.findByRole('button', { name: '新建自动导入' })).toBeEnabled()
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  expect(api.snapshot).toHaveBeenCalledTimes(2)
+  expect(api.bootstrap).toHaveBeenCalledTimes(1)
 })

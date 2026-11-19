@@ -10,7 +10,7 @@ export function serverFolderLocation(root: FolderImportRoot, relativePath: strin
 type ServerSelection = { root: FolderImportRoot; path: string }
 type Resolution = { selection: ServerSelection; error?: never } | { selection?: never; error: string }
 
-export function resolveServerFolder(input: string, roots: FolderImportRoot[], selected: FolderImportRoot): Resolution {
+export function resolveServerFolder(input: string, roots: FolderImportRoot[], selected?: FolderImportRoot): Resolution {
   if (input.includes('\\') || input.includes(':') || [...input].some(c => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127)) {
     return { error: '请输入服务器上的文件夹路径，层级之间用 / 分隔。' }
   }
@@ -35,9 +35,11 @@ export function resolveServerFolder(input: string, roots: FolderImportRoot[], se
     // When roots overlap, keep the narrowest configured boundary. Prefer the current alias on a tie.
     const longest = Math.max(...candidates.map(entry => entry.displayPath!.replace(/\/+$/, '').length))
     const matches = candidates.filter(entry => entry.displayPath!.replace(/\/+$/, '').length === longest)
-    root = matches.find(entry => entry.id === selected.id) || matches[0]
+    root = matches.find(entry => entry.id === selected?.id) || matches[0]
     relative = path.slice(longest).replace(/^\//, '')
   }
+  if (!root && input && roots.length === 1) root = roots[0]
+  if (!root) return { error: '请粘贴完整路径，或先选择共享目录再输入相对路径。' }
   if (relative.length > 1500 || relative && relative.split('/').some(part => !part || part.startsWith('.'))) {
     return { error: '请选择共享目录中可见的文件夹，并检查路径是否正确。' }
   }

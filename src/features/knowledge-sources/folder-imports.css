@@ -37,6 +37,9 @@
 #knowledge-source-app .kso-import-panel-foot{display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap}
 #knowledge-source-app .kso-import-panel-foot>.kso-import-delete-link{margin-right:auto}
 #knowledge-source-app .kso-import-probe{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--kso-green)}
+#knowledge-source-app .kso-import-probe-issues{font-size:12px;color:var(--kso-warn)}
+#knowledge-source-app .kso-import-probe-issues p{display:flex;align-items:center;gap:6px}
+#knowledge-source-app .kso-import-probe-issues ul{margin:4px 0 0;padding-left:22px;color:var(--kso-ink)}
 #knowledge-source-app .kso-import-notice{font-size:12px;color:var(--kso-blue-ink);background:var(--kso-blue-bg);padding:9px 12px;border-radius:6px}
 #knowledge-source-app .kso-import-alert{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 12px;background:var(--kso-red-bg);color:var(--kso-red);border-radius:6px;font-size:12px}
 #knowledge-source-app .kso-import-empty{padding:30px 16px;text-align:center;color:var(--kso-muted);display:grid;justify-items:center;gap:10px;font-size:12px}
