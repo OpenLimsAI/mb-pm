@@ -4,6 +4,8 @@
 
 ## 能力与边界
 
+扩展镜像沿用 amd64 版 Core 0.6.10，构建时校验 Debian 安全仓库的 apt、libapt-pkg7.0、zlib1g 安装包以及 PyPI certifi 证书包的 SHA-256。安装阶段离线运行，服务进程继续使用原有的 `dikw` 用户。
+
 - `GET /v1/folder-import/capabilities` 提供精准索引和原子版本切换能力声明。
 - `POST /v1/folder-import/ingest` 只处理请求中的一个已导入 Markdown 版本，沿用 Core 的解析、分块、向量写入、任务和事件处理。补建缺失向量也限制在该文档。
 - 新版在全文和向量确认完成前不可检索；原子更新版本指针后启用新版。旧版没有其他来源引用时退出默认检索，原件和正文保留。
