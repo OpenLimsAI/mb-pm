@@ -1,4 +1,5 @@
 import importlib.util
+import os
 import stat
 import tempfile
 import unittest
@@ -111,6 +112,48 @@ class ConnectorTests(unittest.TestCase):
 
         with self.assertRaises(connector.ConnectorError):
             connector.Client.response(Connection())
+
+    def test_pairs_current_folder_only_if_its_name_matches_browser_selection(self):
+        selected = self.root / "工艺 论文"
+        selected.mkdir()
+        state_path = self.root / "connector.json"
+        command = [
+            "--server",
+            "https://www.openlims.ai",
+            "--code",
+            "test-code",
+            "--folder",
+            ".",
+            "--expected-folder-name",
+            selected.name,
+            "--config",
+            str(state_path),
+            "--once",
+        ]
+        previous = Path.cwd()
+        try:
+            os.chdir(self.root)
+            with patch.object(connector, "Client") as unexpected_client:
+                self.assertEqual(connector.main(command), 1)
+                unexpected_client.assert_not_called()
+            self.assertFalse(state_path.exists())
+
+            os.chdir(selected)
+            with patch.object(
+                connector.Client,
+                "post",
+                side_effect=[
+                    {"token": "test-token", "taskId": "test-task"},
+                    {"run": None},
+                ],
+            ) as post:
+                self.assertEqual(connector.main(command), 0)
+            route, payload = post.call_args_list[0].args
+            self.assertEqual(route, "/pair")
+            self.assertEqual(payload["path"], str(selected))
+            self.assertEqual(connector.load_state(state_path)["folder"], str(selected))
+        finally:
+            os.chdir(previous)
 
     def test_server_cannot_request_unlisted_file(self):
         path = self.root / "listed.pdf"

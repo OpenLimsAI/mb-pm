@@ -56,10 +56,17 @@ def test_manager_session_same_origin_and_connector_bearer_are_distinct(folder_ap
     client, _, session, _, _, _ = folder_api
     assert client.post(PREFIX + "/tasks", json=body()).status_code == 401
     assert client.post(PREFIX + "/tasks", headers=session(), json=body()).status_code == 403
-    response = client.post(PREFIX + "/tasks", headers=headers(session), json=body())
+    response = client.post(
+        PREFIX + "/tasks", headers=headers(session), json=body(localFolderName="research")
+    )
     assert response.status_code == 201, response.text
     task = response.json()["task"]
     assert task["folderId"] == F1 and task["status"] == "offline"
+    assert task["sourcePath"] == "research" and task["path"] == ""
+    restored = client.get(PREFIX + "/bootstrap", headers=session()).json()["tasks"]
+    assert (
+        next(item for item in restored if item["id"] == task["id"])["localFolderName"] == "research"
+    )
     assert task["dailyFileLimit"] == task["usage"]["limit"] == 1000
     assert task["usage"]["remainingFiles"] == 1000
     measured = client.get(PREFIX + "/tasks/" + task["id"] + "/usage", headers=session())
@@ -73,6 +80,9 @@ def test_manager_session_same_origin_and_connector_bearer_are_distinct(folder_ap
     )
     assert response.status_code == 200, response.text
     token = response.json()["token"]
+    restored = client.get(PREFIX + "/bootstrap", headers=session()).json()["tasks"]
+    connected = next(item for item in restored if item["id"] == task["id"])
+    assert connected["sourcePath"] == connected["path"] == "/home/user/research"
     assert (
         client.post(
             PREFIX + "/connector/pair",

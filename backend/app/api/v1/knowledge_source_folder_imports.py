@@ -30,6 +30,7 @@ class TaskInput(Input):
     kind: Literal["local", "server"]
     server_root_id: str | None = Field(None, alias="serverRootId", max_length=100)
     path: str = Field("", max_length=1500)
+    local_folder_name: str | None = Field(None, alias="localFolderName", max_length=255)
     folder_id: str | None = Field(None, alias="folderId", max_length=100)
     include_subfolders: StrictBool = Field(True, alias="includeSubfolders")
     preserve_hierarchy: StrictBool = Field(False, alias="preserveHierarchy")

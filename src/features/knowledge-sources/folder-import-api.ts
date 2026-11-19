@@ -11,6 +11,7 @@ export interface FolderImportConfig {
   name: string
   kind: 'local' | 'server'
   serverRootId?: string
+  localFolderName?: string | null
   path: string
   folderId: string
   includeSubfolders: boolean
