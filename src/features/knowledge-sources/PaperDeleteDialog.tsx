@@ -15,11 +15,12 @@ interface Props {
   paper: SourcePaper
   folders: SourceFolder[]
   storageKey: string
+  position?: { current: number; total: number }
   onClose: () => void
   onDeleted: () => void
 }
 
-export default function PaperDeleteDialog({ paper, folders, storageKey, onClose, onDeleted }: Props) {
+export default function PaperDeleteDialog({ paper, folders, storageKey, position, onClose, onDeleted }: Props) {
   const originalOnly = /^archive:[a-f0-9]{64}$/.test(paper.id)
   const canPreview = originalOnly || validPath(paper.id)
   const key = `${storageKey}:delete:${paper.id}`
@@ -101,7 +102,9 @@ export default function PaperDeleteDialog({ paper, folders, storageKey, onClose,
   return <div className="kso-overlay" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}><div ref={box} className="kso-dialog kso-paper-delete" role="dialog" aria-modal="true" aria-labelledby="kso-paper-delete-title" aria-describedby="kso-paper-delete-scope" onKeyDown={event => {
     if (event.key === 'Escape') { event.stopPropagation(); onClose() }
     if (event.key === 'Tab') { const nodes = Array.from(box.current?.querySelectorAll<HTMLElement>('button:not(:disabled),a[href]') || []); const first = nodes[0], last = nodes.at(-1); if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() } }
-  }}><div className="kso-dialog-head"><h2 id="kso-paper-delete-title">{originalOnly ? '删除 PDF 原件' : '从知识库删除文件'}</h2><button data-close type="button" className="kso-icon-btn" aria-label="关闭删除窗口" onClick={onClose}><X /></button></div><div className="kso-dialog-body"><strong>{paper.title}</strong>
+  }}><div className="kso-dialog-head"><h2 id="kso-paper-delete-title">{originalOnly ? '删除 PDF 原件' : '从知识库删除文件'}</h2><button data-close type="button" className="kso-icon-btn" aria-label="关闭删除窗口" onClick={onClose}><X /></button></div><div className="kso-dialog-body">
+    {position && <p className="kso-small">逐份确认删除 · 第 {position.current} / {position.total} 份</p>}
+    <strong>{paper.title}</strong>
     <p id="kso-paper-delete-scope">{originalOnly ? '将删除这份已保存的 PDF 原件，并从所有文件夹中移除。' : '将从整个知识库删除此文件，所有文件夹都将不再显示。'}</p>
     {affectedFolders.length > 0 && <div className="kso-paper-delete-folder-scope">
       <p id="kso-paper-delete-folders" className="kso-small">受影响的文件夹（当前可见）</p>
@@ -110,8 +113,9 @@ export default function PaperDeleteDialog({ paper, folders, storageKey, onClose,
       </ul>
     </div>}
     {plan && <>{!originalOnly && <p className="kso-small">同时删除 {plan.pages.length} 项仅由此文件生成的关联内容；保留 {plan.sharedCount} 项共享内容{plan.unverifiedCount > 0 ? `及 ${plan.unverifiedCount} 项无法确认归属的内容` : ''}。</p>}<p className="kso-error">此操作无法在知识源中撤销，请确认后继续。</p></>}
+    {position && submitted && <p className="kso-small">退出后，本次已确认的删除会继续执行。</p>}
     {loading && <p role="status"><LoaderCircle className="if-spin" />{submitted ? '正在确认删除进度…' : '正在检查删除范围…'}</p>}
     {status && <p role="status">{status.status === 'succeeded' ? '文件已删除。' : status.status === 'failed' ? `删除未完成：${status.message || '请核对后重试查询。'}` : `正在删除 ${status.completed} / ${status.total} 项…`}</p>}
     {error && <p role="alert" className="kso-error">{error}</p>}
-  </div><div className="kso-dialog-foot"><button type="button" className="kso-btn" onClick={onClose}>{submitted ? '关闭' : '取消'}</button>{submitted && plan ? <><button type="button" className="kso-btn" disabled={loading} onClick={() => void query(plan)}>查询删除结果</button>{(status?.status==='failed'||retryConfirmation)&&<button type="button" className="kso-btn danger" disabled={loading} onClick={()=>void confirm(true)}>{retryConfirmation?'重试确认删除':'继续删除'}</button>}</> : error ? <button type="button" className="kso-btn" disabled={loading || !canPreview} onClick={() => void preview()}>重新检查</button> : <button type="button" className="kso-btn danger" disabled={!plan || loading} onClick={() => void confirm()}><Trash2 />{originalOnly ? '确认删除原件' : '确认删除文件'}</button>}</div></div></div>
+  </div><div className="kso-dialog-foot"><button type="button" className="kso-btn" onClick={onClose}>{position ? '退出逐份确认' : submitted ? '关闭' : '取消'}</button>{submitted && plan ? <><button type="button" className="kso-btn" disabled={loading} onClick={() => void query(plan)}>查询删除结果</button>{(status?.status==='failed'||retryConfirmation)&&<button type="button" className="kso-btn danger" disabled={loading} onClick={()=>void confirm(true)}>{retryConfirmation?'重试确认删除':'继续删除'}</button>}</> : error ? <button type="button" className="kso-btn" disabled={loading || !canPreview} onClick={() => void preview()}>重新检查</button> : <button type="button" className="kso-btn danger" disabled={!plan || loading} onClick={() => void confirm()}><Trash2 />{originalOnly ? '确认删除原件' : '确认删除文件'}</button>}</div></div></div>
 }

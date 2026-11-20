@@ -64,6 +64,22 @@
 @media(pointer:coarse){#knowledge-source-app button.kso-folder-more{opacity:1;min-width:36px;min-height:36px}}
 
 /* One persistent navigation level; folders belong to the library only. */
+#knowledge-source-app.kso-simple-workspace .kso-pinned-navigation {
+  position: sticky;
+  top: 0;
+  z-index: 25;
+  flex: none;
+  background: var(--kso-surface);
+}
+#knowledge-source-app .kso-pinned-navigation > .kso-top { position: relative; }
+#knowledge-source-app.kso-simple-workspace #kso-content { scroll-margin-top: var(--kso-navigation-height); }
+#knowledge-source-app.kso-simple-workspace .kso-shell .kso-bulk { top: var(--kso-navigation-height); }
+@media (min-width: 761px) {
+  #knowledge-source-app.kso-simple-workspace .kso-shell > .kso-sidebar {
+    top: var(--kso-navigation-height);
+    height: calc(100dvh - var(--kso-navigation-height));
+  }
+}
 #knowledge-source-app.kso-simple-workspace .kso-workspace-tabs{display:flex;align-items:stretch;gap:26px;padding:0 28px;background:var(--kso-surface);border-bottom:1px solid var(--kso-line)}
 #knowledge-source-app.kso-simple-workspace .kso-workspace-tabs>button{position:relative;padding:13px 4px;font-size:13px;color:var(--kso-muted);white-space:nowrap;border-bottom:2px solid transparent}
 #knowledge-source-app.kso-simple-workspace .kso-workspace-tabs>button[aria-current=page]{color:var(--kso-blue);border-bottom-color:var(--kso-blue);font-weight:600}

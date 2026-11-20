@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { KnowledgeSourceSnapshot } from './api'
 import type { LibraryPaper, LibraryQuery } from './v3-api'
@@ -31,17 +31,63 @@ beforeEach(()=>{
 })
 
 describe('knowledge source library workbench paging and evidence',()=>{
- it('offers file deletion only through the row button', async () => {
-  const onDelete = vi.fn()
-  renderWorkbench({ onDelete })
-  fireEvent.click(await screen.findByRole('button', { name: '更多操作 Paper 2' }))
-  const menu = screen.getByRole('menu')
-  expect(within(menu).getByRole('menuitem', { name: '页内阅读' })).toBeInTheDocument()
-  expect(within(menu).queryByRole('menuitem', { name: /删除/ })).not.toBeInTheDocument()
-
-  fireEvent.click(screen.getByRole('button', { name: '删除文件 Paper 2' }))
-  expect(onDelete).toHaveBeenCalledExactlyOnceWith(row(2))
+ it('reads through the title and always offers a single adjustment action on each row',async()=>{
+  const onDelete=vi.fn()
+  renderWorkbench({onDelete})
+  const adjust=await screen.findByRole('button',{name:'调整文件 Paper 2'})
+  const paperRow=adjust.closest('article')!
+  expect(adjust).toHaveTextContent('调整文件')
+  expect(within(paperRow).queryByRole('button',{name:/更多|导出|移出|删除/})).not.toBeInTheDocument()
+  fireEvent.contextMenu(paperRow)
   expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  fireEvent.click(within(paperRow).getByRole('button',{name:/^Paper 2\b/}))
+  expect(await screen.findByRole('region',{name:'资料阅读面板'})).toHaveTextContent('Paper 2')
+  expect(screen.getByRole('checkbox',{name:'选择 Paper 2'})).not.toBeChecked()
+  fireEvent.click(screen.getByRole('button',{name:'关闭页内阅读'}))
+  const bar=within(screen.getByLabelText('论文选择与批量操作'))
+  for(const name of ['拷贝到…','移动到…','移出此文件夹','删除','添加标签','导出所选']){
+   expect(bar.getByRole('button',{name})).toBeDisabled()
+  }
+  expect(bar.queryByText('更多操作')).not.toBeInTheDocument()
+  fireEvent.click(adjust)
+  fireEvent.click(adjust)
+  expect(bar.getByText('已选 1 篇')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button',{name:'调整文件 Paper 3'}))
+  expect(bar.getByText('已选 2 篇')).toBeInTheDocument()
+  expect(screen.getByRole('checkbox',{name:'选择 Paper 2'})).toBeChecked()
+  expect(screen.queryByRole('region',{name:'资料阅读面板'})).not.toBeInTheDocument()
+  expect(bar.getByRole('button',{name:'移出此文件夹'})).toBeDisabled()
+  fireEvent.click(within(paperRow).getByRole('button',{name:/^Paper 2\b/}))
+  expect(await screen.findByRole('region',{name:'资料阅读面板'})).toBeVisible()
+  fireEvent.click(bar.getByRole('button',{name:'删除'}))
+  expect(onDelete).toHaveBeenCalledExactlyOnceWith([row(2),row(3)],expect.any(Function))
+  expect(screen.getByRole('checkbox',{name:'选择 Paper 3'})).toBeChecked()
+  act(()=>onDelete.mock.calls[0][1]('paper-2'))
+  expect(screen.queryByRole('region',{name:'资料阅读面板'})).not.toBeInTheDocument()
+  expect(new URLSearchParams(window.location.search).has('paper')).toBe(false)
+  expect(screen.getByRole('checkbox',{name:'选择 Paper 2'})).not.toBeChecked()
+  expect(screen.getByRole('checkbox',{name:'选择 Paper 3'})).toBeChecked()
+ })
+
+ it('removes precisely the selected papers from the open folder across pages',async()=>{
+  const onRemoveFromFolder=vi.fn().mockResolvedValue(true)
+  renderWorkbench({folder:'topic',onRemoveFromFolder})
+  fireEvent.click(await screen.findByRole('button',{name:'调整文件 Paper 2'}))
+  fireEvent.click(screen.getByRole('button',{name:'下一页'}))
+  fireEvent.click(await screen.findByRole('button',{name:'调整文件 Paper 51'}))
+  fireEvent.click(within(screen.getByLabelText('论文选择与批量操作')).getByRole('button',{name:'移出此文件夹'}))
+  await waitFor(()=>expect(onRemoveFromFolder).toHaveBeenCalledExactlyOnceWith([row(2),row(51)]))
+  await waitFor(()=>expect(screen.getByRole('checkbox',{name:'选择 Paper 51'})).not.toBeChecked())
+ })
+
+ it('retains read and export access without offering enabled library write actions to a reader',async()=>{
+  renderWorkbench({folder:'topic', data:{...data,canOrganize:false,canManage:false,canEdit:false},onDelete:vi.fn(),onRemoveFromFolder:vi.fn()})
+  fireEvent.click(await screen.findByRole('button',{name:'调整文件 Paper 2'}))
+  const bar=within(screen.getByLabelText('论文选择与批量操作'))
+  for(const name of ['拷贝到…','移动到…','移出此文件夹','删除','添加标签']){
+   expect(bar.queryByRole('button',{name})?.matches(':enabled')).not.toBe(true)
+  }
+  expect(bar.getByRole('button',{name:'导出所选'})).toBeEnabled()
  })
 
  it('keeps advanced tools and filters out of the default list',async()=>{
@@ -102,40 +148,42 @@ describe('knowledge source library workbench paging and evidence',()=>{
   fireEvent.click(screen.getByRole('button',{name:'取消选择'}))
   expect(screen.getByRole('checkbox',{name:'选择 Paper 2'})).not.toBeChecked()
  })
- it('keeps folder and additional actions mutually exclusive and dismisses outside clicks',async()=>{
-  renderWorkbench();fireEvent.click(await screen.findByRole('checkbox',{name:'选择 Paper 2'}))
-  const folderMenu=screen.getByRole('button',{name:'拷贝到…'}),moreMenu=screen.getByText('更多操作',{selector:'summary'})
-  fireEvent.click(folderMenu);expect(folderMenu).toHaveAttribute('aria-expanded','true');expect(moreMenu.parentElement).not.toHaveAttribute('open')
-  fireEvent.click(moreMenu);expect(folderMenu).toHaveAttribute('aria-expanded','false');expect(moreMenu.parentElement).toHaveAttribute('open')
-  expect(screen.queryByRole('combobox',{name:'批量整理目标文件夹'})).not.toBeInTheDocument()
-  fireEvent.click(folderMenu);expect(folderMenu).toHaveAttribute('aria-expanded','true');expect(moreMenu.parentElement).not.toHaveAttribute('open')
-  fireEvent.pointerDown(screen.getByRole('textbox',{name:'全文搜索资料'}));expect(folderMenu).toHaveAttribute('aria-expanded','false')
+ it('displays tag and export controls directly and dismisses the folder picker on outside interaction',async()=>{
+  renderWorkbench();fireEvent.click(await screen.findByRole('button',{name:'调整文件 Paper 2'}))
+  const bar=within(screen.getByLabelText('论文选择与批量操作'))
+  expect(bar.getByRole('textbox',{name:'批量添加共享标签'})).toBeVisible()
+  expect(bar.getByRole('combobox',{name:'资料导出格式'})).toBeEnabled()
+  expect(bar.getByRole('button',{name:'导出所选'})).toBeVisible()
+  expect(bar.queryByText('更多操作')).not.toBeInTheDocument()
+  const copy=bar.getByRole('button',{name:'拷贝到…'})
+  fireEvent.click(copy);expect(copy).toHaveAttribute('aria-expanded','true')
+  fireEvent.pointerDown(screen.getByRole('textbox',{name:'全文搜索资料'}));expect(copy).toHaveAttribute('aria-expanded','false')
   expect(screen.getByRole('checkbox',{name:'选择 Paper 2'})).toBeChecked()
+  network.post.mockResolvedValueOnce({savedCount:1,results:[{paperId:'paper-2',saved:true}]})
+  fireEvent.change(bar.getByRole('textbox',{name:'批量添加共享标签'}),{target:{value:'归档'}})
+  fireEvent.click(bar.getByRole('button',{name:'添加标签'}))
+  await waitFor(()=>expect(network.post).toHaveBeenCalledWith('/library/tags',{paperIds:['paper-2'],tags:['归档'],mode:'add',revision:0}))
  })
  it('uses separate copy and move actions and only permits moving from a real different folder',async()=>{
   const current={...data,folders:[...data.folders,{id:'target',name:'分析方法'}]}
-  const first=renderWorkbench({data:current,folder:'topic'})
-  fireEvent.click(await screen.findByRole('checkbox',{name:'选择 Paper 2'}))
-  const toolbar=within(screen.getByLabelText('论文选择与批量操作'))
-  fireEvent.click(toolbar.getByRole('button',{name:'拷贝到…'}))
-  expect(toolbar.getByRole('button',{name:'确认拷贝'})).toBeDisabled()
-  fireEvent.click(toolbar.getByRole('button',{name:'移动到…'}))
+  const first=renderWorkbench({data:current,folder:'topic'});fireEvent.click(await screen.findByRole('checkbox',{name:'选择 Paper 2'}))
+  fireEvent.click(screen.getByRole('button',{name:'拷贝到…'}))
+  expect(screen.getByRole('button',{name:'确认拷贝'})).toBeDisabled()
+  fireEvent.click(screen.getByRole('button',{name:'移动到…'}))
   expect(screen.queryByRole('button',{name:'确认拷贝'})).not.toBeInTheDocument()
-  const destination=toolbar.getByRole('combobox',{name:'批量整理目标文件夹'})
+  const destination=screen.getByRole('combobox',{name:'批量整理目标文件夹'})
   expect(within(destination).queryByRole('option',{name:'稳定性研究'})).not.toBeInTheDocument()
-  fireEvent.change(destination,{target:{value:'target'}});fireEvent.click(toolbar.getByRole('button',{name:'确认移动'}))
+  fireEvent.change(destination,{target:{value:'target'}});fireEvent.click(screen.getByRole('button',{name:'确认移动'}))
   await waitFor(()=>expect(first.props.onOrganize).toHaveBeenCalledWith(['paper-2'],'target',true))
   first.unmount()
-  renderWorkbench({data:current,folder:'all'})
-  fireEvent.click(await screen.findByRole('checkbox',{name:'选择 Paper 2'}))
-  const allPapersToolbar=within(screen.getByLabelText('论文选择与批量操作'))
-  expect(allPapersToolbar.getByRole('button',{name:'移动到…'})).toBeDisabled()
-  expect(allPapersToolbar.getByRole('button',{name:'拷贝到…'})).toBeEnabled()
+  renderWorkbench({data:current,folder:'all'});fireEvent.click(await screen.findByRole('checkbox',{name:'选择 Paper 2'}))
+  expect(screen.getByRole('button',{name:'移动到…'})).toBeDisabled()
+  expect(screen.getByRole('button',{name:'拷贝到…'})).toBeEnabled()
  })
  it('retains cross-page selections and exports the exact selected papers in the chosen format',async()=>{
   renderWorkbench();fireEvent.click(await screen.findByRole('checkbox',{name:'选择 Paper 2'}));fireEvent.click(screen.getByRole('button',{name:'下一页'}));fireEvent.click(await screen.findByRole('checkbox',{name:'选择 Paper 51'}))
   expect(screen.getByText('已选 2 篇 · 其中 1 篇不在本页')).toBeInTheDocument()
-  fireEvent.click(screen.getByText('更多操作',{selector:'summary'}));fireEvent.change(screen.getByRole('combobox',{name:'资料导出格式'}),{target:{value:'ris'}});fireEvent.click(screen.getByRole('button',{name:'导出所选'}))
+  fireEvent.change(screen.getByRole('combobox',{name:'资料导出格式'}),{target:{value:'ris'}});fireEvent.click(screen.getByRole('button',{name:'导出所选'}))
   await waitFor(()=>expect(network.download).toHaveBeenCalledWith('/library/export',{paperIds:['paper-2','paper-51'],format:'ris'},'知识源资料.ris'))
   expect(await screen.findByText('资料包已生成，请查看浏览器下载。')).toBeInTheDocument()
  })

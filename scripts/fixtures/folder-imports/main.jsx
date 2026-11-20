@@ -80,7 +80,14 @@ axios.defaults.adapter = async config => {
   }
   else if (path.endsWith('/library/detail')) { const paper = papers.find(paper => paper.id === body.paperId); if (!paper) throw new Error('Synthetic paper does not exist'); const text = detailText(paper); data = { paper, text, textOffset: 0, totalCharacters: text.length, canWrite: true, revision, metadataRevision: revision, insightRevision: revision, references: [], positionUnit: 'utf16' } }
   else if (path.endsWith('/library/metadata')) { papers = papers.map(paper => paper.id === body.paperId ? { ...paper, ...body.metadata } : paper); revision++; data = { saved: true } }
-  else if (path.endsWith('/library/tags')) { papers = papers.map(paper => body.paperIds.includes(paper.id) ? { ...paper, tags: [...paper.tags, ...body.tags.map(name => ({ id: name, name }))] } : paper); revision++; data = { saved: true } }
+  else if (path.endsWith('/library/tags')) {
+    const results = body.paperIds.map(paperId => ({ paperId, saved: papers.some(paper => paper.id === paperId) }))
+    papers = papers.map(paper => body.paperIds.includes(paper.id)
+      ? { ...paper, tags: [...paper.tags, ...body.tags.filter(name => !paper.tags.some(tag => tag.name === name)).map(name => ({ id: name, name }))] }
+      : paper)
+    revision++
+    data = { savedCount: results.filter(item => item.saved).length, results }
+  }
   else if (path.endsWith('/library/delete-preview')) { const paper = papers.find(paper => paper.id === body.paperId); data = { planId: `fixture-delete-${paper.id}`, path: paper.id, title: paper.title, expiresAt: new Date(Date.now() + 600000).toISOString(), pages: [], sharedCount: 0, unverifiedCount: 0 } }
   else if (path.endsWith('/library/delete')) { papers = papers.filter(paper => paper.id !== body.paperId); revision++; data = { operationId: body.planId, path: body.paperId, status: 'succeeded', completed: 1, total: 1 } }
   else if (path.endsWith('/papers/folders')) { papers = papers.map(paper => body.paperIds.includes(paper.id) ? { ...paper, folderIds: [...new Set([...paper.folderIds.filter(id => id !== 'inbox' && (body.mode !== 'move' && body.mode !== 'remove' || id !== body.fromFolderId)), ...body.folderIds])]} : paper); papers = papers.map(paper => paper.folderIds.length ? paper : { ...paper, folderIds: ['inbox'] }); revision++; data = { saved: true } }

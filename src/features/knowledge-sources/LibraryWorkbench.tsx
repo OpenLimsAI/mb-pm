@@ -28,8 +28,8 @@ type Props = {
   onCounts: (counts: Record<string, number>) => void; onUndo?: (tokens: string[]) => void
   onStar?: (paperId:string,enabled:boolean)=>Promise<boolean>
   onRetry?: (documentId:string)=>Promise<boolean>
-  onDelete?: (paper: LibraryPaper) => void
-  onRemoveFromFolder?: (paper: LibraryPaper) => Promise<boolean>
+  onDelete?: (papers: LibraryPaper[], onDeleted: (id: string) => void) => void
+  onRemoveFromFolder?: (papers: LibraryPaper[]) => Promise<boolean>
   initialQuery?: string
   onSearchAll?: (query: string) => void
 }
@@ -46,18 +46,17 @@ export default function LibraryWorkbench({ data, folder, storageKey, density, bu
   const [externalPaper, setExternalPaper] = useState<LibraryPaper | null>(null), [jumpOffset, setJumpOffset] = useState<number | undefined>(undefined)
   const [workspace, setWorkspace] = useState<WorkspaceState | null>(null)
   const [page, setPage] = useState<LibraryPage | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState(''), [notice, setNotice] = useState(''), [revision, setRevision] = useState(0)
-  const [selected, setSelected] = useState<string[]>([]), [destination, setDestination] = useState(''), [organizing, setOrganizing] = useState(false), [menu, setMenu] = useState<{ x: number; y: number; paper: LibraryPaper } | null>(null)
+  const [selectedPapers, setSelectedPapers] = useState<LibraryPaper[]>([])
+  const selected = selectedPapers.map(item => item.id)
+  const [destination, setDestination] = useState(''), [organizing, setOrganizing] = useState(false)
   const [exporting, setExporting] = useState(false), [format, setFormat] = useState('bibtex'), [filters, setFilters] = useState(false)
   const [toolsOpen,setToolsOpen]=useState(false),[toolsMounted,setToolsMounted]=useState(false)
   const [bulkTag,setBulkTag]=useState(''),[tagging,setTagging]=useState(false),[recentRange,setRecentRange]=useState('30')
-  const [bulkMenu,setBulkMenu]=useState<'copy'|'move'|'more'|null>(null)
-  const bulkActions=useRef<HTMLDivElement>(null)
-  const rowMenu = useRef<HTMLDivElement>(null)
-  const rowMenuTrigger = useRef<HTMLElement | null>(null)
+  const [bulkMenu, setBulkMenu] = useState<'copy' | 'move' | null>(null)
+  const openFolderControl = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null), listRef = useRef<HTMLDivElement>(null), anchor = useRef(0), scroll = useRef(0), lastPosition = useRef<number | undefined>(undefined), positionTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const initialRestore = useRef({folder, queryStored:stored(`${storageKey}:v3:query:${folder}`),offsetStored:stored(`${storageKey}:v3:offset:${folder}`),paperStored:stored(`${storageKey}:v3:paper:${folder}`),scrollStored:stored(`${storageKey}:v3:scroll:${folder}`),explicitPaper:new URLSearchParams(window.location.search).has('paper')})
   const countsCallback = useRef(onCounts); useEffect(() => { countsCallback.current = onCounts }, [onCounts])
-  const selectedRef = useRef(selected); useEffect(() => { selectedRef.current = selected }, [selected])
   const workspaceRef=useRef(workspace);useEffect(()=>{workspaceRef.current=workspace},[workspace])
   const localReading=useRef<Record<string,ReadingEntry>>({})
   const readingRequests=useRef<Promise<void>>(Promise.resolve()), mounted=useRef(true)
@@ -108,25 +107,9 @@ export default function LibraryWorkbench({ data, folder, storageKey, density, bu
     const timer = window.setInterval(() => setRevision(n => n + 1), 5000)
     return () => window.clearInterval(timer)
   }, [page?.searchIndex?.indexing])
-  useEffect(() => {
-    if (!menu) return
-    const close = () => setMenu(null)
-    const keydown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        event.stopPropagation()
-        close()
-        rowMenuTrigger.current?.focus()
-      }
-    }
-    rowMenu.current?.querySelector('button')?.focus()
-    window.addEventListener('click', close)
-    window.addEventListener('keydown', keydown, true)
-    return () => { window.removeEventListener('click', close); window.removeEventListener('keydown', keydown, true) }
-  }, [menu])
   useEffect(()=>{
     if(!bulkMenu)return
-    const outside=(event:Event)=>{if(!bulkActions.current?.contains(event.target as Node))setBulkMenu(null)}
+    const outside=(event:Event)=>{if(!openFolderControl.current?.contains(event.target as Node))setBulkMenu(null)}
     document.addEventListener('pointerdown',outside)
     document.addEventListener('focusin',outside)
     return()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('focusin',outside)}
@@ -135,7 +118,7 @@ export default function LibraryWorkbench({ data, folder, storageKey, density, bu
     event.stopPropagation()
     if(event.key==='Escape'){
       event.preventDefault();setBulkMenu(null)
-      event.currentTarget.querySelector<HTMLElement>('summary, button')?.focus()
+      event.currentTarget.querySelector<HTMLButtonElement>('button')?.focus()
     }
   }
   const rows = page?.papers || [], paper = rows.find(p => p.id === savedPaper) || (externalPaper?.id === savedPaper ? externalPaper : undefined), visibleSelected = rows.filter(p => selected.includes(p.id))
@@ -171,37 +154,93 @@ export default function LibraryWorkbench({ data, folder, storageKey, density, bu
     const abort=new AbortController();evidenceRequest.current=abort
     try{const detail=await knowledgeV3Post<PaperDetail>('/library/detail',{paperId:id,offset:position || 0,limit:48000},abort.signal);if(!abort.signal.aborted&&mounted.current){setExternalPaper(detail.paper);choosePaper(detail.paper,position)}}catch(e){if(!abort.signal.aborted&&mounted.current)setError(sourceError(e))}
   }
+  function selectPapers(papers: LibraryPaper[]) {
+    setSelectedPapers(previous => {
+      const byId = new Map(previous.map(item => [item.id, item]))
+      for (const item of papers) byId.set(item.id, item)
+      return [...byId.values()]
+    })
+    setBulkMenu(null)
+  }
+  function deselectPapers(ids: string[]) {
+    const removed = new Set(ids)
+    setSelectedPapers(previous => previous.filter(item => !removed.has(item.id)))
+    setBulkMenu(null)
+  }
   function pick(p: LibraryPaper, event: MouseEvent<HTMLInputElement>) {
     const index = rows.findIndex(row => row.id === p.id)
     if (event.shiftKey) {
-      const range = rows.slice(Math.min(anchor.current, index), Math.max(anchor.current, index) + 1).map(row => row.id)
-      setSelected([...new Set([...selectedRef.current, ...range])])
-    } else { anchor.current = index; const next=selectedRef.current.includes(p.id) ? selectedRef.current.filter(id => id !== p.id) : [...selectedRef.current, p.id];setSelected(next);if(!next.length)setBulkMenu(null) }
+      selectPapers(rows.slice(Math.min(anchor.current, index), Math.max(anchor.current, index) + 1))
+    } else {
+      anchor.current = index
+      if (selected.includes(p.id)) deselectPapers([p.id])
+      else selectPapers([p])
+    }
   }
   async function organize(move: boolean) {
     if (!destination || !selected.length || organizing || busy || (move && !canMove) || destination === folder) return
     setOrganizing(true); setError('')
     try {
-      if (await onOrganize(selected, destination, move)) { setSelected([]); setBulkMenu(null); setNotice(move ? '已移动所选资料。' : '已拷贝到目标文件夹，原有分类保留。'); setRevision(n => n + 1) }
+      if (await onOrganize(selected, destination, move)) {
+        deselectPapers(selected)
+        setNotice(move ? '已移动所选资料。' : '已拷贝到目标文件夹，原有分类保留。')
+        setRevision(n => n + 1)
+      }
     } finally { setOrganizing(false) }
   }
-  async function removeFromFolder(target: LibraryPaper) {
-    setMenu(null)
+  async function removeFromFolder() {
+    if (!onRemoveFromFolder || !selectedPapers.length || busy || organizing) return
     setBulkMenu(null)
-    if (await onRemoveFromFolder?.(target)) {
-      setSelected(previous => previous.filter(id => id !== target.id))
-      setRevision(value => value + 1)
+    setOrganizing(true)
+    try {
+      if (await onRemoveFromFolder(selectedPapers)) {
+        deselectPapers(selected)
+        setRevision(value => value + 1)
+      }
+    } finally { setOrganizing(false) }
+  }
+  function fileDeleted(id: string) {
+    deselectPapers([id])
+    if (locationValue.current.paperId !== id) return
+    evidenceRequest.current?.abort()
+    setReaderOpen(false)
+    setExternalPaper(null)
+    setSavedPaper('')
+    const url = new URL(window.location.href)
+    if (url.searchParams.get('paper') === id) {
+      url.searchParams.delete('paper')
+      window.history.replaceState(null, '', url)
     }
   }
   async function exportSelection() {
+    if (!selected.length || exporting || selected.length > 100) return
     setExporting(true); setError('')
     try { await knowledgeV3Download('/library/export', { paperIds: selected, format }, `知识源资料.${format === 'bibtex' ? 'bib' : format}`); setNotice('资料包已生成，请查看浏览器下载。') }
     catch (e) { setError(sourceError(e)) } finally { setExporting(false) }
   }
-  async function addTags(){
-    if(!bulkTag.trim() || !selected.length)return
-    setTagging(true);setError('');let saved=0;const failed:string[]=[]
-    try{for(let index=0;index<selected.length;index+=20){const result=await knowledgeV3Post<{savedCount:number;results:{paperId:string;saved:boolean;error?:string}[]}>('/library/tags',{paperIds:selected.slice(index,index+20),tags:[bulkTag.trim()],revision:0,mode:'add'});saved+=result.savedCount;failed.push(...result.results.filter(item=>!item.saved).map(item=>item.paperId));const issue=result.results.find(item=>!item.saved);if(issue)setError(issue.error || '部分资料标签尚未保存。')}setNotice(`已为 ${saved} / ${selected.length} 篇添加共享标签。`);setSelected(failed);if(!failed.length)setBulkMenu(null);setRevision(n=>n+1)}catch(e){setError(sourceError(e))}finally{setTagging(false)}
+  async function addTags() {
+    const tag = bulkTag.trim()
+    if (!tag || !selected.length || tagging) return
+    setTagging(true); setError('')
+    const savedIds: string[] = []
+    try {
+      for (let index = 0; index < selected.length; index += 20) {
+        const chunk = selected.slice(index, index + 20)
+        const result = await knowledgeV3Post<{ results: { paperId: string; saved: boolean; error?: string }[] }>(
+          '/library/tags', { paperIds: chunk, tags: [tag], revision: 0, mode: 'add' },
+        )
+        savedIds.push(...result.results.filter(item => item.saved).map(item => item.paperId))
+        const issue = result.results.find(item => !item.saved)
+        if (issue) setError(issue.error || '部分资料标签尚未保存。')
+      }
+      setNotice(`已为 ${savedIds.length} / ${selected.length} 篇添加共享标签。`)
+    } catch (e) {
+      setError(sourceError(e))
+    } finally {
+      deselectPapers(savedIds)
+      if (savedIds.length) setRevision(n => n + 1)
+      setTagging(false)
+    }
   }
   function savePosition(value: number) {
     if (!paper || Math.abs(value - (lastPosition.current ?? -1000)) < 50) return
@@ -250,12 +289,14 @@ export default function LibraryWorkbench({ data, folder, storageKey, density, bu
     resetPage()
   }
   const filtered = !!query.trim() || activeFilters.length > 0
-  const canRemove = data.canOrganize && currentFolder?.writable !== false && onRemoveFromFolder
-  const bulkTagsControl = (data.canEdit || data.canOrganize) && <><input className="kso-select" aria-label="批量添加共享标签" placeholder="添加共享标签…" maxLength={16} value={bulkTag} onChange={e=>setBulkTag(e.target.value)}/><button className="kso-btn" disabled={tagging||!bulkTag.trim()||selected.length>100||selected.some(id=>id.startsWith('archive:'))} onClick={()=>void addTags()}>{tagging?'正在添加…':'添加标签'}</button>{selected.some(id=>id.startsWith('archive:'))&&<small>未注册原件完成入库后可添加共享标签</small>}</>
+  const canRemove = !!currentFolder && currentFolder.writable !== false && !isInboxFolder(currentFolder) && !!onRemoveFromFolder
+  const noSelection = selected.length === 0
+  const actionsDisabled = noSelection || busy || organizing || tagging || exporting
+  const tagUnavailable = selected.some(id => id.startsWith('archive:'))
   return <section className={`ksv-library ksv-simple-library kso-density-${density}`} aria-label="文献研究工作区" onKeyDown={event => {
     const input = event.target instanceof HTMLElement && !!event.target.closest('input,textarea,select,[contenteditable="true"]')
     if (!input && (event.key === '/' || ((event.ctrlKey || event.metaKey) && event.key === 'f'))) { event.preventDefault(); searchRef.current?.focus() }
-    if (event.key === 'Escape') { setMenu(null); setBulkMenu(null); setSelected([]) }
+    if (event.key === 'Escape') { setBulkMenu(null); setSelectedPapers([]) }
     if (!input && (event.key === 'ArrowDown' || event.key === 'ArrowUp') && rows.length) { event.preventDefault(); const index = rows.findIndex(p => p.id === savedPaper); choosePaper(rows[Math.max(0, Math.min(rows.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))]) }
   }}>
     <div className="kso-toolbar ksv-simple-toolbar"><label className="kso-search"><Search /><input ref={searchRef} aria-label="全文搜索资料" value={query} maxLength={500} onChange={e => { locationDirty.current=true;setQuery(e.target.value); resetPage() }} placeholder={currentFolder ? "在此文件夹中搜索" : "搜索资料…"} />{query && <button className="kso-icon-btn" aria-label="清除全文搜索" onClick={() => { setQuery(''); resetPage() }}><X /></button>}</label><button className="kso-btn" aria-expanded={filters} onClick={() => setFilters(!filters)}><SlidersHorizontal />筛选</button>{data.canOrganize && <button className="kso-btn primary" onClick={onAdd}><FolderInput />上传 PDF</button>}</div>
@@ -267,16 +308,16 @@ export default function LibraryWorkbench({ data, folder, storageKey, density, bu
       {activeFilters.map(({ label, clear }, index) => <button key={`${index}:${label}`} className="ksv-filter-chip" type="button" aria-label={`清除筛选 ${label}`} onClick={() => { clear(); resetPage() }}>{label}<X size={12} aria-hidden="true" /></button>)}
     </div>}
     <div className={`ksv-selection-toolbar${selected.length ? ' has-selection' : ''}`} aria-label="论文选择与批量操作">
-      <label className="kso-check ksv-page-check"><input type="checkbox" aria-label="全选本页论文" checked={rows.length > 0 && rows.every(p => selected.includes(p.id))} onChange={e => {const next=e.target.checked ? [...new Set([...selected, ...rows.map(p => p.id)])] : selected.filter(id => !rows.some(p => p.id === id));setSelected(next);if(!next.length)setBulkMenu(null)}} /><span>全选本页</span></label>
+      <label className="kso-check ksv-page-check"><input type="checkbox" aria-label="全选本页论文" checked={rows.length > 0 && rows.every(p => selected.includes(p.id))} onChange={e => { if (e.target.checked) selectPapers(rows); else deselectPapers(rows.map(item => item.id)) }} /><span>全选本页</span></label>
       <span className="ksv-selection-count" role="status" title={selected.length > visibleSelected.length ? `已选 ${selected.length} 篇 · 其中 ${selected.length - visibleSelected.length} 篇不在本页` : undefined}>{selected.length ? `已选 ${selected.length} 篇${selected.length > visibleSelected.length ? ` · 其中 ${selected.length - visibleSelected.length} 篇不在本页` : ''}` : `${page?.incomplete ? '当前已检索到' : '共'} ${page?.total ?? '…'} 篇`}</span>
-      {selected.length > 0 && <div ref={bulkActions} className="ksv-selection-actions">
+      <div className="ksv-selection-actions">
         {data.canOrganize && (['copy', 'move'] as const).map(action => {
           const move = action === 'move'
           const opened = bulkMenu === action
-          return <div key={action} className="ksv-bulk-more ksv-bulk-folder" onKeyDown={bulkKeyDown}>
-            <button type="button" className="kso-btn" aria-expanded={opened} disabled={organizing || busy || (move && !canMove)}
+          return <div key={action} ref={opened ? openFolderControl : null} className="ksv-bulk-folder" onKeyDown={bulkKeyDown}>
+            <button type="button" className="kso-btn" aria-expanded={opened} disabled={actionsDisabled || (move && !canMove)}
               title={move && !canMove ? '进入具体文件夹后可移动' : undefined}
-              onClick={() => { setBulkMenu(opened ? null : action); setDestination(''); setMenu(null) }}>
+              onClick={() => { setBulkMenu(opened ? null : action); setDestination('') }}>
               {move ? '移动到…' : '拷贝到…'}
             </button>
             {opened && <div>
@@ -286,25 +327,51 @@ export default function LibraryWorkbench({ data, folder, storageKey, density, bu
                   {data.folders.filter(item => !isInboxFolder(item) && item.writable !== false && item.id !== folder).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
                 </select>
               </label>
-              <button type="button" className="kso-btn primary" disabled={!destination || organizing || busy} onClick={() => void organize(move)}>
+              <button type="button" className="kso-btn primary" disabled={!destination || actionsDisabled} onClick={() => void organize(move)}>
                 {move ? '确认移动' : '确认拷贝'}
               </button>
             </div>}
           </div>
         })}
-        <details open={bulkMenu==='more'} className="ksv-bulk-more" onKeyDown={bulkKeyDown}><summary aria-expanded={bulkMenu==='more'} onClick={event=>{event.preventDefault();setBulkMenu(bulkMenu==='more'?null:'more');setMenu(null)}}>更多操作</summary>{bulkMenu==='more'&&<div>{bulkTagsControl}<select className="kso-select" aria-label="资料导出格式" value={format} onChange={e => setFormat(e.target.value)}><option value="bibtex">BibTeX 引用</option><option value="ris">RIS 引用</option><option value="csv">CSV 清单</option><option value="zip">原件资料包</option></select><button className="kso-btn" disabled={exporting || selected.length > 100} onClick={() => void exportSelection()}><Download />{exporting ? '正在导出…' : '导出所选'}</button></div>}</details>
-        <button className="kso-btn quiet ksv-clear-selection" aria-label="取消选择" title="取消选择" onClick={() => {setSelected([]);setBulkMenu(null)}}>取消选择</button>
-      </div>}
+        {data.canOrganize && <>
+          <button type="button" className="kso-btn" disabled={actionsDisabled || !canRemove}
+            title={canRemove ? '移出当前文件夹，保留知识库文件' : '在可整理的文件夹中使用'} onClick={() => void removeFromFolder()}>
+            移出此文件夹
+          </button>
+          {onDelete && <button type="button" className="kso-btn ksv-delete-action" disabled={actionsDisabled}
+            title="从整个知识库删除所选文件，需逐篇确认" onClick={() => {
+              setBulkMenu(null)
+              onDelete(selectedPapers, fileDeleted)
+            }}><Trash2 size={15} aria-hidden="true" />删除</button>}
+        </>}
+        {(data.canEdit || data.canOrganize) && <div className="ksv-tag-controls">
+          <input className="kso-select" aria-label="批量添加共享标签" placeholder="添加共享标签…" maxLength={16}
+            disabled={actionsDisabled || tagUnavailable || selected.length > 100} value={bulkTag} onChange={e => setBulkTag(e.target.value)} />
+          <button type="button" className="kso-btn" disabled={actionsDisabled || !bulkTag.trim() || selected.length > 100 || tagUnavailable}
+            title={tagUnavailable ? '未注册原件完成入库后可添加共享标签' : undefined} onClick={() => void addTags()}>
+            {tagging ? '正在添加…' : '添加标签'}
+          </button>
+        </div>}
+        <div className="ksv-export-controls">
+          <select className="kso-select" aria-label="资料导出格式" value={format} disabled={actionsDisabled}
+            onChange={e => setFormat(e.target.value)}>
+            <option value="bibtex">BibTeX 引用</option><option value="ris">RIS 引用</option>
+            <option value="csv">CSV 清单</option><option value="zip">原件资料包</option>
+          </select>
+          <button type="button" className="kso-btn" disabled={actionsDisabled || selected.length > 100}
+            title={selected.length > 100 ? '每次最多导出 100 篇资料' : undefined} onClick={() => void exportSelection()}>
+            <Download aria-hidden="true" />{exporting ? '正在导出…' : '导出所选'}
+          </button>
+        </div>
+        <button type="button" className="kso-btn quiet ksv-clear-selection" disabled={actionsDisabled}
+          onClick={() => { setSelectedPapers([]); setBulkMenu(null) }}>取消选择</button>
+      </div>
     </div>
     <div className={`ksv-reading-layout${paper && readerOpen ? ' has-reader' : ''}`}><div className="ksv-list" ref={listRef} tabIndex={0} aria-label="论文列表" aria-busy={loading} onScroll={e => { interacted.current=true;scroll.current = Math.round(e.currentTarget.scrollTop);locationDirty.current=true;if(Date.now()-lastScrollWrite.current>250){lastScrollWrite.current=Date.now();try{localStorage.setItem(`${storageKey}:v3:scroll:${folder}`,String(scroll.current))}catch{/* Scrolling works without browser storage. */}}persistLocation() }}>
-      {rows.map(p => <article key={p.id} className={`ksv-paper-row${readerOpen && savedPaper === p.id ? ' is-current' : ''}${selected.includes(p.id) ? ' is-selected' : ''}`} draggable={data.canOrganize} onDragStart={event => { const ids = selected.includes(p.id) ? selected : [p.id]; event.dataTransfer.setData('application/x-knowledge-papers', JSON.stringify(ids)); event.dataTransfer.effectAllowed = 'copyMove' }} onContextMenu={e => { e.preventDefault(); rowMenuTrigger.current = e.currentTarget.querySelector('.ksv-row-more'); setBulkMenu(null); setMenu({ x: Math.min(e.clientX, window.innerWidth - 220), y: Math.min(e.clientY, window.innerHeight - 180), paper: p }) }}>
-        <input type="checkbox" aria-label={`选择 ${p.title}`} checked={selected.includes(p.id)} onClick={e => pick(p, e)} onChange={() => { /* Selection is handled on click to retain Shift range semantics. */ }} /><button className="ksv-paper-open" onClick={() => choosePaper(p)}><FileText /><span><strong>{p.title}</strong><small>{[p.code, p.sourceName, p.year, p.tags?.slice(0,2).map(tag=>tag.name).join(' · ')].filter(Boolean).join(' · ') || '资料'}{query && p.matches?.[0] && <span className="ksv-match-inline"> · {p.matches[0].field==='note'?'笔记：':''}{p.matches[0].text}</span>}</small></span></button><span className={`ksv-save-state${p.indexStatus === 'ready' ? ' ready' : ''}${p.indexStatus==='failed'?' failed':''}`}>{p.indexStatus === 'failed' ? '待处理' : p.indexStatus === 'pending' ? '处理中' : p.saved ? '原件已保存' : '知识库资料'}</span>{canRemove && <button type="button" className="ksv-text-action" aria-label={`移出此文件夹 ${p.title}`} disabled={busy} onClick={() => void removeFromFolder(p)}>移出此文件夹</button>}
-        {data.canOrganize && onDelete && (
-          <button type="button" className="kso-icon-btn ksv-row-delete" aria-label={`删除文件 ${p.title}`} title="从整个知识库删除" disabled={busy} onClick={() => { setMenu(null); setBulkMenu(null); onDelete(p) }}>
-            <Trash2 size={15} />
-          </button>
-        )}
-        <button type="button" className="ksv-text-action ksv-row-more" aria-label={`更多操作 ${p.title}`} onClick={e=>{e.stopPropagation();rowMenuTrigger.current=e.currentTarget;setBulkMenu(null);const box=e.currentTarget.getBoundingClientRect();setMenu({x:Math.max(8,Math.min(box.right-190,window.innerWidth-210)),y:Math.max(8,Math.min(box.bottom+5,window.innerHeight-160)),paper:p})}}>更多</button>
+      {rows.map(p => <article key={p.id} className={`ksv-paper-row${readerOpen && savedPaper === p.id ? ' is-current' : ''}${selected.includes(p.id) ? ' is-selected' : ''}`} draggable={data.canOrganize} onDragStart={event => { const ids = selected.includes(p.id) ? selected : [p.id]; event.dataTransfer.setData('application/x-knowledge-papers', JSON.stringify(ids)); event.dataTransfer.effectAllowed = 'copyMove' }}>
+        <input type="checkbox" aria-label={`选择 ${p.title}`} checked={selected.includes(p.id)} onClick={e => pick(p, e)} onChange={() => { /* Selection is handled on click to retain Shift range semantics. */ }} /><button className="ksv-paper-open" onClick={() => choosePaper(p)}><FileText /><span><strong>{p.title}</strong><small>{[p.code, p.sourceName, p.year, p.tags?.slice(0,2).map(tag=>tag.name).join(' · ')].filter(Boolean).join(' · ') || '资料'}{query && p.matches?.[0] && <span className="ksv-match-inline"> · {p.matches[0].field==='note'?'笔记：':''}{p.matches[0].text}</span>}</small></span></button><span className={`ksv-save-state${p.indexStatus === 'ready' ? ' ready' : ''}${p.indexStatus==='failed'?' failed':''}`}>{p.indexStatus === 'failed' ? '待处理' : p.indexStatus === 'pending' ? '处理中' : p.saved ? '原件已保存' : '知识库资料'}</span>
+        <button type="button" className="ksv-text-action ksv-adjust-file" aria-label={`调整文件 ${p.title}`}
+          onClick={() => { anchor.current = rows.indexOf(p); selectPapers([p]) }}>调整文件</button>
       </article>)}
       {!rows.length && !loading && !error && <div className="kso-empty">
         <Search />
@@ -326,6 +393,5 @@ export default function LibraryWorkbench({ data, folder, storageKey, density, bu
     <div className="ksv-research-tools"><ResearchTools paperIds={selected.length ? selected : data.folders.some(f=>f.id===folder) ? [] : paper ? [paper.id] : []} folderId={data.folders.some(f => f.id === folder) ? folder : undefined} folders={data.folders} canOrganize={data.canOrganize} onApplyClassification={async suggestion => { if (!await onOrganize([suggestion.paperId], suggestion.folderIds, false)) throw new Error('分类未保存，请刷新后重试'); setRevision(n => n + 1) }} onOpenEvidence={(id,position)=>void openEvidence(id,position)} /></div>
     <DuplicateReview folders={data.folders} canOrganize={data.canOrganize} onOrganize={onOrganize} onOpen={id=>void openEvidence(id)} />
     </div>}</details>
-    {menu && <div ref={rowMenu} className="ksv-context-menu" role="menu" style={{ top: menu.y, left: menu.x }}><button role="menuitem" onClick={() => {choosePaper(menu.paper);setMenu(null)}}>页内阅读</button><button role="menuitem" onClick={() => setSelected(selected.includes(menu.paper.id) ? selected : [...selected, menu.paper.id])}>选择并整理</button><button role="menuitem" onClick={() => { setSelected([menu.paper.id]); setNotice('已选中此资料，请在“更多操作”中导出。') }}>导出这篇资料</button></div>}
   </section>
 }
