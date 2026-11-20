@@ -14,6 +14,94 @@ const errors = [], requests = [], screens = []
 page.on('pageerror', error => errors.push(error.message))
 page.on('request', request => { if (/\/api\/v1\//.test(request.url())) requests.push(request.url()) })
 const nav = name => page.getByRole('navigation', { name: '知识源功能' }).getByRole('button', { name, exact: true })
+async function checkPinnedTabs(width, height) {
+  await page.setViewportSize({ width, height })
+  await page.goto('http://localhost:1234/scripts/fixtures/folder-imports/index.html?folder=all')
+  await page.locator('.ksv-paper-row').first().waitFor()
+  const tabs = page.getByRole('navigation', { name: '知识源功能' })
+  const heading = page.getByRole('heading', { name: '全部资料', exact: true })
+  const header = page.locator('.kso-source-header')
+  async function scrollTo(y) {
+    return page.evaluate(async y => {
+      window.scrollTo({ top: y, behavior: 'instant' })
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      return window.scrollY
+    }, y)
+  }
+  const start = await scrollTo(80)
+  const origin = await tabs.boundingBox()
+  const headingBefore = await heading.boundingBox()
+  const end = await scrollTo(280)
+  const pinned = await tabs.boundingBox()
+  const headerBox = await header.boundingBox()
+  const headingAfter = await heading.boundingBox()
+  assert(end - start >= 100 && headingBefore.y - headingAfter.y >= 100, 'the library page must actually scroll')
+  assert(Math.abs(origin.y - pinned.y) <= 1, 'the navigation must stay at the same height')
+  assert(headerBox.y >= -1 && Math.abs(headerBox.y + headerBox.height - pinned.y) <= 1, 'the tabs must sit directly below the visible header')
+  const visibleTabs = await tabs.getByRole('button').evaluateAll(buttons => buttons.every(button => {
+    const box = button.getBoundingClientRect()
+    const target = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)
+    return box.width > 0 && box.height > 0 && box.left >= 0 && box.right <= innerWidth + 1
+      && box.top >= 0 && box.bottom <= innerHeight && button.contains(target)
+  }))
+  assert(visibleTabs, 'all four tabs must remain visible and clickable while scrolled')
+  if (width > 760) {
+    const firstLocation = page.locator('.kso-sidebar').getByRole('button', { name: /^全部资料/ })
+    const box = await firstLocation.boundingBox()
+    assert(box.y >= pinned.y + pinned.height - 1, 'the pinned tabs must not cover the first folder link')
+    await firstLocation.click({ trial: true })
+  } else {
+    const locationToggle = page.getByRole('button', { name: '切换资料位置', exact: true })
+    assert.equal(await locationToggle.getAttribute('aria-expanded'), 'false')
+    assert((await locationToggle.boundingBox()).y < pinned.y, 'the mobile folder toggle should scroll with the page')
+  }
+  await nav('来源下载').click()
+  await page.getByRole('heading', { name: /可下载论文/ }).waitFor()
+  assert.equal(await nav('来源下载').getAttribute('aria-current'), 'page')
+}
+async function checkFileActions(width) {
+  await page.setViewportSize({ width, height: 844 })
+  await page.goto('http://localhost:1234/scripts/fixtures/folder-imports/index.html?folder=topic')
+  const row = page.locator('.ksv-paper-row').first()
+  const adjust = row.getByRole('button', { name: /^调整文件 / })
+  await adjust.waitFor()
+  const toolbar = page.getByLabel('论文选择与批量操作', { exact:true })
+  const labels = ['拷贝到…', '移动到…', '移出此文件夹', '删除', '添加标签', '导出所选', '取消选择']
+  const controls = labels.map(name => toolbar.getByRole('button', { name, exact: true }))
+  for (const control of controls.slice(0, -1)) {
+    assert(await control.isVisible() && await control.isDisabled(), 'idle actions should be visible and disabled')
+  }
+  assert(await row.locator('.ksv-save-state').isVisible(), 'the file status remains visible on narrow screens')
+  assert.equal(await row.getByRole('button', { name: /更多|删除|移出/ }).count(), 0, 'no duplicate row operations')
+  assert.equal(await toolbar.getByText('更多操作', { exact: true }).count(), 0, 'file operations must not be inside another menu')
+  const listBefore = await row.boundingBox()
+  await adjust.click()
+  const listAfter = await row.boundingBox()
+  assert(Math.abs(listBefore.y - listAfter.y) <= 1, 'adjusting a file should not move the paper rows')
+  assert(await row.getByRole('checkbox').isChecked())
+  const tag = toolbar.getByRole('textbox', { name: '批量添加共享标签' })
+  const format = toolbar.getByRole('combobox', { name: '资料导出格式' })
+  for (const control of [...controls, tag, format, adjust, row.locator('.ksv-save-state')]) {
+    const box = await control.boundingBox()
+    assert(box && box.width > 0 && box.x >= -1 && box.x + box.width <= width + 1, 'all file actions must fit horizontally')
+  }
+  assert.deepEqual(await toolbar.getByRole('button').allTextContents(), labels, 'the file toolbar follows workflow order')
+  assert(await controls[2].isEnabled() && await controls[3].isEnabled())
+  await format.selectOption('ris')
+  await tag.fill('界面验收')
+  assert(await controls[4].isEnabled() && await controls[5].isEnabled())
+  await capture(`file-actions-${width}`)
+  await controls[3].click()
+  const dialog = page.getByRole('dialog', { name: '从知识库删除文件' })
+  await dialog.waitFor()
+  await dialog.getByRole('button', { name: '取消', exact: true }).click()
+  assert(await row.getByRole('checkbox').isChecked(), 'cancel keeps the file and selection')
+  await controls[4].click()
+  await page.getByText('已为 1 / 1 篇添加共享标签。', { exact:true }).waitFor()
+  assert.equal(await row.getByRole('checkbox').isChecked(), false)
+  await row.locator('.ksv-paper-open').click()
+  await page.getByRole('button', { name: '关闭阅读器' }).waitFor()
+}
 async function capture(name) {
   await page.screenshot({ path: resolve(output, `${name}.png`) })
   const geometry = await page.evaluate(() => ({ width: innerWidth, contentWidth: document.documentElement.scrollWidth }))
@@ -96,10 +184,13 @@ try {
   await nav('来源下载').click()
   await page.getByRole('heading', { name: /可下载论文/ }).waitFor()
   await capture('mobile-sources')
+  await checkPinnedTabs(1440, 580)
+  await checkPinnedTabs(390, 600)
+  for (const width of [1440, 390, 320]) await checkFileActions(width)
   assert.deepEqual(errors, [], 'page errors')
   assert.deepEqual(requests, [], 'synthetic fixture must not contact real APIs')
-  writeFileSync(resolve(output, 'result.json'), JSON.stringify({ screens, errors, realApiRequests: requests, stableSelection: true, mobileNavigationSingleRow: true }, null, 2))
-  console.log(JSON.stringify({ screens: screens.length, errors, realApiRequests: requests.length, stableSelection: true, mobileNavigationSingleRow: true }))
+  writeFileSync(resolve(output, 'result.json'), JSON.stringify({ screens, errors, realApiRequests: requests, stableSelection: true, mobileNavigationSingleRow: true, pinnedNavigation: true, flatFileActions: true }, null, 2))
+  console.log(JSON.stringify({ screens: screens.length, errors, realApiRequests: requests.length, stableSelection: true, mobileNavigationSingleRow: true, pinnedNavigation: true, flatFileActions: true }))
 } finally {
   await browser.close()
 }

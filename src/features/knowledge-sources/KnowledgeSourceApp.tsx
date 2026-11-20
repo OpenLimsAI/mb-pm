@@ -27,6 +27,11 @@ import './simple-workspace.css'
 
 type View = 'library' | 'sources' | 'downloads' | 'updates' | 'imports'
 type ModalState = { kind: 'new-folder' | 'rename-folder' | 'delete-folder' | 'manage-folder' | 'assign' | 'move' | 'source'; ids?: string[]; folderId?: string }
+interface FileDeletionQueue {
+  papers: SourcePaper[]
+  index: number
+  onDeleted: (paperId: string) => void
+}
 type Mutation = (method: 'post' | 'patch', path: string, body: unknown, success: string) => Promise<boolean>
 const EMPTY: KnowledgeSourceSnapshot = { papers: [], folders: [], sources: [], jobs: [], documents: [], catalogRevision: 0, canManage: false, canOrganize: false, starred: [], integration: { status: 'unavailable', message: '尚未连接知识库。' } }
 function safeUrl(value?: string) { if (!value) return undefined; try { const u = new URL(value, window.location.origin); return ['http:', 'https:'].includes(u.protocol) ? u.href : undefined } catch { return undefined } }
@@ -63,6 +68,18 @@ function Workspace({ preview, allowed, userName, storageKey }: { preview: boolea
   const [importCreate,setImportCreate]=useState<{folderId?:string;key:number}|null>(null)
   const [showImportDrawer, setShowImportDrawer] = useState(false)
   const [allSearch, setAllSearch] = useState<string>()
+  const pinnedNavigation = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const bar = pinnedNavigation.current
+    const workspace = bar?.parentElement
+    if (!bar || !workspace) return
+    // The account actions wrap on a narrow screen, changing the height of the pinned area.
+    const measure = () => workspace.style.setProperty('--kso-navigation-height', `${bar.offsetHeight}px`)
+    measure()
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure)
+    observer?.observe(bar)
+    return () => observer?.disconnect()
+  }, [])
   const locationMenu = useRef<HTMLElement>(null), locationToggle = useRef<HTMLButtonElement>(null)
   const [moreTools, setMoreTools] = useState(false), [mobileFolders, setMobileFolders] = useState(false)
   useEffect(() => {
@@ -72,7 +89,8 @@ function Workspace({ preview, allowed, userName, storageKey }: { preview: boolea
     return () => document.removeEventListener('pointerdown', closeOutside)
   }, [mobileFolders])
   const [modal, setModal] = useState<ModalState | null>(null)
-  const [deletingPaper,setDeletingPaper]=useState<SourcePaper|null>(null)
+  const [deletionQueue, setDeletionQueue] = useState<FileDeletionQueue | null>(null)
+  const deletingPaper = deletionQueue?.papers[deletionQueue.index]
   const locationRestored=useRef(false), navigationRevision=useRef(0)
   const restoreFolderIds=JSON.stringify(data?.folders.map(item=>item.id) || [])
   const libraryV3Ready=!!data?.libraryV3
@@ -181,15 +199,33 @@ function Workspace({ preview, allowed, userName, storageKey }: { preview: boolea
     setAllSearch(query)
     setSearch(query)
   }
-  function removeFromCurrentFolder(target: SourcePaper) {
-    if (!currentFolder || currentFolder.writable === false || isInboxFolder(currentFolder)) return Promise.resolve(false)
-    const remaining = d.folders.filter(item => item.id !== folder && target.folderIds.includes(item.id) && !isInboxFolder(item))
-    const location = remaining.length
-      ? `仍可在${remaining.map(item => `「${item.name}」`).join('、')}找到。`
-      : inbox ? `可在「${inbox.name}」中找到。` : '可在全部资料中找到。'
+  function removeFromCurrentFolder(papers: SourcePaper[]) {
+    if (!papers.length || !currentFolder || currentFolder.writable === false || isInboxFolder(currentFolder)) return Promise.resolve(false)
+    let message = `已从「${currentFolder.name}」移出 ${papers.length} 份资料。`
+    if (papers.length === 1) {
+      const remaining = d.folders.filter(item => item.id !== folder && papers[0].folderIds.includes(item.id) && !isInboxFolder(item))
+      const location = remaining.length
+        ? `仍可在${remaining.map(item => `「${item.name}」`).join('、')}找到。`
+        : inbox ? `可在「${inbox.name}」中找到。` : '可在全部资料中找到。'
+      message = `已从「${currentFolder.name}」移出。${location}`
+    }
     return mutate('post', '/papers/folders', {
-      paperIds: [target.id], folderIds: [], fromFolderId: folder, mode: 'remove', revision: d.catalogRevision,
-    }, `已从「${currentFolder.name}」移出。${location}`)
+      paperIds: papers.map(item => item.id), folderIds: [], fromFolderId: folder, mode: 'remove', revision: d.catalogRevision,
+    }, message)
+  }
+  function startFileDeletion(papers: SourcePaper[], onDeleted: (paperId: string) => void) {
+    if (!deletionQueue && papers.length) setDeletionQueue({ papers: [...papers], index: 0, onDeleted })
+  }
+  function completeFileDeletion() {
+    if (!deletionQueue || !deletingPaper) return
+    const { papers, index, onDeleted } = deletionQueue
+    onDeleted(deletingPaper.id)
+    setSelected(previous => previous === deletingPaper.id ? '' : previous)
+    setPicks(previous => previous.filter(id => id !== deletingPaper.id))
+    const completed = index + 1
+    setNotice(papers.length === 1 ? '文件已从整个知识库删除。' : `已从知识库删除 ${completed} / ${papers.length} 份文件。`)
+    setDeletionQueue(completed === papers.length ? null : { ...deletionQueue, index: completed })
+    void refresh()
   }
   function openAcquisition() { setAcquisition(previous => ({ folderId: view === 'library' ? currentFolder?.id : undefined, key: (previous?.key || 0) + 1 })) }
   function openAutoImport(folderId?:string){setImportCreate(previous=>({folderId,key:(previous?.key || 0)+1}));go('imports')}
@@ -203,8 +239,10 @@ function Workspace({ preview, allowed, userName, storageKey }: { preview: boolea
   const visibleError = error || (!importPanelVisible && data ? snapshotError : '') || (pollDownloads ? jobsError : '')
   return <div id="knowledge-source-app" className={`kso-density-${density} kso-simple-workspace${mobileFolders ? ' mobile-folders-open' : ''}`}>
     <a className="kso-skip" href="#kso-content">跳至知识源内容</a>
-    <header className="kso-top kso-source-header"><div className="kso-brand"><div className="kso-mark"><FolderSearch aria-hidden="true" /></div><strong>知识源</strong><span>资料收录与整理</span>{preview && <small className="kso-preview">界面预览 · 未连接数据</small>}</div><div className="kso-header-actions"><button type="button" className="kso-btn quiet kso-header-refresh" aria-label="刷新知识源" title="刷新知识源" onClick={() => { void refresh() }} disabled={busy || loading || preview || !allowed}><RefreshCw aria-hidden="true" />刷新</button><ApplicationActions userName={userName} preview={preview} /></div></header>
-    <nav className="kso-workspace-tabs" aria-label="知识源功能">{([['library','资料库'],['sources','来源下载'],['imports','自动导入'],['downloads','下载记录']] as const).map(([target,label]) => <button type="button" key={target} aria-current={(view==='updates'?'sources':view)===target?'page':undefined} onClick={()=>go(target,target==='library'?(currentFolder?.id || 'all'):folder)}>{label}</button>)}</nav>
+    <div ref={pinnedNavigation} className="kso-pinned-navigation">
+      <header className="kso-top kso-source-header"><div className="kso-brand"><div className="kso-mark"><FolderSearch aria-hidden="true" /></div><strong>知识源</strong><span>资料收录与整理</span>{preview && <small className="kso-preview">界面预览 · 未连接数据</small>}</div><div className="kso-header-actions"><button type="button" className="kso-btn quiet kso-header-refresh" aria-label="刷新知识源" title="刷新知识源" onClick={() => { void refresh() }} disabled={busy || loading || preview || !allowed}><RefreshCw aria-hidden="true" />刷新</button><ApplicationActions userName={userName} preview={preview} /></div></header>
+      <nav className="kso-workspace-tabs" aria-label="知识源功能">{([['library','资料库'],['sources','来源下载'],['imports','自动导入'],['downloads','下载记录']] as const).map(([target,label]) => <button type="button" key={target} aria-current={(view==='updates'?'sources':view)===target?'page':undefined} onClick={()=>go(target,target==='library'?(currentFolder?.id || 'all'):folder)}>{label}</button>)}</nav>
+    </div>
     {notice && <div role="status" className="kso-inline-status">{notice}</div>}{progress && <div role="status" className="kso-inline-status">{progress}</div>}{visibleError && <div role="alert" className="kso-inline-status kso-inline-error">{visibleError}<Button quiet onClick={() => { void refresh() }} disabled={busy}>重试连接</Button>{refreshedAt && <small>已加载资料时间：{dateText(refreshedAt)}</small>}</div>}
     <WorkspaceLayout showFolders={view==='library'} storageKey={storageKey} sidebar={<aside ref={locationMenu} className="kso-sidebar" onKeyDown={event=>{if(event.key==='Escape'&&mobileFolders){setMobileFolders(false);locationToggle.current?.focus()}}}>
       <button ref={locationToggle} type="button" className="kso-location-toggle" aria-label="切换资料位置" aria-expanded={mobileFolders} aria-controls="kso-library-locations" onClick={()=>setMobileFolders(!mobileFolders)}><Folder /><span>{title}</span><small>切换</small><ChevronDown /></button>
@@ -222,7 +260,7 @@ function Workspace({ preview, allowed, userName, storageKey }: { preview: boolea
             {source && !d.libraryV3 && <div className="kso-source-strip"><div><Link2 /><div><strong>已关联下载源 {source.name}</strong><span> · 下载后自动归入此文件夹，整理时复用原件</span></div></div><Button quiet onClick={() => go('sources')}>管理来源<ArrowUpRight /></Button></div>}
             {folder === 'all' && !d.libraryV3 && <KnowledgeFolders storageKey={storageKey} folders={d.folders} papers={d.papers} sourceFolderIds={sourceFolderIds} selectedIds={visiblePicks} canOrganize={d.canOrganize} busy={busy} onOpen={id => go('library', id)} onCreate={() => open({ kind: 'new-folder' })} onRename={id => open({ kind: 'rename-folder', folderId: id })} onAssign={id => { void assignFolder(id) }} />}
             {!d.libraryV3 && <div className="kso-actions"><label className="kso-small">列表密度 <select className="kso-select" aria-label="列表密度" value={density} onChange={e=>setDensity(e.target.value as 'compact'|'standard')}><option value="compact">紧凑</option><option value="standard">标准</option></select></label>{folder==='recent' && <select className="kso-select" aria-label="下载时间范围" value={recentDays} onChange={e=>setRecentDays(e.target.value)}><option value="today">今天</option><option value="7">近 7 天</option><option value="30">近 30 天</option></select>}</div>}
-            <>{d.libraryV3 ? <LibraryWorkbench key={folder} initialQuery={allSearch} onSearchAll={searchAll} data={d} folder={folder} storageKey={storageKey} density={density} busy={busy} onRefresh={() => { void refresh() }} onAdd={() => openAcquisition()} onDensityChange={setDensity} onRetry={documentId=>mutate('post',`/documents/${encodeURIComponent(documentId)}/retry`,{},'已提交解析与索引任务，原件保留。')} onStar={(paperId,enabled)=>mutate('post','/stars',{paperId,enabled},enabled?'已加入个人收藏。':'已取消个人收藏。')} onCounts={counts=>setV3Counts(previous=>JSON.stringify(previous)===JSON.stringify(counts)?previous:counts)} onDelete={p=>setDeletingPaper(p)} onRemoveFromFolder={currentFolder && currentFolder.writable !== false && !isInboxFolder(currentFolder) ? removeFromCurrentFolder : undefined} onOrganize={(ids,target,move)=>mutate('post','/papers/folders',{paperIds:ids,folderIds:Array.isArray(target)?target:[target],mode:move?'move':'add',...(move?{fromFolderId:folder}:{}),revision:d.catalogRevision},'所选资料整理已完成。')}/> : <section className="kso-workspace" aria-label="论文文件夹管理器"><div className="kso-toolbar"><label className="kso-search"><Search /><input aria-label="搜索论文" placeholder="搜索标题、指南编号或关键词" value={search} onChange={e => { setSearch(e.target.value); setPicks([]) }} /></label><select className="kso-select" aria-label="筛选资料" value={filter} onChange={e => { setFilter(e.target.value); setPicks([]) }}><option value="all">全部类型与状态</option>{[...new Set(d.papers.map(p => p.type).filter(Boolean))].map(t => <option key={t}>{t}</option>)}<option value="ready">可问答</option><option value="failed">索引待重试</option></select><select className="kso-select" aria-label="论文排序" value={sort} onChange={e => setSort(e.target.value)}><option value="recent">最近下载</option><option value="name">按标题排列</option></select><button type="button" className="kso-btn quiet" aria-label={details ? '隐藏论文详情' : '显示论文详情'} aria-pressed={details} onClick={() => setDetails(!details)}>{details ? '收起详情' : '展开详情'}</button></div>
+            <>{d.libraryV3 ? <LibraryWorkbench key={folder} initialQuery={allSearch} onSearchAll={searchAll} data={d} folder={folder} storageKey={storageKey} density={density} busy={busy} onRefresh={() => { void refresh() }} onAdd={() => openAcquisition()} onDensityChange={setDensity} onRetry={documentId=>mutate('post',`/documents/${encodeURIComponent(documentId)}/retry`,{},'已提交解析与索引任务，原件保留。')} onStar={(paperId,enabled)=>mutate('post','/stars',{paperId,enabled},enabled?'已加入个人收藏。':'已取消个人收藏。')} onCounts={counts=>setV3Counts(previous=>JSON.stringify(previous)===JSON.stringify(counts)?previous:counts)} onDelete={startFileDeletion} onRemoveFromFolder={currentFolder && currentFolder.writable !== false && !isInboxFolder(currentFolder) ? removeFromCurrentFolder : undefined} onOrganize={(ids,target,move)=>mutate('post','/papers/folders',{paperIds:ids,folderIds:Array.isArray(target)?target:[target],mode:move?'move':'add',...(move?{fromFolderId:folder}:{}),revision:d.catalogRevision},'所选资料整理已完成。')}/> : <section className="kso-workspace" aria-label="论文文件夹管理器"><div className="kso-toolbar"><label className="kso-search"><Search /><input aria-label="搜索论文" placeholder="搜索标题、指南编号或关键词" value={search} onChange={e => { setSearch(e.target.value); setPicks([]) }} /></label><select className="kso-select" aria-label="筛选资料" value={filter} onChange={e => { setFilter(e.target.value); setPicks([]) }}><option value="all">全部类型与状态</option>{[...new Set(d.papers.map(p => p.type).filter(Boolean))].map(t => <option key={t}>{t}</option>)}<option value="ready">可问答</option><option value="failed">索引待重试</option></select><select className="kso-select" aria-label="论文排序" value={sort} onChange={e => setSort(e.target.value)}><option value="recent">最近下载</option><option value="name">按标题排列</option></select><button type="button" className="kso-btn quiet" aria-label={details ? '隐藏论文详情' : '显示论文详情'} aria-pressed={details} onClick={() => setDetails(!details)}>{details ? '收起详情' : '展开详情'}</button></div>
               {visiblePicks.length > 0 && <div className="kso-bulk" role="group" aria-label="批量论文操作"><strong>已选 {visiblePicks.length} 篇</strong>{d.canOrganize && <><Button disabled={busy} onClick={() => open({ kind: 'assign', ids: visiblePicks })}><FolderPlus />放入文件夹</Button>{currentFolder && !isInboxFolder(currentFolder) && <><Button disabled={busy} onClick={() => open({ kind: 'move', ids: visiblePicks, folderId: folder })}>移动到…</Button><Button disabled={busy} onClick={()=>void mutate('post','/papers/folders',{paperIds:visiblePicks,folderIds:[],fromFolderId:folder,mode:'remove',revision:d.catalogRevision},'已批量从当前文件夹移除，原件保留。')}>从当前文件夹移除</Button></>}</>}<Button quiet onClick={() => setPicks([])}>取消选择</Button></div>}
               <div className={`kso-manager${details && paper ? '' : ' no-detail'}`}><div className="kso-list"><table className="kso-table"><thead><tr><th><input type="checkbox" aria-label="全选当前论文" checked={papers.length > 0 && papers.every(p => visiblePicks.includes(p.id))} onChange={e => setPicks(e.target.checked ? papers.map(p => p.id) : [])} /></th><th>论文名称 <span className="kso-small">{papers.length}</span></th><th className="kso-folder-col">所属文件夹</th><th className="kso-status-col">服务器 / 知识库</th></tr></thead><tbody>{papers.slice(0,shown).map(p => <tr key={p.id} className={paper?.id === p.id ? 'is-current' : ''}><td><input type="checkbox" aria-label={`选择 ${p.title}`} checked={visiblePicks.includes(p.id)} onChange={e => setPicks(e.target.checked ? [...picks, p.id] : picks.filter(id => id !== p.id))} /></td><td><button type="button" className="kso-paper-button" onClick={() => { setSelected(p.id); setDetails(true) }}><span className="kso-doc-icon"><FileText /></span><span><span className="kso-paper-title">{p.title}{d.starred.includes(p.id) && ' ☆'}</span><span className="kso-paper-sub">{p.sourceName || '知识库已有资料'} · {p.type || '论文资料'}{p.size ? ` · ${sizeText(p.size)}` : ''}{p.createdAt ? ` · ${dateText(p.createdAt)}` : ''}</span></span></button></td><td className="kso-folder-col"><div className="kso-folders-cell">{p.folderIds.length ? p.folderIds.map(id => <span key={id} className="kso-chip">{folderName(id)}</span>) : <span className="kso-small">未分配文件夹</span>}</div></td><td><div className="kso-status"><span className="kso-small"><Check />{p.saved ? '原件已保存' : '知识库资料'}</span><IndexState status={p.parseStatus==='failed' ? 'parse_failed' : p.indexStatus} /></div></td></tr>)}</tbody></table>{papers.length>shown && <Button onClick={()=>setShown(n=>n+100)}>加载更多论文（已显示 {shown} / {papers.length}）</Button>}{!papers.length && <Empty title={currentFolder && !search ? '这个文件夹还是空的' : d.papers.length ? '没有匹配的论文' : '还没有已保存的论文'}>{currentFolder && !search ? '从已有论文中勾选资料，再放入这个文件夹；也可以从来源下载。' : d.papers.length ? '调整搜索或分类条件，也可从全部论文重新选择。' : '已有知识库论文会显示在这里，也可以添加来源并下载到服务器。'}<div className="kso-actions kso-empty-actions">{d.papers.length > 0 && <Button onClick={() => { go('library', 'all'); if (currentFolder) setNotice(`勾选论文后，可在文件夹卡片中直接放入「${currentFolder.name}」。`) }}>从全部论文选择</Button>}{d.canManage && <Button primary onClick={() => go('sources')}><Download />从来源下载</Button>}</div></Empty>}</div>{details && paper && <Inspector paper={paper} data={d} busy={busy} onClose={() => setDetails(false)} folder={folder} open={open} mutate={mutate} />}</div><div className="kso-list-footer"><span>{papers.length} 篇唯一论文 · 多个文件夹共用服务器原件</span><span>读取自知识库与服务器归档</span></div></section>}</>
           </>}
@@ -232,7 +270,11 @@ function Workspace({ preview, allowed, userName, storageKey }: { preview: boolea
     {showImportDrawer && d.canOrganize && currentFolder && currentFolder.writable !== false &&
       <FolderImports key={currentFolder.id} folders={d.folders} workspaceError={snapshotError} onRefreshWorkspace={refresh} drawerFolderId={currentFolder.id} canManage={d.canOrganize}
         onCloseDrawer={() => setShowImportDrawer(false)} onImported={() => { void refresh() }} />}
-    {deletingPaper && data && <PaperDeleteDialog key={deletingPaper.id} paper={deletingPaper} folders={d.folders} storageKey={storageKey} onClose={()=>setDeletingPaper(null)} onDeleted={()=>{setDeletingPaper(null);setSelected('');setPicks([]);setNotice('文件已从整个知识库删除。');void refresh()}}/>}
+    {deletionQueue && deletingPaper && data && <PaperDeleteDialog
+      key={deletingPaper.id} paper={deletingPaper} folders={d.folders} storageKey={storageKey}
+      position={deletionQueue.papers.length > 1 ? { current: deletionQueue.index + 1, total: deletionQueue.papers.length } : undefined}
+      onClose={() => setDeletionQueue(null)} onDeleted={completeFileDeletion}
+    />}
     {modal && data && <Dialog key={`${modal.kind}:${modal.folderId || ''}`} modal={modal} data={d} busy={busy} remoteError={error} mutate={mutate} onClose={close} onNavigate={target=>{setModal(null);go(target)}} onDone={() => { const removed=modal.kind==='delete-folder' || modal.kind==='manage-folder'; const target=modal.folderId; setModal(null); setPicks([]); if(removed&&target===folder)go('library','all') }} />}
   </div>
 }
