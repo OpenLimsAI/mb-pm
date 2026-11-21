@@ -66,6 +66,7 @@ from app.db.base import Base
 from app.db.session import SessionLocal, engine
 from app.middleware.notes_embed import notes_frame_ancestors
 from app.middleware.request_limits import RequestLimitsMiddleware
+from app.middleware.upload_trace import UploadTraceMiddleware
 from app.models import User
 from app.services.background_workers import running_workers
 
@@ -354,6 +355,10 @@ async def prevent_auth_response_caching(request, call_next):
         response.headers["Cache-Control"] = "no-store"
         response.headers["Referrer-Policy"] = "no-referrer"
     return response
+
+
+# Observe the final upload response without adding headers or consuming its body.
+app.add_middleware(UploadTraceMiddleware)
 
 
 # —— 健康检查 —— #

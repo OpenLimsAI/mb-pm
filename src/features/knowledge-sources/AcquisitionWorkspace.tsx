@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Check, FileText, FileUp, X } from 'lucide-react'
 import { sourceError, findInboxFolder, type SourceFolder } from './api'
 import { LocalFileReadFailure, snapshotLocalPdf } from './upload-file'
+import { summarizeUploadFailure, uploadByteCount, type UploadAttempt, type UploadDiagnostic } from './upload-diagnostics'
 import './acquisition-v3.css'
 
 interface UploadReceipt {ruleFiling?:{undoTokens?:string[];error?:string}[];registered?:boolean;indexStatus?:string;textExtracted?:boolean}
@@ -25,6 +26,7 @@ export default function AcquisitionWorkspace({folders,initialFolderId,canManage,
   const [{ files, skipped }, setSelection] = useState<UploadSelection>({ files: [], skipped: [] })
   const [uploadResult,setUploadResult]=useState(''),[uploadReceipts,setUploadReceipts]=useState<(UploadReceipt&{name:string})[]>([]),[dragging,setDragging]=useState(false)
   const [uploadProgress,setUploadProgress]=useState<UploadProgress|null>(null)
+  const [uploadDiagnostic, setUploadDiagnostic] = useState<UploadDiagnostic | null>(null)
   const pending=useRef<AbortController|null>(null)
   const [localReadFailed,setLocalReadFailed]=useState(false)
   useEffect(()=>()=>pending.current?.abort(),[])
@@ -46,29 +48,40 @@ export default function AcquisitionWorkspace({folders,initialFolderId,canManage,
     setError('')
     setLocalReadFailed(false)
     setUploadProgress(null)
+    setUploadDiagnostic(null)
   }
   async function upload() {
     if(busy || !files.length || !canManage)return
     if(!targetExists){setError('所选文件夹已不存在，请重新选择。');return}
-    setBusy(true);setError('');setUploadResult('');setUploadReceipts([]);setUploadProgress(null);setLocalReadFailed(false)
+    setBusy(true);setError('');setUploadResult('');setUploadReceipts([]);setUploadProgress(null);setLocalReadFailed(false);setUploadDiagnostic(null)
     const controller=new AbortController();pending.current=controller;let done=0;const batchUndoTokens:string[]=[]
+    let currentAttempt: UploadAttempt | null = null
+    let startedAt = 0
     try{
       const {knowledgeV3Upload}=await import('./v3-api')
       for(const file of files){
         if(controller.signal.aborted)break
         const current=done+1
+        currentAttempt = null
         setUploadProgress({name:file.name,index:current,total:files.length,confirmed:done,percent:null,phase:'reading'})
         const snapshot=await snapshotLocalPdf(file,controller.signal)
         if(controller.signal.aborted)break
         setUploadProgress({name:file.name,index:current,total:files.length,confirmed:done,percent:null,phase:'uploading'})
         const data=new FormData();data.append('file',snapshot);data.append('folderId',folderId);data.append('parse','false')
+        const trace = Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('')
+        const attempt: UploadAttempt = { trace, stage: 'uploading', loadedBytes: null, totalBytes: null }
+        currentAttempt = attempt
+        startedAt = performance.now()
         let acceptingProgress=true
         let receipt:UploadReceipt
         try{
-          receipt=await knowledgeV3Upload<UploadReceipt>('/upload',data,controller.signal,event=>{
+          receipt=await knowledgeV3Upload<UploadReceipt>(`/upload?upload_trace=${attempt.trace}`,data,controller.signal,event=>{
             if(controller.signal.aborted||!acceptingProgress)return
             const total=event.total
             const percent=typeof total==='number'&&Number.isFinite(total)&&total>0&&Number.isFinite(event.loaded)?Math.min(100,Math.max(0,Math.floor(event.loaded/total*100))):null
+            attempt.loadedBytes = uploadByteCount(event.loaded)
+            attempt.totalBytes = uploadByteCount(total)
+            if (percent === 100) attempt.stage = 'processing'
             setUploadProgress(previous=>previous?.index===current&&previous.phase==='uploading'?{...previous,percent,phase:percent===100?'processing':'uploading'}:previous)
           })
         }finally{acceptingProgress=false}
@@ -79,7 +92,15 @@ export default function AcquisitionWorkspace({folders,initialFolderId,canManage,
       }
       if(!controller.signal.aborted)setSelection(previous => ({ ...previous, files: [] }))
     }catch(e){
-      if(!controller.signal.aborted){const local=e instanceof LocalFileReadFailure;setLocalReadFailed(local);setError(local?e.message:`${sourceError(e)} 已确认保存 ${done} 份，其余文件可重试。`);setUploadProgress(previous=>previous?{...previous,phase:'failed'}:previous)}
+      if (!controller.signal.aborted) {
+        const local = e instanceof LocalFileReadFailure
+        setLocalReadFailed(local)
+        setError(local ? e.message : `${sourceError(e)} 已确认保存 ${done} 份，其余文件可重试。`)
+        if (!local && currentAttempt) {
+          setUploadDiagnostic(summarizeUploadFailure(e, currentAttempt, performance.now() - startedAt))
+        }
+        setUploadProgress(previous => previous ? { ...previous, phase: 'failed' } : previous)
+      }
       setSelection(previous => ({ ...previous, files: previous.files.slice(done) }))
     }finally{if(done>0)onImported?.();if(batchUndoTokens.length)onUndoTokens?.(batchUndoTokens);setBusy(false)}
   }
@@ -87,6 +108,19 @@ export default function AcquisitionWorkspace({folders,initialFolderId,canManage,
   return <section className="kso-v3-acquire kso-simple-acquire" aria-label="统一添加资料">
     <div className="kso-v3-heading"><h2>上传 PDF</h2><div className="kso-actions">{onAutoImport&&<button type="button" className="kso-btn quiet" disabled={busy||!canManage||!targetExists} onClick={()=>onAutoImport(chosenFolderId || undefined)}>从文件夹自动导入</button>}{onClose&&<button type="button" className="kso-btn quiet" aria-label="关闭添加资料" disabled={busy} onClick={onClose}>返回</button>}</div></div>
     {error&&<p role="alert" className="kso-error">{error}</p>}
+    {uploadDiagnostic && <details className="kso-v3-upload-diagnostic">
+      <summary>查看技术摘要</summary>
+      <dl>
+        <dt>追踪编号</dt><dd>{uploadDiagnostic.trace}</dd>
+        <dt>失败阶段</dt><dd>{uploadDiagnostic.stage === 'processing' ? '等待服务器回执' : '上传文件'}</dd>
+        <dt>当前文件耗时</dt><dd>{uploadDiagnostic.elapsedSeconds} 秒</dd>
+        <dt>错误代码</dt><dd>{uploadDiagnostic.code}</dd>
+        <dt>HTTP 状态</dt><dd>{uploadDiagnostic.status ?? '未收到HTTP回执'}</dd>
+        <dt>已报告发送字节</dt><dd>{uploadDiagnostic.loadedBytes === null ? '未报告' : `${uploadDiagnostic.loadedBytes} B`}</dd>
+        <dt>请求总字节</dt><dd>{uploadDiagnostic.totalBytes === null ? '未报告' : `${uploadDiagnostic.totalBytes} B`}</dd>
+      </dl>
+      <small>字节进度由浏览器报告。可提供追踪编号，核对服务器是否已处理。</small>
+    </details>}
       <div className={`kso-v3-drop ${dragging?'is-over':''}`} onDragOver={e=>{e.preventDefault();if(!busy&&canManage)setDragging(true)}} onDragLeave={()=>setDragging(false)} onDrop={e=>{e.preventDefault();setDragging(false);if(!busy&&canManage)chooseFiles(e.dataTransfer.files)}}><FileUp size={24}/><div><strong>将 PDF 拖到这里</strong><small>每次最多 {MAX_FILES} 份 · 每份不超过 {MAX_FILE_MB} MB</small></div><label className="kso-btn">选择文件<input type="file" accept="application/pdf,.pdf" multiple disabled={busy||!canManage} onChange={e=>{chooseFiles(e.target.files);e.target.value=''}}/></label></div>
       {skipped.length > 0 && <div className="kso-error" role="status">
         <strong>本次有 {skipped.length} 份文件未加入</strong>

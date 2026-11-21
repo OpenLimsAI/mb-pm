@@ -2,6 +2,7 @@
 
 import ast
 import importlib.util
+import logging
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -126,8 +127,11 @@ def test_existing_database_upgrades_without_losing_ai_evidence(
             apply(connection, "030")
             seed_agent_evidence(connection)
     config = migration_config()
+    upload_logger = logging.getLogger("cmc-pms.upload")
+    monkeypatch.setattr(upload_logger, "disabled", False)
     command.stamp(config, starting_revision)
     command.upgrade(config, "032")
+    assert not upload_logger.disabled
     command.upgrade(config, "032")
     with engine.begin() as connection:
         assert connection.scalar(sa.text("SELECT version_num FROM alembic_version")) == "032"

@@ -105,15 +105,37 @@ describe('knowledge source unified intake',()=>{
   try{
    const {container}=render(<AcquisitionWorkspace folders={folders} initialFolderId="topic" canManage/>)
    fireEvent.change(container.querySelector('input[type=file]')!,{target:{files:[new File(['%PDF-1.7'],'cloud.pdf')]}});fireEvent.click(screen.getByRole('button',{name:'上传 1 份 PDF'}))
-   expect(await screen.findByRole('alert')).toHaveTextContent('请先下载到本机，再重新选择。');expect(screen.getByText('本地文件未就绪，尚未上传。')).toBeInTheDocument();expect(api.upload).not.toHaveBeenCalled();expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+   expect(await screen.findByRole('alert')).toHaveTextContent('请先下载到本机，再重新选择。');expect(screen.getByText('本地文件未就绪，尚未上传。')).toBeInTheDocument();expect(api.upload).not.toHaveBeenCalled();expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();expect(screen.queryByText('查看技术摘要')).not.toBeInTheDocument()
   }finally{read.mockRestore()}
+ })
+ it('does not attach a previous upload trace to a later local file read failure', async () => {
+  const readNormally = FileReader.prototype.readAsArrayBuffer
+  const read = vi.spyOn(FileReader.prototype, 'readAsArrayBuffer')
+    .mockImplementationOnce(function(this: FileReader, blob) { readNormally.call(this, blob) })
+    .mockImplementationOnce(function(this: FileReader) {
+      Object.defineProperty(this, 'error', { value: new DOMException('local fixture error', 'NotReadableError') })
+      this.dispatchEvent(new ProgressEvent('error'))
+    })
+  try {
+    const onImported = vi.fn()
+    const { container } = render(<AcquisitionWorkspace folders={folders} canManage onImported={onImported}/>)
+    const files = [new File(['%PDF-1.7'], 'first.pdf'), new File(['%PDF-1.7'], 'cloud.pdf')]
+    fireEvent.change(container.querySelector('input[type=file]')!, { target: { files } })
+    fireEvent.click(screen.getByRole('button', { name: '上传 2 份 PDF' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('请先下载到本机')
+    expect(api.upload).toHaveBeenCalledOnce()
+    expect(onImported).toHaveBeenCalledOnce()
+    expect(screen.queryByText('查看技术摘要')).not.toBeInTheDocument()
+  } finally {
+    read.mockRestore()
+  }
  })
  it('uses the shared upload bridge and leaves indexing off by default',async()=>{
   const refresh=vi.fn();const {container}=render(<AcquisitionWorkspace folders={folders} initialFolderId="topic" canManage onImported={refresh}/>)
   const input=container.querySelector('input[type=file]')!;const file=new File(['%PDF-1.7'],'study.pdf',{type:'application/pdf'});fireEvent.change(input,{target:{files:[file]}})
   expect(screen.getByLabelText('收录目标文件夹')).toHaveValue('topic');fireEvent.click(screen.getByRole('button',{name:'上传 1 份 PDF'}))
   await waitFor(()=>expect(api.upload).toHaveBeenCalledOnce());const [path,body]=api.upload.mock.calls[0] as [string,FormData]
-  expect(path).toBe('/upload');expect(body.get('file')).not.toBe(file);expect(body.get('file')).toMatchObject({name:file.name,size:file.size,type:file.type});expect(body.get('folderId')).toBe('topic');expect(body.has('noFolder')).toBe(false);expect(body.get('parse')).toBe('false')
+  expect(path).toMatch(/^\/upload\?upload_trace=[0-9a-f]{32}$/);expect(body.get('file')).not.toBe(file);expect(body.get('file')).toMatchObject({name:file.name,size:file.size,type:file.type});expect(body.get('folderId')).toBe('topic');expect(body.has('noFolder')).toBe(false);expect(body.get('parse')).toBe('false')
   await waitFor(()=>expect(refresh).toHaveBeenCalledOnce())
  })
  it('preserves a confirmed upload and its undo receipt when the next upload fails, refreshing once',async()=>{
@@ -129,10 +151,18 @@ describe('knowledge source unified intake',()=>{
   expect(api.upload.mock.calls.map(([,body])=>(body as FormData).get('parse'))).toEqual(['false','false'])
  })
  it('retains the first failed file without implying it was not saved or refreshing a confirmed success',async()=>{
-  const refresh=vi.fn();api.upload.mockRejectedValueOnce({isAxiosError:true,code:'ETIMEDOUT'})
+  const refresh=vi.fn();api.upload.mockRejectedValueOnce({isAxiosError:true,code:'ETIMEDOUT', message:'private-file-name.pdf',config:{url:'private-url'}})
   const {container}=render(<AcquisitionWorkspace folders={folders} initialFolderId="topic" canManage onImported={refresh}/>)
   const file=new File(['%PDF-1.7'],'uncertain.pdf',{type:'application/pdf'});fireEvent.change(container.querySelector('input[type=file]')!,{target:{files:[file]}});fireEvent.click(screen.getByRole('button',{name:'上传 1 份 PDF'}))
   expect(await screen.findByRole('alert')).toHaveTextContent('响应超时')
+  const trace = new URL(api.upload.mock.calls[0][0], 'https://fixture.test').searchParams.get('upload_trace')!
+  const summary = screen.getByText('查看技术摘要').parentElement!
+  expect(summary).toHaveTextContent(trace)
+  expect(summary).toHaveTextContent('未收到HTTP回执')
+  expect(summary).toHaveTextContent('未报告')
+  expect(summary).toHaveTextContent('ETIMEDOUT')
+  expect(summary).not.toHaveTextContent('private')
+  expect(summary).not.toHaveTextContent('uncertain.pdf')
   expect(screen.getByText('uncertain.pdf',{selector:'.kso-intake-file span'})).toBeInTheDocument();expect(screen.getByRole('button',{name:'上传 1 份 PDF'})).toBeEnabled();expect(refresh).not.toHaveBeenCalled()
  })
  it('shows real network upload progress, then waits for the save receipt instead of declaring success at 100%',async()=>{
@@ -159,9 +189,18 @@ describe('knowledge source unified intake',()=>{
   act(()=>requests[0].progress(progressEvent(100,100)));expect(bar).not.toHaveAttribute('value')
   act(()=>requests[1].progress(progressEvent(30)));expect(bar).not.toHaveAttribute('value');expect(screen.getByText('正在上传…')).toBeInTheDocument()
   act(()=>requests[1].progress(progressEvent(40,100)));expect(bar).toHaveAttribute('value','40')
+  const traces = api.upload.mock.calls.map(([path]) => new URL(path, 'https://fixture.test').searchParams.get('upload_trace')!)
+  expect(new Set(traces).size).toBe(2)
+  expect(traces.every(trace => /^[0-9a-f]{32}$/.test(trace))).toBe(true)
+  act(() => requests[1].progress(progressEvent(100, 100)))
   await act(async()=>requests[1].reject({isAxiosError:true,code:'ETIMEDOUT'}))
+  const summary = screen.getByText('查看技术摘要').parentElement!
+  expect(summary).toHaveTextContent(traces[1])
+  expect(summary).not.toHaveTextContent(traces[0])
+  expect(summary).toHaveTextContent('等待服务器回执')
+  expect(summary).toHaveTextContent('100 B')
   expect(screen.getByRole('alert')).toHaveTextContent('已确认保存 1 份');expect(screen.getByText('保存结果待确认，请核对后重试。')).toBeInTheDocument();expect(screen.getByRole('button',{name:'上传 1 份 PDF'})).toBeEnabled();expect(screen.getByText('first-progress.pdf',{selector:'strong'})).toBeInTheDocument();expect(refresh).toHaveBeenCalledOnce();expect(undo).toHaveBeenCalledExactlyOnceWith(['progress-undo'])
-  act(()=>requests[1].progress(progressEvent(100,100)));expect(bar).toHaveAttribute('value','40')
+  act(()=>requests[1].progress(progressEvent(10,100)));expect(bar).toHaveAttribute('value','100')
  })
  it('aborts the current upload on close without starting another file or confirming a save',async()=>{
   const refresh=vi.fn();let signal!:AbortSignal,progress!:(event:AxiosProgressEvent)=>void
