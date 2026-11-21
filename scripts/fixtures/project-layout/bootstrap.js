@@ -3,6 +3,7 @@ export async function bootstrap() {}
 export async function refreshAllData() {}
 export function watchIdentity() { return () => {} }
 const forbidden = async () => { throw new Error('Business writes are disabled in the layout fixture') }
+export const refreshAfterWrite = forbidden
 export const updateTaskProgress = forbidden
 export const updateTasksBatch = forbidden
 export const updateProjectFinanceEntry = forbidden
