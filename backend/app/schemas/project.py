@@ -33,6 +33,7 @@ class ProjectCreate(ProjectBase):
 
 
 class ProjectUpdate(DatedInput):
+    expected_revision: int | None = Field(default=None, ge=1)
     name: str | None = None
     owner_id: str | None = None
     member_ids: list[str] | None = None
@@ -86,6 +87,7 @@ class ProjectCopyIn(BaseModel):
 class ProjectOut(ProjectBase):
     model_config = ConfigDict(from_attributes=True)
     id: str
+    revision: int = 1
     progress_method: Literal["equal", "effort", "custom"] = "equal"
 
     @classmethod
@@ -93,6 +95,7 @@ class ProjectOut(ProjectBase):
         """从 SQLAlchemy 实例构造，自动展开 member_ids。"""
         return cls(
             id=project.id,
+            revision=project.revision,
             code=project.code,
             name=project.name,
             product_type=project.product_type,

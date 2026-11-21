@@ -8,7 +8,7 @@ import { useAuth } from '../../store/auth'
 import { useDataStore } from '../../store/data'
 import { users } from '../../mock'
 
-vi.mock('../../api/pmAI', () => ({ pmAI: { context: vi.fn(), list: vi.fn(), get: vi.fn(), create: vi.fn(), resume: vi.fn(), cancel: vi.fn(), plan: vi.fn(), triage: vi.fn(), preview: vi.fn(), apply: vi.fn(), receipts: vi.fn() } }))
+vi.mock('../../api/pmAI', () => ({ pmAI: { context: vi.fn(), list: vi.fn(), get: vi.fn(), create: vi.fn(), resume: vi.fn(), cancel: vi.fn(), plan: vi.fn(), triage: vi.fn(), preview: vi.fn(), apply: vi.fn(), reviewContext: vi.fn(), receipts: vi.fn() } }))
 vi.mock('../../data/bootstrap', () => ({ refreshAllData: vi.fn().mockResolvedValue(undefined) }))
 
 const source: PMAIRun['source'] = { schemaVersion: 1, asOf: '2026-11-15', complete: true, refs: [{ id: 'task:T1', type: 'task', entityId: 'T1', title: '试验任务', href: '/projects/P1?task=T1', observedAt: '2026-11-15', revision: 1 }] }
@@ -35,6 +35,7 @@ beforeEach(() => {
   vi.mocked(pmAI.preview).mockReset()
   vi.mocked(pmAI.apply).mockReset()
   vi.mocked(pmAI.context).mockResolvedValue(context)
+  vi.mocked(pmAI.reviewContext).mockResolvedValue(context)
   vi.mocked(pmAI.list).mockResolvedValue({ items: [], total: 0 })
   vi.mocked(pmAI.receipts).mockResolvedValue([])
   sessionStorage.clear()
@@ -293,27 +294,51 @@ function mockPreview() {
   vi.mocked(pmAI.preview).mockImplementation(async (_id, actions) => ({ actions, confirmationToken: `token-${actions[0].notes}`, expiresAt: new Date(Date.now() + 60_000).toISOString(), changes: actions.map((action, index) => ({ kind: action.kind, entityId: `T${index}`, title: action.notes ?? '任务', before: { notes: '' }, after: { notes: action.notes }, evidenceIds: action.evidenceIds })) }))
 }
 
+test('大报告不依赖全量上下文，按当前批次加载核对对象且失败可重试', async () => {
+  vi.mocked(pmAI.reviewContext).mockRejectedValueOnce(new Error('temporary read failure')).mockResolvedValue(context)
+  render(<MemoryRouter><PMAIActions run={manyActions()} context={null} userId="owner" disabled={false} /></MemoryRouter>)
+  expect(pmAI.preview).not.toHaveBeenCalled()
+  fireEvent.click(await screen.findByRole('button', { name: '重新读取核对对象' }))
+  expect(await screen.findByRole('button', { name: '预览操作差异' })).toBeEnabled()
+  expect(pmAI.reviewContext).toHaveBeenLastCalledWith('W1', 0)
+  fireEvent.change(screen.getByRole('combobox', { name: '操作批次' }), { target: { value: '2' } })
+  expect(await screen.findByRole('button', { name: '预览操作差异' })).toBeEnabled()
+  expect(pmAI.reviewContext).toHaveBeenLastCalledWith('W1', 2)
+  expect(pmAI.apply).not.toHaveBeenCalled()
+})
+
+test('原报告仍可读取但核对对象删除时，已应用回执和原确认重试仍保留', async () => {
+  vi.mocked(pmAI.reviewContext).mockRejectedValue(new Error('建议对象已删除或不再可见'))
+  vi.mocked(pmAI.receipts).mockResolvedValue([{ receiptId: 'existing', replayed: false, verified: true, createdAt: '2026-11-18T00:00:00Z', results: [{ kind: 'task_update', entityId: 'T1', title: '已完成的原修改', href: '/projects/P1' }] }])
+  const preview = { actions: manyActions().result!.draftActions.slice(0, 12), changes: [], confirmationToken: 'original-uncertain', expiresAt: new Date(Date.now() - 1000).toISOString() }
+  sessionStorage.setItem('pm-ai-confirmation:owner:W1', JSON.stringify({ preview }))
+  render(<MemoryRouter><PMAIActions run={manyActions()} context={null} userId="owner" disabled={false} /></MemoryRouter>)
+  expect(await screen.findByText('已应用记录（1）')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '重试本次确认' })).toBeEnabled()
+  expect(pmAI.apply).not.toHaveBeenCalled()
+})
+
 test('25项会议修改全部按12/12/1分批核对，切换保留编辑且不会提交超限或自动写入', async () => {
   mockPreview()
   render(<MemoryRouter><PMAIActions run={manyActions()} context={context} userId="owner" disabled={false} /></MemoryRouter>)
   expect(screen.getByText('共 25 项待核对修改，分 3 批处理；每批最多 12 项，分别预览并确认。')).toBeVisible()
   const batch = screen.getByRole('combobox', { name: '操作批次' })
   expect(screen.getByRole('option', { name: '第3批（25–25项）' })).toBeInTheDocument()
-  expect(screen.getAllByRole('checkbox')).toHaveLength(12)
+  expect(await screen.findAllByRole('checkbox')).toHaveLength(12)
   expect(screen.getByRole('button', { name: '添加操作' })).toBeDisabled()
   fireEvent.change(screen.getAllByRole('textbox', { name: '操作原因' })[0], { target: { value: '保留本地修改' } })
-  fireEvent.click(screen.getByRole('button', { name: '预览操作差异' }))
+  fireEvent.click(await screen.findByRole('button', { name: '预览操作差异' }))
   await waitFor(() => expect(pmAI.preview).toHaveBeenCalledOnce())
   expect(vi.mocked(pmAI.preview).mock.calls[0][1]).toHaveLength(12)
   expect(vi.mocked(pmAI.preview).mock.calls[0][1][0].reason).toBe('保留本地修改')
   fireEvent.change(batch, { target: { value: '1' } })
-  expect(screen.getAllByRole('checkbox')).toHaveLength(12)
-  fireEvent.click(screen.getByRole('button', { name: '预览操作差异' }))
+  expect(await screen.findAllByRole('checkbox')).toHaveLength(12)
+  fireEvent.click(await screen.findByRole('button', { name: '预览操作差异' }))
   await waitFor(() => expect(pmAI.preview).toHaveBeenCalledTimes(2))
   expect(vi.mocked(pmAI.preview).mock.calls[1][1][0].notes).toBe('修改13')
   fireEvent.change(batch, { target: { value: '2' } })
-  expect(screen.getAllByRole('checkbox')).toHaveLength(1)
-  fireEvent.click(screen.getByRole('button', { name: '预览操作差异' }))
+  expect(await screen.findAllByRole('checkbox')).toHaveLength(1)
+  fireEvent.click(await screen.findByRole('button', { name: '预览操作差异' }))
   await waitFor(() => expect(pmAI.preview).toHaveBeenCalledTimes(3))
   expect(vi.mocked(pmAI.preview).mock.calls[2][1]).toHaveLength(1)
   expect(vi.mocked(pmAI.preview).mock.calls[2][1][0].notes).toBe('修改25')
@@ -326,11 +351,11 @@ test('不同批次的待确认token隔离，回到首批只显式重试其原确
   mockPreview()
   vi.mocked(pmAI.apply).mockRejectedValueOnce(new Error('network timeout')).mockResolvedValueOnce({ receiptId: 'receipt-first', replayed: true, results: [], verified: true })
   render(<MemoryRouter><PMAIActions run={manyActions()} context={context} userId="owner" disabled={false} /></MemoryRouter>)
-  fireEvent.click(screen.getByRole('button', { name: '预览操作差异' }))
+  fireEvent.click(await screen.findByRole('button', { name: '预览操作差异' }))
   fireEvent.click(await screen.findByRole('button', { name: '确认应用 12 项操作' }))
   await screen.findByRole('button', { name: '重试本次确认' })
   fireEvent.change(screen.getByRole('combobox', { name: '操作批次' }), { target: { value: '1' } })
-  fireEvent.click(screen.getByRole('button', { name: '预览操作差异' }))
+  fireEvent.click(await screen.findByRole('button', { name: '预览操作差异' }))
   await screen.findByRole('button', { name: '确认应用 12 项操作' })
   expect(pmAI.apply).toHaveBeenCalledExactlyOnceWith('W1', 'token-修改1')
   fireEvent.change(screen.getByRole('combobox', { name: '操作批次' }), { target: { value: '0' } })
@@ -341,9 +366,9 @@ test('不同批次的待确认token隔离，回到首批只显式重试其原确
 
 test('未保存进展时所有批次的预览和确认都不可执行', async () => {
   render(<MemoryRouter><PMAIActions run={manyActions()} context={context} userId="owner" disabled /></MemoryRouter>)
-  expect(screen.getByRole('button', { name: '预览操作差异' })).toBeDisabled()
+  expect(await screen.findByRole('button', { name: '预览操作差异' })).toBeDisabled()
   fireEvent.change(screen.getByRole('combobox', { name: '操作批次' }), { target: { value: '2' } })
-  expect(screen.getByRole('button', { name: '预览操作差异' })).toBeDisabled()
+  expect(await screen.findByRole('button', { name: '预览操作差异' })).toBeDisabled()
   expect(pmAI.preview).not.toHaveBeenCalled()
   expect(pmAI.apply).not.toHaveBeenCalled()
 })

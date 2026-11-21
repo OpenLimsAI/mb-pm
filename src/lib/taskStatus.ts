@@ -1,5 +1,7 @@
 import type { TaskStatus } from '../types'
 
+export const TASK_STATUSES: TaskStatus[] = ['未开始', '进行中', '阻塞', '延迟', '已完成', '已验证']
+
 export const PRIMARY_TASK_STATUSES = ['未开始', '进行中', '已完成', '已验证'] as const
 
 /** 阻塞、延迟沿用现有存储状态，在主流程中属于进行中。 */

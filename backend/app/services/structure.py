@@ -28,6 +28,7 @@ from app.models.task import TASK_WBS_ORDER
 from app.schemas.structure import StructureSaveIn
 from app.services.finance import finance_view, task_cost_totals, update_finance
 from app.services.rollup import live_span, recompute_project, recompute_subproject
+from app.services.task_state import task_state_patch
 from app.services.team import ADD_FIRST, team_ids
 
 ACTIVITY_FIELDS = ("name", "owner_id", "planned_start", "planned_end")
@@ -202,6 +203,9 @@ def _find_cycle(edges: set[tuple[str, str]], names: dict[str, str]) -> list[str]
 
 
 def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor: User) -> dict:
+    from app.services.dependency_graph import lock_dependency_graph, validate_dependency_changes
+
+    lock_dependency_graph(db)
     # 串行化同一项目的并发保存（PostgreSQL 行锁；SQLite 忽略）
     db.query(Project).filter_by(id=project.id).with_for_update().first()
     subs, tasks, deps = _load(db, project.id)
@@ -404,6 +408,8 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
         }
         if task.id is not None:
             obj = task_by_id[task.id]
+            if obj.is_milestone != values["is_milestone"]:
+                task_state_patch(obj, {"is_milestone": values["is_milestone"]})
             if project.progress_method != "equal" and (
                 obj.estimated_effort != values["estimated_effort"]
                 or obj.is_milestone != values["is_milestone"]
@@ -486,6 +492,11 @@ def apply_structure(db: Session, project: Project, body: StructureSaveIn, actor:
         else:
             db.delete(dep)
             removed_deps += 1
+    # Flush deletions first; the shared check includes paths through other projects.
+    db.flush()
+    validate_dependency_changes(
+        db, [(pred, succ, "FS", 0) for pred, succ in sorted(desired - kept)]
+    )
     for pred, succ in sorted(desired - kept):
         db.add(
             TaskDependency(

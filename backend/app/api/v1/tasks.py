@@ -32,7 +32,7 @@ from app.db.session import get_db
 from app.models import AuditLog, Project, SubProject, Task, User
 from app.models.task_collaboration import TaskAcceptance
 from app.schemas.business_values import validate_date_patch
-from app.schemas.common import Page, PageMeta
+from app.schemas.common import Page, PageMeta, list_snapshot
 from app.schemas.task import TaskCreate, TaskOut, TaskUpdate
 from app.services.rollup import recompute_project, recompute_subproject, rollup_for_task
 from app.services.scope import (
@@ -42,6 +42,7 @@ from app.services.scope import (
     visible_task_ids_for,
 )
 from app.services.task_order import next_sort_order
+from app.services.task_state import task_state_patch
 from app.services.team import ensure_in_team
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -92,6 +93,7 @@ def list_tasks(
     keyword: str | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    consistent: bool = False,
 ):
     q = db.query(Task)
 
@@ -121,12 +123,21 @@ def list_tasks(
         like = f"%{keyword}%"
         q = q.filter(or_(Task.code.ilike(like), Task.name.ilike(like)))
 
-    total = q.count()
-    items = q.order_by(Task.planned_start).offset((page - 1) * page_size).limit(page_size).all()
+    ordered = q.order_by(Task.planned_start, Task.id)
+    offset = (page - 1) * page_size
+    snapshot = None
+    if consistent:
+        ids = [row.id for row in ordered.with_entities(Task.id)]
+        total = len(ids)
+        snapshot = list_snapshot(ids) if total > page_size else None
+        items = ordered.filter(Task.id.in_(ids[offset : offset + page_size])).all()
+    else:
+        total = q.count()
+        items = ordered.offset(offset).limit(page_size).all()
 
     return Page[TaskOut](
         items=[TaskOut.model_validate(t) for t in items],
-        meta=PageMeta(page=page, page_size=page_size, total=total),
+        meta=PageMeta(page=page, page_size=page_size, total=total, snapshot=snapshot),
     )
 
 
@@ -239,7 +250,9 @@ def update_task_record(task_id: str, payload: TaskUpdate, db: Session, user: Use
                 "current": TaskOut.model_validate(task).model_dump(mode="json"),
             },
         )
-    changes = payload.model_dump(exclude_unset=True, exclude={"expected_revision", "progress_note"})
+    changes = task_state_patch(
+        task, payload.model_dump(exclude_unset=True, exclude={"expected_revision", "progress_note"})
+    )
     acceptance = db.get(TaskAcceptance, task.id)
     if (
         changes.get("status") == "已验证"

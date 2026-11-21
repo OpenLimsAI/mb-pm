@@ -25,10 +25,13 @@ interface Props {
 export function ProjectMembersDrawer({ project, onClose }: Props) {
   const mode = useDataStore((s) => s.mode)
   const owner = findUser(project.ownerId)
+  const [base, setBase] = useState(project)
+  const [observedRevision, setObservedRevision] = useState(project.revision)
+  const [conflict, setConflict] = useState(false)
 
   const initial = useMemo(
-    () => new Set((project.memberIds || []).filter((id) => id !== project.ownerId)),
-    [project.memberIds, project.ownerId],
+    () => new Set((base.memberIds || []).filter((id) => id !== base.ownerId)),
+    [base.memberIds, base.ownerId],
   )
   const [selected, setSelected] = useState<Set<string>>(() => new Set(initial))
   const [keyword, setKeyword] = useState('')
@@ -65,13 +68,20 @@ export function ProjectMembersDrawer({ project, onClose }: Props) {
 
   const dirty = selected.size !== initial.size || [...selected].some((id) => !initial.has(id))
 
+  if (project.revision !== observedRevision) {
+    setObservedRevision(project.revision)
+    if (dirty) setConflict(true)
+    else { setBase(project); setSelected(new Set((project.memberIds ?? []).filter(id => id !== project.ownerId))) }
+  }
+
   const teamSize = new Set([...selected, ...taskLoad.keys()]).size + (owner ? 1 : 0)
 
   const save = async () => {
+    if (conflict) return
     setSaving(true)
     setError(null)
     try {
-      await updateProjectMembers(project.id, [...selected])
+      await updateProjectMembers(project.id, [...selected], base.revision)
       onClose()
     } catch (e) {
       console.error(e)
@@ -105,6 +115,11 @@ export function ProjectMembersDrawer({ project, onClose }: Props) {
           </button>
         </div>
 
+        {conflict && <div role="alert" className="mx-5 mt-4 p-3 text-xs bg-amber-50 text-amber-900">
+          项目资料或团队已更新，你的成员选择已保留。最新成员：{(project.memberIds ?? []).map(id => findUser(id)?.displayName ?? id).join('、') || '无'}。
+          <button type="button" className="underline ml-2" onClick={() => { setBase(project); setSelected(new Set((project.memberIds ?? []).filter(id => id !== project.ownerId))); setConflict(false); setError(null) }}>使用最新成员</button>
+          <button type="button" className="underline ml-2" onClick={() => { setBase(project); setConflict(false); setError(null) }}>核对后保留我的选择</button>
+        </div>}
         {/* Body */}
         <div className="flex-1 px-5 py-4 space-y-4">
           {/* 负责人（锁定） */}
@@ -196,7 +211,7 @@ export function ProjectMembersDrawer({ project, onClose }: Props) {
           <Button
             variant="primary" size="sm"
             icon={saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-            disabled={saving || !dirty}
+            disabled={saving || !dirty || conflict}
             onClick={save}
           >
             {saving ? '保存中…' : '保存成员'}

@@ -222,7 +222,7 @@ function AssistantPanel({ projectId, taskId, taskSnapshot, userId, disabled, sta
         return
       }
       if (value.scenario === 'priorities') {
-        const result = await pmAI.triage(requestedScope, value.limit, !!value.mineOnly, value.taskFilter ?? 'attention')
+        const result = await pmAI.triage(requestedScope, value.limit, !!value.mineOnly, value.taskFilter ?? 'attention', ...(value.ownerId || value.priority || value.startDate ? [{ ownerId: value.ownerId, priority: value.priority, startDate: value.startDate, endDate: value.endDate }] : []))
         if (validAttempt(attempt)) { setTriage({ result, scope: requestedScope, question: fullText }); setPlan(null); setDraft('') }
         return
       }
@@ -326,6 +326,7 @@ function AssistantPanel({ projectId, taskId, taskSnapshot, userId, disabled, sta
       </section>}
       {triage && <section aria-label="任务查询结果" className="space-y-3">
         <h3 className="font-medium">{triage.result.totalCandidates ? `找到${triage.result.totalCandidates}项符合条件的任务，当前显示${triage.result.items.length}项` : '当前范围内没有符合条件的任务'}</h3>
+        {triage.result.filters && <p className="text-xs text-ink-600">筛选条件：{[triage.result.filters.ownerName ? `负责人 ${triage.result.filters.ownerName}` : '', triage.result.filters.priority ? `优先级 ${triage.result.filters.priority}` : '', triage.result.filters.startDate ? `计划完成 ${triage.result.filters.startDate} 至 ${triage.result.filters.endDate}` : ''].filter(Boolean).join(' · ') || '当前任务状态'}</p>}
         <ul className="divide-y divide-ink-200">{triage.result.items.map(item => <li key={item.taskId} className="space-y-1 py-3">
           <Evidence evidence={{ id: item.taskId, type: 'task', entityId: item.taskId, title: `${item.code} · ${item.name}`, href: item.href, observedAt: triage.result.businessDate }} />
           <p className="break-words text-xs text-ink-600">{item.projectName} · {item.ownerName} · 计划完成{item.plannedEnd} · {item.status}</p><p className="text-xs text-ink-700">{item.reasons.join(' · ')}</p>
@@ -334,6 +335,7 @@ function AssistantPanel({ projectId, taskId, taskSnapshot, userId, disabled, sta
         <details><summary className="cursor-pointer text-xs text-ink-500">查看资料范围</summary><p className="mt-2 text-xs text-ink-500">{scopeLabel(triage.scope, context)} · 业务日期{triage.result.businessDate} · 按当前账号权限读取任务和日期规则。</p></details>
       </section>}
       {run && <section aria-label="当前分析结果" className="space-y-4">
+        <p className="text-xs text-ink-600">资料期间：{run.request.startDate ?? '未指定'} 至 {run.request.endDate ?? '未指定'}</p>
         <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-medium">{active || run.state === 'paused' ? states[run.state] : run.state === 'succeeded' ? '整理结果' : run.state === 'cancelled' ? '这次整理已停止' : failureMessage(run).title}</h3>
           {active && <Button size="sm" disabled={busy} onClick={() => void cancel()}>{run.workflow ? '暂停处理' : '停止整理'}</Button>}
         </div>

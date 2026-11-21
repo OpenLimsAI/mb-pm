@@ -7,6 +7,7 @@ import type {
 // ============= Tasks =============
 
 export interface TasksListParams {
+  consistent?: boolean
   page?: number
   pageSize?: number
   projectId?: string

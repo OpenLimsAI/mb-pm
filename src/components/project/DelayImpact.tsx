@@ -5,7 +5,7 @@ import { Card, CardHeader, CardBody, Button } from '../ui'
 import { getProjectTasks } from '../../mock'
 import { useAuth } from '../../store/auth'
 import { useDataStore } from '../../store/data'
-import { refreshAllData } from '../../data/bootstrap'
+import { refreshAfterWrite } from '../../data/bootstrap'
 import { asAPIError } from '../../api/client'
 import { planningApi, type SchedulePreview, type WorkingCalendar } from '../../api/planning'
 import { getWorkingCalendar, moveWorkingDays } from '../../lib/workingCalendar'
@@ -34,9 +34,9 @@ export function DelayImpact({ project }: { project: Project }) {
     try {
       if (apply) {
         await planningApi.apply(project.id, { ...request, fingerprint: preview?.fingerprint, reason })
-        await refreshAllData()
+        const synced = await refreshAfterWrite()
         setPreview(null)
-        setMessage('计划已统一更新，甘特图、基线对比与人员负荷已同步。')
+        setMessage(synced ? '计划已统一更新，甘特图、基线对比与人员负荷已同步。' : '计划已保存。页面同步失败，请点击顶部重试。')
       } else setPreview(await planningApi.preview(project.id, request))
     } catch (error) { setMessage(asAPIError(error).detail); if (apply) setPreview(null) }
     finally { setPending(false) }
@@ -85,7 +85,12 @@ function CalendarEditor({ project, editable, onSaved }: { project: Project; edit
     const value = { ...calendar, holidays: splitDates(holidays), workingDates: splitDates(working) }
     if (![...value.holidays, ...value.workingDates].every(d => /^\d{4}-\d{2}-\d{2}$/.test(d) && !Number.isNaN(parseISO(d).getTime()) && format(parseISO(d), 'yyyy-MM-dd') === d)) { setMessage('请按 YYYY-MM-DD 输入有效日期，多项以逗号分隔。'); return }
     setPending(true); setMessage('')
-    try { setCalendar(await planningApi.saveCalendar(project.id, value)); await refreshAllData(); onSaved(); setMessage('工作日历已保存。现有计划日期保留；后续联动排期、关键路径和人员负荷使用本日历。') }
+    try {
+      setCalendar(await planningApi.saveCalendar(project.id, value))
+      const synced = await refreshAfterWrite()
+      onSaved()
+      setMessage(synced ? '工作日历已保存。现有计划日期保留，后续排期和负荷使用本日历。' : '工作日历已保存。页面同步失败，请点击顶部重试。')
+    }
     catch (error) { setMessage(asAPIError(error).detail) }
     finally { setPending(false) }
   }

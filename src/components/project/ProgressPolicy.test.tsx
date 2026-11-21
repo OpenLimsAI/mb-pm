@@ -6,7 +6,7 @@ import { ProgressPolicy } from './ProgressPolicy'
 import { progressPolicyApi, type ProgressPolicyResult } from '../../api/progressPolicy'
 
 vi.mock('../../store/data', () => ({ useDataStore: (selector: (state: { mode: string }) => unknown) => selector({ mode: 'api' }) }))
-vi.mock('../../data/bootstrap', () => ({ refreshAllData: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('../../data/bootstrap', () => ({ refreshAfterWrite: vi.fn().mockResolvedValue(true) }))
 vi.mock('../../api/progressPolicy', () => ({ progressPolicyApi: { get: vi.fn(), preview: vi.fn(), save: vi.fn() } }))
 const project = { id: 'p', name: '研发项目' } as Project
 const initial: ProgressPolicyResult = {

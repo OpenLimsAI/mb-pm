@@ -3,14 +3,15 @@
 import re
 import unicodedata
 from dataclasses import asdict, dataclass
-from datetime import date, timedelta
+from datetime import date
 from typing import Literal
 
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models import Project, SubProject, Task
+from app.models import Project, SubProject, Task, User
 from app.services.pm_ai_context import MANAGERS
+from app.services.pm_ai_filters import priority_filter, reporting_period
 from app.services.pm_ai_triage import TaskFilter
 from app.services.project_schedule_assist import delay_count
 from app.services.scope import visible_project_ids_for, visible_task_ids_for
@@ -56,7 +57,7 @@ SCHEDULE_FILLER = re.compile(
 
 INTENTS: dict[Scenario, str] = {
     "priorities": PRIORITIES
-    + r"|(?:逾期|延期|延迟|滞后|阻塞|受阻)(?:的)?任务|任务.{0,8}(?:逾期|延期|延迟|滞后|阻塞|受阻)|(?:哪些|有哪些|查看|列出).{0,16}(?:逾期|延期|延迟|滞后|阻塞|受阻)",
+    + r"|到期(?:的)?任务|(?:逾期|延期|延迟|滞后|阻塞|受阻)(?:的)?任务|任务.{0,8}(?:逾期|延期|延迟|滞后|阻塞|受阻)|(?:哪些|有哪些|查看|列出).{0,16}(?:逾期|延期|延迟|滞后|阻塞|受阻)",
     "explain": r"异常|(?:为什么|为何|原因|解释|归因).{0,18}(?:延期|延误|延迟|阻塞|风险)|"
     r"(?:延期|延误|延迟|阻塞|风险).{0,12}(?:原因|为什么|为何|解释)|瓶颈",
     "weekly": r"周报|(?:本周|这周|上周|上一周).{0,5}(?:进展|总结)|(?:总结|回顾)(?:本周|这周|上周|上一周)",
@@ -280,6 +281,8 @@ def plan_question(db, user, payload: PlanRequest):
     if task_filter != "attention" and not LIMIT.search(remaining):
         limit = MAX_LIMIT
 
+    owner_id = owner_name = priority = None
+
     def respond(
         message,
         target=None,
@@ -304,6 +307,9 @@ def plan_question(db, user, payload: PlanRequest):
             "message": message,
             "limit": limit,
             "mine_only": mine_only,
+            "owner_id": owner_id,
+            "owner_name": owner_name,
+            "priority": priority,
             "task_filter": task_filter,
             "start_date": start.isoformat() if start else None,
             "end_date": end.isoformat() if end else None,
@@ -386,6 +392,42 @@ def plan_question(db, user, payload: PlanRequest):
         elif not task:
             target = project_targets[next(iter(common_projects))]
 
+    if scenario == "priorities":
+        priority, filter_error = priority_filter(remaining)
+        if filter_error:
+            return respond(filter_error, target)
+        owner_text = re.sub(
+            r"请问|帮我|查看|列出|显示|查询|只看|请|由", " ", MINE.sub("", remaining)
+        )
+        if re.search(r"负责|负责人", owner_text):
+            ids = [target.project_id] if target else list(project_targets)
+            owners = (
+                db.query(User.id, User.display_name)
+                .join(Task, Task.owner_id == User.id)
+                .join(SubProject, Task.sub_project_id == SubProject.id)
+                .filter(SubProject.project_id.in_(ids), Task.id.in_(visible_task_ids_for(user, db)))
+                .distinct()
+                .all()
+            )
+            matches = []
+            rest = owner_text
+            for uid, name in sorted(owners, key=lambda item: -len(item[1])):
+                normalized = normalize(name)
+                pattern = rf"(?<![\w]){re.escape(normalized)}\s*负责|负责人\s*(?:是|为|[:：])?\s*{re.escape(normalized)}(?=的|所|延期|逾期|阻塞|[，,。?？\s]|$)"
+                if re.search(pattern, owner_text):
+                    matches.append((uid, name))
+                    rest = re.sub(pattern, "", rest)
+            if (
+                len(matches) != 1
+                or re.search(r"负责|除了|排除|不|非|以外|以及|和|、", rest)
+                or mine_only
+            ):
+                return respond(
+                    "负责人条件不明确或无法在当前可见任务中唯一匹配，请填写一位负责人的完整姓名",
+                    target,
+                )
+            owner_id, owner_name = matches[0]
+
     if scenario == "settings":
         if user.role not in MANAGERS:
             return respond("AI 设置由有权限的项目管理人员维护", target)
@@ -454,15 +496,23 @@ def plan_question(db, user, payload: PlanRequest):
 
     start = end = None
     if scenario in {"weekly", "followup", "explain"}:
-        this_week = bool(re.search(r"本周|这周", remaining))
-        last_week = bool(re.search(r"上周|上一周", remaining))
-        if this_week and last_week:
-            return respond("请明确选择本周或上周", target)
-        if this_week or last_week:
-            today = date.today()
-            monday = today - timedelta(days=today.weekday())
-            start = monday - timedelta(days=7) if last_week else monday
-            end = monday - timedelta(days=1) if last_week else today
+        start, end, period_error = reporting_period(remaining, date.today())
+        if period_error:
+            return respond(period_error, target)
+        if re.search(r"负责|[高中低]优先级|优先级[是为:：]", remaining):
+            return respond(
+                "报告暂不支持负责人或优先级筛选，请先查询对应任务，或明确整理整个项目", target
+            )
+    elif scenario == "priorities":
+        if re.search(r"到期|截止|计划(?:完成|结束)", remaining):
+            start, end, period_error = reporting_period(remaining, date.today())
+            if period_error or not start:
+                return respond(period_error or "请给出计划完成日期的起止范围", target)
+        elif re.search(r"\d+[年月日天]|\d{4}[-/]\d|最近|过去|上月|本月|昨天|明天|下周", remaining):
+            return respond(
+                "请说明日期是指计划完成日期还是历史状态；当前查询只支持最新状态及计划完成日期",
+                target,
+            )
     message = (
         "已按所选范围确定操作，请核对后继续" if target else "将从当前账号可见的项目中查找工作重点"
     )

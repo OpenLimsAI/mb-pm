@@ -86,6 +86,13 @@ def list_runs(
     return {"items": items, "total": query.count(), "page": page, "page_size": page_size}
 
 
+@router.get("/runs/{run_id}/review-context")
+def get_review_context(run_id: str, db: DB, user: CurrentUser, batch: int = Query(0, ge=0, le=63)):
+    from app.services.pm_ai_review_context import review_context
+
+    return review_context(db, user, run_id, batch)
+
+
 @router.get("/runs/{run_id}")
 def get_run(run_id: str, db: DB, user: CurrentUser):
     run = pm_ai_runs.get_run(db, user, run_id)

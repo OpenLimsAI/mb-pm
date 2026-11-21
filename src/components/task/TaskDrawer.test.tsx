@@ -21,8 +21,12 @@ vi.mock('../../api/taskCollaboration', async (original) => ({
 
 const baseTask: Task = { ...tasks[0], status: '未开始', progress: 0, actualStart: undefined, actualEnd: undefined, actualEffort: undefined }
 
+let serverTask = baseTask
 beforeEach(() => {
-  vi.mocked(updateTaskProgress).mockReset().mockResolvedValue(undefined)
+  vi.mocked(updateTaskProgress).mockReset().mockImplementation(async (_id, patch) => {
+    serverTask = { ...serverTask, ...patch, revision: (serverTask.revision ?? 0) + 1 } as Task
+    return serverTask
+  })
   vi.mocked(refreshAllData).mockReset().mockResolvedValue(undefined)
   vi.mocked(previewScheduleAssist).mockReset()
   vi.mocked(applyScheduleAssist).mockReset()
@@ -33,6 +37,7 @@ beforeEach(() => {
 })
 
 function openTask(task: Task, entry = '/') {
+  serverTask = task
   return render(<MemoryRouter initialEntries={[entry]}><TaskDrawer task={task} onClose={vi.fn()} /></MemoryRouter>)
 }
 

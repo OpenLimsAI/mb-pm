@@ -28,7 +28,14 @@ export interface PMAgentTarget {
   name: string
   projectName: string
 }
-export interface PMAgentPlan extends PMAIScope {
+export interface PMTaskFilters {
+  ownerId?: string | null
+  ownerName?: string | null
+  priority?: '高' | '中' | '低' | null
+  startDate?: string | null
+  endDate?: string | null
+}
+export interface PMAgentPlan extends PMAIScope, PMTaskFilters {
   status: 'ready' | 'clarify'
   scenario: PMAIScenario | 'schedule' | 'assessment' | 'finance' | 'settings' | null
   targets: PMAgentTarget[]
@@ -43,6 +50,7 @@ export interface PMAgentPlan extends PMAIScope {
   scheduleInstruction?: string | null
 }
 export interface PMAgentTriage {
+  filters?: PMTaskFilters
   taskFilter?: 'attention' | 'overdue' | 'delayed' | 'blocked'
   businessDate: string
   items: {
@@ -203,6 +211,8 @@ export interface PMAIContext {
   }[]
   source: PMAISource
 }
+export type PMAIReviewContext = Pick<PMAIContext, 'projects' | 'tasks' | 'members' | 'subProjects' | 'registerEntries' | 'asOf'>
+
 export interface PMAIChangePreview {
   actions: PMAIAction[]
   changes: {
@@ -280,13 +290,14 @@ export const pmAI = {
         taskId,
       })
     ).data,
-  triage: async (scope: PMAIScope, limit: number, mineOnly: boolean, taskFilter?: PMAgentPlan['taskFilter']) =>
+  triage: async (scope: PMAIScope, limit: number, mineOnly: boolean, taskFilter?: PMAgentPlan['taskFilter'], filters?: PMTaskFilters) =>
     (
       await api.post<PMAgentTriage>(`${root}/agent/triage`, {
         ...scope,
         limit,
         mineOnly,
         ...(taskFilter ? { taskFilter } : {}),
+        ...(filters ? { ownerId: filters.ownerId, priority: filters.priority, startDate: filters.startDate, endDate: filters.endDate } : {}),
       })
     ).data,
   context: async (projectId?: string) =>
@@ -298,6 +309,8 @@ export const pmAI = {
         params: { pageSize: 30, projectId, taskId },
       })
     ).data,
+  reviewContext: async (id: string, batch: number) =>
+    (await api.get<PMAIReviewContext>(`${runPath(id)}/review-context`, { params: { batch } })).data,
   create: async (request: PMAIRequest) =>
     (await api.post<PMAIRun>(`${root}/runs`, request)).data,
   get: async (id: string) => (await api.get<PMAIRun>(runPath(id))).data,

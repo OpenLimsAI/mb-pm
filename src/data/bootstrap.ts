@@ -10,10 +10,12 @@ import type { FullPlanSnapshot } from '../lib/fullPlanBaseline'
 // Mutations（创建项目 / 录入任务进展）：API 模式走后端并重新同步；mock 模式本地更新。
 
 import { api, USE_API, asAPIError } from '../api/client'
+import { readCompleteList } from '../api/pagination'
 import * as projectsApi from '../api/projects'
 import * as subProjectsApi from '../api/subProjects'
 import * as tasksApi from '../api/tasks'
 import * as taskDependenciesApi from '../api/taskDependencies'
+import { saveMilestoneAtomic, milestoneDependencySnapshot, type MilestoneSaveContext } from '../api/milestones'
 import * as templatesApi from '../api/templates'
 import * as usersApi from '../api/users'
 import * as financesApi from '../api/finances'
@@ -65,10 +67,10 @@ export async function refreshAllData(): Promise<void> {
   const generation = ++refreshGeneration
   useDataStore.setState({ syncing: true, syncError: null })
   try {
-    const [projPage, subs, taskPage, deps, tmpls, usrs, fins, bls, calendars, capacities, context] = await Promise.all([
-      projectsApi.listProjects({ pageSize: 500 }),
+    const [projectRows, subs, taskRows, deps, tmpls, usrs, fins, bls, calendars, capacities, context] = await Promise.all([
+      readCompleteList(projectsApi.listProjects, 500),
       subProjectsApi.listSubProjects({}),
-      tasksApi.listTasks({ pageSize: 5000 }),
+      readCompleteList(tasksApi.listTasks, 5000),
       taskDependenciesApi.listTaskDependencies({}),
       templatesApi.listTemplates({}),
       usersApi.listUsers({}),
@@ -83,18 +85,29 @@ export async function refreshAllData(): Promise<void> {
     useDataStore.setState({ businessDate: context.businessDate, businessTimezone: context.timezone })
     setWorkingCalendars(calendars)
     setWeeklyCapacities(capacities)
-    replaceArray(projects, projPage.items as unknown as Project[])
+    replaceArray(projects, projectRows as unknown as Project[])
     replaceArray(subProjects, subs as unknown as SubProject[])
-    replaceArray(tasks, (taskPage.items as unknown as Task[]).map(normalizeApiTask))
+    replaceArray(tasks, (taskRows as unknown as Task[]).map(normalizeApiTask))
     replaceArray(taskDependencies, deps as unknown as TaskDependency[])
     replaceArray(users, usrs as unknown as User[])
     replaceArray(projectFinances, fins as unknown as ProjectFinance[])
     replaceArray(projectBaselines, bls as unknown as ProjectBaseline[])
     useTemplatesStore.setState({ templates: tmpls as unknown as Template[] })
     useDataStore.getState().bump()
-    useDataStore.setState({ lastSyncedAt: new Date().toISOString() })
+    useDataStore.setState({ lastSyncedAt: new Date().toISOString(), writePendingSync: false })
   } catch (e) { if (generation === refreshGeneration) useDataStore.setState({ syncError: asAPIError(e).detail }); throw e }
   finally { if (generation === refreshGeneration) useDataStore.setState({ syncing: false }) }
+}
+
+/** The write has already committed. A read failure is reported by SyncStatus. */
+export async function refreshAfterWrite(): Promise<boolean> {
+  useDataStore.setState({ writePendingSync: true })
+  try {
+    await refreshAllData()
+    return true
+  } catch {
+    return false
+  }
 }
 
 let _started = false
@@ -184,7 +197,7 @@ export function watchIdentity(): () => void {
 export async function deleteProjectEntry(projectId: string): Promise<void> {
   if (useDataStore.getState().mode !== 'api') throw new Error('离线演示数据不支持删除项目')
   await projectsApi.deleteProject(projectId)
-  await refreshAllData()
+  await refreshAfterWrite()
 }
 
 /** 创建项目（API：整包写后端 + 重新同步；mock：本地持久化）。返回新项目 id。 */
@@ -197,7 +210,7 @@ export async function createProjectBundle(bundle: ProjectBundle): Promise<string
       dependencies: bundle.dependencies as never,
       finance: bundle.finance as never,
     })
-    await refreshAllData()
+    await refreshAfterWrite()
     return dto.id
   }
   useProjectsStore.getState().createProject(bundle)
@@ -213,7 +226,7 @@ export async function createProjectBundle(bundle: ProjectBundle): Promise<string
 export async function updateProjectFinanceEntry(projectId: string, input: financesApi.ProjectFinanceInput): Promise<void> {
   if (useDataStore.getState().mode === 'api') {
     await financesApi.updateFinance(projectId, input)
-    await refreshAllData()
+    await refreshAfterWrite()
     return
   }
   const entry: ProjectFinance = {
@@ -259,14 +272,28 @@ export interface TaskProgressPatch {
 }
 
 /** 录入任务进展（API：PATCH + 后端汇总 + 重新同步；mock：本地更新 + 客户端汇总）。 */
-export async function updateTaskProgress(taskId: string, patch: TaskProgressPatch): Promise<void> {
+function cacheSavedTask(dto: Awaited<ReturnType<typeof tasksApi.updateTask>>): Task {
+  const saved = normalizeApiTask(dto as unknown as Task)
+  const index = tasks.findIndex(task => task.id === saved.id)
+  const current = tasks[index]
+  if (current && (current.revision ?? 0) > (saved.revision ?? 0)) return current
+  if (index >= 0) {
+    tasks[index] = saved
+    useDataStore.getState().bump()
+  }
+  return saved
+}
+
+export async function updateTaskProgress(taskId: string, patch: TaskProgressPatch): Promise<Task | undefined> {
   if (useDataStore.getState().mode === 'api') {
-    await tasksApi.updateTask(taskId, { ...patch, expectedRevision: patch.expectedRevision ?? tasks.find(t => t.id === taskId)?.revision } as never)
-    await refreshAllData()
-    return
+    const dto = await tasksApi.updateTask(taskId, { ...patch, expectedRevision: patch.expectedRevision ?? tasks.find(t => t.id === taskId)?.revision })
+    const saved = cacheSavedTask(dto)
+    await refreshAfterWrite()
+    return tasks.find(task => task.id === taskId) ?? saved
   }
   applyLocalTaskUpdate(taskId, patch)
   useDataStore.getState().bump()
+  return tasks.find(task => task.id === taskId)
 }
 
 export interface BatchUpdateResult {
@@ -282,14 +309,19 @@ export interface BatchUpdateResult {
 export async function updateTasksBatch(taskIds: string[], patch: TaskProgressPatch): Promise<BatchUpdateResult> {
   const failed: BatchUpdateResult['failed'] = []
   if (useDataStore.getState().mode === 'api') {
+    const saved: Awaited<ReturnType<typeof tasksApi.updateTask>>[] = []
+    const revisions = new Map(tasks.map(task => [task.id, task.revision]))
     for (const id of taskIds) {
       try {
-        await tasksApi.updateTask(id, { ...patch, expectedRevision: tasks.find(t => t.id === id)?.revision } as never)
+        saved.push(await tasksApi.updateTask(id, { ...patch, expectedRevision: revisions.get(id) }))
       } catch (e) {
         failed.push({ taskId: id, detail: asAPIError(e).detail })
       }
     }
-    await refreshAllData()
+    if (saved.length) {
+      saved.forEach(cacheSavedTask)
+      await refreshAfterWrite()
+    }
   } else {
     for (const id of taskIds) applyLocalTaskUpdate(id, patch)
     useDataStore.getState().bump()
@@ -354,6 +386,7 @@ export async function createMilestoneWithDeps(input: {
   subProjectId: string
   basics: MilestoneBasics
   predecessorIds: string[]
+  saveContext?: MilestoneSaveContext
 }): Promise<string> {
   const { projectId, subProjectId, basics, predecessorIds } = input
   const proj = projects.find((p) => p.id === projectId)
@@ -384,12 +417,10 @@ export async function createMilestoneWithDeps(input: {
   }
 
   if (useDataStore.getState().mode === 'api') {
-    const dto = await tasksApi.createTask(draft as never)
-    for (const predId of predecessorIds) {
-      await taskDependenciesApi.createTaskDependency({ predecessorId: predId, successorId: dto.id })
-    }
-    await refreshAllData()
-    return dto.id
+    const result = await saveMilestoneAtomic({ operation: 'create', projectId, subProjectId,
+      ...basics, predecessorIds, requestId: input.saveContext?.requestId ?? crypto.randomUUID() })
+    await refreshAfterWrite()
+    return result.taskId
   }
 
   const id = `tk-${Math.round(progressNonce())}`
@@ -413,6 +444,7 @@ export async function updateMilestoneWithDeps(
   milestoneId: string,
   basics: Partial<MilestoneBasics>,
   predecessorIds: string[],
+  saveContext?: MilestoneSaveContext,
 ): Promise<void> {
   const current = taskDependencies.filter((d) => d.successorId === milestoneId)
   const { addedIds, removedDepIds } = diffPredecessors(current, predecessorIds)
@@ -422,14 +454,16 @@ export async function updateMilestoneWithDeps(
   if (basics.plannedEnd) basicsPatch.plannedStart = basics.plannedEnd
 
   if (useDataStore.getState().mode === 'api') {
-    if (Object.keys(basicsPatch).length > 0) {
-      await tasksApi.updateTask(milestoneId, { ...basicsPatch, expectedRevision: tasks.find(t => t.id === milestoneId)?.revision } as never)
-    }
-    for (const depId of removedDepIds) await taskDependenciesApi.deleteTaskDependency(depId)
-    for (const predId of addedIds) {
-      await taskDependenciesApi.createTaskDependency({ predecessorId: predId, successorId: milestoneId })
-    }
-    await refreshAllData()
+    const task = tasks.find(t => t.id === milestoneId)
+    const projectId = subProjects.find(s => s.id === task?.subProjectId)?.projectId
+    if (!task || !projectId) throw new Error('里程碑已变化，请刷新后核对')
+    await saveMilestoneAtomic({ operation: 'update', projectId, taskId: milestoneId,
+      name: basics.name ?? task.name, plannedEnd: basics.plannedEnd ?? task.plannedEnd,
+      priority: basics.priority ?? task.priority, notes: basics.notes === undefined ? task.notes : basics.notes,
+      predecessorIds, requestId: saveContext?.requestId ?? crypto.randomUUID(),
+      expectedRevision: saveContext?.expectedRevision ?? task.revision,
+      expectedDependencies: saveContext?.expectedDependencies ?? milestoneDependencySnapshot(milestoneId, taskDependencies) })
+    await refreshAfterWrite()
     return
   }
 
@@ -455,7 +489,7 @@ export async function updateMilestoneWithDeps(
 }
 
 /** 删除里程碑（先级联清理其全部相关依赖，避免孤儿）。返回受影响依赖数。 */
-export async function deleteMilestoneWithDeps(milestoneId: string): Promise<number> {
+export async function deleteMilestoneWithDeps(milestoneId: string, saveContext?: MilestoneSaveContext): Promise<number> {
   const related = taskDependencies.filter(
     (d) => d.successorId === milestoneId || d.predecessorId === milestoneId,
   )
@@ -463,10 +497,13 @@ export async function deleteMilestoneWithDeps(milestoneId: string): Promise<numb
   const subId = ms?.subProjectId
 
   if (useDataStore.getState().mode === 'api') {
-    for (const d of related) await taskDependenciesApi.deleteTaskDependency(d.id)
-    await tasksApi.deleteTask(milestoneId)
-    await refreshAllData()
-    return related.length
+    const projectId = saveContext?.projectId ?? subProjects.find(s => s.id === subId)?.projectId
+    if (!projectId || (!ms && !saveContext?.expectedRevision)) throw new Error('里程碑已变化，请刷新后核对')
+    const result = await saveMilestoneAtomic({ operation: 'delete', projectId, taskId: milestoneId,
+      requestId: saveContext?.requestId ?? crypto.randomUUID(), expectedRevision: saveContext?.expectedRevision ?? ms?.revision,
+      expectedDependencies: saveContext?.expectedDependencies ?? milestoneDependencySnapshot(milestoneId, taskDependencies) })
+    await refreshAfterWrite()
+    return result.removedDependencies
   }
 
   const relatedIds = new Set(related.map((d) => d.id))
@@ -483,10 +520,13 @@ export async function deleteMilestoneWithDeps(milestoneId: string): Promise<numb
 // ============= 项目成员 =============
 
 /** 全量替换项目团队成员（负责人由后端自动排除，不计入成员）。 */
-export async function updateProjectMembers(projectId: string, memberIds: string[]): Promise<void> {
+export async function updateProjectMembers(projectId: string, memberIds: string[], expectedRevision?: number): Promise<void> {
   if (useDataStore.getState().mode === 'api') {
-    await projectsApi.replaceProjectMembers(projectId, memberIds)
-    await refreshAllData()
+    const saved = await projectsApi.replaceProjectMembers(projectId, memberIds, expectedRevision)
+    const index = projects.findIndex(p => p.id === projectId)
+    if (index >= 0) projects[index] = saved as unknown as Project
+    useDataStore.getState().bump()
+    await refreshAfterWrite()
     return
   }
   const proj = projects.find((p) => p.id === projectId)
@@ -512,7 +552,7 @@ export async function createTemplateEntry(input: {
       isActive: true,
       initialStructure: input.initialStructure as unknown as Record<string, unknown>,
     })
-    await refreshAllData()
+    await refreshAfterWrite()
     return dto.id
   }
   // 离线 mock：写入模板 store（自带 persist），Templates 页订阅 store 自动刷新。
@@ -530,7 +570,7 @@ export async function createTemplateEntry(input: {
 export async function deleteTemplateEntry(id: string): Promise<void> {
   if (useDataStore.getState().mode === 'api') {
     await templatesApi.deleteTemplate(id)
-    await refreshAllData()
+    await refreshAfterWrite()
     return
   }
   useTemplatesStore.getState().deleteTemplate(id)
@@ -578,7 +618,7 @@ function buildSnapshotFromRuntime(projectId: string): FullPlanSnapshot {
 export async function createProjectBaseline(projectId: string, label: string, reason: string): Promise<string> {
   if (useDataStore.getState().mode === 'api') {
     const dto = await baselinesApi.createBaseline({ projectId, label, reason: reason || null })
-    await refreshAllData()
+    await refreshAfterWrite()
     return dto.id
   }
   const id = `bl-${Math.round(progressNonce())}`
@@ -596,7 +636,7 @@ export async function createProjectBaseline(projectId: string, label: string, re
 export async function deleteProjectBaseline(id: string): Promise<void> {
   if (useDataStore.getState().mode === 'api') {
     await baselinesApi.deleteBaseline(id)
-    await refreshAllData()
+    await refreshAfterWrite()
     return
   }
   const idx = projectBaselines.findIndex((b) => b.id === id)
@@ -618,7 +658,7 @@ export async function saveTemplateStructure(
       changeSummary,
       changeSource: 'visual_edit',
     })
-    await refreshAllData()
+    await refreshAfterWrite()
     return
   }
   const version: Omit<TemplateVersion, 'isCurrent'> = {

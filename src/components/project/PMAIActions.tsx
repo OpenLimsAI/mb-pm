@@ -6,6 +6,7 @@ import {
   type PMAIChangePreview,
   type PMAIContext,
   type PMAIReceipt,
+  type PMAIReviewContext,
   type PMAIRun,
 } from '../../api/pmAI'
 import { asAPIError } from '../../api/client'
@@ -68,13 +69,28 @@ export function PMAIActions(props: ActionProps) {
   const [batch, setBatch] = useState(0)
   const [visited, setVisited] = useState([0])
   const actions = props.run.result?.draftActions ?? []
-  if (actions.length <= 12) return <ActionBatch {...props} />
+  if (actions.length <= 12) return <ReviewBatch {...props} batch={0} />
   const count = Math.ceil(actions.length / 12)
   return <div className="space-y-3">
     <p className="text-xs text-ink-600">共 {actions.length} 项待核对修改，分 {count} 批处理；每批最多 12 项，分别预览并确认。</p>
     <label className="block text-xs">操作批次<select aria-label="操作批次" className="input mt-1" value={batch} onChange={event => { const next = Number(event.target.value); setBatch(next); setVisited(previous => previous.includes(next) ? previous : [...previous, next]) }}>{Array.from({ length: count }, (_, index) => <option key={index} value={index}>第{index + 1}批（{index * 12 + 1}–{Math.min(actions.length, (index + 1) * 12)}项）</option>)}</select></label>
-    {visited.map(index => <div key={index} hidden={index !== batch}><ActionBatch {...props} confirmationSuffix={index ? `:batch:${index}` : ''} run={{ ...props.run, result: props.run.result ? { ...props.run.result, draftActions: actions.slice(index * 12, (index + 1) * 12) } : null }} /></div>)}
+    {visited.map(index => <div key={index} hidden={index !== batch}><ReviewBatch {...props} batch={index} confirmationSuffix={index ? `:batch:${index}` : ''} run={{ ...props.run, result: props.run.result ? { ...props.run.result, draftActions: actions.slice(index * 12, (index + 1) * 12) } : null }} /></div>)}
   </div>
+}
+function ReviewBatch(props: ActionProps & { batch: number; confirmationSuffix?: string }) {
+  const [catalog, setCatalog] = useState<PMAIReviewContext | null>(null)
+  const [error, setError] = useState('')
+  const [retry, setRetry] = useState(0)
+  const runId = props.run.id, batch = props.batch
+  useEffect(() => {
+    let active = true
+    void pmAI.reviewContext(runId, batch).then(value => { if (active) setCatalog(value) }).catch(failure => { if (active) setError(asAPIError(failure).detail) })
+    return () => { active = false }
+  }, [runId, batch, retry])
+  return <>
+    {!catalog && <div role="status">{error ? <><p>{error}</p><Button size="sm" onClick={() => { setError(''); setRetry(value => value + 1) }}>重新读取核对对象</Button></> : '正在读取本批核对对象…'}</div>}
+    {(catalog || error) && <ActionBatch {...props} context={catalog} />}
+  </>
 }
 function ActionBatch({
   run,
@@ -82,7 +98,7 @@ function ActionBatch({
   userId,
   disabled,
   confirmationSuffix = '',
-}: ActionProps & { confirmationSuffix?: string }) {
+}: Omit<ActionProps, 'context'> & { context: PMAIReviewContext | null; confirmationSuffix?: string }) {
   const key = `pm-ai-confirmation:${userId}:${run.id}${confirmationSuffix}`
   const [saved] = useState(() => savedConfirmation(key))
   const defaults = (draft: PMAIAction): PMAIAction => ({

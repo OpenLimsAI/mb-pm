@@ -89,11 +89,12 @@ def test_unified_migration_graph_has_unique_revisions_and_keeps_historical_branc
                 revisions.append(ast.literal_eval(node.value))
     assert len(revisions) == len(set(revisions))
     scripts = ScriptDirectory.from_config(migration_config())
-    assert set(scripts.get_heads()) == {"007", "031"}
+    assert set(scripts.get_heads()) == {"007", "032"}
     assert scripts.get_revision("028").down_revision == "027"
     assert scripts.get_revision("029").down_revision == "028"
     assert scripts.get_revision("030").down_revision == "029"
     assert scripts.get_revision("031").down_revision == "030"
+    assert scripts.get_revision("032").down_revision == "031"
 
 
 @pytest.mark.parametrize(
@@ -126,10 +127,10 @@ def test_existing_database_upgrades_without_losing_ai_evidence(
             seed_agent_evidence(connection)
     config = migration_config()
     command.stamp(config, starting_revision)
-    command.upgrade(config, "030")
-    command.upgrade(config, "030")
+    command.upgrade(config, "032")
+    command.upgrade(config, "032")
     with engine.begin() as connection:
-        assert connection.scalar(sa.text("SELECT version_num FROM alembic_version")) == "030"
+        assert connection.scalar(sa.text("SELECT version_num FROM alembic_version")) == "032"
         tables = set(sa.inspect(connection).get_table_names())
         assert {
             "pm_ai_runs",
@@ -138,6 +139,7 @@ def test_existing_database_upgrades_without_losing_ai_evidence(
             "agent_event_publications",
         } <= tables
         assert connection.scalar(sa.text("SELECT id FROM projects")) == "p"
+        assert connection.scalar(sa.text("SELECT revision FROM projects")) == 1
         assert connection.scalar(sa.text("SELECT id FROM users")) == "u"
         if starting_revision == "028":
             row = connection.execute(sa.text("SELECT state,context FROM pm_ai_runs")).one()
@@ -148,6 +150,6 @@ def test_existing_database_upgrades_without_losing_ai_evidence(
                 connection.scalar(sa.text("SELECT kind FROM agent_event_publications")) == "delay"
             )
         # Existing-table application is safe as well as an already-current ledger.
-        for number in ("028", "029", "030"):
+        for number in ("028", "029", "030", "031", "032"):
             apply(connection, number)
     engine.dispose()
