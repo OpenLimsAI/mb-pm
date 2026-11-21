@@ -66,6 +66,20 @@ jobs:
       - name: 格式检查（与 pyproject.toml 配置一致）
         run: ruff format --check backend/app
 
+  # ───────── 硬护栏 2b：前后端领域边界检查（棘轮门禁）─────────
+  domain-boundaries:
+    name: 架构 · 前后端领域边界检查（棘轮门禁）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11'
+      - name: 边界检查脚本回归单测
+        run: python -m unittest scripts/test_domain_boundaries.py -v
+      - name: 前后端领域边界与跨域 ORM 棘轮门禁
+        run: python scripts/check-domain-boundaries.py
+
   # ───────── 硬护栏 3：后端 pytest（PostgreSQL 真实库）─────────
   # 针对 PostgreSQL 跑，确保 issue #4 这类「仅 PostgreSQL 强制 VARCHAR 长度」
   # 才会暴露的缺陷被回归测试守住（SQLite 不强制长度，单跑会漏）。
