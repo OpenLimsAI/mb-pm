@@ -15,6 +15,18 @@ from app.services.information.worker import active_account, safe_error
 
 APP = "knowledge-sources"
 KIND = "manual-index"
+MAX_POLL_ATTEMPTS = 360
+MAX_POLL_SECONDS = 1800
+
+
+def _timed_out(item):
+    started = item.get("indexStartedAt")
+    if not started:
+        return False
+    return (
+        item.get("pollAttempts", 0) >= MAX_POLL_ATTEMPTS
+        or (time.time() - started) >= MAX_POLL_SECONDS
+    )
 
 
 def manager_authority(db, subject):
@@ -267,6 +279,25 @@ def run_step(store, job_id, *, connector=bridge.call):
                 finishedAt=iso(),
             )
         version["indexStatus"] = "pending"
+        item.setdefault("indexStartedAt", time.time())
+        item["pollAttempts"] = item.get("pollAttempts", 0) + 1
+        if _timed_out(item):
+            error = "知识库索引跟踪超时，原件已保留，请确认知识库索引状态后重试"
+            version["indexStatus"] = "failed"
+            store.put("version", version)
+            item.update(status="failed", phase="index", failurePhase="index", error=error)
+            return _persist(
+                store,
+                job_id,
+                item,
+                status="failed",
+                processed=1,
+                saved=0,
+                failed=1,
+                pending=0,
+                error=error,
+                finishedAt=iso(),
+            )
         store.put("version", version)
         item.update(status="pending", phase="index", nextAttemptAt=time.time() + 5, error=None)
         return _persist(
@@ -304,7 +335,29 @@ def run_step(store, job_id, *, connector=bridge.call):
                 error=error,
                 finishedAt=iso(),
             )
+        item.setdefault("indexStartedAt", time.time())
+        item["pollAttempts"] = item.get("pollAttempts", 0) + 1
+        if _timed_out(item):
+            timeout_error = "知识库索引状态持续无法确认，已中止跟踪并保留原件：" + error
+            version_obj = store.get("version", item["versionId"], required=False)
+            if version_obj:
+                version_obj["indexStatus"] = "failed"
+                store.put("version", version_obj)
+            item.update(status="failed", phase="index", failurePhase="index", error=timeout_error)
+            return _persist(
+                store,
+                job_id,
+                item,
+                status="failed",
+                processed=1,
+                saved=0,
+                failed=1,
+                pending=0,
+                error=timeout_error,
+                finishedAt=iso(),
+            )
+        backoff = min(120, 30 * (2 ** min(item["pollAttempts"] - 1, 2)))
         item.update(
-            nextAttemptAt=time.time() + 30, phase="index", error="索引状态暂未确认：" + error
+            nextAttemptAt=time.time() + backoff, phase="index", error="索引状态暂未确认：" + error
         )
         return _persist(store, job_id, item, status="running", error=item["error"])

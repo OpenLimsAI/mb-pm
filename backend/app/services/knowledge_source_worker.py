@@ -6,6 +6,8 @@ import time
 from datetime import datetime
 from uuid import uuid4
 
+from fastapi import HTTPException
+
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.models.information import InformationEntry
@@ -20,12 +22,20 @@ APP = "knowledge-sources"
 logger = logging.getLogger("cmc-pms.knowledge-sources")
 
 
+def _is_auth_revocation(exc) -> bool:
+    if isinstance(exc, HTTPException) and exc.status_code in (401, 403):
+        return True
+    if isinstance(exc, bridge.BridgeError) and exc.status in (401, 403):
+        return True
+    return False
+
+
 def _filing_context(store, subject, connector):
     """Current readable library and metadata, never the first displayed page."""
     from app.api.v1.knowledge_sources import paper_snapshot
 
     proofs = [
-        {"documentId": value["documentId"], "sha256": value["sha256"]}
+        {"documentId": value.get("kbDocumentId", value["documentId"]), "sha256": value["sha256"]}
         for value in store.records("version")
         if value.get("kbPath") and value.get("indexStatus") != "ready"
     ]
@@ -81,9 +91,11 @@ def automatic_filing(store, job, connector=bridge.call):
     subject = job["actorSubject"]
     enabled = [rule for rule in workspace(store, subject)["rules"] if rule.get("enabled")]
     versions = [
-        store.get("version", item["versionId"])
+        version
         for item in job["items"]
         if item.get("versionId") and item.get("status") == "saved"
+        for version in (store.get("version", item["versionId"], required=False),)
+        if version is not None
     ]
     receipt = {"status": "skipped", "ruleApplications": 0, "undoTokens": [], "results": []}
     if enabled and versions:
@@ -123,8 +135,8 @@ def synchronize_classification(store, job, connector=bridge.call):
     for item in job["items"]:
         if not item.get("versionId"):
             continue
-        version = store.get("version", item["versionId"])
-        if not version.get("kbPath"):
+        version = store.get("version", item["versionId"], required=False)
+        if not version or not version.get("kbPath"):
             continue
         ident = store.key("ks_classification", version["documentId"])
         classification = store.get("ks_classification", ident, required=False)
@@ -132,17 +144,18 @@ def synchronize_classification(store, job, connector=bridge.call):
             continue
         try:
             authority(store.db, job["actorSubject"])
+            kb_doc_id = version.get("kbDocumentId", version["documentId"])
             catalogue = connector(
                 "library",
                 job["actorSubject"],
-                imports=[{"documentId": version["documentId"], "sha256": version["sha256"]}],
+                imports=[{"documentId": kb_doc_id, "sha256": version["sha256"]}],
             )
             if not catalogue.get("canWrite"):
                 raise ValueError("原件已保存，文件夹同步需要知识库负责人权限")
             path = version["kbPath"]
             if not any(p.get("path") == path for p in catalogue.get("papers", [])):
                 pending = version.get("indexStatus") != "ready" and any(
-                    p.get("documentId") == version["documentId"]
+                    p.get("documentId") == kb_doc_id
                     and p.get("sha256") == version["sha256"]
                     and p.get("path") == path
                     and p.get("indexStatus") in ("not_requested", "pending", "failed")
@@ -208,7 +221,10 @@ def schedule_due(db):
             authority(db, source["scheduleSubject"])
         except Exception as exc:
             source["scheduleError"] = safe_error(exc)
-            source["schedule"] = {**schedule, "frequency": "off", "nextCheckAt": None}
+            if _is_auth_revocation(exc):
+                source["schedule"] = {**schedule, "frequency": "off", "nextCheckAt": None}
+            else:
+                source["schedule"] = {**schedule, "nextCheckAt": iso(time.time() + 300)}
             store.put("source", source)
             db.commit()
             continue
@@ -244,10 +260,15 @@ def scheduled_followup(store, job):
         authority(store.db, job["actorSubject"])
     except Exception as exc:
         source["scheduleError"] = safe_error(exc)
-        source["schedule"] = {**schedule, "frequency": "off", "nextCheckAt": None}
-        store.put("source", source)
-        job["followupDone"] = True
-        store.put("job", job)
+        if _is_auth_revocation(exc):
+            source["schedule"] = {**schedule, "frequency": "off", "nextCheckAt": None}
+            store.put("source", source)
+            job["followupDone"] = True
+            store.put("job", job)
+        else:
+            store.put("source", source)
+            job["followupNextAttemptAt"] = time.time() + 60
+            store.put("job", job)
         store.db.commit()
         return
     docs = [
@@ -323,6 +344,7 @@ def tick(
             return
         # Recover a completed scheduled stage if a restart occurred between stage
         # completion and creating its follow-up. The same lease serializes both.
+        now = time.time()
         for row in (
             db.query(InformationEntry)
             .filter(
@@ -333,9 +355,21 @@ def tick(
             .all()
         ):
             if row.data.get("filingV3StartedAt") and not row.data.get("filingV3Done"):
-                automatic_filing(Store(db, row.tenant), row.data, bridge.call)
-            if row.data.get("scheduled") and not row.data.get("followupDone"):
-                scheduled_followup(Store(db, row.tenant), row.data)
+                try:
+                    automatic_filing(Store(db, row.tenant), row.data, bridge.call)
+                except Exception:
+                    db.rollback()
+                    logger.exception("automatic_filing recovery failed for job %s", row.id)
+            if (
+                row.data.get("scheduled")
+                and not row.data.get("followupDone")
+                and row.data.get("followupNextAttemptAt", 0) <= now
+            ):
+                try:
+                    scheduled_followup(Store(db, row.tenant), row.data)
+                except Exception:
+                    db.rollback()
+                    logger.exception("scheduled_followup recovery failed for job %s", row.id)
         schedule_due(db)
         jobs = (
             db.query(InformationEntry)
@@ -361,38 +395,55 @@ def tick(
         )
         if target:
             store = Store(db, target.tenant)
-            current = store.lock("job", target.id)
-            if current.get("kind") == "import" and not current.get("filingV3StartedAt"):
-                current["filingV3StartedAt"] = iso()
-                store.put("job", current)
-            db.commit()
-            if current.get("kind") == "manual-index":
-                from app.services.knowledge_source_manual_index_v3 import (
-                    run_step as manual_index_step,
-                )
-
-                progress = manual_index_step(store, target.id, connector=bridge.call)
-                if progress:
-                    finished = store.get("job", target.id)
-                    if finished["status"] == "completed":
-                        synchronize_classification(store, finished, bridge.call)
-                return
-            source = store.source(target.data["sourceId"])
-            official = (
-                reference_factory() if source["adapter"] == "reference" else official_factory()
-            )
             try:
-                progress = run_step(
-                    store, official, job_id=target.id, connector=bridge.call, app=APP
+                current = store.lock("job", target.id)
+                if current.get("kind") == "import" and not current.get("filingV3StartedAt"):
+                    current["filingV3StartedAt"] = iso()
+                    store.put("job", current)
+                db.commit()
+                if current.get("kind") == "manual-index":
+                    from app.services.knowledge_source_manual_index_v3 import (
+                        run_step as manual_index_step,
+                    )
+
+                    progress = manual_index_step(store, target.id, connector=bridge.call)
+                    if progress:
+                        finished = store.get("job", target.id)
+                        if finished["status"] == "completed":
+                            synchronize_classification(store, finished, bridge.call)
+                    return
+                source = store.source(target.data["sourceId"])
+                official = (
+                    reference_factory() if source["adapter"] == "reference" else official_factory()
                 )
-                if progress:
-                    finished = store.get("job", target.id)
-                    automatic_filing(store, finished, bridge.call)
-                    finished = store.get("job", target.id)
-                    synchronize_classification(store, finished, bridge.call)
-                    scheduled_followup(store, finished)
-            finally:
-                official.close()
+                try:
+                    progress = run_step(
+                        store, official, job_id=target.id, connector=bridge.call, app=APP
+                    )
+                    if progress:
+                        finished = store.get("job", target.id)
+                        automatic_filing(store, finished, bridge.call)
+                        finished = store.get("job", target.id)
+                        synchronize_classification(store, finished, bridge.call)
+                        scheduled_followup(store, finished)
+                finally:
+                    official.close()
+            except Exception as exc:
+                db.rollback()
+                logger.exception("knowledge-source job %s step failed", target.id)
+                # Back off failing pending items so a poison job cannot starve other jobs.
+                try:
+                    poisoned = store.lock("job", target.id)
+                    if poisoned["status"] in ("queued", "running"):
+                        for item in poisoned.get("items", []):
+                            if item.get("status") == "pending":
+                                item["nextAttemptAt"] = time.time() + 30
+                        poisoned["error"] = safe_error(exc)
+                        poisoned["updatedAt"] = iso()
+                        store.put("job", poisoned)
+                        db.commit()
+                except Exception:
+                    db.rollback()
     except Exception:
         db.rollback()
         logger.exception("knowledge-source worker step failed")
@@ -410,7 +461,10 @@ def start_worker():
 
     def loop():
         while not stop.wait(2):
-            tick()
+            try:
+                tick()
+            except Exception:
+                logger.exception("knowledge-source worker loop uncaught error")
 
     thread = threading.Thread(target=loop, name="knowledge-source-collector", daemon=True)
     thread.start()

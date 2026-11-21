@@ -55,6 +55,27 @@ DIRECTORY_ENTRY_LIMIT = 20000
 DIRECTORY_SEARCH_MATCH_LIMIT = 40
 DIRECTORY_SEARCH_VISIT_LIMIT = 256
 DIRECTORY_SEARCH_SECONDS = 2.0
+LOCAL_RUN_STALE_SECONDS = 1800
+MAX_INDEX_POLL_ATTEMPTS = 360
+MAX_INDEX_POLL_SECONDS = 1800
+
+
+def _is_auth_revocation(exc) -> bool:
+    if isinstance(exc, HTTPException) and exc.status_code in (401, 403):
+        return True
+    if isinstance(exc, bridge.BridgeError) and (
+        exc.status in (401, 403) or exc.code == "folder_target_missing"
+    ):
+        return True
+    return False
+
+
+def _sanitize_error_path(raw: str, index: int) -> str:
+    cleaned = "".join(ch if ord(ch) >= 32 else "_" for ch in str(raw or ""))
+    cleaned = cleaned.replace("\\", "/").replace(":", "_").strip("/")
+    parts = [p for p in cleaned.split("/") if p and p not in {".", ".."}]
+    result = "/".join(parts)[:1400]
+    return result or f"invalid-path-{index}.pdf"
 
 
 class LeaseLostError(RuntimeError):
@@ -316,8 +337,9 @@ def next_scan(schedule, now=None):
     raise HTTPException(422, "无法计算下一次扫描时间")
 
 
-def require_authority(store, subject, connector=bridge.call):
-    authority(store.db, subject)
+def require_authority(store, subject, connector=bridge.call, *, actor_verified=False):
+    if not actor_verified:
+        authority(store.db, subject)
     summary = connector("librarySummary", subject)
     if not summary.get("canWrite"):
         raise HTTPException(403, "文件夹自动导入需要当前知识库整理权限")
@@ -772,8 +794,15 @@ def connector_actor(db, token, connector=bridge.call):
         raise HTTPException(401, "连接授权无效，请重新配对")
     store = Store(db, row.tenant)
     agent = store.get(AGENT, ident)
-    task = _task(store, agent["taskId"])
-    if agent.get("revokedAt") or task.get("agentId") != ident:
+    if agent.get("revokedAt"):
+        raise HTTPException(401, "此连接授权已撤销，请重新配对")
+    try:
+        task = _task(store, agent["taskId"])
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            raise HTTPException(401, "此连接授权对应的任务已删除，请停止连接程序") from exc
+        raise
+    if task.get("agentId") != ident:
         raise HTTPException(401, "此连接授权已撤销，请重新配对")
     require_authority(store, task["actorSubject"], connector)
     agent["lastSeen"] = time.time()
@@ -871,11 +900,17 @@ def apply_manifest(store, task, run, files, errors=(), truncated=False):
             raise HTTPException(422, "文件内容校验值无效")
         if value["size"] <= 0 or value["size"] > task["maxFileMb"] * 1024 * 1024:
             raise HTTPException(413, "文件超过任务大小上限或内容为空")
-    for error in errors:
-        path = relative_path(error["relativePath"])
+    normalized_errors = []
+    for idx, error in enumerate(errors):
+        raw_path = error.get("relativePath", "")
+        try:
+            path = relative_path(raw_path)
+        except HTTPException:
+            path = _sanitize_error_path(raw_path, idx)
         if path in seen:
-            raise HTTPException(422, "文件清单含重复路径")
+            continue
         seen.add(path)
+        normalized_errors.append({"relativePath": path, "error": error.get("error", "")})
     need = []
     for value in files:
         path, sha = value["relativePath"], value["sha256"]
@@ -883,11 +918,7 @@ def apply_manifest(store, task, run, files, errors=(), truncated=False):
         current = store.get(ITEM, item_id, required=False)
         if current:
             if current["sha256"] != sha or current["size"] != value["size"]:
-                if (
-                    current.get("allowChangedFingerprint")
-                    and not current.get("originalSaved")
-                    and current["status"] == "pending"
-                ):
+                if not current.get("originalSaved") and current["status"] == "pending":
                     current.update(
                         sha256=sha,
                         size=value["size"],
@@ -934,7 +965,7 @@ def apply_manifest(store, task, run, files, errors=(), truncated=False):
         store.put(ITEM, item)
         if not item["originalSaved"] and not suppressed:
             need.append(path)
-    for error in errors:
+    for error in normalized_errors:
         path = error["relativePath"]
         ident = store.key(ITEM, run["id"] + ":" + path)
         if store.get(ITEM, ident, required=False) is None:
@@ -994,40 +1025,49 @@ def save_original(store, task, run, path, sha, content):
         raise HTTPException(422, "文件不是有效 PDF 或超过大小上限")
     if item.get("originalSaved"):
         return {"saved": True, "relativePath": path, "originalSaved": True}
+    store.lock_original(sha)
     existing_blob = store.get(BLOB, store.key(BLOB, sha), required=False)
     source_id = store.key("source", "folder-imports")
     if not store.get("source", source_id, required=False):
-        store.put(
-            "source",
-            {
-                "id": source_id,
-                "adapter": "folder",
-                "name": "文件夹自动导入",
-                "url": "",
-                "scopes": [],
-                "enabled": False,
-                "createdAt": iso(),
-            },
-        )
+        try:
+            with store.db.begin_nested():
+                store.put(
+                    "source",
+                    {
+                        "id": source_id,
+                        "adapter": "folder",
+                        "name": "文件夹自动导入",
+                        "url": "",
+                        "scopes": [],
+                        "enabled": False,
+                        "createdAt": iso(),
+                    },
+                )
+        except IntegrityError:
+            pass
     document_id = store.key("document", "folder:" + sha)
     if not store.get("document", document_id, required=False):
-        store.put(
-            "document",
-            {
-                "id": document_id,
-                "sourceId": source_id,
-                "title": PurePosixPath(path).stem[:500],
-                "url": "",
-                "scopes": [],
-                "folderIds": [run["folderId"]],
-                "documentType": "文件夹导入",
-                "originalFilename": PurePosixPath(path).name,
-                "format": "PDF",
-                "language": "未提供",
-                "status": "archived",
-                "discoveredAt": iso(),
-            },
-        )
+        try:
+            with store.db.begin_nested():
+                store.put(
+                    "document",
+                    {
+                        "id": document_id,
+                        "sourceId": source_id,
+                        "title": PurePosixPath(path).stem[:500],
+                        "url": "",
+                        "scopes": [],
+                        "folderIds": [run["folderId"]],
+                        "documentType": "文件夹导入",
+                        "originalFilename": PurePosixPath(path).name,
+                        "format": "PDF",
+                        "language": "未提供",
+                        "status": "archived",
+                        "discoveredAt": iso(),
+                    },
+                )
+        except IntegrityError:
+            pass
     version = store.archive(document_id, content)
     item.update(
         originalSaved=True,
@@ -1283,6 +1323,81 @@ def scan_server(task, heartbeat=None):
     return files, errors, len(paths) > len(selected), selected[-1] if selected else ""
 
 
+def probe_file(root, relative, max_bytes, *, now=None):
+    parts = PurePosixPath(relative_path(relative)).parts
+    name = parts[-1]
+    try:
+        with ExitStack() as opened:
+            root_fd = opened.enter_context(_open_directory_parts(root, ()))
+            device = os.fstat(root_fd).st_dev
+            parent_fd = opened.enter_context(
+                _open_directory_parts(root_fd, parts[:-1], device=device)
+            )
+            flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+            fd = os.open(name, flags, dir_fd=parent_fd)
+            opened.callback(os.close, fd)
+            stream = opened.enter_context(os.fdopen(fd, "rb", closefd=False))
+            before = os.fstat(stream.fileno())
+            if not stat.S_ISREG(before.st_mode) or before.st_dev != device:
+                raise ValueError("文件不是可读取的普通文件")
+            if before.st_size == 0:
+                raise ValueError("文件为空")
+            if before.st_size > max_bytes:
+                raise ValueError(f"超过本任务单份 PDF 的大小上限（{max_bytes / 1024**2:g} MB）")
+            if (time.time() if now is None else now) - before.st_mtime < 2:
+                raise ValueError("文件仍在写入，稳定后可重试")
+            # Confirm readability without reading or hashing the entire file during probe.
+            header = stream.read(16)
+            if not header:
+                raise ValueError("文件为空")
+            return before.st_size
+    except PermissionError as exc:
+        raise ValueError("知识源没有读取该文件的权限") from exc
+    except FileNotFoundError as exc:
+        raise ValueError("文件已移走或删除，请重新检查目录") from exc
+    except OSError as exc:
+        raise ValueError("读取原文件失败，请检查服务器或 NAS 存储连接") from exc
+
+
+def probe_server(task):
+    paths = []
+
+    def walk(directory_fd, prefix, device):
+        with os.scandir(directory_fd) as entries:
+            for entry in entries:
+                if entry.name.startswith(".") or entry.is_symlink():
+                    continue
+                attrs = entry.stat(follow_symlinks=False)
+                if attrs.st_dev != device:
+                    continue
+                path = prefix + entry.name
+                if (
+                    stat.S_ISDIR(attrs.st_mode)
+                    and task["includeSubfolders"]
+                    and _directory_name_allowed(entry.name)
+                ):
+                    with _open_directory_parts(directory_fd, (entry.name,), device=device) as fd:
+                        walk(fd, path + "/", device)
+                elif stat.S_ISREG(attrs.st_mode) and entry.name.lower().endswith(".pdf"):
+                    paths.append(path)
+
+    with _server_directory(task) as root_fd:
+        try:
+            walk(root_fd, "", os.fstat(root_fd).st_dev)
+        except OSError as exc:
+            raise HTTPException(409, "扫描目录断连或部分目录不可访问，未把文件判断为删除") from exc
+        paths.sort()
+        selected = paths[: task["maxFilesPerScan"]]
+        total_bytes, errors = 0, []
+        max_bytes = task["maxFileMb"] * 1024 * 1024
+        for path in selected:
+            try:
+                total_bytes += probe_file(root_fd, path, max_bytes)
+            except (ValueError, HTTPException) as exc:
+                errors.append({"relativePath": path, "error": safe_error(exc)})
+    return len(selected), total_bytes, errors, len(paths) > len(selected)
+
+
 def probe(config):
     config = normalize_config(config)
     if config["kind"] == "local":
@@ -1294,11 +1409,11 @@ def probe(config):
             "sourcePath": source_path(config),
             "message": "保存任务后连接本机文件夹；网页关闭后连接程序继续运行",
         }
-    files, errors, truncated, _ = scan_server(config)
+    file_count, total_bytes, errors, truncated = probe_server(config)
     return {
         "valid": True,
-        "fileCount": len(files) + len(errors),
-        "totalBytes": sum(f["size"] for f in files),
+        "fileCount": file_count,
+        "totalBytes": total_bytes,
         "truncated": truncated,
         "sourcePath": source_path(config),
         "errors": errors,
@@ -1391,12 +1506,10 @@ def process_item(
             return True
         version = store.get("version", item["versionId"])
         source_key = hashlib.sha256((task["id"] + ":" + item["relativePath"]).encode()).hexdigest()
-        if not item.get("kbDocumentId") or (
-            version.get("parseStatus") == "ready" and not item.get("kbTextReady")
-        ):
-            item["phase"] = "archive"
-            store.put(ITEM, item)
-            store.db.commit()
+
+        def upload_to_kb(text_value: str):
+            if heartbeat:
+                heartbeat()
             reply = connector(
                 "folderImportPaper",
                 subject,
@@ -1407,7 +1520,7 @@ def process_item(
                     "ascii"
                 ),
                 sha256=item["sha256"],
-                text=version.get("text", ""),
+                text=text_value,
                 folderId=destination,
             )
             if not reply.get("documentId") or not reply.get("path"):
@@ -1416,7 +1529,6 @@ def process_item(
                 kbDocumentId=reply["documentId"],
                 paperId=reply["path"],
                 indexStatus=reply.get("indexStatus", "not_requested"),
-                phase="index" if version.get("parseStatus") == "ready" else "parse",
                 kbTextReady=version.get("parseStatus") == "ready",
             )
             version.update(
@@ -1427,15 +1539,35 @@ def process_item(
                 indexStatus=item["indexStatus"],
             )
             store.put("version", version)
-        elif version.get("parseStatus") != "ready":
+
+        if version.get("parseStatus") != "ready":
             item["phase"] = "parse"
             store.put(ITEM, item)
             store.db.commit()
-            extracted = (
-                extract(store.archive_path(version), with_metadata=True)
-                if extract is extract_pdf
-                else extract(store.archive_path(version))
-            )
+            if heartbeat:
+                heartbeat()
+            try:
+                extracted = (
+                    extract(store.archive_path(version), with_metadata=True)
+                    if extract is extract_pdf
+                    else extract(store.archive_path(version))
+                )
+            except Exception:
+                # Even when PDF text extraction fails, retain the original in KB
+                # so the user can still download or re-parse later without re-scanning.
+                if not item.get("kbDocumentId"):
+                    try:
+                        upload_to_kb("")
+                        store.put(ITEM, item)
+                        store.db.commit()
+                    except Exception:
+                        store.db.rollback()
+                        logger.warning(
+                            "folder_import fallback original archive failed for item=%s",
+                            item["id"],
+                            exc_info=True,
+                        )
+                raise
             text = extracted["text"] if isinstance(extracted, dict) else extracted
             pages = extracted.get("pages") if isinstance(extracted, dict) else None
             known_pages = (
@@ -1456,11 +1588,24 @@ def process_item(
                 parsedPages=pages if known_pages else None,
             )
             store.put("version", version)
-            item.update(phase="archive", error=None)
+            # Upload once with both original PDF and extracted text (avoids double 133MB Base64).
+            item["phase"] = "archive"
+            store.put(ITEM, item)
+            store.db.commit()
+            upload_to_kb(text)
+            item.update(phase="index", error=None)
+        elif not item.get("kbDocumentId") or not item.get("kbTextReady"):
+            item["phase"] = "archive"
+            store.put(ITEM, item)
+            store.db.commit()
+            upload_to_kb(version.get("text", ""))
+            item.update(phase="index", error=None)
         else:
             item["phase"] = "index"
             store.put(ITEM, item)
             store.db.commit()
+            if heartbeat:
+                heartbeat()
             operation = "statusFolderPaper" if item.get("kbTaskId") else "indexFolderPaper"
             values = {
                 "importTaskId": task["id"],
@@ -1531,6 +1676,14 @@ def process_item(
                 )
                 store.put("document", document)
             else:
+                item.setdefault("indexStartedAt", time.time())
+                item["pollAttempts"] = item.get("pollAttempts", 0) + 1
+                if (
+                    item["pollAttempts"] >= MAX_INDEX_POLL_ATTEMPTS
+                    or (time.time() - item["indexStartedAt"]) >= MAX_INDEX_POLL_SECONDS
+                ):
+                    item.pop("kbTaskId", None)
+                    raise ValueError("问答索引跟踪超时，原件已保留，可稍后重试")
                 item["nextAttemptAt"] = time.time() + 5
             store.put("version", version)
         item["attempts"] = 0
@@ -1577,13 +1730,37 @@ def process_run(store, run_id, connector=bridge.call, extract=extract_pdf, heart
     task = _task(store, run["taskId"])
     if task.get("paused") or run["status"] not in ACTIVE:
         return False
+    if run.get("nextAttemptAt", 0) > time.time():
+        return False
     if run["status"] == "waiting_quota" and usage_snapshot(store, task)["remainingFiles"] == 0:
         return False
-    require_authority(store, run["actorSubject"], connector)
-    _destination(
-        task, connector("librarySummary", run["actorSubject"]), run["actorSubject"], connector
-    )
+    # Avoid burning IAM + DIKW HTTP calls on idle local runs awaiting connector transfer.
+    if task["kind"] == "local" and not run.get("manifestComplete"):
+        updated = run.get("updatedAt") or run.get("createdAt")
+        if (
+            updated
+            and (time.time() - datetime.fromisoformat(updated).timestamp())
+            >= LOCAL_RUN_STALE_SECONDS
+        ):
+            locked_run = store.lock(RUN, run_id)
+            if locked_run["status"] in ACTIVE and not locked_run.get("manifestComplete"):
+                locked_run.update(
+                    status="failed",
+                    phase="done",
+                    error="本机连接程序长时间未响应，本次扫描已超时结束，请重新连接后重试",
+                    finishedAt=iso(),
+                    updatedAt=iso(),
+                )
+                store.put(RUN, locked_run)
+                store.db.commit()
+                logger.warning(
+                    "Expired stale local folder-import run=%s task=%s", run_id, task["id"]
+                )
+                return True
+        return False
     if task["kind"] == "server" and not run.get("manifestReceived"):
+        summary = require_authority(store, run["actorSubject"], connector)
+        _destination(task, summary, run["actorSubject"], connector)
         files, errors, truncated, cursor = scan_server(task, heartbeat)
         task = store.get(TASK, task["id"])
         run = store.get(RUN, run_id)
@@ -1607,19 +1784,21 @@ def process_run(store, run_id, connector=bridge.call, extract=extract_pdf, heart
         return True
     if not run.get("manifestComplete"):
         return False
+    items = items_for(store, run_id)
+    now = time.time()
     pending = next(
-        (
-            i
-            for i in items_for(store, run_id)
-            if i["status"] == "pending" and i.get("nextAttemptAt", 0) <= time.time()
-        ),
+        (i for i in items if i["status"] == "pending" and i.get("nextAttemptAt", 0) <= now),
         None,
     )
     if pending:
         if wait_for_quota(store, task, run):
             return False
+        summary = require_authority(store, run["actorSubject"], connector)
+        _destination(task, summary, run["actorSubject"], connector)
         run = store.get(RUN, run_id)
         return process_item(store, task, run, pending, connector, extract, heartbeat)
+    if any(i["status"] == "pending" for i in items):
+        return False
     refresh_run(store, run_id)
     store.db.commit()
     return False
@@ -1639,7 +1818,22 @@ def schedule_due(db, now=None, connector=bridge.call):
         except Exception as exc:
             db.rollback()
             current = _task(store, task["id"])
-            current.update(lastError=safe_error(exc), paused=True, nextScanAt=None)
+            if _is_auth_revocation(exc) or (
+                isinstance(exc, HTTPException) and exc.status_code == 409
+            ):
+                current.update(lastError=safe_error(exc), paused=True, nextScanAt=None)
+                logger.warning(
+                    "Paused folder-import task=%s due to auth/config error: %s",
+                    task["id"],
+                    safe_error(exc),
+                )
+            else:
+                current.update(lastError=safe_error(exc), nextScanAt=iso(timestamp + 300))
+                logger.warning(
+                    "Backed off folder-import task=%s due to transient error: %s",
+                    task["id"],
+                    safe_error(exc),
+                )
             store.put(TASK, current)
             db.commit()
 
@@ -1676,12 +1870,18 @@ def tick(session_factory=SessionLocal, connector=bridge.call):
             nonlocal last_heartbeat
             if time.monotonic() - last_heartbeat < 10:
                 return
-            changed = db.execute(
-                update(InformationLease)
-                .where(InformationLease.id == lease_id, InformationLease.owner == owner)
-                .values(expires_at=time.time() + 300)
-            ).rowcount
-            db.commit()
+            # Renew the worker lease on an independent session so in-flight
+            # transactions on `db` are never committed prematurely.
+            hb_db = session_factory()
+            try:
+                changed = hb_db.execute(
+                    update(InformationLease)
+                    .where(InformationLease.id == lease_id, InformationLease.owner == owner)
+                    .values(expires_at=time.time() + 300)
+                ).rowcount
+                hb_db.commit()
+            finally:
+                hb_db.close()
             if changed != 1:
                 raise LeaseLostError()
             last_heartbeat = time.monotonic()
@@ -1709,9 +1909,28 @@ def tick(session_factory=SessionLocal, connector=bridge.call):
                 task = store.get(TASK, run["taskId"])
                 if task.get("deletedAt"):
                     continue
-                task.update(lastError=safe_error(exc), paused=True, nextScanAt=None)
+                if _is_auth_revocation(exc) or (
+                    isinstance(exc, HTTPException) and exc.status_code == 409
+                ):
+                    task.update(lastError=safe_error(exc), paused=True, nextScanAt=None)
+                    run["error"] = safe_error(exc)
+                    logger.warning(
+                        "Paused folder-import task=%s run=%s: %s",
+                        task["id"],
+                        run["id"],
+                        safe_error(exc),
+                    )
+                else:
+                    task["lastError"] = safe_error(exc)
+                    run["error"] = safe_error(exc)
+                    run["nextAttemptAt"] = time.time() + 30
+                    logger.warning(
+                        "Transient error on folder-import task=%s run=%s, backing off 30s: %s",
+                        task["id"],
+                        run["id"],
+                        safe_error(exc),
+                    )
                 store.put(TASK, task)
-                run["error"] = safe_error(exc)
                 store.put(RUN, run)
                 db.commit()
     except Exception:
@@ -1719,12 +1938,15 @@ def tick(session_factory=SessionLocal, connector=bridge.call):
         logger.exception("Folder import worker step failed")
     finally:
         if acquired:
-            db.execute(
-                update(InformationLease)
-                .where(InformationLease.id == lease_id, InformationLease.owner == owner)
-                .values(owner="", expires_at=0)
-            )
-            db.commit()
+            try:
+                db.execute(
+                    update(InformationLease)
+                    .where(InformationLease.id == lease_id, InformationLease.owner == owner)
+                    .values(owner="", expires_at=0)
+                )
+                db.commit()
+            except Exception:
+                db.rollback()
         db.close()
 
 
@@ -1733,8 +1955,12 @@ def start_worker():
 
     def loop():
         while not stop.wait(2):
-            tick()
+            try:
+                tick()
+            except Exception:
+                logger.exception("Folder import worker loop uncaught error")
 
     thread = threading.Thread(target=loop, name="knowledge-folder-imports", daemon=True)
     thread.start()
+    logger.info("folder-import worker started")
     return stop, thread

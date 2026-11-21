@@ -28,7 +28,7 @@
 
 ## 后台与权限
 
-门户接口前缀为 `/api/v1/knowledge-sources/v3/folder-imports`。浏览器写操作使用现有门户会话、同源校验和实时管理员 / 知识库负责人角色，并由知识库再次检查写入权。本地连接程序使用独立的任务授权，只能提交本任务、当前扫描租约内的相对文件路径。
+门户接口前缀为 `/api/v1/knowledge-sources/v3/folder-imports`。浏览器写操作与连接程序脚本下载（`GET /connector/script`）均使用现有门户会话、实时管理员 / 知识库负责人角色（写操作同时做同源校验），并由知识库再次检查写入权。本地连接程序使用独立的任务授权，只能提交本任务、当前扫描租约内的相对文件路径，单文件上传请求体与超时上限随 `KNOWLEDGE_FOLDER_IMPORT_MAX_FILE_MB` 放行。
 
 任务、扫描批次、文件结果、来源位置、配对授权、每日用量和幂等计量事件沿用 `information_entries`，正文沿用 `information_texts`；原件仍在 `INFORMATION_DATA_DIR` 内容寻址存储中。门户侧不新增数据库表或迁移；配套 Core 扩展新增两个版本元数据表，具体范围见[Core 扩展](../extensions/knowledge-folder-core/README.md)。连接程序令牌仅保存哈希；一次性配对码不保存明文。扫描结果和已完成阶段持久化，临时失败最多自动尝试三次，手动重试复用已保存原件和正文。
 
@@ -49,7 +49,7 @@ KNOWLEDGE_FOLDER_IMPORT_MAX_FILE_MB=100
 
 每个根目录包含唯一的 `id`、界面名称 `name` 和工作进程内实际可读的 `path`。可选的 `displayPath` 是该目录在宿主机上的完整路径。例如上述配置支持直接粘贴 `/srv/research/papers/欧洲药典`。未配置 `displayPath` 时，可按名称查找、逐层浏览，或输入 `研究资料挂载/欧洲药典`。
 
-根目录应由运维只读挂载到实际工作进程可见的位置，两个运行实例须采用一致的授权目录和文件夹配置；不在前端填写 SMB / NFS 凭据。服务器目录不可达或挂载设备变化会暂停并要求核对。原件空间仍受 `INFORMATION_MAX_ARCHIVE_MB` 约束，应保留原件持久卷和备份。
+根目录应由运维只读挂载到实际工作进程可见的位置，两个运行实例须采用一致的授权目录和文件夹配置；Split-Worker 部署（`deploy/parallel-test/worker_overlay.py`）自动透传 `KNOWLEDGE_FOLDER_IMPORT_*` 环境变量；不在前端填写 SMB / NFS 凭据。服务器目录不可达或挂载设备变化会暂停并要求核对。原件空间仍受 `INFORMATION_MAX_ARCHIVE_MB` 约束，应保留原件持久卷和备份。
 
 本地连接程序需 Python 3.10+，不额外安装依赖。在页面生成配对码后执行：
 

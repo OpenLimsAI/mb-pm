@@ -14,27 +14,26 @@ import importlib.metadata
 import inspect
 import re
 import types
-from urllib.parse import unquote_to_bytes
 from pathlib import Path, PurePosixPath
-
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, ConfigDict, Field
+from urllib.parse import unquote_to_bytes
 
 from dikw_core import api_ingest
 from dikw_core.api_core import (
-    _with_storage,
     _resolve_active_text_version_for_inline_embed,
+    _with_storage,
 )
 from dikw_core.config import CONFIG_FILENAME, load_config
 from dikw_core.domains.data.path_norm import doc_id_for
 from dikw_core.domains.data.sources import iter_source_files
+from dikw_core.md_inspect import sha256_file
 from dikw_core.providers import build_embedder
 from dikw_core.schemas import Layer
-from dikw_core.md_inspect import sha256_file
 from dikw_core.server.auth import make_dependency
+from dikw_core.server.routes_tasks import IngestSubmit, TaskHandle, _handle
 from dikw_core.server.runtime import get_runtime
-from dikw_core.server.routes_tasks import _handle, IngestSubmit, TaskHandle
 from dikw_core.server.tasks.manager import _params_digest
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, ConfigDict, Field
 
 UPSTREAM_SHA256 = "2c16b3410c5ce87cbd42db147fa0b4dcd2beb28bd4b0eaafa94a5855e4b39426"
 TABLES = (
@@ -81,11 +80,12 @@ def discard_manual_files(root, upload):
     if markdown.is_file():
         markdown.replace(trashed_source)
     if pdf.is_file():
+        resolved_root = root.resolve()
         for name in ("sources", "knowledge", "wisdom"):
             for page in (root / name).rglob("*.md"):
                 if (
                     page.is_symlink()
-                    or not page.resolve().is_relative_to(root)
+                    or not page.resolve().is_relative_to(resolved_root)
                     or not page.is_file()
                 ):
                     continue
@@ -620,12 +620,29 @@ def install(app, auth):
                     op="folder.ingest", limit=100, **cursor
                 )
                 for old in rows:
-                    if old.params_digest == digest and old.status.value in {
-                        "pending",
-                        "running",
-                        "succeeded",
-                    }:
+                    if old.params_digest != digest:
+                        continue
+                    if old.status.value in {"pending", "running"}:
                         return _handle(old)
+                    if old.status.value == "succeeded":
+                        # Only deduplicate against a historical success when every
+                        # target path is still the currently active promoted version.
+                        # Re-promoting a version after a revert (v1->v2->v1->v2)
+                        # must run a fresh ingest/promote cycle.
+                        inactive = await inactive_versions(rt.storage)
+                        still_active = True
+                        for path in body.paths:
+                            if path in inactive:
+                                still_active = False
+                                break
+                            doc = await rt.storage.get_document(
+                                doc_id_for(Layer.SOURCE, path)
+                            )
+                            if doc is None or not doc.active:
+                                still_active = False
+                                break
+                        if still_active:
+                            return _handle(old)
                 if len(rows) < 100:
                     break
                 cursor = {

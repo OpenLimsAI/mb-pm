@@ -18,7 +18,7 @@ from app.services import password_policy
 from app.services.iam_admin import IAMError
 from app.services.information import bridge
 from app.services.information.store import Store, tenant_key
-from app.services.information.worker import active_account, can_manage
+from app.services.information.worker import active_account, can_access_knowledge, can_manage
 
 router = APIRouter(prefix="/information", tags=["information"])
 ARCHIVE = "information-archive"
@@ -81,10 +81,14 @@ def principal(request: Request, db: Annotated[Session, Depends(get_db)]):
     )
     if not settings.INFORMATION_APP_ENABLED and not archived_original:
         raise HTTPException(410, "行业信息已下线，知识源正在重新设计；已有资料保留")
+    if not settings.INFORMATION_APP_ENABLED and not settings.KNOWLEDGE_SOURCE_APP_ENABLED:
+        raise HTTPException(410, "知识源暂未启用")
     try:
         account = active_account(claims["sub"])
     except IAMError as exc:
         raise HTTPException(503, "暂时无法确认 IAM 身份，请稍后重试") from exc
+    if not settings.INFORMATION_APP_ENABLED and not can_access_knowledge(account):
+        raise HTTPException(403, "当前账号没有知识源访问权限，请联系管理员分配知识库角色")
     # The signed issuer/org partition is independent of mutable login names.
     return {
         "subject": claims["sub"],
@@ -454,10 +458,29 @@ def original(
     actor: Annotated[dict, Depends(principal)],
 ):
     store = Store(db, actor["tenant"])
-    store.get("document", document_id)
+    document = store.get("document", document_id)
     version = store.get("version", version_id)
     if version["documentId"] != document_id:
         raise HTTPException(404, "资料版本不存在")
+    if not settings.INFORMATION_APP_ENABLED:
+        from app.api.v1.knowledge_sources import connected, library, pending_archive
+
+        source = store.get("source", document["sourceId"])
+        if version.get("kbPath"):
+            catalogue = library(
+                actor,
+                imports=[
+                    {
+                        "documentId": version.get("kbDocumentId", document_id),
+                        "sha256": version["sha256"],
+                    }
+                ],
+            )
+            active = any(p.get("path") == version["kbPath"] for p in catalogue.get("papers", []))
+            if not active and not pending_archive(version, catalogue):
+                raise HTTPException(404, "知识库论文已删除或无权访问")
+        elif source.get("adapter") in {"folder", "manual"}:
+            connected("librarySummary", actor["subject"])
     path = store.archive_path(version)
     if not path.is_file():
         raise HTTPException(410, "归档文件暂不可读，请联系管理员恢复备份")

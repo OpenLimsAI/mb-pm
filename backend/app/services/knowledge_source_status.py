@@ -116,12 +116,11 @@ def public_jobs(store, subject=None):
     reference_sources = {
         s["id"] for s in store.records("source") if s.get("adapter") == "reference"
     }
-    jobs = [
-        copy.deepcopy({k: v for k, v in j.items() if k != "actorSubject"})
-        for j in store.records("job")
-        if j.get("app") == APP
-    ]
-    for job in jobs:
+    raw_jobs = [j for j in store.records("job") if j.get("app") == APP][-100:]
+    jobs = []
+    for raw in raw_jobs:
+        owner = raw.get("actorSubject")
+        job = copy.deepcopy({k: v for k, v in raw.items() if k != "actorSubject"})
         if job.get("sourceId") in reference_sources and job.get("kind") == "import":
             for item in job.get("items", []):
                 if (
@@ -145,9 +144,12 @@ def public_jobs(store, subject=None):
                     tokens.append(token)
             filing["undoTokens"] = tokens
             filing["canUndoRuleFiling"] = bool(tokens)
+            same_owner = bool(subject and owner == subject)
             for result in filing.get("results", []):
                 result.pop("undoTokens", None)
                 result.pop("undoToken", None)
+                if not same_owner:
+                    result.pop("ruleId", None)
             job["canUndoRuleFiling"] = bool(tokens)
         items = job["items"]
         job["summary"] = {
@@ -165,11 +167,35 @@ def public_jobs(store, subject=None):
                 if i["status"] == "failed"
             ),
         }
-    return jobs[-100:]
+        jobs.append(job)
+    return jobs
 
 
 def job_revision(jobs):
     return hashlib.sha256(json.dumps(jobs, sort_keys=True).encode()).hexdigest()
+
+
+def empty_resources():
+    return {
+        "originalBytes": 0,
+        "originalFiles": 0,
+        "versionCount": 0,
+        "downloadBytes": 0,
+        "downloadMeteredSince": None,
+        "indexedVersions": 0,
+        "pendingVersions": 0,
+        "failedVersions": 0,
+        "researchRequests": 0,
+        "confirmedModelResponses": 0,
+        "unconfirmedModelRequests": 0,
+        "modelUsageReceipts": 0,
+        "modelTokens": 0,
+        "modelTokenReceiptsMissing": 0,
+        "modelUsageIncomplete": False,
+        "generativeModelCalls": 0,
+        "modelCost": None,
+        "indexCost": None,
+    }
 
 
 def resources(store):
@@ -233,11 +259,19 @@ def resources(store):
 
 
 def meter_download(store, count):
+    from sqlalchemy.exc import IntegrityError
+
     key = store.key("ks_usage", "downloads")
-    meter = store.get("ks_usage", key, required=False) or {
-        "id": key,
-        "bytes": 0,
-        "startedAt": iso(),
-    }
-    meter["bytes"] += count
-    store.put("ks_usage", meter)
+    for attempt in range(2):
+        existing = store.get("ks_usage", key, required=False)
+        meter = (
+            store.lock("ks_usage", key) if existing else {"id": key, "bytes": 0, "startedAt": iso()}
+        )
+        meter["bytes"] += count
+        try:
+            with store.db.begin_nested():
+                store.put("ks_usage", meter)
+            return
+        except IntegrityError:
+            if attempt:
+                raise

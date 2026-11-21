@@ -85,12 +85,23 @@ def evidence_for(store, actor, paper, connect, question):
         if version["documentId"] != paper.get("documentId"):
             raise HTTPException(404, "资料已变化，请刷新后重新选择")
         store.get("document", version["documentId"])
-        catalogue = connect("librarySummary", actor["subject"])
         if version.get("kbPath"):
             from app.api.v1.knowledge_sources import pending_archive
 
+            catalogue = connect(
+                "librarySummary",
+                actor["subject"],
+                imports=[
+                    {
+                        "documentId": version.get("kbDocumentId", version["documentId"]),
+                        "sha256": version["sha256"],
+                    }
+                ],
+            )
             if not pending_archive(version, catalogue):
                 connect("readPaper", actor["subject"], path=version["kbPath"], offset=0, limit=1)
+        else:
+            connect("librarySummary", actor["subject"])
         body = version.get("text", "")
         content_hash = hashlib.sha256(body.encode()).hexdigest()
         metadata = {}

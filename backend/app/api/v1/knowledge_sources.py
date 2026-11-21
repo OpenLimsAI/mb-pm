@@ -19,10 +19,11 @@ from app.services import password_policy
 from app.services.iam_admin import IAMError
 from app.services.information import bridge
 from app.services.information.store import Store, iso, tenant_key
-from app.services.information.worker import active_account, can_manage
+from app.services.information.worker import active_account, can_access_knowledge, can_manage
 from app.services.knowledge_source_folders import folder_action, organize_papers, undo_organization
 from app.services.knowledge_source_inbox import inbox_id, normalized_folder_ids
 from app.services.knowledge_source_status import (
+    empty_resources,
     job_revision,
     public_jobs,
     public_source,
@@ -132,6 +133,8 @@ def principal(request: Request, db: Session = Depends(get_db)):
         account = active_account(claims["sub"])
     except IAMError as exc:
         raise HTTPException(503, "暂时无法确认 IAM 身份，请稍后重试") from exc
+    if not can_access_knowledge(account):
+        raise HTTPException(403, "当前账号没有知识源访问权限，请联系管理员分配知识库角色")
     if request.method not in ("GET", "HEAD", "OPTIONS"):
         require_same_origin(request, origin=settings.portal_origin)
     return {
@@ -329,6 +332,31 @@ def snapshot(
     except HTTPException as exc:
         result = {}
         issue = str(exc.detail)
+        if exc.status_code in (401, 403):
+            return {
+                "papers": [],
+                "folders": [],
+                "sources": [],
+                "documents": [],
+                "jobs": [],
+                "changes": [],
+                "resources": empty_resources(),
+                "refreshedAt": iso(),
+                "catalogRevision": 0,
+                "canManage": False,
+                "canOrganize": False,
+                "canEdit": False,
+                "starred": [],
+                "libraryV3": False,
+                "libraryTotal": 0,
+                "folderCounts": {},
+                "tags": [],
+                "integration": {
+                    "status": "error",
+                    "message": issue,
+                    "kbUrl": None,
+                },
+            }
     folders = [{**f, "writable": bool(result.get("canWrite"))} for f in result.get("folders", [])]
     sources = []
     for source in store.records("source"):
@@ -533,11 +561,30 @@ def source_folder(store, actor, source, selected=None):
 
 @router.post("/sources", status_code=201)
 def create_source(body: SourceInput, db: Session = Depends(get_db), actor: dict = Depends(manager)):
+    import ipaddress
+
     parts = urlsplit(body.url)
     if parts.scheme != "https" or not parts.hostname or parts.username or parts.password:
         raise HTTPException(400, "请使用不含登录凭据的 HTTPS 官方网站地址")
+    try:
+        port = parts.port
+    except ValueError as exc:
+        raise HTTPException(400, "官方网站端口无效") from exc
+    if port not in (None, 443):
+        raise HTTPException(400, "请使用标准 HTTPS（443）官方网站地址")
+    host_raw = parts.hostname.lower()
+    if host_raw in {"localhost", "localhost.localdomain"} or host_raw.endswith(
+        (".local", ".internal", ".localhost")
+    ):
+        raise HTTPException(400, "不支持添加本地或内网地址作为知识源")
+    try:
+        ip = ipaddress.ip_address(host_raw)
+    except ValueError:
+        ip = None
+    if ip is not None and not ip.is_global:
+        raise HTTPException(400, "不支持添加私有或内网 IP 作为知识源")
     store = Store(db, actor["tenant"])
-    host = parts.hostname.lower().removeprefix("www.")
+    host = host_raw.removeprefix("www.")
     if host == "ich.org":
         source = store.ensure_source()
     else:
@@ -798,12 +845,26 @@ def retry_document(ident: str, db: Session = Depends(get_db), actor: dict = Depe
     source = store.source(doc["sourceId"])
     if source["adapter"] == "reference":
         writable_library(actor, store)
+    versions = doc["versions"]
+    if versions and versions[-1].get("kbPath"):
+        latest = versions[-1]
+        catalogue = library(
+            actor,
+            imports=[
+                {
+                    "documentId": latest.get("kbDocumentId", ident),
+                    "sha256": latest["sha256"],
+                }
+            ],
+        )
+        active = any(p.get("path") == latest["kbPath"] for p in catalogue.get("papers", []))
+        if not active and not pending_archive(latest, catalogue):
+            raise HTTPException(409, "对应知识库论文已删除，不能通过重试恢复")
     require_worker()
     target = source_folder(store, actor, source)
     job = new_job(
         store, actor, source, kind="import", document_ids=[ident], folder_id=target, parse=True
     )
-    versions = doc["versions"]
     if versions:
         job["items"][0].update(versionId=versions[-1]["id"], phase="resume_saved", result="reused")
         store.put("job", job)
@@ -867,9 +928,12 @@ def original(
     if version["documentId"] != document_id:
         raise HTTPException(404, "原文版本不存在")
     source = store.get("source", document["sourceId"])
-    if source.get("adapter") == "folder" and not version.get("kbPath"):
-        # A staged connector upload is never a substitute for current KB access.
-        connected("librarySummary", actor["subject"])
+    if not version.get("kbPath"):
+        # Unlinked archives still require live KB access proof when KB is active.
+        if source.get("adapter") == "folder":
+            connected("librarySummary", actor["subject"])
+        else:
+            library(actor, imports=[])
     if version.get("kbPath"):
         catalogue = library(
             actor,
