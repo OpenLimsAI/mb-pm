@@ -1,5 +1,5 @@
 
-#knowledge-source-app{--kso-bg:var(--workbench-bg);--kso-surface:#fff;--kso-side:#fff;--kso-ink:var(--workbench-ink);--kso-muted:var(--workbench-muted);--kso-line:var(--workbench-line);--kso-soft:var(--workbench-bg);--kso-blue:var(--workbench-brand);--kso-blue-bg:var(--workbench-soft);--kso-blue-ink:var(--workbench-brand-strong);--kso-green:#25714f;--kso-green-bg:#e9f5ed;--kso-warn:#a36b20;--kso-warn-bg:#fff5e3;--kso-red:#b14949;--kso-red-bg:#fff0ee;--kso-top:var(--app-header-background, var(--workbench-brand-strong));--kso-top-ink:#f5f8ff;--kso-scrim:#1d344b66;position:relative;background:var(--kso-bg);color:var(--kso-ink);font:14px/1.6 "PingFang SC","Microsoft YaHei",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;border:1px solid var(--kso-line);border-radius:12px;overflow:clip;isolation:isolate}
+#knowledge-source-app{--kso-bg:var(--workbench-bg);--kso-surface:#fff;--kso-side:#fff;--kso-ink:var(--workbench-ink);--kso-muted:var(--workbench-muted);--kso-line:var(--workbench-line);--kso-soft:var(--workbench-bg);--kso-blue:var(--workbench-brand);--kso-blue-bg:var(--workbench-soft);--kso-blue-ink:var(--workbench-brand-strong);--kso-green:#25714f;--kso-green-bg:#e9f5ed;--kso-warn:#a36b20;--kso-warn-bg:#fff5e3;--kso-red:#b14949;--kso-red-bg:#fff0ee;--kso-top:var(--app-header-background, var(--workbench-brand-strong));--kso-top-ink:#f5f8ff;--kso-scrim:#1d344b66;--ks-z-sticky:20;--ks-z-overlay:30;--ks-z-toast:45;--ks-z-reader:70;--ks-z-modal:90;position:relative;background:var(--kso-bg);color:var(--kso-ink);font:14px/1.6 "PingFang SC","Microsoft YaHei",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;border:1px solid var(--kso-line);border-radius:12px;overflow:clip;isolation:isolate}
 #knowledge-source-app *{box-sizing:border-box}
 #knowledge-source-app h1,#knowledge-source-app h2,#knowledge-source-app h3,#knowledge-source-app p{margin:0}
 #knowledge-source-app h1{font-size:23px;font-weight:600;letter-spacing:-.5px}#knowledge-source-app h2{font-size:16px;font-weight:600}#knowledge-source-app h3{font-size:14px;font-weight:600}
@@ -34,7 +34,7 @@
 #knowledge-source-app .kso-top { padding-right:20px; }
 #knowledge-source-app .kso-inline-status { padding:10px 14px; background:var(--kso-blue-bg); border-bottom:1px solid var(--kso-line); font-size:12px; }
 #knowledge-source-app .kso-inline-error { color:var(--kso-red); background:var(--kso-red-bg); }
-#knowledge-source-app .kso-dialog-layer { position:fixed; inset:0; z-index:90; overflow:auto; background:var(--kso-scrim); padding:55px 18px 30px; display:flex; align-items:flex-start; justify-content:center; }
+#knowledge-source-app .kso-dialog-layer { position:fixed; inset:0; z-index:var(--ks-z-modal); overflow:auto; background:var(--kso-scrim); padding:55px 18px 30px; display:flex; align-items:flex-start; justify-content:center; }
 #knowledge-source-app .kso-dialog { margin:auto 0; flex-shrink:0; }
 #knowledge-source-app .kso-table tbody tr.is-current { background:var(--kso-blue-bg); }
 #knowledge-source-app .kso-table input { cursor:pointer; }

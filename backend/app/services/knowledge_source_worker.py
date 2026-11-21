@@ -32,7 +32,7 @@ def _is_auth_revocation(exc) -> bool:
 
 def _filing_context(store, subject, connector):
     """Current readable library and metadata, never the first displayed page."""
-    from app.api.v1.knowledge_sources import paper_snapshot
+    from app.services.knowledge_source_context import paper_snapshot
 
     proofs = [
         {"documentId": value.get("kbDocumentId", value["documentId"]), "sha256": value["sha256"]}
@@ -352,6 +352,8 @@ def tick(
                 InformationEntry.data["app"].as_string() == APP,
                 InformationEntry.data["status"].as_string().in_(["completed", "partial"]),
             )
+            .order_by(InformationEntry.updated_at.desc())
+            .limit(100)
             .all()
         ):
             if row.data.get("filingV3StartedAt") and not row.data.get("filingV3Done"):
@@ -371,6 +373,9 @@ def tick(
                     db.rollback()
                     logger.exception("scheduled_followup recovery failed for job %s", row.id)
         schedule_due(db)
+        from app.services.knowledge_source_retention import maybe_prune_expired_entries
+
+        maybe_prune_expired_entries(db)
         jobs = (
             db.query(InformationEntry)
             .filter(

@@ -113,10 +113,25 @@ def reference_document_state(doc, source, outcomes):
 
 
 def public_jobs(store, subject=None):
+    from app.models.information import InformationEntry
+
     reference_sources = {
         s["id"] for s in store.records("source") if s.get("adapter") == "reference"
     }
-    raw_jobs = [j for j in store.records("job") if j.get("app") == APP][-100:]
+    rows = list(
+        reversed(
+            store.db.query(InformationEntry)
+            .filter(
+                InformationEntry.tenant == store.tenant,
+                InformationEntry.kind == "job",
+                InformationEntry.data["app"].as_string() == APP,
+            )
+            .order_by(InformationEntry.updated_at.desc(), InformationEntry.id.desc())
+            .limit(100)
+            .all()
+        )
+    )
+    raw_jobs = [row.data for row in rows]
     jobs = []
     for raw in raw_jobs:
         owner = raw.get("actorSubject")

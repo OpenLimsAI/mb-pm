@@ -11,7 +11,6 @@ from app.api.v1.knowledge_sources import (
     Input,
     connected,
     library,
-    paper_snapshot,
     pending_archive,
     principal,
 )
@@ -21,6 +20,7 @@ from app.services import knowledge_ai
 from app.services import knowledge_source_research_v3 as research_service
 from app.services import knowledge_source_workspace_v3 as service
 from app.services.information.store import Store
+from app.services.knowledge_source_context import workspace_catalogue_context
 
 router = APIRouter(prefix="/knowledge-sources/v3", tags=["knowledge-source-workspace"])
 
@@ -91,43 +91,7 @@ class ResearchInput(Input):
 
 
 def context(store, actor):
-    catalogue = library(actor, store)
-    papers = paper_snapshot(store, actor, catalogue)
-    # Full metadata paging is deliberate here: rules and duplicates must not act on
-    # just the currently displayed page. Text bodies are never included in this loop.
-    offset = 0
-    enriched = {}
-    while True:
-        page = connected(
-            "queryLibrary",
-            actor["subject"],
-            query="",
-            folderIds=[],
-            tags=[],
-            offset=offset,
-            limit=100,
-            sort="recent",
-        )
-        for item in page.get("papers", []):
-            enriched[item.get("path") or item.get("id")] = item
-        next_offset = page.get("nextOffset")
-        if next_offset is None:
-            break
-        if not isinstance(next_offset, int) or next_offset <= offset:
-            raise HTTPException(503, "知识库分页游标无效，请稍后重试")
-        offset = next_offset
-    papers = [
-        {
-            **paper,
-            **{
-                key: value
-                for key, value in enriched.get(paper["id"], {}).items()
-                if key in {"metadata", "tags", "hash", "matches"}
-            },
-        }
-        for paper in papers
-    ]
-    return catalogue, papers
+    return workspace_catalogue_context(store, actor, connect_fn=connected, library_fn=library)
 
 
 def editable(catalogue):

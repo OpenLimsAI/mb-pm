@@ -1,7 +1,6 @@
 import { useEffect, useId, useState } from 'react'
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Download, ExternalLink, ListChecks, Plus, Radar, RefreshCw, Search } from 'lucide-react'
-import { SCOPE_NAMES } from '../information/api'
-import type { KnowledgeSourceSnapshot, SourceDefinition, SourceDocument } from './api'
+import { SCOPE_NAMES, type KnowledgeSourceSnapshot, type SourceDefinition, type SourceDocument } from './api'
 import { defaultCatalogState, isGuideline, restoreCatalog, saveCatalog, type CatalogState } from './catalog-state'
 import './source-catalog.css'
 import ReferenceSourceSection from './ReferenceSourceSection'

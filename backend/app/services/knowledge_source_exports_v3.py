@@ -40,7 +40,7 @@ def _read_zip_member_bounded(
 
 
 def export_selection(store, actor, ids, format, connect):
-    from app.api.v1.knowledge_sources import library, pending_archive
+    from app.services.knowledge_source_context import library, pending_archive
 
     connect("librarySummary", actor["subject"])
     paths, archives, linked_archives = [], [], []

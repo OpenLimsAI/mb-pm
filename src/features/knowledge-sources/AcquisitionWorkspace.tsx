@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, FileText, FileUp, X } from 'lucide-react'
 import { sourceError, findInboxFolder, type SourceFolder } from './api'
+import { knowledgeV3Upload } from './v3-api'
 import { LocalFileReadFailure, snapshotLocalPdf } from './upload-file'
 import { summarizeUploadFailure, uploadByteCount, type UploadAttempt, type UploadDiagnostic } from './upload-diagnostics'
 import './acquisition-v3.css'
@@ -58,7 +59,6 @@ export default function AcquisitionWorkspace({folders,initialFolderId,canManage,
     let currentAttempt: UploadAttempt | null = null
     let startedAt = 0
     try{
-      const {knowledgeV3Upload}=await import('./v3-api')
       for(const file of files){
         if(controller.signal.aborted)break
         const current=done+1
