@@ -1,8 +1,10 @@
-"""Pinned Core 0.6.10 extension: scoped indexing and durable version promotion.
+"""Core >=0.6.10,<0.8 extension: scoped indexing and durable version promotion.
 
-Loads a private instance of the verified upstream ingest module. The installed
-package and ordinary ingest globals are never modified. Only source enumeration
-and the storage handle are substituted; parsing/chunking/embedding remain Core's.
+Clones the upstream `dikw_core.api_ingest.ingest` coroutine via `types.FunctionType`
+with a private globals dictionary (zero `exec()`, zero source-text splicing).
+The installed package and ordinary ingest globals are never modified. Only source
+enumeration (`iter_source_files`) and `_with_storage` are substituted; parsing,
+chunking, and embedding remain Core's own implementation.
 """
 
 from __future__ import annotations
@@ -35,7 +37,8 @@ from dikw_core.server.tasks.manager import _params_digest
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
-UPSTREAM_SHA256 = "2c16b3410c5ce87cbd42db147fa0b4dcd2beb28bd4b0eaafa94a5855e4b39426"
+MIN_CORE_VERSION = (0, 6, 10)
+MAX_CORE_VERSION_EXCLUSIVE = (0, 8, 0)
 TABLES = (
     "CREATE TABLE IF NOT EXISTS mberp_folder_families (family_key TEXT PRIMARY KEY, path TEXT NOT NULL)",
     "CREATE TABLE IF NOT EXISTS mberp_folder_versions (family_key TEXT NOT NULL, path TEXT NOT NULL, PRIMARY KEY(family_key,path))",
@@ -95,17 +98,32 @@ def discard_manual_files(root, upload):
     return {"discarded": True, "sharedOriginalRetained": False}
 
 
-def verified_source():
-    if importlib.metadata.version("dikw-core") != "0.6.10":
+def _parse_version_tuple(raw: str) -> tuple[int, int, int]:
+    match = re.match(r"^(\d+)\.(\d+)\.(\d+)", raw.strip())
+    if not match:
+        raise RuntimeError(f"Unsupported dikw-core version format: {raw!r}")
+    return int(match.group(1)), int(match.group(2)), int(match.group(3))
+
+
+def verify_ingest_contract(ingest_module=api_ingest, version_str: str | None = None):
+    raw_version = version_str or importlib.metadata.version("dikw-core")
+    parsed_version = _parse_version_tuple(raw_version)
+    if not (MIN_CORE_VERSION <= parsed_version < MAX_CORE_VERSION_EXCLUSIVE):
         raise RuntimeError(
-            "Folder extension requires the reviewed dikw-core 0.6.10 build"
+            f"Folder extension requires dikw-core >=0.6.10,<0.8.0 (got {raw_version})"
         )
-    source = Path(inspect.getfile(api_ingest)).read_bytes()
-    if hashlib.sha256(source).hexdigest() != UPSTREAM_SHA256:
-        raise RuntimeError(
-            "Core ingest source changed; review extension compatibility before enabling"
-        )
-    return source.decode()
+    ingest_fn = getattr(ingest_module, "ingest", None)
+    if not inspect.iscoroutinefunction(ingest_fn):
+        raise RuntimeError("Upstream dikw_core.api_ingest.ingest is not an async function")
+    required_globals = {"iter_source_files", "_with_storage"}
+    referenced = set(ingest_fn.__code__.co_names)
+    if not required_globals <= referenced:
+        missing = sorted(required_globals - referenced)
+        raise RuntimeError(f"Core ingest contract changed; missing globals: {missing}")
+    for symbol in required_globals:
+        if not callable(getattr(ingest_module, symbol, None)):
+            raise RuntimeError(f"Core ingest global {symbol} is not callable")
+    return ingest_fn
 
 
 def checked_path(root, value):
@@ -339,30 +357,11 @@ class ScopedStorage:
         return await self.storage.upsert_embed_version(version)
 
 
-def scoped_engine(paths, active_paths, *, full=False, excluded=()):
-    source = verified_source()
-    original = (
-        "for abs_path, logical_path in iter_source_files(cfg.sources, root=root):"
-    )
-    if source.count(original) != 1:
-        raise RuntimeError("Unexpected Core ingest enumeration")
-    module = types.ModuleType("dikw_core._mberp_scoped_ingest")
-    module.__package__ = "dikw_core"
-    # Upstream dataclasses are imported, not declared; the private module never
-    # needs to enter sys.modules or replace ordinary Core imports.
-    exec(
-        compile(
-            source.replace(
-                original, "for abs_path, logical_path in _selected_sources(cfg, root):"
-            ),
-            inspect.getfile(api_ingest),
-            "exec",
-        ),
-        module.__dict__,
-    )
+def scoped_engine(paths, active_paths, *, full=False, excluded=(), ingest_module=api_ingest):
+    ingest_fn = verify_ingest_contract(ingest_module)
 
-    def selected(cfg, root):
-        for absolute, logical in iter_source_files(cfg.sources, root=root):
+    def selected(sources_cfg, *, root):
+        for absolute, logical in iter_source_files(sources_cfg, root=root):
             if logical in paths:
                 if not full:
                     checked_path(root, logical)
@@ -376,9 +375,23 @@ def scoped_engine(paths, active_paths, *, full=False, excluded=()):
             ScopedStorage(storage, paths, active_paths, full=full, excluded=excluded),
         )
 
-    module._selected_sources = selected
-    module._with_storage = storage_factory
-    return module.ingest
+    private_globals = {
+        **ingest_module.__dict__,
+        "iter_source_files": selected,
+        "_with_storage": storage_factory,
+    }
+    cloned = types.FunctionType(
+        ingest_fn.__code__,
+        private_globals,
+        name=ingest_fn.__name__,
+        argdefs=ingest_fn.__defaults__,
+        closure=ingest_fn.__closure__,
+    )
+    cloned.__kwdefaults__ = copy_kwdefaults = (
+        dict(ingest_fn.__kwdefaults__) if ingest_fn.__kwdefaults__ else None
+    )
+    _ = copy_kwdefaults
+    return cloned
 
 
 async def run_scoped(
@@ -547,7 +560,7 @@ def install(app, auth):
     """Add routes with the exact same Core server-to-server authorization."""
     if getattr(app.state, "folder_extension", False):
         return app
-    verified_source()
+    verify_ingest_contract()
     router = APIRouter(
         prefix="/v1/folder-import", dependencies=[Depends(make_dependency(auth))]
     )

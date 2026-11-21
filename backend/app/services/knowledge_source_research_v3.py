@@ -86,7 +86,7 @@ def evidence_for(store, actor, paper, connect, question):
             raise HTTPException(404, "资料已变化，请刷新后重新选择")
         store.get("document", version["documentId"])
         if version.get("kbPath"):
-            from app.api.v1.knowledge_sources import pending_archive
+            from app.services.knowledge_source_context import pending_archive
 
             catalogue = connect(
                 "librarySummary",
