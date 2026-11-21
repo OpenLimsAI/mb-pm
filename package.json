@@ -17,7 +17,9 @@
     "verify:production-build": "node scripts/verify-production-build.mjs",
     "test:production-build": "node --test scripts/production-build.test.mjs scripts/chrome-startup.test.mjs",
     "test:production-login": "node scripts/test-production-login.mjs",
-    "test:project-layout": "node scripts/test-project-layout.mjs"
+    "test:project-layout": "node scripts/test-project-layout.mjs",
+    "check:boundaries": "python3 scripts/check-domain-boundaries.py",
+    "test:boundaries": "python3 -m unittest scripts/test_domain_boundaries.py -v"
   },
   "dependencies": {
     "@tiptap/extension-bold": "^3.32.2",
