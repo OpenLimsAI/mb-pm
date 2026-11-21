@@ -14,7 +14,7 @@ beforeEach(() => {
   mocks.preview = false; mocks.allowed = true
   snapshot = {
     papers: [{ id: 'sources/existing.md', title: '已有研究论文', sourceName: '知识库', folderIds: ['topic'], saved: false, indexStatus: 'unknown', kbUrl: 'https://kb.openlims.ai/?paper=existing' }, { id: 'archive:version', title: '已下载的ICH指南', sourceName: 'ICH', sourceId: 'ich', folderIds: ['ich'], saved: true, indexStatus: 'failed', originalUrl: '/api/v1/knowledge-sources/documents/doc/versions/v/original', documentId: 'doc', versionId: 'v', createdAt: '2026-11-01T10:00:00Z' }],
-    folders: [{ id: 'topic', name: '稳定性研究', writable: true }, { id: 'ich', name: 'ICH', writable: true }],
+    folders: [{ id: 'topic', name: '稳定性研究', writable: true }, { id: 'ich', name: 'ICH', writable: true }, {id:'inbox',name:'待整理',systemRole:'inbox',writable:true}],
     sources: [{ id: 'ich', name: 'ICH', url: 'https://www.ich.org', scopes: ['Q', 'S', 'E', 'M'], folderId: 'ich', frequency: 'daily', enabled: false, adapter: 'ich', status: 'ok', scopeStatus: {}, lastCheckedAt: '2026-11-01T10:00:00Z' }],
     documents: [{ id: 'newdoc', sourceId: 'ich', title: '官方新指南', url: 'https://database.ich.org/sites/default/files/new.pdf', scopes: ['Q'], folderIds: [], format: 'PDF', language: '英文', documentType: 'Guideline', discoveredAt: '2026-11-01T10:00:00Z', status: 'discovered', versions: [] }],
     jobs: [], catalogRevision: 4, canManage: true, canOrganize: true, starred: [], integration: { status: 'ready', message: '已连接' },
@@ -25,13 +25,39 @@ beforeEach(() => {
 const mount = () => render(<MemoryRouter><KnowledgeSourceApp /></MemoryRouter>)
 const savedVersion = { id: 'saved', sha256: 'a'.repeat(64), size: 100, createdAt: '2026-11-01T10:00:00Z', parseStatus: 'ready', indexStatus: 'ready' }
 
+it('shows unfiled and inbox papers together, excluding papers already in ICH or a topic', async () => {
+  snapshot.folders[1].kind='source'
+  snapshot.papers.push({id:'sources/unfiled.md',title:'未分类新资料',folderIds:[],saved:true,indexStatus:'not_requested'})
+  snapshot.papers.push({id:'sources/inbox.md',title:'尚未归类资料',folderIds:['inbox'],saved:true,indexStatus:'not_requested'})
+  mount();await screen.findByRole('button',{name:/已有研究论文/})
+  fireEvent.click(screen.getByRole('button',{name:/^待整理/}))
+  expect(screen.getByRole('button',{name:/未分类新资料/})).toBeInTheDocument()
+  expect(screen.getByRole('button',{name:/尚未归类资料/})).toBeInTheDocument()
+  expect(screen.queryByRole('button',{name:/已下载的ICH指南/})).not.toBeInTheDocument()
+  expect(screen.queryByRole('button',{name:/已有研究论文/})).not.toBeInTheDocument()
+})
+it('opens PDF intake in the active folder and defaults to the real inbox from all papers', async () => {
+  mount();await screen.findByRole('button',{name:/已有研究论文/})
+  fireEvent.click(screen.getByRole('button',{name:/^稳定性研究/}))
+  fireEvent.click(screen.getByRole('button',{name:'上传 PDF'}))
+  expect(screen.getByRole('combobox',{name:'收录目标文件夹'})).toHaveValue('topic')
+  expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button',{name:'关闭添加资料'}))
+  fireEvent.click(screen.getByRole('button',{name:/^全部资料/}))
+  fireEvent.click(screen.getByRole('button',{name:'上传 PDF'}))
+  expect(screen.getByRole('combobox',{name:'收录目标文件夹'})).toHaveValue('inbox')
+  expect(screen.getByRole('option',{name:'待整理'})).toBeInTheDocument()
+  expect(screen.queryByRole('option',{name:'默认文件夹'})).not.toBeInTheDocument()
+})
+
 describe('knowledge source real-data application', () => {
   it('lists existing KB papers and archived files without treating discovery as saved or unknown indexing as ready', async () => {
     mount()
     expect(await screen.findByRole('button', { name: /已有研究论文/ })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '应用工作台' })).toHaveAttribute('href', '/')
     expect(screen.getByRole('link', { name: '同事 · 我的设置' })).toHaveAttribute('href', '/settings')
-    expect(screen.getByRole('button', { name: '切换主题' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '切换主题' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /已下载的ICH指南/ })).toBeInTheDocument()
     expect(screen.queryByText('官方新指南')).not.toBeInTheDocument()
     expect(screen.getByText('索引状态待确认')).toBeInTheDocument()
@@ -55,7 +81,7 @@ describe('knowledge source real-data application', () => {
   })
   it('shows the source catalogue inline and explicitly downloads selected files without a dialog', async () => {
     mount(); await screen.findByRole('button', { name: /已有研究论文/ })
-    fireEvent.click(screen.getByRole('button', { name: /论文搜索源/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^来源下载/ }))
     expect(screen.getByRole('heading', { name: /可下载论文/ })).toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '查看可下载论文' })).not.toBeInTheDocument()
@@ -73,7 +99,7 @@ describe('knowledge source real-data application', () => {
       return {}
     })
     mount(); await screen.findByRole('button', { name: /已有研究论文/ })
-    fireEvent.click(screen.getByRole('button', { name: /论文搜索源/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^来源下载/ }))
     expect(screen.queryByLabelText('新发现')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '再次搜索' }))
     await waitFor(() => expect(mocks.mutate).toHaveBeenCalledWith('post', '/sources/ich/check', {}))
@@ -86,7 +112,7 @@ describe('knowledge source real-data application', () => {
     snapshot.sources[0].scopeStatus = { Q: { status: 'error', error: '搜索失败' } }
     snapshot.documents[0].isNew = true
     mount(); await screen.findByRole('button', { name: /已有研究论文/ })
-    fireEvent.click(screen.getByRole('button', { name: /论文搜索源/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^来源下载/ }))
     expect(screen.getByText(/Q 范围搜索未成功，保留上次清单/)).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: '选择 官方新指南' })).toBeInTheDocument()
     expect(screen.getByLabelText('新发现')).toBeInTheDocument()
@@ -94,7 +120,7 @@ describe('knowledge source real-data application', () => {
   it.each(['running', 'paused'])('keeps selections but blocks duplicate source jobs while %s', async status => {
     snapshot.jobs = [{ id: 'active-job', sourceId: 'ich', folderId: 'ich', kind: 'import', status, total: 1, processed: 0, saved: 0, failed: 0, pending: 1, parse: true, createdAt: '2026-11-01T10:00:00Z', updatedAt: '2026-11-01T10:00:00Z', items: [] }]
     mount(); await screen.findByRole('button', { name: /已有研究论文/ })
-    fireEvent.click(screen.getByRole('button', { name: /论文搜索源/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^来源下载/ }))
     fireEvent.click(within(screen.getByRole('group', { name: 'ICH分类筛选' })).getByRole('button', { name: 'Q 质量' }))
     fireEvent.click(screen.getByRole('button', { name: '全选本类' }))
     expect(screen.getByRole('button', { name: '下载所选（1）' })).toBeDisabled()
@@ -106,7 +132,7 @@ describe('knowledge source real-data application', () => {
     snapshot.folders.push({ id: 'empty', name: '上游工艺开发' }, { id: 'analysis', name: '分析方法质量表征' }, { id: 'fifth', name: '第五个分类' })
     mount(); await screen.findByRole('button', { name: /已有研究论文/ })
     const folders = screen.getByRole('region', { name: /^论文文件夹\s*\d/ })
-    expect(within(folders).getAllByRole('listitem')).toHaveLength(5)
+    expect(within(folders).getAllByRole('listitem')).toHaveLength(6)
     expect(within(folders).getByRole('listitem', { name: '文件夹 ICH' })).toHaveTextContent('来源归档')
     expect(within(folders).getByRole('listitem', { name: '文件夹 上游工艺开发' })).toHaveTextContent('空文件夹')
     fireEvent.click(screen.getByRole('checkbox', { name: '选择 已有研究论文' }))
@@ -123,12 +149,12 @@ describe('knowledge source real-data application', () => {
     expect(within(folders).getAllByRole('listitem')).toHaveLength(1)
     fireEvent.click(within(folders).getByRole('button', { name: '重命名文件夹 ICH' }))
     expect(screen.getByRole('dialog')).toHaveTextContent('重命名文件夹')
-    expect(screen.getByRole('heading', { name: '全部论文' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '全部资料' })).toBeInTheDocument()
   })
   it('selects only the displayed catalogue page and retains selection when changing pages', async () => {
     snapshot.documents = Array.from({ length: 30 }, (_, index) => ({ ...snapshot.documents[0], id: `d${index}`, title: `指南 ${String(index).padStart(2, '0')}` }))
     mount(); await screen.findByRole('button', { name: /已有研究论文/ })
-    fireEvent.click(screen.getByRole('button', { name: /论文搜索源/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^来源下载/ }))
     fireEvent.click(screen.getByRole('checkbox', { name: '全选ICH本页论文' }))
     expect(screen.getByRole('button', { name: '下载所选（25）' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /下一页/ }))
@@ -145,7 +171,7 @@ describe('knowledge source real-data application', () => {
       { ...document, id: 'other-source', title: '其他来源的 Q 指南', sourceId: 'another-source' },
     ]
     mount(); await screen.findByRole('button', { name: /已有研究论文/ })
-    fireEvent.click(screen.getByRole('button', { name: /论文搜索源/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^来源下载/ }))
     expect(screen.getByRole('button', { name: '全选本类' })).toBeDisabled()
     fireEvent.click(within(screen.getByRole('group', { name: 'ICH分类筛选' })).getByRole('button', { name: 'Q 质量' }))
     fireEvent.click(screen.getByRole('button', { name: '全选本类' }))
@@ -172,7 +198,7 @@ describe('knowledge source real-data application', () => {
       { ...document, id: 'e-only', title: 'E 指南', scopes: ['E'] },
     ]
     mount(); await screen.findByRole('button', { name: /已有研究论文/ })
-    fireEvent.click(screen.getByRole('button', { name: /论文搜索源/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^来源下载/ }))
     const scopes = screen.getByRole('group', { name: 'ICH分类筛选' })
     fireEvent.click(within(scopes).getByRole('button', { name: 'Q 质量' }))
     fireEvent.click(screen.getByRole('button', { name: '全选本类' }))
@@ -193,13 +219,13 @@ describe('knowledge source real-data application', () => {
       { ...document, id: 'e-target', title: '目标 E 指南', scopes: ['E'] },
     ]
     mount(); await screen.findByRole('button', { name: /已有研究论文/ })
-    fireEvent.click(screen.getByRole('button', { name: /论文搜索源/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^来源下载/ }))
     fireEvent.click(within(screen.getByRole('group', { name: 'ICH分类筛选' })).getByRole('button', { name: 'Q 质量' }))
     fireEvent.change(screen.getByRole('textbox', { name: '筛选ICH已发现论文' }), { target: { value: '目标' } })
     fireEvent.click(screen.getByRole('button', { name: '全选本类' }))
     expect(screen.getByRole('button', { name: '下载所选（1）' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '清空选择' }))
-    fireEvent.change(screen.getByRole('combobox', { name: 'ICH下载状态' }), { target: { value: 'all' } })
+    fireEvent.click(screen.getByRole('button',{name:/^筛选/}));fireEvent.change(screen.getByRole('combobox', { name: 'ICH下载状态' }), { target: { value: 'all' } })
     fireEvent.click(screen.getByRole('button', { name: '全选本类' }))
     fireEvent.click(screen.getByRole('button', { name: '下载所选（2）' }))
     await waitFor(() => expect(mocks.mutate).toHaveBeenCalledWith('post', '/jobs', expect.objectContaining({ documentIds: expect.any(Array) })))
@@ -221,7 +247,7 @@ describe('knowledge source real-data application', () => {
     mount(); await screen.findByRole('button', { name: /已有研究论文/ })
     expect(screen.queryByRole('button', { name: '新建文件夹' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '放入文件夹' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /论文搜索源/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^来源下载/ }))
     expect(screen.queryByRole('button', { name: '再次搜索' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '全选本类' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /下载所选/ })).not.toBeInTheDocument()
@@ -251,8 +277,8 @@ it('opens the imported reference category and highlights its document from a sam
     mount()
     expect(await screen.findByRole('heading',{name:'从来源下载'})).toBeInTheDocument()
     expect(screen.getByRole('article',{name:'链接带入的论文'})).toHaveClass('kso-reference-focused')
-    fireEvent.click(screen.getByRole('button',{name:/全部论文/}))
-    expect(screen.getByRole('heading',{name:'全部论文'})).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button',{name:'资料库'}))
+    expect(screen.getByRole('heading',{name:'全部资料'})).toBeInTheDocument()
   } finally { window.history.replaceState({},'', '/') }
 })
 it('opens a queued reference download from its job link without resetting it to the library', async () => {
@@ -263,4 +289,69 @@ it('opens a queued reference download from its job link without resetting it to 
     expect(await screen.findByRole('heading',{name:'下载任务'})).toBeInTheDocument()
     await waitFor(()=>expect(document.querySelector('.kso-job.is-target')).toHaveAttribute('open'))
   } finally { window.history.replaceState({},'', '/') }
+})
+
+
+describe('direct folder menu actions',()=>{
+  it('deletes a folder from its own menu with one confirmation and keeps the current view',async()=>{
+    mount();await screen.findByRole('heading',{name:'全部资料'})
+    fireEvent.click(screen.getByRole('button',{name:'管理文件夹 稳定性研究'}))
+    fireEvent.click(screen.getByRole('menuitem',{name:'删除文件夹'}))
+    const dialog=screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('删除「稳定性研究」？')
+    expect(dialog).toHaveTextContent('只删除文件夹，论文和原件会保留。')
+    expect(mocks.mutate).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole('button',{name:'删除文件夹'}))
+    await waitFor(()=>expect(mocks.mutate).toHaveBeenCalledExactlyOnceWith('post','/folders/topic/actions',{action:'delete',revision:4}))
+    expect(screen.getByRole('heading',{name:'全部资料'})).toBeInTheDocument()
+  })
+  it('offers a direct source-settings link instead of deleting a default download folder',async()=>{
+    mount();await screen.findByRole('heading',{name:'全部资料'})
+    fireEvent.click(screen.getByRole('button',{name:'管理文件夹 ICH'}))
+    fireEvent.click(screen.getByRole('menuitem',{name:'删除文件夹'}))
+    const dialog=screen.getByRole('dialog')
+    expect(within(dialog).getByRole('button',{name:'删除文件夹'})).toBeDisabled()
+    fireEvent.click(within(dialog).getByRole('button',{name:'去来源设置'}))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading',{name:'从来源下载'})).toBeInTheDocument()
+    expect(mocks.mutate).not.toHaveBeenCalled()
+  })
+  it('renames a folder without first navigating into it and closes its menu with Escape',async()=>{
+    mount();await screen.findByRole('heading',{name:'全部资料'})
+    const trigger=screen.getByRole('button',{name:'管理文件夹 稳定性研究'})
+    fireEvent.click(trigger)
+    fireEvent.keyDown(screen.getByRole('menu'),{key:'Escape'})
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();expect(trigger).toHaveFocus()
+    fireEvent.click(trigger);fireEvent.click(screen.getByRole('menuitem',{name:'重命名'}))
+    expect(screen.getByRole('dialog')).toHaveTextContent('重命名文件夹')
+    expect(screen.getByRole('heading',{name:'全部资料'})).toBeInTheDocument()
+  })
+})
+
+it('creates the actual inbox once when missing and lists it under folders',async()=>{
+ snapshot.folders=snapshot.folders.filter(folder=>folder.id!=='inbox')
+ mocks.mutate.mockImplementation(async(_method,path)=>{if(path==='/folders/inbox')snapshot.folders.push({id:'created-inbox',name:'待整理',systemRole:'inbox'});return {id:'created-inbox',name:'待整理',systemRole:'inbox'}})
+ mount();await screen.findByRole('button',{name:/^待整理/})
+ expect(mocks.mutate).toHaveBeenCalledExactlyOnceWith('post','/folders/inbox',{})
+ const folderSection=document.querySelector('.kso-folder-section')!
+ expect(within(folderSection as HTMLElement).getByRole('button',{name:/^待整理/})).toBeInTheDocument()
+ expect(screen.queryByRole('button',{name:'待整理的文件夹操作'})).not.toBeInTheDocument()
+ fireEvent.click(screen.getByRole('button',{name:/^待整理/}));fireEvent.click(screen.getByRole('button',{name:'上传 PDF'}))
+ expect(screen.getByLabelText('收录目标文件夹')).toHaveValue('created-inbox')
+})
+it('does not provision folders for read-only viewers',async()=>{
+ snapshot.folders=snapshot.folders.filter(folder=>folder.id!=='inbox');snapshot.canOrganize=false;snapshot.canManage=false
+ mount();await screen.findByRole('button',{name:/已有研究论文/})
+ expect(mocks.mutate).not.toHaveBeenCalled()
+})
+
+it('keeps four explicit workspace destinations and restores folders only in the library', async () => {
+  mount(); await screen.findByRole('heading',{name:'全部资料'})
+  const navigation=screen.getByRole('navigation',{name:'知识源功能'})
+  expect(within(navigation).getAllByRole('button').map(button=>button.textContent)).toEqual(['资料库','来源下载','自动导入','下载记录'])
+  fireEvent.click(within(navigation).getByRole('button',{name:'来源下载'}))
+  expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+  expect(within(navigation).getByRole('button',{name:'来源下载'})).toHaveAttribute('aria-current','page')
+  fireEvent.click(within(navigation).getByRole('button',{name:'资料库'}))
+  expect(screen.getByRole('button',{name:/^稳定性研究/})).toBeInTheDocument()
 })

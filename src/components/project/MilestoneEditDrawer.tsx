@@ -5,7 +5,7 @@
 //   ② 达成条件：勾选「哪些 WBS 任务完成即可达成此里程碑」（按子项目分组，支持搜索、跨模块）
 // 保存前做客户端成环检测；写操作走 data/bootstrap 编排函数（API + 离线 mock 两模式）。
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   X, Save, Loader2, Trash2, Search, Diamond, AlertTriangle, ListChecks,
 } from 'lucide-react'
@@ -19,6 +19,7 @@ import {
 } from '../../data/bootstrap'
 import { cn } from '../../lib/cn'
 import { rejectionText } from '../../api/client'
+import { milestoneDependencySnapshot } from '../../api/milestones'
 
 export type MilestoneEditTarget =
   | { mode: 'create' }
@@ -36,6 +37,11 @@ export function MilestoneEditDrawer({ target, project, onClose }: Props) {
   const mode = useDataStore((s) => s.mode)
   const isEdit = target.mode === 'edit'
   const milestone = isEdit ? target.milestone : null
+  const [baseRevision] = useState(milestone?.revision)
+  const [baseDependencies] = useState(() => milestone ? milestoneDependencySnapshot(milestone.id, taskDependencies) : [])
+  // A lost response must retry the same request; an edited draft starts a new one.
+  const saveAttempt = useRef({ content: '', requestId: '' })
+  const [deleteRequestId] = useState(() => crypto.randomUUID())
 
   const subs = useMemo(() => getProjectSubs(project.id).sort((a, b) => a.sortOrder - b.sortOrder), [project.id])
 
@@ -104,7 +110,9 @@ export function MilestoneEditDrawer({ target, project, onClose }: Props) {
     const successorId = milestone?.id ?? '__new_milestone__'
     const existing = taskDependencies.filter((d) => d.successorId !== successorId)
     const addEdges = predIds.map((pid) => ({ predecessorId: pid, successorId }))
-    if (detectCycle(existing, addEdges)) {
+    // Online validation uses the complete server graph and permits repairing
+    // legacy cycles; unrelated visible cycles must not prevent this save.
+    if (mode !== 'api' && detectCycle(existing, addEdges)) {
       setError('该前置组合会形成循环依赖，请调整。')
       return
     }
@@ -112,14 +120,18 @@ export function MilestoneEditDrawer({ target, project, onClose }: Props) {
     setSaving(true)
     setError(null)
     try {
+      const content = JSON.stringify({ name, plannedEnd, subProjectId, priority, notes, predIds: [...predIds].sort() })
+      if (saveAttempt.current.content !== content) saveAttempt.current = { content, requestId: crypto.randomUUID() }
+      const saveContext = { requestId: saveAttempt.current.requestId, projectId: project.id, expectedRevision: baseRevision, expectedDependencies: baseDependencies }
       if (isEdit && milestone) {
-        await updateMilestoneWithDeps(milestone.id, { name: name.trim(), plannedEnd, priority, notes: notes || null }, predIds)
+        await updateMilestoneWithDeps(milestone.id, { name: name.trim(), plannedEnd, priority, notes: notes || null }, predIds, saveContext)
       } else {
         await createMilestoneWithDeps({
           projectId: project.id,
           subProjectId,
           basics: { name: name.trim(), plannedEnd, priority, notes: notes || null },
           predecessorIds: predIds,
+          saveContext,
         })
       }
       onClose()
@@ -135,11 +147,11 @@ export function MilestoneEditDrawer({ target, project, onClose }: Props) {
     setSaving(true)
     setError(null)
     try {
-      await deleteMilestoneWithDeps(milestone.id)
+      await deleteMilestoneWithDeps(milestone.id, { requestId: deleteRequestId, projectId: project.id, expectedRevision: baseRevision, expectedDependencies: baseDependencies })
       onClose()
     } catch (e) {
       console.error(e)
-      setError('删除失败，请重试。')
+      setError(rejectionText(e, '删除失败，请重试。'))
       setSaving(false)
     }
   }

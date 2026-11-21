@@ -5,6 +5,8 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
+from app.services.knowledge_source_inbox import inbox_id, normalized_folder_ids
+
 
 def _revision(catalogue, body):
     if catalogue.get("revision") != body["revision"]:
@@ -76,10 +78,10 @@ def organize_papers(store, actor, body, *, catalogue, connect, papers):
         raise HTTPException(404, "部分论文已删除或无权访问，请刷新后重试")
     before, after = {}, {}
     for ident in ids:
-        current = set(available[ident]["folderIds"])
+        current = set(normalized_folder_ids(available[ident]["folderIds"], catalogue))
         target = current - ({origin} if mode == "move" else set())
         target = target - set(folder_ids) if mode == "remove" else target | set(folder_ids)
-        before[ident], after[ident] = sorted(current), sorted(target)
+        before[ident], after[ident] = sorted(current), normalized_folder_ids(target, catalogue)
     paths = list(
         dict.fromkeys(_core_path(available[ident]) for ident in ids if _core_path(available[ident]))
     )
@@ -192,6 +194,8 @@ def folder_action(store, actor, ident, body, *, catalogue, connect):
     folders = {folder["id"]: folder for folder in catalogue.get("folders", [])}
     if ident not in folders:
         raise HTTPException(404, "文件夹不存在")
+    if ident == inbox_id(catalogue):
+        raise HTTPException(409, "待整理是系统文件夹，不能删除、合并或修改")
     action = body["action"]
     if action not in ("metadata", "delete", "merge"):
         raise HTTPException(400, "不支持的文件夹操作")
@@ -220,8 +224,9 @@ def folder_action(store, actor, ident, body, *, catalogue, connect):
         for kind in ("document", "ks_classification"):
             for record in store.records(kind):
                 if ident in record.get("folderIds", []):
-                    record["folderIds"] = sorted(
-                        (set(record["folderIds"]) - {ident}) | ({target} if target else set())
+                    record["folderIds"] = normalized_folder_ids(
+                        (set(record["folderIds"]) - {ident}) | ({target} if target else set()),
+                        result,
                     )
                     if kind == "ks_classification":
                         record.pop("syncedVersions", None)

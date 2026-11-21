@@ -39,9 +39,6 @@
 #knowledge-source-app .ksv-reader.is-expanded .ksv-document{padding-inline:max(28px,calc((100% - 850px)/2));max-height:72dvh}
 #knowledge-source-app .ksv-index-status,#knowledge-source-app .ksv-notice{padding:8px 12px;background:var(--kso-blue-bg);font-size:12px;border-bottom:1px solid var(--kso-line);color:var(--kso-blue-ink)}
 #knowledge-source-app .ksv-pagination{border-bottom:0;border-top:1px solid var(--kso-line);font-size:12px;color:var(--kso-muted)}
-#knowledge-source-app .ksv-context-menu{position:fixed;z-index:80;display:flex;flex-direction:column;min-width:190px;padding:5px;background:var(--kso-surface);border:1px solid var(--kso-line);border-radius:6px;box-shadow:0 8px 22px #203b5022}
-#knowledge-source-app .ksv-context-menu button{font-size:12px;padding:9px 10px;border-radius:4px}
-#knowledge-source-app .ksv-context-menu button:hover{background:var(--kso-blue-bg)}
 #knowledge-source-app .ksv-tree-row{display:flex;align-items:center;border-radius:5px;min-width:0}
 #knowledge-source-app .ksv-tree-row>.kso-nav{padding-left:4px!important;min-height:34px;margin:0}
 #knowledge-source-app .ksv-tree-row>.kso-icon-btn,#knowledge-source-app .ksv-tree-spacer{width:20px;flex:0 0 20px}
@@ -70,3 +67,148 @@
 #knowledge-source-app .ksv-tree-content{max-height:36dvh;overflow:auto;scrollbar-gutter:stable}
 #knowledge-source-app .ksv-tree-content>.kso-small{padding:8px}
 @media(max-width:620px){#knowledge-source-app .ksv-tree-content{max-height:145px}#knowledge-source-app .ksv-folder-tree{min-width:0}#knowledge-source-app .ksv-tree-search{margin-inline:0}}
+/* Document list and file actions. */
+#knowledge-source-app .ksv-simple-library .ksv-simple-toolbar{padding:12px;display:flex;gap:8px;align-items:center;border-bottom:1px solid var(--kso-line)}
+#knowledge-source-app .ksv-simple-library .ksv-simple-toolbar .kso-search{flex:1;min-width:150px}
+#knowledge-source-app .ksv-simple-library .ksv-filterbar{gap:10px 16px;padding:12px;background:var(--kso-soft)}
+#knowledge-source-app .ksv-simple-library .ksv-filterbar label{font-size:12px;gap:6px}
+#knowledge-source-app .ksv-active-filters{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 9px}
+#knowledge-source-app .ksv-filter-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border:1px solid var(--kso-line);border-radius:5px;background:var(--kso-soft);color:var(--kso-blue-ink);font-size:12px;overflow-wrap:anywhere}
+#knowledge-source-app .ksv-filter-chip:hover{background:var(--kso-blue-bg)}
+#knowledge-source-app .ksv-simple-library .ksv-list{height:clamp(380px,65dvh,820px);container:knowledge-file-list / inline-size}
+#knowledge-source-app .ksv-simple-library .ksv-paper-row{align-items:center;gap:10px;padding:9px 12px}
+#knowledge-source-app .ksv-simple-library.kso-density-compact .ksv-paper-row{padding-block:8px}
+#knowledge-source-app .ksv-simple-library .ksv-paper-row>input{margin-top:0;flex-shrink:0}
+#knowledge-source-app .ksv-simple-library .ksv-paper-open{align-items:center;gap:10px}
+#knowledge-source-app .ksv-simple-library .ksv-paper-open>span{overflow:hidden}
+#knowledge-source-app .ksv-simple-library .ksv-paper-open strong{font-size:13px;font-weight:500;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#knowledge-source-app .ksv-simple-library .ksv-paper-open small{font-size:11px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#knowledge-source-app .ksv-match-inline{color:var(--kso-blue-ink)}
+#knowledge-source-app .ksv-simple-library .ksv-save-state{display:inline-block;font-size:11px;padding:3px 7px;border-radius:4px;background:var(--kso-soft);white-space:nowrap}
+#knowledge-source-app .ksv-simple-library .ksv-save-state.ready{color:var(--kso-muted)}
+#knowledge-source-app .ksv-simple-library .ksv-save-state.failed{color:var(--kso-red)}
+#knowledge-source-app .ksv-paper-row > .ksv-text-action {
+  flex: none;
+  min-height: 28px;
+  padding: 3px 7px;
+  color: var(--kso-blue-ink);
+  font-size: 12px;
+  white-space: nowrap;
+  border-radius: 4px;
+}
+#knowledge-source-app .ksv-paper-row > .ksv-text-action:hover {
+  background: var(--kso-blue-bg);
+  text-decoration: underline;
+}
+#knowledge-source-app .ksv-selection-toolbar {
+  position: relative;
+  z-index: 5;
+  container: knowledge-actions / inline-size;
+  display: grid;
+  grid-template-columns: max-content 7.5rem minmax(0,1fr);
+  align-items: center;
+  gap: 6px 10px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--kso-line);
+  color: var(--kso-muted);
+  font-size: 12px;
+}
+#knowledge-source-app .ksv-selection-toolbar.has-selection {
+  background: var(--kso-blue-bg);
+  color: var(--kso-blue-ink);
+}
+#knowledge-source-app .ksv-page-check,
+#knowledge-source-app .ksv-selection-count {
+  white-space: nowrap;
+}
+#knowledge-source-app .ksv-selection-count {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#knowledge-source-app .ksv-selection-actions,
+#knowledge-source-app .ksv-tag-controls,
+#knowledge-source-app .ksv-export-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+#knowledge-source-app .ksv-selection-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+#knowledge-source-app .ksv-selection-actions .kso-btn,
+#knowledge-source-app .ksv-selection-actions .kso-select {
+  min-height: 30px;
+  padding: 4px 8px;
+}
+#knowledge-source-app .ksv-tag-controls > input {
+  width: 8.5em;
+}
+#knowledge-source-app .ksv-selection-actions .ksv-delete-action:not(:disabled) {
+  color: var(--kso-red);
+}
+#knowledge-source-app .ksv-bulk-folder {
+  position: relative;
+}
+#knowledge-source-app .ksv-bulk-folder > div {
+  position: absolute;
+  z-index: 8;
+  top: 100%;
+  left: 0;
+  display: grid;
+  gap: 8px;
+  width: 220px;
+  padding: 12px;
+  border: 1px solid var(--kso-line);
+  border-radius: 7px;
+  background: var(--kso-surface);
+  box-shadow: 0 8px 24px #203b501a;
+}
+#knowledge-source-app .ksv-bulk-folder .kso-field select {
+  width: 100%;
+  max-width: none;
+}
+@container knowledge-actions (max-width: 920px) {
+  #knowledge-source-app .ksv-selection-count { grid-column: 2 / -1; }
+  #knowledge-source-app .ksv-selection-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+@container knowledge-actions (max-width: 500px) {
+  #knowledge-source-app .ksv-selection-actions { gap: 5px; }
+  #knowledge-source-app .ksv-selection-actions .kso-btn { padding-inline: 6px; }
+  #knowledge-source-app .ksv-bulk-folder { position: static; }
+  #knowledge-source-app .ksv-bulk-folder > div { inset-inline: 8px; width: auto; }
+}
+@container knowledge-file-list (max-width: 530px) {
+  #knowledge-source-app .ksv-simple-library .ksv-paper-row {
+    display: grid;
+    grid-template-columns: auto minmax(0,1fr) max-content;
+    gap: 2px 7px;
+  }
+  #knowledge-source-app .ksv-paper-row > input,
+  #knowledge-source-app .ksv-paper-open { grid-row: 1 / span 2; }
+  #knowledge-source-app .ksv-simple-library .ksv-save-state,
+  #knowledge-source-app .ksv-paper-row > .ksv-text-action {
+    grid-column: 3;
+    justify-self: end;
+  }
+  #knowledge-source-app .ksv-simple-library .ksv-save-state { padding: 1px 5px; }
+}
+#knowledge-source-app .ksv-more-tools{border-top:1px solid var(--kso-line);font-size:12px;color:var(--kso-muted)}
+#knowledge-source-app .ksv-more-tools>summary{cursor:pointer;padding:12px;display:flex;gap:12px;align-items:center;color:var(--kso-blue)}
+#knowledge-source-app .ksv-more-tools>summary:before{content:'›';font-size:16px;line-height:1;transition:transform .15s}
+#knowledge-source-app .ksv-more-tools[open]>summary:before{transform:rotate(90deg)}
+#knowledge-source-app .ksv-more-tools>summary>span{font-size:11px;color:var(--kso-muted)}
+#knowledge-source-app .ksv-more-tools-content{border-top:1px solid var(--kso-line)}
+#knowledge-source-app .ksv-more-tools-content>.kso-v3-section,#knowledge-source-app .ksv-more-tools-content>.kso-v3-reading{margin:0;padding:12px}
+#knowledge-source-app .ksv-more-tools-content .ksv-research-tools,#knowledge-source-app .ksv-more-tools-content .ksv-duplicate-review{border-top:1px solid var(--kso-line)}
+@media(max-width:620px){
+  #knowledge-source-app .ksv-simple-library .ksv-simple-toolbar{flex-wrap:wrap}
+  #knowledge-source-app .ksv-simple-library .ksv-simple-toolbar>.kso-search{flex-basis:100%}
+  #knowledge-source-app .ksv-more-tools>summary>span{display:none}
+}

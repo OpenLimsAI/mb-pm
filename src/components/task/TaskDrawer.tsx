@@ -278,8 +278,8 @@ function ProgressEditor({ task, onDirtyChange }: { task: Task; onDirtyChange: (d
     if (!editable || datesInvalid || actualInvalid || numberInvalid || conflict) return
     setSaving(true); setError(null)
     try {
-      await updateTaskProgress(task.id, { ...patch, expectedRevision: base.revision })
-      const next = { ...base, ...patch, revision: (base.revision ?? 0) + 1 } as Task
+      const savedTask = await updateTaskProgress(task.id, { ...patch, expectedRevision: base.revision })
+      const next = savedTask ?? { ...base, ...patch, revision: (base.revision ?? 0) + 1 } as Task
       setBase(next); setDraft(draftFromTask(next)); setConflict(null); setSaved(true)
     } catch (failure) {
       const detail = taskRequestError(failure)

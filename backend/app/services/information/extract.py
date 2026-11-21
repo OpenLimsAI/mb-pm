@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 
-def extract_pdf(path: Path):
+def extract_pdf(path: Path, *, with_metadata=False):
     try:
         result = subprocess.run(
             [sys.executable, "-m", "app.services.information.extract", str(path)],
@@ -18,7 +18,7 @@ def extract_pdf(path: Path):
         value = json.loads(result.stdout)
         if value.get("error"):
             raise ValueError(value["error"])
-        return value["text"]
+        return value if with_metadata else value["text"]
     except (subprocess.TimeoutExpired, json.JSONDecodeError) as exc:
         raise ValueError("PDF 解析超时，原文已保留，可重试解析") from exc
 
@@ -53,7 +53,7 @@ def main():
         text = "".join(parts).strip()
         if len(text) < 80:
             raise ValueError("未提取到足够的可读正文，可能是扫描件，需 OCR 后再索引")
-        print(json.dumps({"text": text}))
+        print(json.dumps({"text": text, "pages": len(reader.pages)}))
     except Exception as exc:
         print(json.dumps({"error": f"{type(exc).__name__}: {str(exc)[:350]}"}))
 

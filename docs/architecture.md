@@ -30,7 +30,7 @@
 
 ## 应用边界
 
-顶部操作由 `src/components/application/ApplicationActions.tsx` 在工作台、项目管理及门户独立应用中复用，统一反馈来源、账号设置链接和主题切换。`src/components/ui/workbenchLink.css` 的 `app-workbench-entry` 单独提供深色返回工作台按钮，不改变研究报告主页等复用基础类的局部操作；独立 KB 仓库在 `maibo.css` 对齐相同色值。文案均为「应用工作台」。知识报告只移除草稿提交评审的界面入口，已有状态、历史、接口和数据模型保留。
+顶部操作由 `src/components/application/ApplicationActions.tsx` 在工作台、项目管理及门户独立应用中复用，统一反馈来源和账号设置链接。`src/components/ui/workbenchLink.css` 的 `app-workbench-entry` 单独提供深色返回工作台按钮，不改变研究报告主页等复用基础类的局部操作；独立 KB 仓库在 `maibo.css` 对齐相同色值。文案均为「应用工作台」。知识报告只移除草稿提交评审的界面入口，已有状态、历史、接口和数据模型保留。
 
 知识报告在门户 `/solutions/*` 按需加载，复用门户登录，接口为 `/api/v1/solutions`。正文、配方、引用、评审与会话保存在应用数据库；个人知识资料与企业 DIKW 只读适配分开。资料浏览嵌入原 KB 的 `?embed=library` 视图，由 KB 自身会话管理上传、文件夹、标签和阅读；父页面只接收校验来源窗口及 origin 的版本化资料路径消息，引用或问答前仍通过报告后端重新读取授权资料。外部资料访问实时检查 IAM KB 角色，企业来源的权限随采用内容保留；详见[知识报告](knowledge-solutions.md)。
 
@@ -249,6 +249,8 @@ AI 助手选择知识库时，`assistant_tool_chat.py` 为本轮模型注册六�
 
 
 ## 知识源研究工作区 v3
+
+待整理通过显式签名 `ensureInboxFolder` 建立，共享分类存储以 `systemRole: inbox` 固定身份，并维护与其他分类互斥的规则；GET 不创建。门户 `/folders/inbox` 与 PDF 上传、历史归档分类采用相同规则。全库删除复用知识库的持久删除计划与状态接口；请求中断后查询原操作状态，不重复开始删除。
 
 知识源通过门户会话访问 v3 BFF，再使用既有签名、nonce 与时限协议连接知识库。知识库保留 Core/IAM 数据和逐次授权，浏览器不获得 Core 凭据。目录统计和服务端分页元数据与正文读取分开；全文缓存仅保存可重建文本和真实 hash，不充当第二份原件库。
 

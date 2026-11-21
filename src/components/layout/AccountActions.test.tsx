@@ -24,7 +24,7 @@ test('PM uses shared header actions and retains logout in the sidebar', () => {
   expect(screen.queryByRole('button', { name: /退出当前设备/ })).not.toBeInTheDocument()
   const logout = screen.getByRole('button', { name: '登出' })
   expect(logout.closest('header')).toBeNull()
-  expect(screen.getByRole('button', { name: '切换主题' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '切换主题' })).not.toBeInTheDocument()
   fireEvent.click(logout)
   expect(state.logout).toHaveBeenCalledOnce()
 })

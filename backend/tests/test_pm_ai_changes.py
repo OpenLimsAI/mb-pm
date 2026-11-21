@@ -393,7 +393,9 @@ def test_accepted_task_changes_require_acceptance_again(
         )
         db.commit()
     run_id = run_factory(project_id)
-    response = preview(client, auth_headers, run_id, [action(project_id, notes="补充新的交付说明")])
+    command = action(project_id, notes="补充新的交付说明")
+    command.pop("progress", None)  # This case changes the delivery note, not execution progress.
+    response = preview(client, auth_headers, run_id, [command])
     assert response.status_code == 200, response.text
     result = apply(client, auth_headers, run_id, response.json()["confirmation_token"])
     assert result.status_code == 200, result.text
@@ -401,3 +403,22 @@ def test_accepted_task_changes_require_acceptance_again(
         task = db.get(Task, f"{project_id}-t1")
         assert task.status == "已完成"
         assert db.get(TaskAcceptance, task.id).state == "draft"
+
+
+def test_ai_state_preview_matches_apply_and_rejects_contradictory_draft(
+    client, auth_headers, project_factory, run_factory
+):
+    pid = project_factory("t-admin")
+    run_id = run_factory(pid)
+    contradictory = preview(
+        client, auth_headers, run_id, [action(pid, progress=50, status="已完成")]
+    )
+    assert contradictory.status_code == 422
+    response = preview(client, auth_headers, run_id, [action(pid, progress=100)])
+    assert response.status_code == 200, response.text
+    assert response.json()["changes"][0]["after"]["status"] == "已完成"
+    result = apply(client, auth_headers, run_id, response.json()["confirmation_token"])
+    assert result.status_code == 200, result.text
+    with SessionLocal() as db:
+        task = db.get(Task, f"{pid}-t1")
+        assert (task.status, task.progress) == ("已完成", 100)

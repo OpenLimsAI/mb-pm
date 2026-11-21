@@ -13,6 +13,7 @@ export interface PageMeta {
   page: number
   pageSize: number
   total: number
+  snapshot?: string | null
 }
 
 export interface Page<T> {
@@ -37,6 +38,7 @@ export interface UserDTO {
 // ============= Project =============
 
 export interface ProjectDTO {
+  revision?: number
   progressMethod?: 'equal' | 'effort' | 'custom'
   id: string
   code: string
@@ -74,7 +76,7 @@ export interface ProjectCreateRequest {
   description?: string | null
 }
 
-export type ProjectUpdateRequest = Partial<Omit<ProjectCreateRequest, 'code' | 'productType'>>
+export type ProjectUpdateRequest = Partial<Omit<ProjectCreateRequest, 'code' | 'productType'>> & { expectedRevision?: number }
 
 // ============= SubProject =============
 

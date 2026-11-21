@@ -86,6 +86,24 @@ def library_v3(ks, monkeypatch):
                 return {"base64": "bm90LXBkZg=="}
             if operation == "uploadPaper":
                 digest = values["sha256"]
+                destination = values.get("folderId")
+                if not destination:
+                    inbox = next(
+                        (
+                            folder
+                            for folder in state["folders"]
+                            if folder.get("systemRole") == "inbox"
+                        ),
+                        None,
+                    )
+                    if inbox is None:
+                        inbox = {
+                            "id": "44444444-4444-4444-8444-444444444444",
+                            "name": "待整理",
+                            "systemRole": "inbox",
+                        }
+                        state["folders"].append(inbox)
+                    destination = inbox["id"]
                 proof = {
                     "documentId": "d" * 64,
                     "sha256": digest,
@@ -95,7 +113,8 @@ def library_v3(ks, monkeypatch):
                 state["pendingArchives"] = [proof]
                 return {
                     **proof,
-                    "folderId": F1,
+                    "folderId": destination,
+                    "folderIds": [destination],
                     "registered": False,
                     "url": "https://kb.example/?paper=upload",
                 }
@@ -486,3 +505,44 @@ def test_pending_citation_exports_keep_available_authors_year_and_doi(library_v3
     ):
         assert value in response.text
     assert "untrusted replacement" not in response.text
+
+
+def test_explicit_unfiled_upload_uses_real_inbox_and_skips_auto_filing(library_v3, monkeypatch):
+    from app.services import knowledge_source_workspace_v3 as workspaces
+
+    client, db, session, _, _, calls, _, _ = library_v3
+    monkeypatch.setattr(api, "extract_pdf", lambda path: "Unsorted paper text")
+    monkeypatch.setattr(
+        workspaces,
+        "workspace",
+        lambda *args: pytest.fail("No-folder upload must not read or apply automatic filing"),
+    )
+    response = client.post(
+        "/api/v1/knowledge-sources/v3/upload",
+        headers=headers(session),
+        files={"file": ("unfiled.pdf", b"%PDF-unfiled", "application/pdf")},
+        data={"noFolder": "true", "parse": "false"},
+    )
+    assert response.status_code == 201, response.text
+    inbox = "44444444-4444-4444-8444-444444444444"
+    assert response.json()["folderId"] == inbox
+    uploads = [values for operation, _, values in calls if operation == "uploadPaper"]
+    assert len(uploads) == 1 and uploads[0]["noFolder"] is True and "folderId" not in uploads[0]
+    assert response.json()["ruleFiling"] is None
+    docs = records(db).documents()
+    assert len(docs) == 1 and docs[0]["folderIds"] == [inbox]
+
+
+def test_unfiled_upload_rejects_conflicting_folder_before_reading_file(library_v3, monkeypatch):
+    client, _, session, _, _, calls, _, _ = library_v3
+    monkeypatch.setattr(
+        api, "extract_pdf", lambda path: pytest.fail("Conflicting destination must not parse")
+    )
+    response = client.post(
+        "/api/v1/knowledge-sources/v3/upload",
+        headers=headers(session),
+        files={"file": ("bad.pdf", b"%PDF-conflict", "application/pdf")},
+        data={"noFolder": "true", "folderId": F1},
+    )
+    assert response.status_code == 422
+    assert not any(op == "uploadPaper" for op, _, _ in calls)

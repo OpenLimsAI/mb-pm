@@ -10,6 +10,8 @@
 // 每行带独立的保存状态指示（保存中 / 已保存 / 失败）。任务名仍可点开抽屉看依赖、备注等完整信息。
 
 import { useState } from 'react'
+import { TASK_STATUSES, PRIMARY_TASK_STATUSES } from '../../lib/taskStatus'
+import { taskRequestError } from '../../api/taskCollaboration'
 import {
   Search, Diamond, Flame, ChevronDown, ChevronRight, Check, Loader2, AlertCircle,
   FolderTree, Filter, X,
@@ -28,8 +30,7 @@ import { ColumnResizer } from '../ui/ColumnResizer'
 import { useColumnWidth } from '../../lib/useColumnWidth'
 import './wbs-views.css'
 
-const TASK_STATUSES: TaskStatus[] = ['未开始', '进行中', '阻塞', '延迟', '已完成', '已验证']
-const MILESTONE_STATUSES: TaskStatus[] = ['未开始', '已验证']
+const MILESTONE_STATUSES = PRIMARY_TASK_STATUSES
 
 const STATUS_DOT: Record<TaskStatus, string> = {
   未开始: 'bg-ink-300',
@@ -275,23 +276,30 @@ function WBSRow({ task, onOpenTask, selected, team }: {
   const isMilestone = task.isMilestone
   const schedule = getTaskSchedule(task, TODAY)
   const [rowState, setRowState] = useState<RowState>('idle')
-  // 进度本地草稿（数字输入需要在 blur/Enter 时才提交）
-  const [progressDraft, setProgressDraft] = useState<string>(String(task.progress))
-  // 预算本地草稿（万元；空串=未设置）
-  const [budgetDraft, setBudgetDraft] = useState<string>(task.costBudget != null ? String(task.costBudget) : '')
-  // 实际花费本地草稿（万元；空串=未录入）
-  const [costDraft, setCostDraft] = useState<string>(task.actualCost != null ? String(task.actualCost) : '')
+  const progress = useNumberDraft(task, 'progress')
+  const budget = useNumberDraft(task, 'costBudget')
+  const cost = useNumberDraft(task, 'actualCost')
+  const [error, setError] = useState<string | null>(null)
+  const [conflict, setConflict] = useState<Task | null>(null)
+  const user = useAuth(s => s.currentUser)
+  const mode = useDataStore(s => s.mode)
+  const canPlan = mode === 'mock' || can(user?.role, 'task.update')
+  const editable = canPlan || !!user && (task.ownerId === user.id || !!task.collaboratorIds?.includes(user.id))
+  const disabled = !editable || rowState === 'saving' || !!conflict
 
   // 提交一个或多个字段；保存成功后由全局 version bump 触发刷新
-  const commit = async (patch: TaskProgressPatch) => {
-    setRowState('saving')
+  const commit = async (patch: TaskProgressPatch, revision = task.revision) => {
+    setRowState('saving'); setError(null)
     try {
-      await updateTaskProgress(task.id, patch)
+      const saved = await updateTaskProgress(task.id, { ...patch, expectedRevision: revision })
       setRowState('saved')
       window.setTimeout(() => setRowState((s) => (s === 'saved' ? 'idle' : s)), 1500)
+      return saved ?? { ...task, ...patch } as Task
     } catch (e) {
-      console.error(e)
+      const detail = taskRequestError(e)
+      setError(detail.message); setConflict(detail.current ?? null)
       setRowState('error')
+      return null
     }
   }
 
@@ -303,46 +311,18 @@ function WBSRow({ task, onOpenTask, selected, team }: {
     commit(patch)
   }
 
-  const commitProgress = () => {
-    let v = Math.round(Number(progressDraft))
-    if (Number.isNaN(v)) { setProgressDraft(String(task.progress)); return }
-    v = Math.max(0, Math.min(100, v))
-    setProgressDraft(String(v))
-    if (v === task.progress) return
-    const patch: TaskProgressPatch = { progress: v }
-    if (v === 100 && !isTaskDone(task)) patch.status = '已完成'
-    commit(patch)
-  }
-
-  const onOwnerChange = (id: string) => { if (id && id !== task.ownerId) commit({ ownerId: id }) }
-
-  const commitBudget = () => {
-    const raw = budgetDraft.trim()
-    if (raw === '') {
-      if (task.costBudget != null) commit({ costBudget: null })
-      return
+  const commitNumber = async (draft: ReturnType<typeof useNumberDraft>, field: 'progress' | 'costBudget' | 'actualCost') => {
+    if (!draft.dirty || disabled) return
+    const raw = draft.value.trim()
+    const value = raw === '' && field !== 'progress' ? null : Number(raw)
+    if ((value !== null && (!Number.isFinite(value) || value < 0)) || (field === 'progress' && (raw === '' || Number(value) > 100))) {
+      setError('请填写有效数值；进度为 0–100，预算和花费不能为负数。'); setRowState('error'); return
     }
-    let v = Number(raw)
-    if (Number.isNaN(v) || v < 0) { setBudgetDraft(task.costBudget != null ? String(task.costBudget) : ''); return }
-    v = Math.round(v * 100) / 100
-    setBudgetDraft(String(v))
-    if (v === (task.costBudget ?? null)) return
-    commit({ costBudget: v })
+    const rounded = value === null ? null : field === 'progress' ? Math.round(value) : Math.round(value * 100) / 100
+    const saved = await commit({ [field]: rounded }, draft.base.revision)
+    if (saved) draft.reset(saved)
   }
-
-  const commitCost = () => {
-    const raw = costDraft.trim()
-    if (raw === '') {
-      if (task.actualCost != null) commit({ actualCost: null })
-      return
-    }
-    let v = Number(raw)
-    if (Number.isNaN(v) || v < 0) { setCostDraft(task.actualCost != null ? String(task.actualCost) : ''); return }
-    v = Math.round(v * 100) / 100
-    setCostDraft(String(v))
-    if (v === (task.actualCost ?? null)) return
-    commit({ actualCost: v })
-  }
+  const onOwnerChange = (id: string) => { if (id && id !== task.ownerId) void commit({ ownerId: id }) }
 
   const onPlannedStart = (v: string) => { if (v && v !== task.plannedStart) commit({ plannedStart: v }) }
   const onPlannedEnd = (v: string) => {
@@ -377,6 +357,12 @@ function WBSRow({ task, onOpenTask, selected, team }: {
           {task.isCriticalPath && <Flame className="w-3 h-3 text-red-500 shrink-0" aria-label="关键路径" />}
           <RowIndicator state={rowState} />
         </div>
+        {error && <div role="alert" className="mt-1 text-xs text-red-600">{error}</div>}
+        {conflict && <div className="mt-1 text-xs text-amber-800">
+          最新进度 {conflict.progress}% · 预算 {conflict.costBudget ?? '未填'} · 花费 {conflict.actualCost ?? '未填'}；你的输入已保留。
+          <button type="button" className="underline ml-2" onClick={() => { progress.reset(conflict); budget.reset(conflict); cost.reset(conflict); setConflict(null); setError(null); setRowState('idle') }}>使用最新数据</button>
+          <button type="button" className="underline ml-2" onClick={() => { progress.rebase(conflict); budget.rebase(conflict); cost.rebase(conflict); setConflict(null); setError(null); setRowState('idle') }}>核对后保留我的输入</button>
+        </div>}
       </td>
 
       {/* 负责人（行内可改派） */}
@@ -385,6 +371,7 @@ function WBSRow({ task, onOpenTask, selected, team }: {
           {owner && <Avatar user={owner} size="sm" />}
           <select
             value={task.ownerId}
+            disabled={!canPlan || disabled}
             onChange={(e) => onOwnerChange(e.target.value)}
             title={`${findUser(task.ownerId)?.displayName ?? '未分配'} · 点击改派负责人`}
             className="h-7 w-[76px] px-1 text-xs text-ink-700 rounded border border-transparent hover:border-ink-300 bg-transparent focus:border-brand-400 focus:bg-white focus:outline-none cursor-pointer truncate"
@@ -404,6 +391,7 @@ function WBSRow({ task, onOpenTask, selected, team }: {
           <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', STATUS_DOT[task.status])} />
           <select
             value={task.status}
+            disabled={disabled}
             onChange={(e) => onStatusChange(e.target.value as TaskStatus)}
             className="h-7 w-[84px] px-1 text-xs rounded border border-transparent hover:border-ink-300 bg-transparent focus:border-brand-400 focus:bg-white focus:outline-none cursor-pointer"
           >
@@ -426,9 +414,9 @@ function WBSRow({ task, onOpenTask, selected, team }: {
             </div>
             <input
               type="number" min={0} max={100} step={5}
-              value={progressDraft}
-              onChange={(e) => setProgressDraft(e.target.value)}
-              onBlur={commitProgress}
+              value={progress.value} disabled={disabled} aria-label={`${task.code} 进度`}
+              onChange={(e) => progress.setValue(e.target.value)}
+              onBlur={() => void commitNumber(progress, 'progress')}
               onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
               className="h-7 w-12 px-1 text-xs text-right rounded border border-transparent hover:border-ink-300 focus:border-brand-400 focus:bg-white focus:outline-none tabular-nums"
             />
@@ -443,10 +431,10 @@ function WBSRow({ task, onOpenTask, selected, team }: {
           {canEditBudget ? (
             <input
               type="number" min={0} step={5}
-              value={budgetDraft}
+              value={budget.value} disabled={disabled} aria-label={`${task.code} 预算`}
               placeholder="—"
-              onChange={(e) => setBudgetDraft(e.target.value)}
-              onBlur={commitBudget}
+              onChange={(e) => budget.setValue(e.target.value)}
+              onBlur={() => void commitNumber(budget, 'costBudget')}
               onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
               className="h-7 w-16 px-1 text-xs text-right rounded border border-transparent hover:border-ink-300 focus:border-brand-400 focus:bg-white focus:outline-none tabular-nums placeholder:text-ink-300"
               title="成本预算（万元）"
@@ -464,10 +452,10 @@ function WBSRow({ task, onOpenTask, selected, team }: {
         <div className="flex items-center justify-end gap-0.5">
           <input
             type="number" min={0} step={5}
-            value={costDraft}
+            value={cost.value} disabled={disabled} aria-label={`${task.code} 花费`}
             placeholder="—"
-            onChange={(e) => setCostDraft(e.target.value)}
-            onBlur={commitCost}
+            onChange={(e) => cost.setValue(e.target.value)}
+            onBlur={() => void commitNumber(cost, 'actualCost')}
             onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
             className={cn(
               'h-7 w-16 px-1 text-xs text-right rounded border border-transparent hover:border-ink-300 focus:border-brand-400 focus:bg-white focus:outline-none tabular-nums placeholder:text-ink-300',
@@ -480,13 +468,13 @@ function WBSRow({ task, onOpenTask, selected, team }: {
 
       {/* 计划开始 */}
       <td className="px-2 py-1.5">
-        <DateCell value={task.plannedStart} onCommit={onPlannedStart} />
+        <DateCell disabled={!canPlan || disabled} value={task.plannedStart} onCommit={onPlannedStart} />
       </td>
 
       {/* 计划结束 + 排期徽标 */}
       <td className="px-2 py-1.5">
         <div className="flex items-center gap-1.5">
-          <DateCell value={task.plannedEnd} min={task.plannedStart} onCommit={onPlannedEnd} />
+          <DateCell disabled={!canPlan || disabled} value={task.plannedEnd} min={task.plannedStart} onCommit={onPlannedEnd} />
           <span className={cn('text-[10px] whitespace-nowrap', scheduleToneText[schedule.tone])} title={schedule.label}>
             {scheduleBadge(schedule)}
           </span>
@@ -495,15 +483,31 @@ function WBSRow({ task, onOpenTask, selected, team }: {
 
       {/* 实际结束 */}
       <td className="px-2 py-1.5">
-        <DateCell value={task.actualEnd ?? ''} onCommit={onActualEnd} />
+        <DateCell disabled={disabled} value={task.actualEnd ?? ''} onCommit={onActualEnd} />
       </td>
     </tr>
   )
 }
 
+function useNumberDraft(task: Task, field: 'progress' | 'costBudget' | 'actualCost') {
+  const text = (value: Task) => value[field] == null ? '' : String(value[field])
+  const [state, setState] = useState(() => ({ base: task, value: text(task) }))
+  const dirty = state.value !== text(state.base)
+  // Only untouched fields follow synchronization. An edited value keeps its original revision.
+  if (!dirty && ((task.revision ?? 0) > (state.base.revision ?? 0) || (task.revision === state.base.revision && text(state.base) !== text(task)))) {
+    setState({ base: task, value: text(task) })
+  }
+  return { ...state, dirty,
+    setValue: (value: string) => setState(old => ({ ...old, value })),
+    reset: (base: Task) => setState({ base, value: text(base) }),
+    rebase: (base: Task) => setState(old => ({ base, value: old.value === text(old.base) ? text(base) : old.value })),
+  }
+}
+
 /** 行内日期单元格：与单元格融为一体，聚焦时才显边框。
  *  `key={value}`（在调用处由 WBSRow 的 task 标识隐式保证刷新）+ defaultValue 让保存刷新后回到最新值。 */
-function DateCell({ value, min, onCommit }: {
+function DateCell({ value, min, onCommit, disabled }: {
+  disabled?: boolean
   value: string
   min?: string
   onCommit: (v: string) => void
@@ -511,6 +515,7 @@ function DateCell({ value, min, onCommit }: {
   return (
     <input
       key={value}
+      disabled={disabled}
       type="date"
       defaultValue={value}
       min={min || undefined}

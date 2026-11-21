@@ -244,3 +244,27 @@ def test_milestone_import_cannot_bypass_acceptance_and_resets_after_edit(
     with SessionLocal() as db:
         assert db.get(TaskAcceptance, task_id).state == "draft"
         assert db.get(Task, task_id).status == "已完成"
+
+
+def test_excel_execution_state_is_normalized_and_cannot_restore_verified(
+    client, auth_headers, project_factory
+):
+    pid = project_factory("t-admin")
+    with SessionLocal() as db:
+        task = db.get(Task, f"{pid}-t1")
+        task.status, task.progress = "已验证", 100
+        db.add(
+            TaskAcceptance(
+                task_id=task.id, reviewer_id="t-admin", state="accepted", required_count=1
+            )
+        )
+        db.commit()
+    data = edit(exported(client, auth_headers, pid), lambda wb: cell(wb, 2, "进度(%)", 20))
+    result = preview(client, auth_headers, pid, data)
+    assert not result["errors"], result
+    response = apply(client, auth_headers, pid, data, result["fingerprint"])
+    assert response.status_code == 200, response.text
+    with SessionLocal() as db:
+        task = db.get(Task, f"{pid}-t1")
+        assert (task.status, task.progress) == ("进行中", 20)
+        assert db.get(TaskAcceptance, task.id).state == "draft"

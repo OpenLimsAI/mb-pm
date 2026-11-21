@@ -30,11 +30,13 @@ from app.api.v1 import (
     knowledge_ai,
     knowledge_base,
     knowledge_source_acquisition_v3,
+    knowledge_source_folder_imports,
     knowledge_source_library_v3,
     knowledge_source_manual_index_v3,
     knowledge_source_workspace_v3,
     knowledge_sources,
     mdm_integration,
+    milestones,
     notes,
     planning,
     pm_ai,
@@ -126,6 +128,7 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("project_ai_analyses", "prompt", "TEXT NOT NULL DEFAULT ''"),
     ("tasks", "sort_order", "INTEGER"),
     ("tasks", "revision", "INTEGER NOT NULL DEFAULT 1"),
+    ("projects", "revision", "INTEGER NOT NULL DEFAULT 1"),
     ("projects", "progress_method", "VARCHAR(16) NOT NULL DEFAULT 'equal'"),
     ("tasks", "progress_weight", "NUMERIC(10,4)"),
     ("solution_answers", "conversation_id", "VARCHAR(80)"),
@@ -373,6 +376,7 @@ app.include_router(portal_settings.router, prefix=API_PREFIX)
 app.include_router(information.router, prefix=API_PREFIX)
 app.include_router(knowledge_sources.router, prefix=API_PREFIX)
 app.include_router(knowledge_source_library_v3.router, prefix=API_PREFIX)
+app.include_router(knowledge_source_folder_imports.router, prefix=API_PREFIX)
 app.include_router(knowledge_source_manual_index_v3.router, prefix=API_PREFIX)
 app.include_router(knowledge_source_library_v3.upload_router, prefix=API_PREFIX)
 app.include_router(knowledge_source_workspace_v3.router, prefix=API_PREFIX)
@@ -405,6 +409,7 @@ app.include_router(structure.router, prefix=API_PREFIX)
 app.include_router(sub_projects.router, prefix=API_PREFIX)
 app.include_router(tasks.router, prefix=API_PREFIX)
 app.include_router(task_dependencies.router, prefix=API_PREFIX)
+app.include_router(milestones.router, prefix=API_PREFIX)
 app.include_router(templates.router, prefix=API_PREFIX)
 app.include_router(finances.router, prefix=API_PREFIX)
 app.include_router(baselines.router, prefix=API_PREFIX)

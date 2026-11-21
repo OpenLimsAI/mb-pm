@@ -110,10 +110,10 @@
 :root #knowledge-source-app .kso-mark { color: var(--workbench-brand-strong); background: var(--workbench-soft); border: 0; }
 :root :is(.aa-preview-tag, .pn-preview-badge, .ks-app .ks-demo-badge, .information-app .if-header-note),
 :root #knowledge-source-app .kso-preview { color: var(--workbench-muted); background: var(--workbench-bg); border-color: var(--workbench-line); font-size: 12px; }
-:root :is(.application-account, .application-theme-toggle, .aa-model-link, .aa-topbar .aa-icon-button, .ks-app .ks-topbar .ks-button, .ks-app .ks-topbar-title > a) { color: var(--workbench-text); }
+:root :is(.application-account, .aa-model-link, .aa-topbar .aa-icon-button, .ks-app .ks-topbar .ks-button, .ks-app .ks-topbar-title > a) { color: var(--workbench-text); }
 :root .application-account-copy small { color: var(--workbench-muted); font-size: 12px; }
 :root .application-avatar { color: var(--workbench-brand-strong); background: var(--workbench-soft); border-color: var(--workbench-line); width: 30px; height: 30px; }
-:root :is(.application-account:hover, .application-theme-toggle:hover, .ks-app .ks-topbar .ks-button:hover:not(:disabled)) { color: var(--workbench-brand-strong); background: var(--workbench-soft); }
+:root :is(.application-account:hover, .ks-app .ks-topbar .ks-button:hover:not(:disabled)) { color: var(--workbench-brand-strong); background: var(--workbench-soft); }
 :root .ks-app .ks-topbar .ks-button.ks-primary { color: #fff; background: var(--workbench-brand); border-color: var(--workbench-brand); }
 :root :is(.aa-sidebar, .pn-sidebar, .information-app .if-sidebar, .ks-app .ks-outline, .ks-app .ks-rail) { background: var(--workbench-bg); border-color: var(--workbench-line); }
 :root .aa-sidebar { padding-top: 18px; }
@@ -138,10 +138,10 @@
 :root .ks-app .ks-report-summary .ks-document-bar { min-height: 0; }
 :root #knowledge-source-app { --kso-side: var(--workbench-bg); --kso-top-ink: var(--workbench-ink); }
 :root #knowledge-source-app .kso-brand > span { color: var(--workbench-muted); border-color: var(--workbench-line); }
-:root #knowledge-source-app :is(.application-account, .application-theme-toggle, .kso-header-refresh) { color: var(--workbench-text); }
-:root #knowledge-source-app :is(.application-account, .application-theme-toggle, .kso-header-refresh):hover { color: var(--workbench-brand-strong); background: var(--workbench-soft); }
+:root #knowledge-source-app :is(.application-account, .kso-header-refresh) { color: var(--workbench-text); }
+:root #knowledge-source-app :is(.application-account, .kso-header-refresh):hover { color: var(--workbench-brand-strong); background: var(--workbench-soft); }
 :root #knowledge-source-app .kso-main { padding: 22px 24px; }
-:root .application-account:focus-visible, :root .application-theme-toggle:focus-visible { outline-color: var(--workbench-brand); }
+:root .application-account:focus-visible { outline-color: var(--workbench-brand); }
 
 /* 报告目录采用紧凑卡片，与编辑工作区共享色彩。 */
 :root .ks-app .ks-library-page { padding: 24px; }
@@ -159,9 +159,6 @@
 :root .ks-app .ks-card-footer { color: var(--workbench-muted); margin-top: 12px; padding-top: 8px; border-color: var(--workbench-line); }
 :root .ks-app .ks-new-card { min-height: 160px; gap: 8px; color: var(--workbench-brand-strong); background: var(--workbench-soft); border-color: var(--workbench-line); }
 :root .ks-app .ks-new-card > span { color: var(--workbench-muted); }
-
-/* 保留现有应用明暗切换；浅色顶栏与内容一起切换，不再反转回旧深蓝。 */
-html[data-application-theme="dark"]:root :is(.aa-topbar, .pn-app-header, .ks-topbar, .if-header, .kso-source-header) { filter: none; }
 
 /* 登录也使用同一套精简尺度。 */
 :root .mb-login { background: var(--workbench-bg); color: var(--workbench-ink); }

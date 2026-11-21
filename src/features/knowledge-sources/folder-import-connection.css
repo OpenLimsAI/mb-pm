@@ -1,0 +1,64 @@
+#knowledge-source-app .kso-connect-page {
+  width: 100%;
+  max-width: 760px;
+  min-width: 0;
+  display: grid;
+  gap: 16px;
+  margin: 0 auto;
+  color: var(--kso-ink);
+}
+#knowledge-source-app .kso-connect-back { justify-self: start; margin-left: -10px; }
+#knowledge-source-app .kso-connect-heading h1 { font-size: 23px; line-height: 1.4; outline: none; }
+#knowledge-source-app .kso-connect-heading h2 { font-size: 16px; line-height: 1.4; outline: none; }
+#knowledge-source-app .kso-connect-heading p { font-size: 13px; color: var(--kso-muted); margin-top: 5px; overflow-wrap: anywhere; }
+#knowledge-source-app .kso-connect-inline { max-width: none; gap: 10px; margin: 0; }
+#knowledge-source-app .kso-connect-card, #knowledge-source-app .kso-connect-success {
+  display: grid;
+  align-items: start;
+  gap: 12px;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--kso-line);
+  border-radius: 8px;
+  background: var(--kso-surface);
+}
+#knowledge-source-app .kso-connect-inline .kso-connect-card, #knowledge-source-app .kso-connect-inline .kso-connect-success {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+#knowledge-source-app .kso-connect-fields { display: grid; gap: 14px; min-width: 0; }
+#knowledge-source-app .kso-connect-fields .kso-field { width: 100%; gap: 7px; font-size: 13px; }
+#knowledge-source-app .kso-connect-fields .kso-field input { font-size: 13px; padding: 10px 12px; }
+#knowledge-source-app .kso-connect-platform { display: inline-flex; width: fit-content; border: 1px solid var(--kso-line); border-radius: 6px; overflow: hidden; }
+#knowledge-source-app .kso-connect-platform button { padding: 6px 12px; font-size: 12px; color: var(--kso-muted); }
+#knowledge-source-app .kso-connect-platform button[aria-pressed=true] { background: var(--kso-blue-bg); color: var(--kso-blue); font-weight: 600; }
+#knowledge-source-app .kso-connect-platform button + button { border-left: 1px solid var(--kso-line); }
+#knowledge-source-app .kso-connect-card p { font-size: 12px; line-height: 1.7; color: var(--kso-muted); overflow-wrap: anywhere; }
+#knowledge-source-app .kso-connect-card .kso-connect-instructions { color: var(--kso-ink); font-size: 13px; }
+#knowledge-source-app .kso-connect-actions, #knowledge-source-app .kso-connect-pending, #knowledge-source-app .kso-connect-feedback { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+#knowledge-source-app .kso-connect-card .kso-connect-feedback, #knowledge-source-app .kso-connect-success > svg { color: var(--kso-green); }
+#knowledge-source-app .kso-connect-card .kso-error { color: var(--kso-red); }
+#knowledge-source-app .kso-connect-details, #knowledge-source-app .kso-connect-startup { width: 100%; min-width: 0; font-size: 12px; color: var(--kso-muted); }
+#knowledge-source-app .kso-connect-details summary, #knowledge-source-app .kso-connect-startup summary { cursor: pointer; width: fit-content; line-height: 1.7; }
+#knowledge-source-app .kso-connect-details pre, #knowledge-source-app .kso-connect-startup pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 12px;
+  margin: 8px 0;
+  border: 1px solid var(--kso-line);
+  border-radius: 6px;
+  background: var(--kso-soft);
+  color: var(--kso-ink);
+  font: 11px/1.7 ui-monospace, SFMono-Regular, monospace;
+  user-select: all;
+}
+#knowledge-source-app .kso-connect-details .kso-connect-platform, #knowledge-source-app .kso-connect-startup p { margin-top: 8px; }
+#knowledge-source-app .kso-connect-code strong { letter-spacing: .5px; user-select: all; }
+#knowledge-source-app .kso-connect-success { display: flex; gap: 10px; }
+#knowledge-source-app .kso-connect-success h3 { font-size: 15px; }
+#knowledge-source-app .kso-connect-success p { color: var(--kso-muted); font-size: 12px; overflow-wrap: anywhere; margin: 5px 0 10px; }
+@media (max-width: 600px) {
+  #knowledge-source-app .kso-connect-card, #knowledge-source-app .kso-connect-success { padding: 14px; }
+  #knowledge-source-app .kso-connect-fields .kso-field input { font-size: 16px; }
+}

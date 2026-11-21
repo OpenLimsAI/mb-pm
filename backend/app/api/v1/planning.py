@@ -116,14 +116,21 @@ def schedule_state(db, user, project_id, lock=False):
         .filter(TaskDependency.predecessor_id.in_(ids), TaskDependency.successor_id.in_(ids))
         .all()
     )
-    # Cross-project successors cannot silently be left with broken dependencies.
+    # The single-project solver cannot prove constraints in either direction.
+    # Never silently drop an external predecessor (including an invisible one).
     external = (
         db.query(TaskDependency)
-        .filter(TaskDependency.predecessor_id.in_(ids), ~TaskDependency.successor_id.in_(ids))
+        .filter(
+            (TaskDependency.predecessor_id.in_(ids) & ~TaskDependency.successor_id.in_(ids))
+            | (~TaskDependency.predecessor_id.in_(ids) & TaskDependency.successor_id.in_(ids))
+        )
         .first()
     )
     if external:
-        raise HTTPException(422, "项目存在跨项目下游依赖，请先由负责人协调跨项目计划")
+        raise HTTPException(
+            422,
+            "项目存在跨项目上游或下游依赖，当前单项目推演不能完整校验；请先由负责人协调跨项目计划",
+        )
     return tasks, deps, calendar_dict(db.get(ProjectCalendar, project_id))
 
 

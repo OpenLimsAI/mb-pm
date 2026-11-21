@@ -7,7 +7,6 @@ are the only automatic fallback. Actual execution fields are never assigned here
 
 import hashlib
 import json
-from collections import defaultdict, deque
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
@@ -596,6 +595,9 @@ def preview(db, project, request):
 
 
 def apply(db, project, request, actor):
+    from app.services.dependency_graph import lock_dependency_graph, validate_dependency_changes
+
+    lock_dependency_graph(db)
     db.query(Project).filter_by(id=project.id).with_for_update().populate_existing().one()
     if not can_manage(project, actor):
         raise HTTPException(403, "仅当前项目负责人或管理员可升级项目模板")
@@ -704,32 +706,24 @@ def apply(db, project, request, actor):
             if pred not in values or pred == tid:
                 invalid("选中的前置任务缺失或自依赖，请调整选择")
             edge_values[(pred, tid)] = [kind, lag]
-    # Include paths through other projects, without rewriting those edges.
-    all_edges = {
-        (d.predecessor_id, d.successor_id)
+    # Validate changed edges against the full graph, but let users repair a
+    # historic cycle or edit a project unrelated to one.
+    existing_pairs = {(d.predecessor_id, d.successor_id) for d in deps}
+    removed_edges = [
+        d.id
         for d in db.query(TaskDependency).all()
-        if d.predecessor_id not in deleted
-        and d.successor_id not in deleted
-        and d.predecessor_id not in by_task
-        and d.successor_id not in by_task
-    }
-    all_edges.update(edge_values)
-    indegree, outgoing = {}, defaultdict(list)
-    for pred, succ in all_edges:
-        indegree.setdefault(pred, 0)
-        indegree[succ] = indegree.get(succ, 0) + 1
-        outgoing[pred].append(succ)
-    queue = deque(tid for tid, count in indegree.items() if not count)
-    visited = 0
-    while queue:
-        tid = queue.popleft()
-        visited += 1
-        for successor in outgoing[tid]:
-            indegree[successor] -= 1
-            if not indegree[successor]:
-                queue.append(successor)
-    if visited != len(indegree):
-        invalid("升级后依赖形成循环，本次未保存")
+        if d.predecessor_id in deleted
+        or d.successor_id in deleted
+        or (
+            (d.predecessor_id, d.successor_id) in existing_pairs
+            and (d.predecessor_id, d.successor_id) not in edge_values
+        )
+    ]
+    validate_dependency_changes(
+        db,
+        [(*pair, *value) for pair, value in edge_values.items() if pair not in existing_pairs],
+        removed_edges,
+    )
     calendar = calendar_dict(db.get(ProjectCalendar, project.id))
     # Check only touched dependencies/dates; historic unrelated violations are
     # not silently shifted. The user can run the separate schedule preview.

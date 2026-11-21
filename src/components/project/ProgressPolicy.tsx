@@ -4,7 +4,7 @@ import { Card, CardBody, CardHeader, Button } from '../ui'
 import { useDataStore } from '../../store/data'
 import { asAPIError } from '../../api/client'
 import { progressPolicyApi, type ProgressMethod, type ProgressPolicyRequest, type ProgressPolicyResult } from '../../api/progressPolicy'
-import { refreshAllData } from '../../data/bootstrap'
+import { refreshAfterWrite } from '../../data/bootstrap'
 
 const names: Record<ProgressMethod, string> = { equal: '任务等权', effort: '预计工时加权', custom: '自定义权重' }
 const amount = (value: number) => value.toLocaleString('zh-CN', { maximumFractionDigits: 4 })
@@ -57,9 +57,12 @@ export function ProgressPolicy({ project }: { project: Project }) {
       if (save) {
         await progressPolicyApi.save(project.id, { ...value, fingerprint: preview?.fingerprint, reason })
         if (epoch !== generation.current) return
-        await refreshAllData()
+        const synced = await refreshAfterWrite()
         if (epoch !== generation.current) return
-        setReason(''); await load(); setMessage('进度计算规则已保存，项目与子项目进度已重新汇总。')
+        setReason('')
+        setPreview(null)
+        await load()
+        setMessage(synced ? '进度计算规则已保存，项目与子项目进度已重新汇总。' : '进度计算规则已保存。页面同步失败，请点击顶部重试。')
       } else {
         const result = await progressPolicyApi.preview(project.id, value)
         if (epoch === generation.current) setPreview(result)

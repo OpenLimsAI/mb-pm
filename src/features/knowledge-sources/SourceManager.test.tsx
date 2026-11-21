@@ -16,10 +16,73 @@ beforeEach(() => {
 const category = (label: string) => within(screen.getByRole('group', { name: 'ICH分类筛选' })).getByRole('button', { name: label })
 
 describe('source catalogue workflow', () => {
+  it('shows the destination and persisted manual mode beside a text settings entry', () => {
+    mount()
+    const overview = screen.getByLabelText('ICH来源概况')
+    expect(overview).toHaveTextContent('保存到ICH')
+    expect(overview).toHaveTextContent('更新方式仅手动搜索')
+    const settings = screen.getByText('来源与自动下载设置', { selector: 'summary' })
+    expect(settings.closest('details')).not.toHaveAttribute('open')
+    expect(settings.querySelector('.lucide-settings-2')).toBeNull()
+    fireEvent.click(settings)
+    fireEvent.change(screen.getByRole('combobox', { name: 'ICH定期检查频率' }), { target: { value: 'weekly' } })
+    expect(overview).toHaveTextContent('仅手动搜索')
+    expect(screen.getByText('有未保存修改')).toBeInTheDocument()
+    expect(mutate).not.toHaveBeenCalled()
+  })
+  it.each([
+    [{ frequency: 'weekly' as const, downloadUpdates: false, indexUpdates: false }, '每周检查更新，不自动下载'],
+    [{ frequency: 'daily' as const, downloadUpdates: true, indexUpdates: false }, '每天自动下载'],
+    [{ frequency: 'daily' as const, downloadUpdates: true, indexUpdates: true }, '每天自动下载并建立索引'],
+  ])('distinguishes a saved check-only plan from automatic download and indexing', (schedule, expected) => {
+    data.sources[0].schedule = schedule
+    mount()
+    expect(screen.getByLabelText('ICH来源概况')).toHaveTextContent(expected)
+  })
+  it('keeps selection controls stable and places detailed counts after the document rows', () => {
+    const view = mount()
+    const bar = view.container.querySelector('.kso-catalog-selectbar')!
+    const before = bar.children.length
+    expect(within(bar as HTMLElement).getByRole('button', { name: '仅看已选' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择 Q 正文' }))
+    expect(bar.children).toHaveLength(before)
+    expect(within(bar as HTMLElement).getByRole('button', { name: '仅看已选' })).toBeEnabled()
+    const rows = view.container.querySelector('.kso-catalog-results')!
+    const summary = screen.getByRole('region', { name: 'ICH已选清单汇总' })
+    expect(rows.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '清空选择' }))
+    expect(screen.queryByRole('region', { name: 'ICH已选清单汇总' })).not.toBeInTheDocument()
+    expect(bar.children).toHaveLength(before)
+  })
+  it('keeps source failures visible while the settings remain closed', () => {
+    data.sources[0].scopeStatus = { Q: { status: 'failed' } }
+    mount()
+    expect(screen.getByText(/Q 范围搜索未成功/)).toBeVisible()
+    expect(screen.getByText(/Q 范围搜索未成功/).closest('details')).toBeNull()
+    expect(screen.getByText('来源与自动下载设置', { selector: 'summary' }).closest('details')).not.toHaveAttribute('open')
+  })
+  it('allows switching after a source deep link and follows a new external source focus', () => {
+    data.sources.push({...data.sources[0],id:'second',name:'第二来源'})
+    data.documents.push(doc('第二来源正文',{sourceId:'second'}))
+    const onAdd=vi.fn(),onDownloads=vi.fn()
+    const manager=(focusSource:string,focusDocument?:string)=><div id="knowledge-source-app"><SourceManager data={data} busy={false} mutate={mutate} onAdd={onAdd} onDownloads={onDownloads} focusSource={focusSource} focusDocument={focusDocument}/></div>
+    const view=render(manager('ich'))
+    expect(screen.getByRole('combobox',{name:'下载来源'})).toHaveValue('ich')
+    fireEvent.change(screen.getByRole('combobox',{name:'下载来源'}),{target:{value:'second'}})
+    expect(screen.getByRole('region',{name:'第二来源来源与论文'})).toBeInTheDocument()
+    expect(screen.queryByRole('region',{name:'ICH来源与论文'})).not.toBeInTheDocument()
+    fireEvent.change(screen.getByRole('combobox',{name:'下载来源'}),{target:{value:'ich'}})
+    view.rerender(manager('second'))
+    expect(screen.getByRole('combobox',{name:'下载来源'})).toHaveValue('second')
+    expect(screen.getByRole('region',{name:'第二来源来源与论文'})).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('combobox',{name:'下载来源'}),{target:{value:'ich'}})
+    view.rerender(manager('second','第二来源正文'))
+    expect(screen.getByRole('combobox',{name:'下载来源'})).toHaveValue('second')
+  })
   it('combines novelty, download state, type and category without widening the selection', async () => {
     mount()
     fireEvent.click(category('Q 质量'))
-    fireEvent.change(screen.getByRole('combobox', { name: 'ICH资料类型' }), { target: { value: 'guideline' } })
+    fireEvent.click(screen.getByRole('button',{name:/^筛选/}));fireEvent.change(screen.getByRole('combobox', { name: 'ICH资料类型' }), { target: { value: 'guideline' } })
     fireEvent.change(screen.getByRole('combobox', { name: 'ICH新增与查看状态' }), { target: { value: 'new' } })
     fireEvent.click(screen.getByRole('button', { name: '全选本类' }))
     fireEvent.click(screen.getByRole('button', { name: '下载所选（1）' }))
@@ -42,7 +105,7 @@ describe('source catalogue workflow', () => {
     mount()
     fireEvent.click(screen.getByRole('checkbox', { name: '选择 Q 正文' }))
     fireEvent.change(screen.getByRole('combobox', { name: 'ICH本次下载文件夹' }), { target: { value: 'topic' } })
-    fireEvent.click(screen.getByRole('checkbox', { name: '下载后加入知识库并建立问答索引' }))
+    fireEvent.click(screen.getByText('选项',{selector:'summary'}));fireEvent.click(screen.getByRole('checkbox', { name: '下载后加入知识库并建立问答索引' }))
     fireEvent.click(screen.getByRole('button', { name: '下载所选（1）' }))
     await waitFor(() => expect(mutate).toHaveBeenCalledWith('post', '/jobs', { sourceId: 'ich', documentIds: ['Q 正文'], folderId: 'topic', parse: false }, expect.any(String)))
     expect(mutate).toHaveBeenCalledTimes(1)
@@ -90,7 +153,7 @@ describe('source catalogue workflow', () => {
   })
   it('separates unread from NEW and requests explicit version verification', async () => {
     mount()
-    fireEvent.change(screen.getByRole('combobox', { name: 'ICH下载状态' }), { target: { value: 'update' } })
+    fireEvent.click(screen.getByRole('button',{name:/^筛选/}));fireEvent.change(screen.getByRole('combobox', { name: 'ICH下载状态' }), { target: { value: 'update' } })
     expect(screen.getByRole('checkbox', { name: '选择 Q 已保存' })).toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: '选择 Q 正文' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '核验已保存版本' }))
@@ -132,7 +195,7 @@ describe('source catalogue workflow', () => {
     localStorage.setItem('kso:catalog:v2:person:ich', JSON.stringify({ scope: 'unknown', status: 'bad', page: -2, chosen: ['absent', 'Q 正文', 'Q 正文'], destination: 'deleted' }))
     mount('person')
     expect(category('全部分类')).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('combobox', { name: 'ICH下载状态' })).toHaveValue('pending')
+    fireEvent.click(screen.getByRole('button',{name:/^筛选/}));expect(screen.getByRole('combobox', { name: 'ICH下载状态' })).toHaveValue('pending')
     expect(screen.getByRole('combobox', { name: 'ICH本次下载文件夹' })).toHaveValue('')
     expect(screen.getByRole('button', { name: '下载所选（1）' })).toBeInTheDocument()
   })

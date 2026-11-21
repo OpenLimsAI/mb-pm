@@ -87,12 +87,9 @@
 #knowledge-source-app .kso-header-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 #knowledge-source-app .kso-header-refresh { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 6px; color: #e6f1ff; }
 #knowledge-source-app .kso-header-refresh:hover:not(:disabled),
-#knowledge-source-app .application-theme-toggle:hover { background: #ffffff1f; }
 #knowledge-source-app .app-workbench-link:not(.app-workbench-entry) { color: var(--workbench-brand-strong); }
 #knowledge-source-app .app-workbench-link svg { width: 16px; height: 16px; }
 #knowledge-source-app .application-account { color: #fff; }
-#knowledge-source-app .application-theme-toggle { color: #e6f1ff; }
-#knowledge-source-app .application-theme-toggle svg { width: 19px; height: 19px; }
 #knowledge-source-app .kso-skip { position: fixed; top: -100px; left: 16px; z-index: 100; padding: 9px 14px; background: #fff; color: var(--workbench-brand-strong); border-radius: 5px; }
 #knowledge-source-app .kso-skip:focus { top: 10px; }
 #knowledge-source-app .kso-shell { flex: 1; grid-template-columns: 220px minmax(0, 1fr); min-height: calc(100dvh - 90px); }

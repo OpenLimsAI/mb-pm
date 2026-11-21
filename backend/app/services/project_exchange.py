@@ -22,6 +22,7 @@ from app.schemas.business_values import validate_date_patch
 from app.schemas.task import TaskUpdate
 from app.services.excel import _check_xlsx_archive, _write_sheet
 from app.services.scope import visible_project_ids_for
+from app.services.task_state import task_state_patch
 from app.services.team import team_ids
 
 FORMAT = "CMC-PMS-PROJECT-ROUNDTRIP-1"
@@ -285,9 +286,12 @@ def preview_project(data: bytes, state):
                 owner = next(u for u in users if u.id == values["owner_id"])
                 if values["owner_id"] != task.owner_id and not owner.is_active:
                     raise ValueError("不能改派给已停用成员")
-                patch = {key: value for key, value in values.items() if getattr(task, key) != value}
+                patch = task_state_patch(
+                    task,
+                    {key: value for key, value in values.items() if getattr(task, key) != value},
+                )
                 acceptance = acceptances.get(task.id)
-                if acceptance and values["status"] == "已验证":
+                if acceptance and patch.get("status", task.status) == "已验证":
                     if task.status != "已验证" or acceptance.state != "accepted":
                         raise ValueError("此里程碑须由指定验收人验收，不能通过 Excel 标记已验证")
                     if patch:

@@ -14,6 +14,7 @@ interface DataState {
   lastSyncedAt: string | null
   syncing: boolean
   syncError: string | null
+  writePendingSync: boolean
   version: number
   /** 当前数据源：api=后端持久化 / mock=离线只读回退 */
   mode: DataMode
@@ -33,6 +34,7 @@ export const useDataStore = create<DataState>((set) => ({
   lastSyncedAt: null,
   syncing: false,
   syncError: null,
+  writePendingSync: false,
   version: 0,
   mode: 'loading',
   ready: false,

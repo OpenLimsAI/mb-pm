@@ -7,7 +7,7 @@ import { TemplateUpgrade } from './TemplateUpgrade'
 const api = vi.hoisted(() => ({ catalog: vi.fn(), preview: vi.fn(), apply: vi.fn(), refresh: vi.fn() }))
 vi.mock('../../api/templateUpgrade', () => ({ templateUpgradeApi: api }))
 vi.mock('../../store/data', () => ({ useDataStore: (selector: (s: unknown) => unknown) => selector({ mode: 'api' }) }))
-vi.mock('../../data/bootstrap', () => ({ refreshAllData: api.refresh }))
+vi.mock('../../data/bootstrap', () => ({ refreshAfterWrite: api.refresh }))
 const project = { id: 'p1' } as Project
 beforeEach(() => {
   vi.clearAllMocks()

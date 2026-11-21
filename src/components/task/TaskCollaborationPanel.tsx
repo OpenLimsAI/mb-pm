@@ -5,7 +5,7 @@ import { useAuth } from '../../store/auth'
 import { useDataStore } from '../../store/data'
 import { can } from '../../lib/permissions'
 import { getScope } from '../../lib/scope'
-import { refreshAllData } from '../../data/bootstrap'
+import { refreshAfterWrite } from '../../data/bootstrap'
 import { Button } from '../ui'
 import {
   addTaskComment, addTaskLink, configureTaskAcceptance, getOlderTaskActivities, getTaskCollaboration,
@@ -45,7 +45,7 @@ export function TaskCollaborationPanel({ task }: { task: Task }) {
   }, [task.id, online, version, reload])
   async function run(action: () => Promise<unknown>, reset?: () => void) {
     setBusy(true); setError('')
-    try { await action(); reset?.(); setReload(value => value + 1); await refreshAllData() }
+    try { await action(); reset?.(); setReload(value => value + 1); await refreshAfterWrite() }
     catch (failure) { setError(taskRequestError(failure).message) }
     finally { setBusy(false) }
   }

@@ -21,6 +21,7 @@ from app.services.information import bridge
 from app.services.information.store import Store, iso, tenant_key
 from app.services.information.worker import active_account, can_manage
 from app.services.knowledge_source_folders import folder_action, organize_papers, undo_organization
+from app.services.knowledge_source_inbox import inbox_id, normalized_folder_ids
 from app.services.knowledge_source_status import (
     job_revision,
     public_jobs,
@@ -152,6 +153,8 @@ def connected(operation, subject, **values):
         return bridge.call(operation, subject, **values)
     except bridge.BridgeError as exc:
         status = exc.status if exc.status in (400, 401, 403, 404, 409, 422) else 503
+        if exc.code == "paper_delete_plan_expired":
+            raise HTTPException(status, {"message": str(exc), "code": exc.code}) from exc
         raise HTTPException(status, str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(503, str(exc)) from exc
@@ -262,6 +265,7 @@ def paper_snapshot(store, actor, result):
     prefs = store.preferences(actor["subject"])
     stars = prefs.get("knowledgeSourceStars", [])
     for paper in papers:
+        paper["folderIds"] = normalized_folder_ids(paper["folderIds"], result)
         alias = "archive:" + paper["versionId"] if paper.get("versionId") else None
         paper["starred"] = paper["id"] in stars or alias in stars
     return papers
@@ -328,7 +332,7 @@ def snapshot(
     folders = [{**f, "writable": bool(result.get("canWrite"))} for f in result.get("folders", [])]
     sources = []
     for source in store.records("source"):
-        if source.get("adapter") == "manual":
+        if source.get("adapter") in {"manual", "folder"}:
             continue
         if not source.get("archiveFolderId"):
             canonical = "ICH" if source["adapter"] == "ich" else source["name"]
@@ -416,7 +420,9 @@ def writable_library(actor, store=None):
 
 
 def mutate_folder(actor, body):
-    writable_library(actor)
+    catalogue = writable_library(actor)
+    if inbox_id(catalogue) and body.get("folderId") == inbox_id(catalogue):
+        raise HTTPException(409, "待整理是系统文件夹，不能重命名")
     return connected("folderMutation", actor["subject"], mutation=body)
 
 
@@ -425,6 +431,13 @@ def create_folder(body: FolderInput, actor: dict = Depends(principal)):
     return mutate_folder(
         actor, {"operation": "create", "name": body.name, "revision": body.revision}
     )
+
+
+@router.post("/folders/inbox")
+def ensure_inbox_folder(actor: dict = Depends(principal)):
+    # Explicit, idempotent creation: read-only snapshot requests never create folders.
+    # The signed bridge rechecks the current KB manager role before changing storage.
+    return connected("ensureInboxFolder", actor["subject"])
 
 
 @router.patch("/folders/{ident}")
@@ -853,6 +866,10 @@ def original(
     version = store.get("version", version_id)
     if version["documentId"] != document_id:
         raise HTTPException(404, "原文版本不存在")
+    source = store.get("source", document["sourceId"])
+    if source.get("adapter") == "folder" and not version.get("kbPath"):
+        # A staged connector upload is never a substitute for current KB access.
+        connected("librarySummary", actor["subject"])
     if version.get("kbPath"):
         catalogue = library(
             actor,
@@ -872,7 +889,8 @@ def original(
     return FileResponse(
         path,
         media_type="application/pdf",
-        filename=f'{"Paper" if document.get("originApp") else "ICH"}-{version["sha256"][:12]}.pdf',
+        filename=document.get("originalFilename")
+        or f'{"Paper" if document.get("originApp") else "ICH"}-{version["sha256"][:12]}.pdf',
         content_disposition_type="inline",
         headers={
             "X-Content-Type-Options": "nosniff",
