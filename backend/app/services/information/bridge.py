@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 import json
+import threading
 import time
 from urllib.parse import urlsplit
 from uuid import uuid4
@@ -10,6 +11,23 @@ from uuid import uuid4
 import httpx
 
 from app.core.config import settings
+
+_CLIENT_LOCK = threading.Lock()
+_CLIENT: httpx.Client | None = None
+
+
+def _shared_client() -> httpx.Client:
+    global _CLIENT
+    if _CLIENT is not None and not _CLIENT.is_closed:
+        return _CLIENT
+    with _CLIENT_LOCK:
+        if _CLIENT is None or _CLIENT.is_closed:
+            _CLIENT = httpx.Client(
+                follow_redirects=False,
+                trust_env=False,
+                limits=httpx.Limits(max_connections=40, max_keepalive_connections=20),
+            )
+        return _CLIENT
 
 
 class BridgeError(ValueError):
@@ -41,40 +59,51 @@ def call(operation, subject, **values):
         timestamp.encode() + b"\n" + nonce.encode() + b"\n" + content_digest.encode(),
         hashlib.sha256,
     ).hexdigest()
-    try:
-        response = httpx.post(
-            target,
-            content=body,
-            headers={
-                "Content-Type": "application/json",
-                "X-Information-Time": timestamp,
-                "X-Information-Nonce": nonce,
-                "X-Information-Signature": signature,
-                "X-Information-Content-SHA256": content_digest,
-            },
-            timeout=httpx.Timeout(
-                120
-                if operation in ("exportPapers", "folderImportPaper")
-                else 90
-                if operation in ("import", "uploadPaper")
-                else 35
-                if operation
-                in (
-                    "readOriginal",
-                    "readPaper",
-                    "indexUploadedPaper",
-                    "statusUploadedPaper",
-                    "deletePaperPreview",
-                    "ensureInboxFolder",
-                    "indexFolderPaper",
-                    "statusFolderPaper",
-                )
-                else 12,
-                connect=5,
-            ),
-            follow_redirects=False,
-            trust_env=False,
+    timeout = httpx.Timeout(
+        120
+        if operation in ("exportPapers", "folderImportPaper")
+        else 90
+        if operation in ("import", "uploadPaper")
+        else 35
+        if operation
+        in (
+            "readOriginal",
+            "readPaper",
+            "indexUploadedPaper",
+            "statusUploadedPaper",
+            "deletePaperPreview",
+            "ensureInboxFolder",
+            "indexFolderPaper",
+            "statusFolderPaper",
         )
+        else 12,
+        connect=5,
+    )
+    headers = {
+        "Content-Type": "application/json",
+        "X-Information-Time": timestamp,
+        "X-Information-Nonce": nonce,
+        "X-Information-Signature": signature,
+        "X-Information-Content-SHA256": content_digest,
+    }
+    try:
+        # Respect monkeypatched httpx.post in unit tests; use pooled Client in runtime.
+        if getattr(httpx.post, "__module__", "") != "httpx._api":
+            response = httpx.post(
+                target,
+                content=body,
+                headers=headers,
+                timeout=timeout,
+                follow_redirects=False,
+                trust_env=False,
+            )
+        else:
+            response = _shared_client().post(
+                target,
+                content=body,
+                headers=headers,
+                timeout=timeout,
+            )
         data = response.json()
         if not isinstance(data, dict):
             raise ValueError("知识库返回了无效结果")

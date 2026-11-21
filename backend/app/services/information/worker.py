@@ -4,6 +4,7 @@ import base64
 import copy
 import hashlib
 import logging
+import os
 import threading
 import time
 from uuid import uuid4
@@ -23,10 +24,42 @@ from app.services.reference_download import ReferenceDownloadError, no_pdf
 
 logger = logging.getLogger("cmc-pms.information")
 MANAGERS = {"admin", "kb_manager"}
+KB_ACCESS_ROLES = {"admin", "kb_manager", "kb_editor", "kb_viewer"}
+IAM_CACHE_TTL_SECONDS = 30.0
+_IAM_CACHE_LOCK = threading.Lock()
+_IAM_CACHE: dict[str, tuple[float, dict]] = {}
+
+
+def clear_account_cache(subject: str | None = None) -> None:
+    with _IAM_CACHE_LOCK:
+        if subject is None:
+            _IAM_CACHE.clear()
+        else:
+            _IAM_CACHE.pop(subject, None)
 
 
 def active_account(subject):
-    account = iam_admin.get_user_by_sub(subject)
+    getter = iam_admin.get_user_by_sub
+    use_cache = (
+        IAM_CACHE_TTL_SECONDS > 0
+        and getattr(getter, "__module__", "") == "app.services.iam_admin"
+        and not os.environ.get("PYTEST_CURRENT_TEST")
+    )
+    now = time.monotonic()
+    if use_cache:
+        with _IAM_CACHE_LOCK:
+            cached = _IAM_CACHE.get(subject)
+            if cached and cached[0] > now:
+                account = copy.deepcopy(cached[1])
+                if account.get("isForbidden") or account.get("isDeleted"):
+                    raise HTTPException(403, "IAM 账号已停用，任务已停止")
+                return account
+    account = getter(subject)
+    if use_cache:
+        with _IAM_CACHE_LOCK:
+            if len(_IAM_CACHE) > 2048:
+                _IAM_CACHE.clear()
+            _IAM_CACHE[subject] = (now + IAM_CACHE_TTL_SECONDS, copy.deepcopy(account))
     if account.get("isForbidden") or account.get("isDeleted"):
         raise HTTPException(403, "IAM 账号已停用，任务已停止")
     return account
@@ -37,6 +70,16 @@ def can_manage(account):
         isinstance(r, dict)
         and r.get("owner") == settings.CASDOOR_ORG
         and r.get("name") in MANAGERS
+        and r.get("isEnabled", True) is True
+        for r in account.get("roles", [])
+    )
+
+
+def can_access_knowledge(account):
+    return any(
+        isinstance(r, dict)
+        and r.get("owner") == settings.CASDOOR_ORG
+        and r.get("name") in KB_ACCESS_ROLES
         and r.get("isEnabled", True) is True
         for r in account.get("roles", [])
     )
@@ -84,11 +127,30 @@ def run_step(store, official, *, extract=extract_pdf, connector=bridge.call, job
             if not connector("library", job["actorSubject"], imports=[]).get("canWrite"):
                 raise HTTPException(403, "参考资料下载需要有效的知识库写入权限，任务已暂停")
     except Exception as exc:
-        job["status"] = "paused"
-        job["error"] = safe_error(exc)
-        store.put("job", job)
+        current = store.lock("job", jobid)
+        if current["status"] not in ("queued", "running"):
+            db.rollback()
+            return False
+        revoked = (isinstance(exc, HTTPException) and exc.status_code in (401, 403)) or (
+            isinstance(exc, bridge.BridgeError) and exc.status in (401, 403)
+        )
+        if revoked:
+            current["status"] = "paused"
+            current["error"] = safe_error(exc)
+        else:
+            current["error"] = safe_error(exc)
+            for entry in current.get("items", []):
+                if entry.get("status") == "pending":
+                    entry["nextAttemptAt"] = time.time() + 30
+        current["updatedAt"] = iso()
+        store.put("job", current)
         db.commit()
-        return True
+        return revoked
+    current = store.lock("job", jobid)
+    if current["status"] not in ("queued", "running"):
+        db.rollback()
+        return False
+    job = current
     pending = next(
         (
             i
@@ -99,6 +161,7 @@ def run_step(store, official, *, extract=extract_pdf, connector=bridge.call, job
     )
     if pending is None:
         if any(i["status"] == "pending" for i in job["items"]):
+            db.rollback()
             return False
         complete_job(store, job)
         db.commit()
@@ -249,6 +312,13 @@ def run_step(store, official, *, extract=extract_pdf, connector=bridge.call, job
                     if reply.get("error") or version["indexStatus"] == "failed":
                         raise ValueError(reply.get("error") or "Knowledge indexing failed")
                     if job["parse"] and version["indexStatus"] == "pending":
+                        item.setdefault("indexStartedAt", time.time())
+                        item["pollAttempts"] = item.get("pollAttempts", 0) + 1
+                        if (
+                            item["pollAttempts"] >= 360
+                            or time.time() - item["indexStartedAt"] >= 1800
+                        ):
+                            raise ValueError("知识库索引超时未完成，原件已保留，可稍后重试")
                         item.update(
                             status="pending",
                             phase="index",

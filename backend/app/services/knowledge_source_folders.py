@@ -194,7 +194,8 @@ def folder_action(store, actor, ident, body, *, catalogue, connect):
     folders = {folder["id"]: folder for folder in catalogue.get("folders", [])}
     if ident not in folders:
         raise HTTPException(404, "文件夹不存在")
-    if ident == inbox_id(catalogue):
+    inbox = inbox_id(catalogue)
+    if ident == inbox:
         raise HTTPException(409, "待整理是系统文件夹，不能删除、合并或修改")
     action = body["action"]
     if action not in ("metadata", "delete", "merge"):
@@ -202,17 +203,24 @@ def folder_action(store, actor, ident, body, *, catalogue, connect):
     mutation = {"operation": action, "revision": body["revision"], "folderId": ident}
     target = body.get("targetFolderId")
     if action == "metadata":
+        if body.get("parentId") and body.get("parentId") == inbox:
+            raise HTTPException(409, "不能将待整理设为上级文件夹")
         for key in ("kind", "parentId"):
             if key in body:
                 mutation[key] = body[key]
     elif action == "merge":
-        if target not in folders or target == ident:
-            raise HTTPException(400, "请选择不同的目标文件夹")
+        if target not in folders or target == ident or target == inbox:
+            raise HTTPException(400, "请选择不同的有效目标文件夹")
         mutation["targetFolderId"] = target
     if action == "delete" and any(
         source.get("folderId") == ident for source in store.records("source")
     ):
         raise HTTPException(409, "此文件夹是来源默认接收目录，请先在来源设置中更换默认目录")
+    if action == "delete" and any(
+        not task.get("deletedAt") and task.get("folderId") == ident
+        for task in store.records("fi_task")
+    ):
+        raise HTTPException(409, "此文件夹正用于文件夹自动导入任务，请先在自动导入中更换目标文件夹")
     if action in ("delete", "merge"):
         if any(
             job.get("folderId") == ident and job.get("status") in ("queued", "running", "paused")

@@ -11,9 +11,9 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
-from pydantic import Field
+from pydantic import Field, field_validator
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
@@ -23,6 +23,7 @@ from app.api.v1.knowledge_sources import (
     connected,
     principal,
 )
+from app.core.config import settings
 from app.db.session import get_db
 from app.models.information import InformationText
 from app.models.note import PersonalNote
@@ -93,6 +94,26 @@ class MetadataInput(Input):
     revision: int = Field(ge=0)
     metadata: dict
 
+    @field_validator("metadata")
+    @classmethod
+    def validate_metadata(cls, value: dict) -> dict:
+        if len(value) > 30:
+            raise ValueError("元数据字段过多")
+        for key, item in value.items():
+            if not isinstance(key, str) or not key or len(key) > 64:
+                raise ValueError("元数据字段名无效")
+            if isinstance(item, str):
+                if len(item) > 10000:
+                    raise ValueError("元数据字段值过长")
+            elif isinstance(item, list):
+                if len(item) > 100 or any(not isinstance(v, str) or len(v) > 500 for v in item):
+                    raise ValueError("元数据列表字段格式无效或过长")
+            elif item is not None and not isinstance(item, int | float | bool):
+                raise ValueError("元数据不支持嵌套对象")
+        if len(json.dumps(value, ensure_ascii=False)) > 32768:
+            raise ValueError("元数据总大小超过 32 KB 上限")
+        return value
+
 
 class ExportInput(Input):
     paper_ids: list[str] = Field(alias="paperIds", min_length=1, max_length=100)
@@ -103,9 +124,13 @@ class UsageInput(Input):
     paper_ids: list[str] = Field(alias="paperIds", min_length=1, max_length=20)
 
 
-def _map_paper(value, versions, documents, sources, store):
+def _map_paper(value, versions, documents, sources, store, versions_by_path=None):
     path = value.get("path", value.get("id"))
-    version = next((v for v in versions if v.get("kbPath") == path), None)
+    version = (
+        versions_by_path.get(path)
+        if versions_by_path is not None
+        else next((v for v in versions if v.get("kbPath") == path), None)
+    )
     metadata = value.get("metadata") or {}
     result = {
         **value,
@@ -394,7 +419,13 @@ def library_statistics(store, actor, summary):
             if ident not in core_folders.get(paper["documentId"], set()):
                 counts[ident] = counts.get(ident, 0) + 1
     total = summary.get("total", 0) + sum(p["documentId"] not in core_folders for p in extras)
-    return {**summary, "folderCounts": counts, "total": total, "_archiveCandidates": extras}
+    return {
+        **summary,
+        "folderCounts": counts,
+        "total": total,
+        "_archiveCandidates": extras,
+        "_coreArchiveDocs": set(core_folders),
+    }
 
 
 @router.post("/query")
@@ -420,10 +451,12 @@ def query_library(
         options["type"] = body.type
     if body.index_status:
         options["status"] = body.index_status
+    versions = store.records("version")
     documents = {d["id"]: d for d in store.documents()}
+    sources = {s["id"]: s for s in store.records("source")}
     preferred = [
         v["kbPath"]
-        for v in store.records("version")
+        for v in versions
         if v.get("kbPath")
         and v.get("sha256") == documents.get(v["documentId"], {}).get("verifiedSha256")
     ]
@@ -433,24 +466,19 @@ def query_library(
         options["savedAfter"] = body.saved_after
     preferences = store.preferences(actor["subject"])
     note_hits, note_truncated = (
-        note_matches(db, actor, body.query, store.records("version"))
-        if body.search_mode == "all"
-        else ({}, False)
+        note_matches(db, actor, body.query, versions) if body.search_mode == "all" else ({}, False)
     )
     if note_hits:
         options["notePaths"] = [path for path in note_hits if not path.startswith("archive:")][:200]
     if body.folder_id == "starred":
-        aliases = {
-            "archive:" + v["id"]: v.get("kbPath") or "archive:" + v["id"]
-            for v in store.records("version")
-        }
+        aliases = {"archive:" + v["id"]: v.get("kbPath") or "archive:" + v["id"] for v in versions}
         options["paths"] = [
             aliases.get(path, path) for path in preferences.get("knowledgeSourceStars", [])
         ]
     if body.folder_id == "recent":
         options["paths"] = [
             v["kbPath"]
-            for v in store.records("version")
+            for v in versions
             if v.get("kbPath")
             and (not body.saved_after or v.get("createdAt", "") >= body.saved_after)
         ]
@@ -461,7 +489,7 @@ def query_library(
         selected_versions = {i.get("versionId") for i in job.get("items", [])}
         options["paths"] = [
             v.get("kbPath") or "archive:" + v["id"]
-            for v in store.records("version")
+            for v in versions
             if v["id"] in selected_versions
         ]
     # Workspace state/collections are resolved by a single shared evaluator.
@@ -474,10 +502,25 @@ def query_library(
     workspace_query = options.pop("workspaceQuery", None)
     workspace_reading = options.pop("readingStatus", None)
     complex_query = bool(workspace_query or workspace_reading)
-    archive_body = body.model_copy(update={"query": options["query"]})
-    extras = _archive_candidates(
-        store, archive_body, summary, actor, options.get("extraQueries"), note_hits
+    can_reuse_candidates = (
+        body.folder_id == "all"
+        and not options["query"]
+        and not options.get("extraQueries")
+        and not body.tag_ids
+        and not body.type
+        and not body.index_status
+        and not body.saved_after
+        and not note_hits
+        and "paths" not in options
+        and "_archiveCandidates" in summary
     )
+    if can_reuse_candidates:
+        extras = [dict(p) for p in summary["_archiveCandidates"]]
+    else:
+        archive_body = body.model_copy(update={"query": options["query"]})
+        extras = _archive_candidates(
+            store, archive_body, summary, actor, options.get("extraQueries"), note_hits
+        )
     if "paths" in options:
         extras = [
             p for p in extras if p["id"] in options["paths"] or p.get("kbPath") in options["paths"]
@@ -486,10 +529,22 @@ def query_library(
     values, total, revision = [], 0, summary.get("revision", 0)
     full_merge = bool(extras) or complex_query
     direct_page = not full_merge
+    # When simple queries only have pending archives (no complex workspace filter),
+    # bound DIKW paging to the window needed for exact top-(offset+limit) merge
+    # instead of scanning the entire KB over HTTP on every request.
+    bounded_window = (
+        full_merge and not complex_query and "paths" not in options and len(extras) <= 200
+    )
+    window_limit = needed + len(extras) * 2 if bounded_window else None
     offset = body.offset if direct_page else 0
     search_index, incomplete = None, False
     while True:
-        limit = 100 if full_merge else min(100, needed - offset)
+        if direct_page:
+            limit = min(100, needed - offset)
+        elif window_limit is not None:
+            limit = min(100, max(1, window_limit - offset))
+        else:
+            limit = 100
         kb_options = {**options}
         if "paths" in kb_options:
             kb_options["paths"] = [
@@ -500,12 +555,15 @@ def query_library(
         values.extend(page.get("papers", []))
         total, revision = page.get("total", 0), page.get("revision", revision)
         offset += limit
-        if offset >= total or (not full_merge and offset >= needed):
+        if offset >= total or (direct_page and offset >= needed):
             break
-    versions = store.records("version")
-    documents = {d["id"]: d for d in store.documents()}
-    sources = {s["id"]: s for s in store.records("source")}
-    papers = [_map_paper(p, versions, documents, sources, store) for p in values] + extras
+        if window_limit is not None and offset >= window_limit:
+            break
+    versions_by_path = {v["kbPath"]: v for v in versions if v.get("kbPath")}
+    papers = [
+        _map_paper(p, versions, documents, sources, store, versions_by_path=versions_by_path)
+        for p in values
+    ] + extras
     if complex_query:
         from app.services.knowledge_source_workspace_v3 import filter_workspace_papers
 
@@ -547,7 +605,11 @@ def query_library(
         paper["reading"] = reading_for(paper, reading)
         if paper["id"] in note_hits:
             paper["matches"] = [*paper.get("matches", []), *note_hits[paper["id"]]][:4]
-    count = len(papers) if full_merge else total
+    if full_merge and window_limit is not None and offset < total:
+        core_docs = summary.get("_coreArchiveDocs", set())
+        count = total + sum(1 for e in extras if e.get("documentId") not in core_docs)
+    else:
+        count = len(papers) if full_merge else total
     return {
         "papers": papers[: body.limit] if direct_page else papers[body.offset : needed],
         "total": count,
@@ -683,7 +745,8 @@ def paper_original(
         content = base64.b64decode(result["base64"], validate=True)
     except (KeyError, ValueError, binascii.Error) as exc:
         raise HTTPException(502, "原件返回格式无效") from exc
-    if len(content) > 25 * 1024 * 1024 or not content.lstrip()[:16].startswith(b"%PDF-"):
+    max_bytes = max(25, int(settings.KNOWLEDGE_FOLDER_IMPORT_MAX_FILE_MB)) * 1024 * 1024
+    if len(content) > max_bytes or not content.lstrip()[:16].startswith(b"%PDF-"):
         raise HTTPException(502, "原件未通过 PDF 校验")
     return Response(
         content,
@@ -764,17 +827,18 @@ def paper_usage(body: UsageInput, db: Session = Depends(get_db), actor: dict = D
     from app.services.knowledge_source_changes_v3 import usage_links
 
     store, items, folders = Store(db, actor["tenant"]), {}, set()
+    all_versions = store.records("version")
+    versions_by_doc: dict[str, list[dict]] = {}
+    for v in all_versions:
+        versions_by_doc.setdefault(v["documentId"], []).append(v)
     for ident in dict.fromkeys(body.paper_ids):
         detail = paper_detail(PaperInput(paperId=ident, limit=1000), db, actor)
         paper = detail["paper"]
         folders.update(paper.get("folderIds", []))
-        document = (
-            store.get("document", paper["documentId"], required=False)
-            if paper.get("documentId")
-            else None
-        )
+        doc_id = paper.get("documentId")
+        document = store.get("document", doc_id, required=False) if doc_id else None
         versions = sorted(
-            [v for v in store.records("version") if v["documentId"] == paper.get("documentId")],
+            versions_by_doc.get(doc_id, []),
             key=lambda v: v.get("createdAt", ""),
         )
         references = usage_links(
@@ -801,23 +865,48 @@ def refresh_index(actor: dict = Depends(principal)):
 
 
 @upload_router.post("/upload", status_code=201)
-def upload_paper(
-    file: UploadFile = File(...),
-    folder_id: str = Form("", alias="folderId"),
-    no_folder: bool = Form(False, alias="noFolder"),
-    parse: bool = Form(False),
+async def upload_paper(
+    request: Request,
     db: Session = Depends(get_db),
     actor: dict = Depends(principal),
 ):
+    from starlette.datastructures import UploadFile as StarletteUploadFile
+
+    from app.api.multipart import upload_form
+
     catalogue = connected("librarySummary", actor["subject"])
     if not catalogue.get("canWrite"):
         raise HTTPException(403, "上传需要知识库负责人权限")
-    if parse:
-        raise HTTPException(422, "上传先保留原件，请在知识库中主动建立问答索引")
-    if no_folder and folder_id:
-        raise HTTPException(422, "请选择文件夹或待整理，不能同时指定")
-    original = file.file.read(25 * 1024 * 1024 + 1)
-    file.file.close()
+    async with upload_form(request, max_files=1, max_fields=10, max_part_size=64 * 1024) as form:
+        uploaded = form.get("file")
+        if not isinstance(uploaded, StarletteUploadFile):
+            raise HTTPException(422, "请选择有效的 PDF 文件")
+        raw_folder = form.get("folderId")
+        if raw_folder is None:
+            raw_folder = form.get("folder_id", "")
+        folder_id = raw_folder if isinstance(raw_folder, str) else ""
+        raw_no_folder = form.get("noFolder")
+        if raw_no_folder is None:
+            raw_no_folder = form.get("no_folder", "")
+        no_folder = isinstance(raw_no_folder, str) and raw_no_folder.strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        raw_parse = form.get("parse", "")
+        parse = isinstance(raw_parse, str) and raw_parse.strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        if parse:
+            raise HTTPException(422, "上传先保留原件，请在知识库中主动建立问答索引")
+        if no_folder and folder_id:
+            raise HTTPException(422, "请选择文件夹或待整理，不能同时指定")
+        original = await uploaded.read(25 * 1024 * 1024 + 1)
+        filename = uploaded.filename or "文献.pdf"
     if len(original) > 25 * 1024 * 1024:
         raise HTTPException(413, "单份 PDF 请控制在 25 MB 以内")
     if not original.lstrip()[:16].startswith(b"%PDF-"):
@@ -840,7 +929,7 @@ def upload_paper(
     result = connected(
         "uploadPaper",
         actor["subject"],
-        name=(file.filename or "文献.pdf")[:200],
+        name=filename[:200],
         originalBase64=base64.b64encode(original).decode(),
         sha256=sha,
         text=text,
@@ -869,7 +958,7 @@ def upload_paper(
         document = {
             "id": document_id,
             "sourceId": source_id,
-            "title": Path(file.filename or "文献.pdf").stem[:500],
+            "title": Path(filename).stem[:500],
             "url": "",
             "scopes": [],
             "folderIds": [],

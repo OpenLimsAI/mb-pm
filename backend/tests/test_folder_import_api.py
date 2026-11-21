@@ -156,7 +156,7 @@ def test_large_directory_search_and_limits(folder_api, tmp_path, monkeypatch):
 def test_connector_script_download_uses_packaged_runtime_layout(folder_api, monkeypatch, tmp_path):
     from app.api.v1 import knowledge_source_folder_imports as api
 
-    client, *_ = folder_api
+    client, _, session, role, *_ = folder_api
     filename = "knowledge-folder-connector.py"
     content = (Path(__file__).resolve().parents[2] / "scripts" / filename).read_bytes()
     image_root = tmp_path / "code"
@@ -165,7 +165,11 @@ def test_connector_script_download_uses_packaged_runtime_layout(folder_api, monk
     monkeypatch.setattr(
         api, "__file__", str(image_root / "app/api/v1/knowledge_source_folder_imports.py")
     )
-    response = client.get(PREFIX + "/connector/script")
+    assert client.get(PREFIX + "/connector/script").status_code == 401
+    role["value"] = "kb_viewer"
+    assert client.get(PREFIX + "/connector/script", headers=session()).status_code == 403
+    role["value"] = "kb_manager"
+    response = client.get(PREFIX + "/connector/script", headers=session())
     assert response.status_code == 200
     assert response.content == content
     assert filename in response.headers["content-disposition"]

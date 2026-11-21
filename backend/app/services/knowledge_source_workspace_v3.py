@@ -251,16 +251,23 @@ def save_reading(store, subject, body, papers):
 def save_location(store, subject, body):
     # Scroll/return history is independent of the collection revision, so a reader
     # saving progress cannot make a concurrent collection edit stale.
+    location = {**body, "updatedAt": iso()}
     store.put(
         "ks_location",
         {
             "id": store.key("ks_location", identity_key(subject)),
             "subject": subject,
-            "location": {**body, "updatedAt": iso()},
+            "location": location,
         },
     )
     store.db.commit()
-    return public_workspace(store, subject)
+    value = workspace(store, subject)
+    return {
+        "revision": value["revision"],
+        "collections": value["collections"],
+        "rules": value["rules"],
+        "location": location,
+    }
 
 
 def reading_for(paper, entries):
@@ -419,6 +426,8 @@ def apply_enabled_rules(store, actor, *, catalogue, papers, connect, paper_ids):
         and "archive:" + paper["versionId"] in aliases
     ]
     results = []
+    reading_map = public_workspace(store, actor["subject"])["reading"]
+    documents_by_id = {item["id"]: item for item in store.documents()}
     for rule in workspace(store, actor["subject"])["rules"]:
         if not rule.get("enabled"):
             continue
@@ -461,8 +470,8 @@ def apply_enabled_rules(store, actor, *, catalogue, papers, connect, paper_ids):
             and matches(
                 paper,
                 rule["query"],
-                public_workspace(store, actor["subject"])["reading"],
-                {item["id"]: item for item in store.documents()},
+                reading_map,
+                documents_by_id,
             )
             else paper
             for paper in papers
