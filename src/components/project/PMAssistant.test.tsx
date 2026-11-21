@@ -23,7 +23,7 @@ vi.mock('../../api/pmAI', () => ({
     preview: vi.fn(),
     apply: vi.fn(),
     compare: vi.fn(),
-    receipts: vi.fn(),
+    reviewContext: vi.fn(), receipts: vi.fn(),
   },
 }))
 vi.mock('../../data/bootstrap', () => ({
@@ -116,6 +116,7 @@ beforeEach(() => {
     currentUser: users.find((user) => user.role === 'admin')!,
   })
   vi.mocked(pmAI.context).mockResolvedValue(context)
+  vi.mocked(pmAI.reviewContext).mockResolvedValue(context)
   vi.mocked(pmAI.list).mockResolvedValue({ items: [], total: 0 })
   vi.mocked(pmAI.get).mockReset().mockResolvedValue(run)
   vi.mocked(pmAI.receipts).mockResolvedValue([])
@@ -143,6 +144,17 @@ function sendQuestion(question: string) {
 function openHistory() {
   if (!screen.queryByRole('button', { name: '刷新历史' })) fireEvent.click(screen.getByRole('button', { name: '历史' }))
 }
+
+test('指定负责人优先级和日期原样传入事实查询，显示实际条件', async () => {
+  const filters = { ownerId: 'owner', ownerName: '张三', priority: '高' as const, startDate: '2026-10-01', endDate: '2026-10-07' }
+  vi.mocked(pmAI.plan).mockResolvedValue({ ...agentPlan('priorities', projectTarget), ...filters, taskFilter: 'delayed' })
+  vi.mocked(pmAI.triage).mockResolvedValue({ businessDate: '2026-11-10', limit: 3, totalCandidates: 0, items: [], filters })
+  render(<MemoryRouter><PMAssistant standalone /></MemoryRouter>)
+  sendQuestion('列出张三负责的高优先级延期任务，计划完成2026年10月1日至10月7日')
+  expect(await screen.findByText(/筛选条件：负责人 张三 · 优先级 高 · 计划完成 2026-10-01 至 2026-10-07/)).toBeVisible()
+  expect(pmAI.triage).toHaveBeenCalledWith({ projectIds: ['P007'], taskIds: [] }, 3, false, 'delayed', { ownerId: 'owner', priority: '高', startDate: '2026-10-01', endDate: '2026-10-07' })
+  expect(pmAI.create).not.toHaveBeenCalled()
+})
 
 test('首屏只保留单输入与自然提示，不自动打开历史失败或调用模型', async () => {
   const failed = { ...run, state: 'failed' as const, result: null, error: '旧模型输出被截断' }
@@ -295,7 +307,7 @@ test('重点请求一次发送直接列出本人任务和理由，不生成模�
   expect(screen.getByRole('link', { name: /逾期事项$/ })).toBeInTheDocument()
   expect(screen.getByRole('link', { name: /关键里程碑$/ })).toBeInTheDocument()
   expect(pmAI.plan).toHaveBeenCalledWith(question, undefined, undefined)
-  expect(pmAI.triage).toHaveBeenCalledWith({ projectIds: ['P007'], taskIds: [] }, 3, true, 'attention')
+  expect(pmAI.triage).toHaveBeenCalledWith({ projectIds: ['P007'], taskIds: [] }, 3, true, 'attention', expect.objectContaining({ startDate: '2026-11-09', endDate: '2026-11-10' }))
   expect(pmAI.create).not.toHaveBeenCalled()
   expect(pmAI.apply).not.toHaveBeenCalled()
 })
@@ -305,7 +317,7 @@ test('延期请求把识别出的筛选直接交给事实查询，不扩展为�
   vi.mocked(pmAI.triage).mockResolvedValue({ businessDate: '2026-11-10', limit: 3, totalCandidates: 0, items: [] })
   render(<MemoryRouter><PMAssistant projectId="P1" taskId="T1" standalone /></MemoryRouter>)
   sendQuestion('这项任务是否延期？')
-  await waitFor(() => expect(pmAI.triage).toHaveBeenCalledWith({ projectIds: ['P1'], taskIds: ['T1'] }, 3, false, 'delayed'))
+  await waitFor(() => expect(pmAI.triage).toHaveBeenCalledWith({ projectIds: ['P1'], taskIds: ['T1'] }, 3, false, 'delayed', expect.objectContaining({ startDate: '2026-11-09', endDate: '2026-11-10' })))
   expect(pmAI.create).not.toHaveBeenCalled()
   expect(pmAI.apply).not.toHaveBeenCalled()
 })
@@ -813,7 +825,7 @@ test('预览后仍需明确确认，网络重试恢复同一确认并保留写�
       />
     </MemoryRouter>,
   )
-  fireEvent.click(screen.getByRole('button', { name: '预览操作差异' }))
+  fireEvent.click(await screen.findByRole('button', { name: '预览操作差异' }))
   expect(
     await screen.findByRole('button', { name: '确认应用 1 项操作' }),
   ).toBeEnabled()
@@ -833,7 +845,7 @@ test('预览后仍需明确确认，网络重试恢复同一确认并保留写�
       />
     </MemoryRouter>,
   )
-  fireEvent.click(screen.getByRole('button', { name: '重试本次确认' }))
+  fireEvent.click(await screen.findByRole('button', { name: '重试本次确认' }))
   expect(
     await screen.findByText('操作已完成并核验 · 回执 receipt-1'),
   ).toBeInTheDocument()

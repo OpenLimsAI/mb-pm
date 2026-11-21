@@ -45,6 +45,9 @@ def recode(code: str, old: str, new: str) -> str:
 
 
 def copy_project(db: Session, source: Project, body: ProjectCopyIn, actor: User) -> Project:
+    from app.services.dependency_graph import lock_dependency_graph, validate_dependency_changes
+
+    lock_dependency_graph(db)
     if db.scalar(select(Project.id).where(Project.code == body.code)):
         raise HTTPException(status.HTTP_409_CONFLICT, f"项目编号 {body.code} 已存在，请换一个编号")
     owner_id = body.owner_id or source.owner_id
@@ -146,6 +149,10 @@ def copy_project(db: Session, source: Project, body: ProjectCopyIn, actor: User)
             TaskDependency.successor_id.in_(list(task_ids)),
         )
     ).all()
+    validate_dependency_changes(
+        db,
+        [(task_ids[d.predecessor_id], task_ids[d.successor_id], d.type, d.lag_days) for d in deps],
+    )
     for dep in deps:
         db.add(
             TaskDependency(

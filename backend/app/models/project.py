@@ -40,6 +40,9 @@ class Project(Base, TimestampMixin):
 
     description: Mapped[str | None] = mapped_column(Text)
 
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    __mapper_args__ = {"version_id_col": revision}
+
     # 关系
     owner = relationship("User", back_populates="owned_projects", foreign_keys=[owner_id])
     members = relationship("ProjectMember", back_populates="project", cascade="all, delete-orphan")

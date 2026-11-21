@@ -3,7 +3,7 @@ import type { User } from '../../types'
 import { planningApi } from '../../api/planning'
 import { asAPIError } from '../../api/client'
 import { getWeeklyCapacity } from '../../lib/workingCalendar'
-import { refreshAllData } from '../../data/bootstrap'
+import { refreshAfterWrite } from '../../data/bootstrap'
 import { Button } from '../ui'
 
 export function CapacityEditor({ user, weekKey, onSaved }: { user: User; weekKey: string; onSaved: () => void }) {
@@ -17,7 +17,7 @@ export function CapacityEditor({ user, weekKey, onSaved }: { user: User; weekKey
     setPending(true); setError('')
     try {
       await planningApi.saveCapacity({ userId: user.id, weekStart: weekKey, availableHours: Number(hours), leaveHours: Number(leave), revision: current?.revision ?? 0 })
-      await refreshAllData()
+      await refreshAfterWrite()
       onSaved()
     } catch (error) { setError(asAPIError(error).detail) }
     finally { setPending(false) }

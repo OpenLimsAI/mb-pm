@@ -45,6 +45,7 @@ export interface User {
 }
 
 export interface Project {
+  revision?: number
   id: string
   code: string
   name: string

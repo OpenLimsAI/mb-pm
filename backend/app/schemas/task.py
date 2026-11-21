@@ -84,6 +84,15 @@ class TaskBase(DatedInput):
 class TaskCreate(TaskBase):
     id: str | None = None
 
+    @model_validator(mode="after")
+    def consistent_execution_state(self):
+        from app.services.task_state import task_state_patch
+
+        values = task_state_patch(None, self.model_dump(exclude_unset=True))
+        self.status = values.get("status", self.status)
+        self.progress = values.get("progress", self.progress)
+        return self
+
 
 class TaskUpdate(DatedInput):
     """部分更新 — 全部字段可选。"""

@@ -28,6 +28,7 @@ export async function importProject(payload: ProjectImportPayload): Promise<Proj
 }
 
 export interface ProjectsListParams {
+  consistent?: boolean
   page?: number
   pageSize?: number
   status?: string
@@ -79,7 +80,7 @@ export async function deleteProject(id: string): Promise<void> {
   await api.delete(`/projects/${id}`)
 }
 
-export async function replaceProjectMembers(id: string, memberIds: string[]): Promise<ProjectDTO> {
-  const { data } = await api.put<ProjectDTO>(`/projects/${id}/members`, memberIds)
+export async function replaceProjectMembers(id: string, memberIds: string[], expectedRevision?: number): Promise<ProjectDTO> {
+  const { data } = await api.put<ProjectDTO>(`/projects/${id}/members`, memberIds, { params: { expectedRevision } })
   return data
 }

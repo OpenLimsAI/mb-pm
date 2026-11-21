@@ -33,7 +33,7 @@ from app.models import (
     User,
 )
 from app.schemas.business_values import validate_date_patch
-from app.schemas.common import Page, PageMeta
+from app.schemas.common import Page, PageMeta, list_snapshot
 from app.schemas.project import (
     ProjectCopyIn,
     ProjectCreate,
@@ -116,6 +116,7 @@ def list_projects(
     keyword: str | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    consistent: bool = False,
 ):
     stmt = select(Project).options(selectinload(Project.members))
     stmt = _scoped_filter(stmt, user, db)
@@ -127,13 +128,22 @@ def list_projects(
         stmt = stmt.where(or_(Project.name.ilike(like), Project.code.ilike(like)))
 
     # health 按当天实时派生，故在派生后再按 health 过滤（简单 count，生产可改子查询优化）
+    if consistent:
+        stmt = stmt.order_by(Project.created_at, Project.id)
     outs = _out(db.execute(stmt).unique().scalars().all(), db)
     if health:
         outs = [o for o in outs if o.health == health]
 
     return Page[ProjectOut](
         items=outs[(page - 1) * page_size : page * page_size],
-        meta=PageMeta(page=page, page_size=page_size, total=len(outs)),
+        meta=PageMeta(
+            page=page,
+            page_size=page_size,
+            total=len(outs),
+            snapshot=list_snapshot([p.id for p in outs])
+            if consistent and len(outs) > page_size
+            else None,
+        ),
     )
 
 
@@ -172,6 +182,9 @@ def import_project(
     user: User = Depends(require_role("admin", "cmc_lead")),
 ):
     """整包创建：项目 + 子项目 + 任务 + 依赖（前端基于模板实例化后一次性写入）。"""
+    from app.services.dependency_graph import lock_dependency_graph, validate_dependency_changes
+
+    lock_dependency_graph(db)
     p = payload.project
     if not p.id:
         p.id = f"p-{uuid4().hex[:12]}"
@@ -189,12 +202,16 @@ def import_project(
             db.add(ProjectMember(project_id=project.id, user_id=mid))
 
     for s in payload.sub_projects:
+        if s.project_id != p.id:
+            raise HTTPException(422, "导入子项目必须属于本次新建项目")
         if not s.id:
             s.id = f"sp-{uuid4().hex[:10]}"
         db.add(SubProject(**s.model_dump()))
     db.flush()
     order: dict[str, int] = {}  # 子项目内顺序：未提供时按提交顺序（即模板中的顺序）
     for t in payload.tasks:
+        if t.sub_project_id not in {s.id for s in payload.sub_projects}:
+            raise HTTPException(422, "导入任务必须属于本次新建子项目")
         if not t.id:
             t.id = f"tk-{uuid4().hex[:10]}"
         if t.sort_order is None:
@@ -202,6 +219,15 @@ def import_project(
         order[t.sub_project_id] = max(order.get(t.sub_project_id, 0), t.sort_order)
         db.add(Task(**t.model_dump()))
     db.flush()
+    imported_ids = {t.id for t in payload.tasks}
+    if any(
+        d.predecessor_id not in imported_ids or d.successor_id not in imported_ids
+        for d in payload.dependencies
+    ):
+        raise HTTPException(422, "导入依赖必须关联本次新建任务")
+    validate_dependency_changes(
+        db, [(d.predecessor_id, d.successor_id, d.type, d.lag_days) for d in payload.dependencies]
+    )
     for d in payload.dependencies:
         if not d.id:
             d.id = f"dep-{uuid4().hex[:10]}"
@@ -273,7 +299,17 @@ def update_project(
     if user.role not in ("admin", "cmc_lead") and project.owner_id != user.id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "only owner / admin / cmc_lead can edit")
 
-    update_dict = payload.model_dump(exclude_unset=True, exclude={"member_ids"})
+    if payload.expected_revision is not None and project.revision != payload.expected_revision:
+        raise HTTPException(
+            409,
+            {
+                "message": "项目资料已被其他人修改，请核对最新资料后重试",
+                "current": _out([project], db)[0].model_dump(mode="json"),
+            },
+        )
+    update_dict = payload.model_dump(
+        exclude_unset=True, exclude={"member_ids", "expected_revision"}
+    )
     if project.progress_method != "equal" and "progress" in update_dict:
         raise HTTPException(422, "项目进度按任务加权汇总，请修改任务进度或进度计算规则")
     validate_date_patch(project, update_dict)
@@ -281,6 +317,7 @@ def update_project(
         setattr(project, k, v)
 
     if payload.member_ids is not None:
+        project.revision += 1
         # 全量替换团队；仍有任务的人不能移出
         ensure_assignees_kept(db, project, payload.member_ids)
         db.query(ProjectMember).filter_by(project_id=project.id).delete()
@@ -330,6 +367,7 @@ def delete_project(
 def replace_members(
     project_id: str,
     member_ids: list[str],
+    expected_revision: int | None = Query(None, ge=1),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -343,7 +381,16 @@ def replace_members(
             status.HTTP_403_FORBIDDEN, "only owner / admin / cmc_lead can edit team"
         )
 
+    if expected_revision is not None and project.revision != expected_revision:
+        raise HTTPException(
+            409,
+            {
+                "message": "项目团队已变化，请核对最新成员后重试",
+                "current": _out([project], db)[0].model_dump(mode="json"),
+            },
+        )
     ensure_assignees_kept(db, project, member_ids)
+    project.revision += 1
     db.query(ProjectMember).filter_by(project_id=project.id).delete()
     for mid in set(member_ids):
         if mid == project.owner_id:

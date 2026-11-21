@@ -151,7 +151,7 @@ def test_triage_excludes_inactive_projects_and_unremarkable_backlog(admin_user, 
         result = build_triage(
             db, db.get(User, admin_user), TriageRequest(project_ids=[active, paused])
         )
-    assert result == {
+    assert {k: v for k, v in result.items() if k != "filters"} == {
         "business_date": TODAY.isoformat(),
         "items": [],
         "total_candidates": 0,

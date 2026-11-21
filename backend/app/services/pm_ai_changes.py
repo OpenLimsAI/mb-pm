@@ -22,6 +22,7 @@ from app.models.task_collaboration import TaskAcceptance
 from app.schemas.business_values import MAX_EFFORT
 from app.schemas.task import TaskCreate, TaskOut, TaskUpdate
 from app.services.scope import visible_project_ids_for, visible_task_ids_for
+from app.services.task_state import task_state_patch
 
 PURPOSE = "pm-ai-change-set-v1"
 CONFIRMATION_WINDOW = timedelta(minutes=10)
@@ -217,7 +218,12 @@ def prepare(db, user, run, actions):
             )
             after = {
                 **before,
-                **json.loads(TaskUpdate(**task_values(action)).model_dump_json(exclude_unset=True)),
+                **task_state_patch(
+                    task,
+                    json.loads(
+                        TaskUpdate(**task_values(action)).model_dump_json(exclude_unset=True)
+                    ),
+                ),
             }
             acceptance = db.get(TaskAcceptance, task.id)
             if after == before:

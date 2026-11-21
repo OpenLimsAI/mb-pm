@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { asAPIError } from '../../api/client'
 import { applyScheduleAssist, previewScheduleAssist, type ScheduleAssistPreview, type ScheduleAssistReceipt } from '../../api/projectAIWork'
 import { listTasks } from '../../api/tasks'
+import { readCompleteList } from '../../api/pagination'
 import { refreshAllData } from '../../data/bootstrap'
 import type { Task } from '../../types'
 import { Button } from '../ui'
@@ -97,13 +98,16 @@ export function ScheduleAssist({ userId, projectId, task, editorDirty, embedded 
   async function verify(result: ScheduleAssistReceipt, locked: ScheduleAssistPreview['lockedMilestones']) {
     setVerification('checking')
     setSyncFailed(false)
-    const [read, sync] = await Promise.allSettled([listTasks({ projectId, pageSize: 5000 }), refreshAllData()])
+    const [read, sync] = await Promise.allSettled([
+      readCompleteList(params => listTasks({ ...params, projectId }), 5000),
+      refreshAllData(),
+    ])
     setSyncFailed(sync.status === 'rejected')
     if (read.status === 'rejected') {
       setVerification('unavailable')
       return
     }
-    const byId = new Map(read.value.items.map(item => [item.id, item]))
+    const byId = new Map(read.value.map(item => [item.id, item]))
     const expected = [
       ...result.schedule.changes.map(change => ({ taskId: change.taskId, start: change.newStart, end: change.newEnd })),
       ...locked.map(milestone => ({ taskId: milestone.taskId, start: milestone.startDate, end: milestone.date })),

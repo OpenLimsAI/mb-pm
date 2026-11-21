@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Project } from '../../types'
 import { Card, CardHeader, CardBody, Button } from '../ui'
 import { useDataStore } from '../../store/data'
-import { refreshAllData } from '../../data/bootstrap'
+import { refreshAfterWrite } from '../../data/bootstrap'
 import { asAPIError } from '../../api/client'
 import { templateUpgradeApi, type TemplateUpgradeCatalog, type TemplateUpgradePreview, type TemplateMapping, type TemplateSubMapping, type TemplateOwnerOverride, type TemplateUpgradeChange } from '../../api/templateUpgrade'
 
@@ -59,9 +59,9 @@ export function TemplateUpgrade({ project }: { project: Project }) {
     try {
       if (apply && preview) {
         const result = await templateUpgradeApi.apply(project.id, { ...request, fingerprint: preview.fingerprint, selectedIds: selected, reason })
-        await refreshAllData()
+        const synced = await refreshAfterWrite()
         setPreview(null); setSelected([]); setReload(v => v + 1)
-        setMessage(`已应用 ${result.applied} 项，仍有 ${result.remaining} 项待选择。实际进度、工时、费用和交付记录均已保留。`)
+        setMessage(`已应用 ${result.applied} 项，仍有 ${result.remaining} 项待选择。${synced ? '' : '页面同步失败，请点击顶部重试。'}`)
       } else {
         const value = await templateUpgradeApi.preview(project.id, request)
         setPreview(value)
