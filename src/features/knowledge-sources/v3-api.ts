@@ -7,24 +7,80 @@ client.interceptors.response.use(response => response, error => {
   if (error.response?.status === 401) window.dispatchEvent(new Event('portal:unauthorized'))
   return Promise.reject(error)
 })
-export function decodeKnowledgeV3<T>(data:unknown):T {
-  const result=camelize<Record<string,unknown>>(data)
-  if(data&&typeof data==='object'&&!Array.isArray(data)&&'reading' in data){
-    const reading=(data as {reading?:unknown}).reading
-    if(reading&&typeof reading==='object'&&!Array.isArray(reading))result.reading=Object.fromEntries(Object.entries(reading).map(([path,entry])=>[path,camelize(entry)]))
+export function decodeKnowledgeV3<T>(data: unknown): T {
+  const result = camelize<Record<string, unknown>>(data)
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    const record = data as Record<string, unknown>
+    if ('reading' in record) {
+      const reading = record.reading
+      if (reading && typeof reading === 'object' && !Array.isArray(reading)) {
+        result.reading = Object.fromEntries(
+          Object.entries(reading as Record<string, unknown>).map(([path, entry]) => [path, camelize(entry)]),
+        )
+      }
+    }
+    const rawCounts = record.folderCounts ?? record.folder_counts
+    if (rawCounts && typeof rawCounts === 'object' && !Array.isArray(rawCounts)) {
+      result.folderCounts = Object.fromEntries(
+        Object.entries(rawCounts as Record<string, unknown>).map(([id, count]) => [id, Number(count) || 0]),
+      )
+    }
   }
   return result as T
 }
+
+function encodeKnowledgeV3Body(body: unknown): unknown {
+  const encoded = snakeize(body)
+  if (
+    body && typeof body === 'object' && !Array.isArray(body)
+    && 'metadata' in body
+    && encoded && typeof encoded === 'object' && !Array.isArray(encoded)
+  ) {
+    const rawMetadata = (body as { metadata?: unknown }).metadata
+    if (rawMetadata && typeof rawMetadata === 'object' && !Array.isArray(rawMetadata)) {
+      ;(encoded as Record<string, unknown>).metadata = rawMetadata
+    }
+  }
+  return encoded
+}
+
 export const knowledgeV3Get = <T,>(path: string, signal?: AbortSignal) => client.get(path, { signal }).then(r => decodeKnowledgeV3<T>(r.data))
-export const knowledgeV3Post = <T,>(path: string, body: unknown, signal?: AbortSignal) => client.post(path, snakeize(body), { signal }).then(r => decodeKnowledgeV3<T>(r.data))
-export const knowledgeV3Patch = <T,>(path: string, body: unknown, signal?: AbortSignal) => client.patch(path, snakeize(body), { signal }).then(r => decodeKnowledgeV3<T>(r.data))
+export const knowledgeV3Post = <T,>(path: string, body: unknown, signal?: AbortSignal) => client.post(path, encodeKnowledgeV3Body(body), { signal }).then(r => decodeKnowledgeV3<T>(r.data))
+export const knowledgeV3Patch = <T,>(path: string, body: unknown, signal?: AbortSignal) => client.patch(path, encodeKnowledgeV3Body(body), { signal }).then(r => decodeKnowledgeV3<T>(r.data))
 export const knowledgeV3Upload = <T,>(path: string, body: FormData, signal?: AbortSignal, onUploadProgress?: (event: AxiosProgressEvent) => void) => client.post(path, body, { signal, onUploadProgress }).then(r => decodeKnowledgeV3<T>(r.data))
+function readErrorBlobText(payload: unknown): Promise<string | null> {
+  if (!payload || typeof payload !== 'object') return Promise.resolve(null)
+  if (typeof (payload as { text?: unknown }).text === 'function') {
+    return (payload as Blob).text()
+  }
+  if (payload instanceof Blob || Object.prototype.toString.call(payload) === '[object Blob]') {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : null)
+      reader.onerror = () => reject(reader.error)
+      reader.readAsText(payload as Blob)
+    })
+  }
+  return Promise.resolve(null)
+}
+
 export async function knowledgeV3Download(path: string, body: unknown, filename: string) {
-  const result = await client.post(path, snakeize(body), { responseType: 'blob' })
+  let result
+  try {
+    result = await client.post(path, encodeKnowledgeV3Body(body), { responseType: 'blob' })
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response) {
+      try {
+        const text = await readErrorBlobText(error.response.data)
+        if (text) error.response.data = JSON.parse(text)
+      } catch { /* Keep status-based fallback in sourceError when blob is non-JSON. */ }
+    }
+    throw error
+  }
   const url = URL.createObjectURL(result.data)
   const anchor = document.createElement('a')
   anchor.href = url; anchor.download = filename; document.body.append(anchor); anchor.click(); anchor.remove()
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  window.setTimeout(() => URL.revokeObjectURL(url), 60000)
 }
 
 export interface LibraryQuery {

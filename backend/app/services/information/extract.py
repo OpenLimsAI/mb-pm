@@ -54,8 +54,10 @@ def main():
         if len(text) < 80:
             raise ValueError("未提取到足够的可读正文，可能是扫描件，需 OCR 后再索引")
         print(json.dumps({"text": text, "pages": len(reader.pages)}))
+    except ValueError as exc:
+        print(json.dumps({"error": str(exc)[:350]}))
     except Exception as exc:
-        print(json.dumps({"error": f"{type(exc).__name__}: {str(exc)[:350]}"}))
+        print(json.dumps({"error": f"PDF 解析失败（{type(exc).__name__}），原文已保留"}))
 
 
 if __name__ == "__main__":

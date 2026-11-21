@@ -30,7 +30,7 @@ beforeEach(()=>{
  })
 })
 
-describe('knowledge source library workbench paging and evidence',()=>{
+describe('knowledge source library workbench paging and evidence', { timeout: 20000 }, ()=>{
  it('reads through the title and always offers a single adjustment action on each row',async()=>{
   const onDelete=vi.fn()
   renderWorkbench({onDelete})

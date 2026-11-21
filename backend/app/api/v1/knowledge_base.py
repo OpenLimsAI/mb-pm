@@ -125,7 +125,10 @@ def upstream_client():
 @router.api_route(PREFIX, methods=METHODS)
 async def knowledge_root(request: Request):
     upstream_origin()
-    query = request.scope.get("query_string", b"").decode("ascii")
+    try:
+        query = request.scope.get("query_string", b"").decode("ascii")
+    except UnicodeDecodeError:
+        raise HTTPException(400, "知识库请求查询参数无效") from None
     return RedirectResponse(PREFIX + "/" + ("?" + query if query else ""), status_code=307)
 
 
@@ -164,7 +167,13 @@ async def knowledge_proxy(request: Request):
         await client.aclose()
         raise
 
+    closed = False
+
     async def close():
+        nonlocal closed
+        if closed:
+            return
+        closed = True
         await upstream.aclose()
         await client.aclose()
 

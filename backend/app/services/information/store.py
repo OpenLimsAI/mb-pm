@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import tempfile
+import threading
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,6 +21,31 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.config import settings
 from app.models.information import InformationEntry, InformationLease, InformationText
+
+_ARCHIVE_CACHE_LOCK = threading.Lock()
+_ARCHIVE_CACHE: dict[str, tuple[float, int]] = {}
+_ARCHIVE_CACHE_TTL = 60.0
+
+
+def _archive_total_bytes(root: Path) -> int:
+    key = str(root.resolve())
+    now = time.monotonic()
+    with _ARCHIVE_CACHE_LOCK:
+        cached = _ARCHIVE_CACHE.get(key)
+        if cached and cached[0] > now:
+            return cached[1]
+    total = sum(p.stat().st_size for p in root.rglob("*.pdf") if p.is_file())
+    with _ARCHIVE_CACHE_LOCK:
+        _ARCHIVE_CACHE[key] = (now + _ARCHIVE_CACHE_TTL, total)
+    return total
+
+
+def adjust_archive_total_bytes(delta: int) -> None:
+    key = str(Path(settings.INFORMATION_DATA_DIR).resolve())
+    with _ARCHIVE_CACHE_LOCK:
+        cached = _ARCHIVE_CACHE.get(key)
+        if cached:
+            _ARCHIVE_CACHE[key] = (cached[0], max(0, cached[1] + delta))
 
 
 def iso(value=None):
@@ -43,14 +69,14 @@ class Store:
     def key(self, kind, value):
         return hashlib.sha256(f"{self.tenant}:{kind}:{value}".encode()).hexdigest()
 
-    def get(self, kind, ident, *, required=True):
+    def get(self, kind, ident, *, required=True, include_text=True):
         row = self.db.get(InformationEntry, ident, populate_existing=True)
         if not row or row.tenant != self.tenant or row.kind != kind:
             if required:
                 raise HTTPException(404, "信息获取记录不存在")
             return None
         data = copy.deepcopy(row.data)
-        if kind == "version":
+        if kind == "version" and include_text:
             text_row = self.db.get(InformationText, ident)
             if text_row is not None and text_row.tenant == self.tenant:
                 data["text"] = text_row.content
@@ -308,8 +334,17 @@ class Store:
         }
 
     def save_preferences(self, subject, changes):
-        data = self.preferences(subject)
-        self.put("preference", {**data, **changes})
+        ident = self.key("preference", identity_key(subject))
+        for attempt in range(2):
+            existing = self.get("preference", ident, required=False)
+            data = self.lock("preference", ident) if existing else self.preferences(subject)
+            try:
+                with self.db.begin_nested():
+                    self.put("preference", {**data, **changes})
+                return
+            except IntegrityError:
+                if attempt:
+                    raise
 
     def archive_path(self, version):
         relative = (
@@ -354,16 +389,18 @@ class Store:
             "text": text,
             "error": error,
             "relativePath": f"{self.tenant}/{sha[:2]}/{sha}.pdf",
-            "archiveUrl": f"/api/v1/information/documents/{document_id}/versions/{ident}/original",
+            "archiveUrl": (
+                f"/api/v1/information/documents/{document_id}/versions/{ident}/original"
+                if settings.INFORMATION_APP_ENABLED
+                else f"/api/v1/knowledge-sources/documents/{document_id}/versions/{ident}/original"
+            ),
         }
         path = self.archive_path(version)
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         if not path.exists():
             if shutil.disk_usage(path.parent).free < max(len(content) * 2, 100 * 1024 * 1024):
                 raise ValueError("归档磁盘可用空间不足，未覆盖已有资料")
-            total = sum(
-                p.stat().st_size for p in Path(settings.INFORMATION_DATA_DIR).rglob("*.pdf")
-            )
+            total = _archive_total_bytes(Path(settings.INFORMATION_DATA_DIR))
             if total + len(content) > settings.INFORMATION_MAX_ARCHIVE_MB * 1024 * 1024:
                 raise ValueError("原文存储达到配置容量上限，请联系管理员扩容")
             fd, temp = tempfile.mkstemp(dir=path.parent)
@@ -371,6 +408,7 @@ class Store:
                 with os.fdopen(fd, "wb") as stream:
                     stream.write(content)
                 os.replace(temp, path)
+                adjust_archive_total_bytes(len(content))
             finally:
                 if os.path.exists(temp):
                     os.unlink(temp)

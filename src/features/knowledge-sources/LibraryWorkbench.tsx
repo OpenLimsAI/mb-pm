@@ -103,10 +103,10 @@ export default function LibraryWorkbench({ data, folder, storageKey, density, bu
     return () => { abort.abort(); window.clearTimeout(timeout) }
   }, [query, mode, folder, offset, sort, tags, reading, collectionId, revision, setOffset, data.catalogRevision, data.refreshedAt,recentRange,paperType,indexStatus])
   useEffect(() => {
-    if (!page?.searchIndex?.indexing) return
-    const timer = window.setInterval(() => setRevision(n => n + 1), 5000)
-    return () => window.clearInterval(timer)
-  }, [page?.searchIndex?.indexing])
+    if (!page?.searchIndex?.indexing || loading) return
+    const timer = window.setTimeout(() => setRevision(n => n + 1), 5000)
+    return () => window.clearTimeout(timer)
+  }, [page?.searchIndex?.indexing, loading])
   useEffect(()=>{
     if(!bulkMenu)return
     const outside=(event:Event)=>{if(!openFolderControl.current?.contains(event.target as Node))setBulkMenu(null)}
@@ -134,7 +134,7 @@ export default function LibraryWorkbench({ data, folder, storageKey, density, bu
     if(locationTimer.current)clearTimeout(locationTimer.current)
     locationTimer.current=setTimeout(()=>{if(mounted.current&&locationDirty.current){locationDirty.current=false;enqueueLocation({...locationValue.current,scrollTop:scroll.current})}},800)
   },[enqueueLocation])
-  function resetPage() { interacted.current=true;locationDirty.current=true;scroll.current = 0;try{localStorage.setItem(`${storageKey}:v3:scroll:${folder}`,'0')}catch{/* Storage is optional. */}setOffset(0);setLoading(true) }
+  function resetPage() { interacted.current=true;locationDirty.current=true;scroll.current = 0;try{localStorage.setItem(`${storageKey}:v3:scroll:${folder}`,'0')}catch{/* Storage is optional. */}setOffset(0) }
   function choosePaper(p: LibraryPaper|undefined, position?: number) {
     if(!p)return
     interacted.current=true;evidenceRequest.current?.abort()
@@ -294,10 +294,12 @@ export default function LibraryWorkbench({ data, folder, storageKey, density, bu
   const actionsDisabled = noSelection || busy || organizing || tagging || exporting
   const tagUnavailable = selected.some(id => id.startsWith('archive:'))
   return <section className={`ksv-library ksv-simple-library kso-density-${density}`} aria-label="文献研究工作区" onKeyDown={event => {
-    const input = event.target instanceof HTMLElement && !!event.target.closest('input,textarea,select,[contenteditable="true"]')
-    if (!input && (event.key === '/' || ((event.ctrlKey || event.metaKey) && event.key === 'f'))) { event.preventDefault(); searchRef.current?.focus() }
-    if (event.key === 'Escape') { setBulkMenu(null); setSelectedPapers([]) }
-    if (!input && (event.key === 'ArrowDown' || event.key === 'ArrowUp') && rows.length) { event.preventDefault(); const index = rows.findIndex(p => p.id === savedPaper); choosePaper(rows[Math.max(0, Math.min(rows.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))]) }
+    const targetEl = event.target instanceof HTMLElement ? event.target : null
+    const input = !!targetEl?.closest('input,textarea,select,[contenteditable="true"]')
+    const insideReader = !!targetEl?.closest('.ksv-reader,.ksv-pdf-reader,[role="dialog"]')
+    if (!input && !insideReader && (event.key === '/' || ((event.ctrlKey || event.metaKey) && event.key === 'f'))) { event.preventDefault(); searchRef.current?.focus() }
+    if (event.key === 'Escape' && !input && !insideReader) { setBulkMenu(null); setSelectedPapers([]) }
+    if (!input && !insideReader && (event.key === 'ArrowDown' || event.key === 'ArrowUp') && rows.length) { event.preventDefault(); const index = rows.findIndex(p => p.id === savedPaper); choosePaper(rows[Math.max(0, Math.min(rows.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))]) }
   }}>
     <div className="kso-toolbar ksv-simple-toolbar"><label className="kso-search"><Search /><input ref={searchRef} aria-label="全文搜索资料" value={query} maxLength={500} onChange={e => { locationDirty.current=true;setQuery(e.target.value); resetPage() }} placeholder={currentFolder ? "在此文件夹中搜索" : "搜索资料…"} />{query && <button className="kso-icon-btn" aria-label="清除全文搜索" onClick={() => { setQuery(''); resetPage() }}><X /></button>}</label><button className="kso-btn" aria-expanded={filters} onClick={() => setFilters(!filters)}><SlidersHorizontal />筛选</button>{data.canOrganize && <button className="kso-btn primary" onClick={onAdd}><FolderInput />上传 PDF</button>}</div>
     {filters && <div className="ksv-filterbar"><label>搜索范围<select className="kso-select" aria-label="搜索范围" value={mode} onChange={e => { setMode(e.target.value as 'all' | 'title'); resetPage() }}><option value="all">全文与资料信息</option><option value="title">仅标题与编号</option></select></label><label>阅读状态<select className="kso-select" aria-label="阅读状态" value={reading} onChange={e=>{setReading(e.target.value);resetPage()}}><option value="">全部</option><option value="unread">待读</option><option value="reading">在读</option><option value="done">读完</option><option value="later">稍后</option></select></label>{folder==='recent'&&<label>收录时间<select className="kso-select" aria-label="最近下载时间范围" value={recentRange} onChange={e=>{setRecentRange(e.target.value);resetPage()}}><option value="today">今天</option><option value="7">近 7 天</option><option value="30">近 30 天</option></select></label>}<label>资料类型<select className="kso-select" aria-label="筛选资料类型" value={paperType} onChange={e=>{setPaperType(e.target.value);resetPage()}}><option value="">全部资料类型</option>{typeCatalog.map(type=><option key={type} value={type}>{type}</option>)}</select></label><label>问答索引<select className="kso-select" aria-label="筛选问答索引状态" value={indexStatus} onChange={e=>{setIndexStatus(e.target.value);resetPage()}}><option value="">全部索引状态</option><option value="ready">可问答</option><option value="failed">索引待重试</option><option value="pending">索引处理中</option><option value="not_requested">未建问答索引</option><option value="unknown">状态待确认</option></select></label><label>排序<select className="kso-select" value={sort} onChange={e => { setSort(e.target.value as 'recent' | 'title'); resetPage() }}><option value="recent">最近收录</option><option value="title">标题</option></select></label><label>密度<select className="kso-select" value={density} onChange={e => onDensityChange(e.target.value as 'compact' | 'standard')}><option value="compact">紧凑</option><option value="standard">标准</option></select></label><label>标签<select className="kso-select" value={tags[0] || ''} onChange={e => { setTags(e.target.value ? [e.target.value] : []); resetPage() }}><option value="">全部标签</option>{tagsCatalog.map(tag => <option key={tag.id} value={tag.id}>{tag.name}</option>)}</select></label><button className="kso-btn quiet" disabled={!filtered} onClick={() => { setQuery(''); clearFilters() }}>重置筛选</button></div>}

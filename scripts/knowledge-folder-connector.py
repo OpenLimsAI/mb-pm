@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
 import hashlib
 import http.client
 import json
@@ -13,11 +12,12 @@ import plistlib
 import socket
 import ssl
 import stat
-import sys
 import subprocess
+import sys
 import tempfile
 import time
 import unicodedata
+from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 from uuid import uuid4
@@ -58,13 +58,26 @@ def server_origin(value):
     return value.rstrip("/")
 
 
+def _is_symlink_or_reparse(path):
+    if path.is_symlink():
+        return True
+    if os.name == "nt":
+        try:
+            attrs = getattr(os.lstat(path), "st_file_attributes", 0)
+            if attrs & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400):
+                return True
+        except OSError:
+            return True
+    return False
+
+
 def relative_path(value):
     if (
         not isinstance(value, str)
         or not value
         or "\\" in value
         or ":" in value
-        or "\0" in value
+        or any(ord(ch) < 32 for ch in value)
     ):
         raise ConnectorError("文件相对路径无效。")
     path = PurePosixPath(value)
@@ -79,7 +92,7 @@ def open_file(root, relative):
     current = root
     for part in parts:
         current = current / part
-        if current.is_symlink():
+        if _is_symlink_or_reparse(current):
             raise ConnectorError("跳过符号链接文件或目录。")
     if not path.resolve(strict=True).is_relative_to(root):
         raise ConnectorError("文件路径超出授权目录。")
@@ -271,21 +284,24 @@ def startup(config, remove=False):
             if executable.is_file():
                 command[0] = str(executable)
             destination.parent.mkdir(parents=True, exist_ok=True)
-
-            def literal(value):
-                return "'" + value.replace("'", "''") + "'"
-
+            # Pass user-controlled paths strictly via environment variables so
+            # neither ASCII nor Unicode PowerShell quotes can break syntax.
             script = (
-                "$w=New-Object -ComObject WScript.Shell;$s=$w.CreateShortcut("
-                + literal(str(destination))
-                + ");$s.TargetPath="
-                + literal(command[0])
-                + ";$s.Arguments="
-                + literal(subprocess.list2cmdline(command[1:]))
-                + ";$s.Save()"
+                "$w=New-Object -ComObject WScript.Shell;"
+                "$s=$w.CreateShortcut($env:MBERP_SHORTCUT_DEST);"
+                "$s.TargetPath=$env:MBERP_SHORTCUT_TARGET;"
+                "$s.Arguments=$env:MBERP_SHORTCUT_ARGS;"
+                "$s.Save()"
             )
+            env = {
+                **os.environ,
+                "MBERP_SHORTCUT_DEST": str(destination),
+                "MBERP_SHORTCUT_TARGET": command[0],
+                "MBERP_SHORTCUT_ARGS": subprocess.list2cmdline(command[1:]),
+            }
             result = subprocess.run(
                 ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
+                env=env,
                 capture_output=True,
             )
             if result.returncode:
@@ -460,7 +476,7 @@ def manifest(root, task, cursor="", stable_seconds=2):
         dirs[:] = sorted(
             d
             for d in dirs
-            if not d.startswith(".") and not (Path(directory) / d).is_symlink()
+            if not d.startswith(".") and not _is_symlink_or_reparse(Path(directory) / d)
         )
         if not task.get("includeSubfolders", True):
             dirs[:] = []
@@ -470,7 +486,7 @@ def manifest(root, task, cursor="", stable_seconds=2):
             path = Path(directory) / name
             relative = path.relative_to(root).as_posix()
             try:
-                if path.is_symlink():
+                if _is_symlink_or_reparse(path):
                     continue
                 info = path.stat()
                 if stat.S_ISREG(info.st_mode):
@@ -667,11 +683,12 @@ def main(argv=None):
                     run_once(client, state, args.config)
                 except ReconnectRequired:
                     raise
-                except (OSError, http.client.HTTPException, ConnectorError):
+                except (OSError, http.client.HTTPException, ConnectorError) as exc:
                     if args.once:
                         raise
+                    detail = str(exc) if isinstance(exc, ConnectorError) else type(exc).__name__
                     print(
-                        "连接或文件夹暂不可用，稍后重试；已保存资料保留。",
+                        f"连接或文件夹暂不可用（{detail}），稍后重试；已保存资料保留。",
                         file=sys.stderr,
                         flush=True,
                     )

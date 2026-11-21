@@ -194,9 +194,9 @@ function FolderImportDrawer({ folderName, onClose, children }: { folderName: str
     const element = dialog.current
     if (!element) return
     const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    element.showModal()
+    if (!element.open) element.showModal()
     return () => {
-      element.close()
+      if (element.open) element.close()
       if (trigger?.isConnected) trigger.focus({ preventScroll: true })
     }
   }, [])
@@ -223,7 +223,7 @@ function itemLabel(item: FolderImportItem) {
 function ImportHistory({ task, writable, onImported }: { task: FolderImportTask; writable: boolean; onImported?: () => void }) {
   const [runs, setRuns] = useState<FolderImportRun[]>([]), [detail, setDetail] = useState<{ run: FolderImportRun; items: FolderImportItem[] } | null>(null)
   const [selected, setSelected] = useState(''), [error, setError] = useState(''), [busy, setBusy] = useState(false), [loading, setLoading] = useState(true)
-  const request = useRef(0), previousComplete = useRef({ runId: '', count: 0 }), onImportedRef = useRef(onImported)
+  const request = useRef(0), previousComplete = useRef({ runId: '', count: 0 }), markedRead = useRef<Set<string>>(new Set()), onImportedRef = useRef(onImported)
   useEffect(() => { onImportedRef.current = onImported }, [onImported])
   useEffect(() => {
     const abort = new AbortController()
@@ -241,7 +241,10 @@ function ImportHistory({ task, writable, onImported }: { task: FolderImportTask;
         const known = previousComplete.current.runId === result.run.id ? previousComplete.current.count : 0
         if (result.run.completed > known) onImportedRef.current?.()
         previousComplete.current = { runId: result.run.id, count: result.run.completed }
-        if (result.items.some(item => item.new)) void readFolderImportRun(target).catch(() => {})
+        if (!running(result.run.status) && result.items.some(item => item.new) && !markedRead.current.has(target)) {
+          markedRead.current.add(target)
+          void readFolderImportRun(target).catch(() => { markedRead.current.delete(target) })
+        }
       } catch (e) { if (!abort.signal.aborted && request.current === id) { setError(sourceError(e)); setLoading(false) } }
     }
     void load()
@@ -251,7 +254,12 @@ function ImportHistory({ task, writable, onImported }: { task: FolderImportTask;
   async function retry(itemId?: string) {
     if (!detail || busy || !writable) return
     setBusy(true); setError('')
-    try { await retryFolderImportRun(detail.run.id, itemId ? [itemId] : undefined); const result = await getFolderImportRun(detail.run.id); setDetail(result) }
+    const id = ++request.current
+    try {
+      await retryFolderImportRun(detail.run.id, itemId ? [itemId] : undefined)
+      const result = await getFolderImportRun(detail.run.id)
+      if (request.current === id) setDetail(result)
+    }
     catch (e) { setError(sourceError(e)) }
     finally { setBusy(false) }
   }

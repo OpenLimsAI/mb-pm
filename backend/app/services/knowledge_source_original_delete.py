@@ -7,6 +7,7 @@ from uuid import uuid4
 from fastapi import HTTPException
 
 from app.models.information import InformationEntry, InformationText
+from app.services.information.store import adjust_archive_total_bytes
 
 
 def archive_id(paper_id):
@@ -90,8 +91,10 @@ def confirm(store, subject, paper_id, plan_id, connect):
     if result.get("discarded") is not True or result.get("path") != version["kbPath"]:
         raise HTTPException(503, "知识库尚未确认删除这份原件，请重试")
     versions = store.records("version")
-    if not any(v["id"] != version["id"] and v["sha256"] == version["sha256"] for v in versions):
-        store.archive_path(version).unlink(missing_ok=True)
+    should_unlink = not any(
+        v["id"] != version["id"] and v["sha256"] == version["sha256"] for v in versions
+    )
+    archive_file = store.archive_path(version) if should_unlink else None
     text = store.db.get(InformationText, version["id"])
     if text and text.tenant == store.tenant:
         store.db.delete(text)
@@ -113,6 +116,12 @@ def confirm(store, subject, paper_id, plan_id, connect):
     store.put("original_delete", {**record, "result": response})
     store.audit(subject, "delete_pending_original", version["id"])
     store.db.commit()
+    # Unlink physical file ONLY after DB commit succeeds so rollback never destroys the original.
+    if archive_file is not None:
+        size = archive_file.stat().st_size if archive_file.is_file() else 0
+        archive_file.unlink(missing_ok=True)
+        if size:
+            adjust_archive_total_bytes(-size)
     return response
 
 

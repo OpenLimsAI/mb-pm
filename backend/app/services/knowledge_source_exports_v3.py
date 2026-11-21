@@ -7,19 +7,43 @@ import hashlib
 import io
 import json
 import re
+import tempfile
 import zipfile
 from pathlib import PurePosixPath
 
 from fastapi import HTTPException
 
 LIMIT = 100 * 1024 * 1024
+CHUNK_SIZE = 64 * 1024
+
+
+def _safe_zip_member_name(name: str) -> bool:
+    if not name or "\\" in name or ":" in name or any(ord(ch) < 32 for ch in name):
+        return False
+    path = PurePosixPath(name)
+    return not path.is_absolute() and ".." not in path.parts
+
+
+def _read_zip_member_bounded(
+    source: zipfile.ZipFile, entry: zipfile.ZipInfo, remaining: int
+) -> bytes:
+    buf = bytearray()
+    with source.open(entry, "r") as stream:
+        while True:
+            chunk = stream.read(CHUNK_SIZE)
+            if not chunk:
+                break
+            if len(buf) + len(chunk) > remaining:
+                raise HTTPException(502, "资料包路径或大小无效")
+            buf.extend(chunk)
+    return bytes(buf)
 
 
 def export_selection(store, actor, ids, format, connect):
     from app.api.v1.knowledge_sources import library, pending_archive
 
     connect("librarySummary", actor["subject"])
-    paths, archives = [], []
+    paths, archives, linked_archives = [], [], []
     for ident in dict.fromkeys(ids):
         if not ident.startswith("archive:"):
             paths.append(ident)
@@ -27,19 +51,23 @@ def export_selection(store, actor, ids, format, connect):
         version = store.get("version", ident[8:])
         document = store.get("document", version["documentId"])
         if version.get("kbPath"):
-            catalogue = library(
-                actor,
-                imports=[
-                    {
-                        "documentId": version.get("kbDocumentId", version["documentId"]),
-                        "sha256": version["sha256"],
-                    }
-                ],
-            )
-            active = any(p.get("path") == version["kbPath"] for p in catalogue.get("papers", []))
-            if not active and not pending_archive(version, catalogue):
-                raise HTTPException(404, "部分资料已删除或无权访问，请刷新后重新选择")
+            linked_archives.append(version)
         archives.append((document, version))
+    if linked_archives:
+        catalogue = library(
+            actor,
+            imports=[
+                {
+                    "documentId": v.get("kbDocumentId", v["documentId"]),
+                    "sha256": v["sha256"],
+                }
+                for v in linked_archives
+            ],
+        )
+        active_paths = {p.get("path") for p in catalogue.get("papers", [])}
+        for version in linked_archives:
+            if version["kbPath"] not in active_paths and not pending_archive(version, catalogue):
+                raise HTTPException(404, "部分资料已删除或无权访问，请刷新后重新选择")
     binary, content_type = b"", "application/octet-stream"
     if paths:
         result = connect("exportPapers", actor["subject"], paths=paths, format=format)
@@ -49,72 +77,90 @@ def export_selection(store, actor, ids, format, connect):
             raise HTTPException(502, "共享资料包返回格式无效") from exc
         content_type = result.get("contentType", content_type)
     if not archives:
+        if format == "zip" and binary:
+            total = 0
+            try:
+                with zipfile.ZipFile(io.BytesIO(binary)) as source:
+                    for entry in source.infolist():
+                        if (
+                            not _safe_zip_member_name(entry.filename)
+                            or entry.file_size > LIMIT - total
+                        ):
+                            raise HTTPException(502, "资料包路径或大小无效")
+                        content = _read_zip_member_bounded(source, entry, LIMIT - total)
+                        total += len(content)
+            except zipfile.BadZipFile as exc:
+                raise HTTPException(502, "共享资料包校验失败，请重试") from exc
         return binary, content_type
     if format == "zip":
-        output, fingerprints, manifest = io.BytesIO(), {}, []
+        fingerprints, manifest = {}, []
         total = 0
-        try:
-            with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as target:
-                if binary:
-                    with zipfile.ZipFile(io.BytesIO(binary)) as source:
-                        for entry in source.infolist():
-                            path = PurePosixPath(entry.filename)
-                            if (
-                                path.is_absolute()
-                                or ".." in path.parts
-                                or entry.file_size > LIMIT - total
-                            ):
-                                raise HTTPException(502, "资料包路径或大小无效")
-                            content = source.read(entry)
-                            total += len(content)
-                            target.writestr(entry.filename, content)
-                            if entry.filename.lower().endswith(".pdf"):
-                                fingerprints[hashlib.sha256(content).hexdigest()] = entry.filename
-                for document, version in archives:
-                    record = {
-                        "title": document["title"],
-                        "documentId": document["id"],
-                        "versionId": version["id"],
-                        "sourceUrl": document.get("url"),
-                        "sha256": version["sha256"],
-                        "savedAt": version["createdAt"],
-                    }
-                    original = store.archive_path(version)
-                    if not original.is_file():
-                        manifest.append({**record, "status": "missing_original"})
-                        continue
-                    if version["sha256"] in fingerprints:
-                        manifest.append(
-                            {
-                                **record,
-                                "status": "shared_original",
-                                "file": fingerprints[version["sha256"]],
-                            }
-                        )
-                        continue
-                    if original.stat().st_size > LIMIT - total:
-                        raise HTTPException(413, "资料包超过100MB，请减少选择后分批导出")
-                    content = original.read_bytes()
-                    if hashlib.sha256(content).hexdigest() != version["sha256"]:
-                        manifest.append({**record, "status": "original_hash_mismatch"})
-                        continue
-                    title = re.sub(r"[^\w\-\u3400-\u9fff ]", "_", document["title"])[:75]
-                    name = f'originals/{title}-{version["sha256"][:12]}.pdf'
-                    target.writestr(name, content)
-                    fingerprints[version["sha256"]] = name
-                    total += len(content)
-                    manifest.append({**record, "status": "saved", "file": name})
-                target.writestr(
-                    "archive-manifest.json",
-                    json.dumps(
-                        {"documents": manifest, "note": "多个分类共享原件；缺失项保留记录"},
-                        ensure_ascii=False,
-                        indent=2,
-                    ),
-                )
-        except zipfile.BadZipFile as exc:
-            raise HTTPException(502, "共享资料包校验失败，请重试") from exc
-        return output.getvalue(), "application/zip"
+        with tempfile.SpooledTemporaryFile(max_size=16 * 1024 * 1024) as output:
+            try:
+                with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as target:
+                    if binary:
+                        with zipfile.ZipFile(io.BytesIO(binary)) as source:
+                            for entry in source.infolist():
+                                if (
+                                    not _safe_zip_member_name(entry.filename)
+                                    or entry.file_size > LIMIT - total
+                                ):
+                                    raise HTTPException(502, "资料包路径或大小无效")
+                                content = _read_zip_member_bounded(source, entry, LIMIT - total)
+                                total += len(content)
+                                target.writestr(entry.filename, content)
+                                if entry.filename.lower().endswith(".pdf"):
+                                    fingerprints[hashlib.sha256(content).hexdigest()] = (
+                                        entry.filename
+                                    )
+                    for document, version in archives:
+                        record = {
+                            "title": document["title"],
+                            "documentId": document["id"],
+                            "versionId": version["id"],
+                            "sourceUrl": document.get("url"),
+                            "sha256": version["sha256"],
+                            "savedAt": version["createdAt"],
+                        }
+                        original = store.archive_path(version)
+                        if not original.is_file():
+                            manifest.append({**record, "status": "missing_original"})
+                            continue
+                        if version["sha256"] in fingerprints:
+                            manifest.append(
+                                {
+                                    **record,
+                                    "status": "shared_original",
+                                    "file": fingerprints[version["sha256"]],
+                                }
+                            )
+                            continue
+                        if original.stat().st_size > LIMIT - total:
+                            raise HTTPException(413, "资料包超过100MB，请减少选择后分批导出")
+                        content = original.read_bytes()
+                        if len(content) > LIMIT - total:
+                            raise HTTPException(413, "资料包超过100MB，请减少选择后分批导出")
+                        if hashlib.sha256(content).hexdigest() != version["sha256"]:
+                            manifest.append({**record, "status": "original_hash_mismatch"})
+                            continue
+                        title = re.sub(r"[^\w\-\u3400-\u9fff ]", "_", document["title"])[:75]
+                        name = f'originals/{title}-{version["sha256"][:12]}.pdf'
+                        target.writestr(name, content)
+                        fingerprints[version["sha256"]] = name
+                        total += len(content)
+                        manifest.append({**record, "status": "saved", "file": name})
+                    target.writestr(
+                        "archive-manifest.json",
+                        json.dumps(
+                            {"documents": manifest, "note": "多个分类共享原件；缺失项保留记录"},
+                            ensure_ascii=False,
+                            indent=2,
+                        ),
+                    )
+            except zipfile.BadZipFile as exc:
+                raise HTTPException(502, "共享资料包校验失败，请重试") from exc
+            output.seek(0)
+            return output.read(), "application/zip"
     entries = [
         {
             **doc.get("metadata", {}),

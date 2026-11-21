@@ -7,18 +7,17 @@ from typing import Literal
 from fastapi import (
     APIRouter,
     Depends,
-    File,
-    Form,
     Header,
     HTTPException,
     Query,
     Request,
-    UploadFile,
 )
 from fastapi.responses import FileResponse
 from pydantic import Field, StrictBool
 from sqlalchemy.orm import Session
+from starlette.datastructures import UploadFile as StarletteUploadFile
 
+from app.api.multipart import upload_form
 from app.api.v1.knowledge_sources import Input, connected, manager, principal
 from app.core.config import settings
 from app.db.session import get_db
@@ -127,7 +126,7 @@ def directories(
     db: Session = Depends(get_db),
     actor=Depends(manager),
 ):
-    service.require_authority(_store(db, actor), actor["subject"], connected)
+    service.require_authority(_store(db, actor), actor["subject"], connected, actor_verified=True)
     return service.list_directories(root_id, path, q)
 
 
@@ -137,13 +136,13 @@ def search_directories(
     db: Session = Depends(get_db),
     actor=Depends(manager),
 ):
-    service.require_authority(_store(db, actor), actor["subject"], connected)
+    service.require_authority(_store(db, actor), actor["subject"], connected, actor_verified=True)
     return service.search_directories(q)
 
 
 @router.post("/probe")
 def probe(body: TaskInput, db: Session = Depends(get_db), actor=Depends(manager)):
-    service.require_authority(_store(db, actor), actor["subject"], connected)
+    service.require_authority(_store(db, actor), actor["subject"], connected, actor_verified=True)
     return service.probe(body.model_dump(by_alias=True))
 
 
@@ -205,7 +204,7 @@ def pairing(ident: str, db: Session = Depends(get_db), actor=Depends(manager)):
 @router.get("/tasks/{ident}/runs")
 def runs(ident: str, db: Session = Depends(get_db), actor=Depends(manager)):
     store = _store(db, actor)
-    service.require_authority(store, actor["subject"], connected)
+    service.require_authority(store, actor["subject"], connected, actor_verified=True)
     service._task(store, ident)
     return {"runs": [service.public_run(r) for r in service.runs_for(store, ident)[:100]]}
 
@@ -213,7 +212,7 @@ def runs(ident: str, db: Session = Depends(get_db), actor=Depends(manager)):
 @router.get("/tasks/{ident}/usage")
 def usage(ident: str, db: Session = Depends(get_db), actor=Depends(manager)):
     store = _store(db, actor)
-    service.require_authority(store, actor["subject"], connected)
+    service.require_authority(store, actor["subject"], connected, actor_verified=True)
     task = service._task(store, ident)
     days = sorted(
         (v for v in store.records(service.USAGE) if v["taskId"] == ident),
@@ -226,7 +225,7 @@ def usage(ident: str, db: Session = Depends(get_db), actor=Depends(manager)):
 @router.get("/runs/{ident}")
 def run_detail(ident: str, db: Session = Depends(get_db), actor=Depends(manager)):
     store = _store(db, actor)
-    service.require_authority(store, actor["subject"], connected)
+    service.require_authority(store, actor["subject"], connected, actor_verified=True)
     run = store.get(service.RUN, ident)
     service._task(store, run["taskId"])
     return {
@@ -246,8 +245,9 @@ def retry_run(ident: str, body: RetryInput, db: Session = Depends(get_db), actor
 @router.post("/runs/{ident}/read")
 def read_run(ident: str, db: Session = Depends(get_db), actor=Depends(manager)):
     store = _store(db, actor)
-    service.require_authority(store, actor["subject"], connected)
-    run = store.get(service.RUN, ident)
+    service.require_authority(store, actor["subject"], connected, actor_verified=True)
+    run = store.lock(service.RUN, ident)
+    service._task(store, run["taskId"])
     run["readAt"] = iso()
     store.put(service.RUN, run)
     db.commit()
@@ -255,7 +255,7 @@ def read_run(ident: str, db: Session = Depends(get_db), actor=Depends(manager)):
 
 
 @router.get("/connector/script")
-def connector_script():
+def connector_script(actor=Depends(manager)):
     module = Path(__file__).resolve()
     script = module.parents[3] / "scripts" / "knowledge-folder-connector.py"
     if not script.is_file():
@@ -266,7 +266,7 @@ def connector_script():
         script,
         media_type="text/x-python",
         filename="knowledge-folder-connector.py",
-        headers={"Cache-Control": "no-store"},
+        headers={"Cache-Control": "private, no-store"},
     )
 
 
@@ -313,21 +313,25 @@ def connector_manifest(
 
 
 @router.post("/connector/runs/{ident}/files")
-def connector_file(
+async def connector_file(
     ident: str,
     request: Request,
-    relative_path: str = Form(alias="relativePath"),
-    sha256: str = Form(),
-    file: UploadFile = File(),
     lease: str = Header("", alias="X-Folder-Run-Lease"),
     db: Session = Depends(get_db),
 ):
     store, agent, task = _connector(request, db)
     run = service.connector_run(store, agent, task, ident, lease)
-    try:
-        content = file.file.read(task["maxFileMb"] * 1024 * 1024 + 1)
-    finally:
-        file.file.close()
+    async with upload_form(request, max_files=1, max_fields=8, max_part_size=64 * 1024) as form:
+        relative_path = form.get("relativePath") or form.get("relative_path")
+        sha256 = form.get("sha256")
+        uploaded = form.get("file")
+        if (
+            not isinstance(relative_path, str)
+            or not isinstance(sha256, str)
+            or not isinstance(uploaded, StarletteUploadFile)
+        ):
+            raise HTTPException(422, "缺少文件上传必要参数")
+        content = await uploaded.read(task["maxFileMb"] * 1024 * 1024 + 1)
     return service.save_original(store, task, run, relative_path, sha256, content)
 
 

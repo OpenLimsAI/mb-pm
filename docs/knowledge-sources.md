@@ -46,12 +46,12 @@ NEW 的原有基线和成功搜索语义不变。个人“未查看”独立持�
 
 ## 身份与权限
 
-所有 `/api/v1/knowledge-sources/*` 使用现有门户会话、强制改密和实时 IAM 身份。写入校验本站 Origin，不接收演示身份或浏览器 Core 令牌。
+所有 `/api/v1/knowledge-sources/*`（以及退役 `/api/v1/information/documents/.../original` 兼容原文入口）均使用现有门户会话、强制改密和实时 IAM 身份，并要求账号具备 `admin`、`kb_manager`、`kb_editor` 或 `kb_viewer` 角色之一（且在退役原文入口同时校验 `KNOWLEDGE_SOURCE_APP_ENABLED` 与关联 Core 论文实时可见性）。写入校验本站 Origin，不接收演示身份或浏览器 Core 令牌。
 
-- 阅读完整 Core 文献库：实时 `kb_manager`、`kb_editor` 或 `kb_viewer`，由知识库桥接独立判断。
+- 阅读完整 Core 文献库：实时 `kb_manager`、`kb_editor` 或 `kb_viewer`，由知识库桥接独立判断；无 Core 阅读权（如仅具 `admin`）时快照中租户文件夹与全局作业摘要保持隔离为空，他人私有智能归档规则 ID 不跨账号暴露。
 - 文件夹整理：实时 `kb_manager`，同时校验实际活跃论文、租户、版本及分类 revision。过期 revision 返回 409，前端刷新后重试。
-- 来源配置与下载：沿用 `admin` 或 `kb_manager` 的公开 ICH 收录委托。单有 `admin` 不意味着获得全库阅读、通用上传、删除或模型设置权限。
-- 对尚未链接 Core 的官方归档，保留原组织内的已验证阅读边界；归档分类待知识库创建后同步到同一份论文。
+- 来源配置与下载：沿用 `admin` 或 `kb_manager` 的公开 ICH 收录委托。单有 `admin` 不意味着获得全库阅读、通用上传、删除或模型设置权限；新增来源仅允许公网 HTTPS（443 端口）地址，拒绝回环与内网网段。
+- 对尚未链接 Core 的官方归档，实时核对当前知识库阅读权限后开放组织内阅读；归档分类待知识库创建后同步到同一份论文。
 
 知识库不可连接或角色不允许时，界面显示实际连接问题，不加载示例论文替代真实结果。旧 `/information` 页面不因新应用上线而恢复。
 

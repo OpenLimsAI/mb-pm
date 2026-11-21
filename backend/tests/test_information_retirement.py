@@ -70,6 +70,7 @@ def test_existing_original_stays_protected_and_readable(information_portal, monk
 
     client, db, session = information_portal
     monkeypatch.setattr(settings, "INFORMATION_DATA_DIR", str(tmp_path))
+    roles = {"value": []}
     monkeypatch.setattr(
         iam_admin,
         "get_user_by_sub",
@@ -77,7 +78,7 @@ def test_existing_original_stays_protected_and_readable(information_portal, monk
             "id": subject,
             "owner": settings.CASDOOR_ORG,
             "name": "archive.reader",
-            "roles": [],
+            "roles": roles["value"],
         },
     )
     store = Store(db, tenant_key(settings.casdoor_issuer, settings.CASDOOR_ORG))
@@ -88,8 +89,12 @@ def test_existing_original_stays_protected_and_readable(information_portal, monk
     version = store.archive(doc["id"], original, "existing text", parse_status="ready")
     db.commit()
     monkeypatch.setattr(settings, "INFORMATION_APP_ENABLED", False)
+    monkeypatch.setattr(settings, "KNOWLEDGE_SOURCE_APP_ENABLED", True)
     path = version["archiveUrl"]
     assert client.get(path).status_code == 401
+    # Users without KB access roles cannot read retained originals after retirement.
+    assert client.get(path, headers=session()).status_code == 403
+    roles["value"] = [{"owner": settings.CASDOOR_ORG, "name": "kb_viewer", "isEnabled": True}]
     response = client.get(path, headers=session())
     assert response.status_code == 200 and response.content == original
     assert response.headers["cache-control"] == "no-store"
