@@ -28,7 +28,50 @@ client.interceptors.response.use(response => response, error => {
   if (error.response?.status === 401) window.dispatchEvent(new Event('portal:unauthorized'))
   return Promise.reject(error)
 })
-export const getKnowledgeSources = (signal?: AbortSignal) => client.get('/snapshot', { signal, params: { summary: true } }).then(r => camelize<KnowledgeSourceSnapshot>(r.data))
+export function safeExternalHref(url?: string | null): string | undefined {
+  if (!url) return undefined
+  const trimmed = url.trim()
+  if (!trimmed) return undefined
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) return trimmed
+  try {
+    const parsed = new URL(trimmed)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? trimmed : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function decodeSnapshot(raw: unknown): KnowledgeSourceSnapshot {
+  const result = camelize<KnowledgeSourceSnapshot>(raw)
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const record = raw as Record<string, unknown>
+    const rawCounts = record.folderCounts ?? record.folder_counts
+    if (rawCounts && typeof rawCounts === 'object' && !Array.isArray(rawCounts)) {
+      result.folderCounts = Object.fromEntries(
+        Object.entries(rawCounts as Record<string, unknown>).map(([k, v]) => [k, Number(v) || 0]),
+      )
+    }
+    const rawSources = record.sources
+    if (Array.isArray(rawSources) && Array.isArray(result.sources)) {
+      result.sources = result.sources.map((src, idx) => {
+        const rawSrc = rawSources[idx] as Record<string, unknown> | undefined
+        const rawScopeStatus = rawSrc?.scopeStatus ?? rawSrc?.scope_status
+        if (rawScopeStatus && typeof rawScopeStatus === 'object' && !Array.isArray(rawScopeStatus)) {
+          return {
+            ...src,
+            scopeStatus: Object.fromEntries(
+              Object.entries(rawScopeStatus as Record<string, unknown>).map(([k, v]) => [k, camelize(v)]),
+            ),
+          } as SourceDefinition
+        }
+        return src
+      })
+    }
+  }
+  return result
+}
+
+export const getKnowledgeSources = (signal?: AbortSignal) => client.get('/snapshot', { signal, params: { summary: true } }).then(r => decodeSnapshot(r.data))
 export const getKnowledgeSourceJobs = (signal?: AbortSignal) => client.get('/jobs/status', { signal }).then(r => camelize<{ jobs: SourceJob[]; refreshedAt: string }>(r.data))
 export const mutateKnowledgeSources = (method: 'post' | 'patch', path: string, value: unknown) => client.request({ method, url: path, data: snakeize(value), ...(path === '/folders/inbox' ? { timeout: 60000 } : {}) }).then(r => camelize(r.data))
 export function sourceError(error: unknown, readTarget?: string): string {

@@ -43,6 +43,11 @@ export default function FolderImportSettings({ task, bootstrap, folders, initial
     maxFileMb: bootstrap.maxFileMb || 100, maxFilesPerScan: 1000, dailyFileLimit: 1000,
   })
   const [initial] = useState(() => JSON.stringify(config))
+  const [limitDrafts, setLimitDrafts] = useState(() => ({
+    maxFileMb: String(config.maxFileMb),
+    maxFilesPerScan: String(config.maxFilesPerScan),
+    dailyFileLimit: String(config.dailyFileLimit),
+  }))
   const [expanded, setExpanded] = useState<Section | null>(null)
   const [pickedName, setPickedName] = useState('')
   const [manualPath, setManualPath] = useState('')
@@ -101,7 +106,7 @@ export default function FolderImportSettings({ task, bootstrap, folders, initial
   const normalized = selection ? { ...config, serverRootId: selection.root.id, path: selection.path } : config
   const dirty = JSON.stringify(normalized) !== initial
   const locked = !!busy || !canManage || saved
-  const name = config.name.trim() || (config.kind === 'local' ? (localName || localPath.split(/[\\/]/).filter(Boolean).pop() || '我的电脑资料').slice(0, 100) : selection?.path.split('/').filter(Boolean).pop() || selection?.root.name || '服务器资料')
+  const name = config.name.trim() || (config.kind === 'local' ? (localName || localPath.split(/[\\/]/).filter(Boolean).pop() || '我的电脑资料').slice(0, 100) : (selection?.path.split('/').filter(Boolean).pop() || selection?.root.name || '服务器资料').slice(0, 100))
   const value: FolderImportConfig = { ...normalized, name }
   if (!task && config.kind === 'local') {
     value.path = localPath
@@ -311,9 +316,9 @@ export default function FolderImportSettings({ task, bootstrap, folders, initial
         <label className="kso-field">名称<input aria-label="自动导入名称" maxLength={100} disabled={locked} value={config.name} placeholder={name} onChange={event => update({ name: event.target.value })} /></label>
         <label className="kso-check"><input type="checkbox" checked={config.includeSubfolders} disabled={locked} onChange={event => update({ includeSubfolders: event.target.checked, ...(!event.target.checked ? { preserveHierarchy: false } : {}) })} />包含子文件夹</label>
         <label className="kso-check"><input type="checkbox" checked={config.preserveHierarchy} disabled={locked || !config.includeSubfolders} onChange={event => update({ preserveHierarchy: event.target.checked })} />在知识库中保留子文件夹分类</label>
-        <div className="kso-setup-limits"><label className="kso-field">单份 PDF 上限（MB）<input aria-label="自动导入文件大小上限" type="number" min={1} max={bootstrap.maxFileMb || 100} required disabled={locked} value={config.maxFileMb} onChange={event => update({ maxFileMb: Number(event.target.value) })} /></label>
-          <label className="kso-field">每次扫描上限（份）<input aria-label="每次扫描处理上限" type="number" min={1} max={10000} required disabled={locked} value={config.maxFilesPerScan} onChange={event => update({ maxFilesPerScan: Number(event.target.value) })} /></label>
-          <label className="kso-field">每日处理上限（份）<input aria-label="每日处理上限" type="number" min={1} max={50000} required disabled={locked} value={config.dailyFileLimit} onChange={event => update({ dailyFileLimit: Number(event.target.value) })} /></label></div>
+        <div className="kso-setup-limits"><label className="kso-field">单份 PDF 上限（MB）<input aria-label="自动导入文件大小上限" type="number" min={1} max={bootstrap.maxFileMb || 100} step={1} required disabled={locked} value={limitDrafts.maxFileMb} onChange={event => { const raw = event.target.value; setLimitDrafts(d => ({ ...d, maxFileMb: raw })); update({ maxFileMb: /^\d+$/.test(raw.trim()) ? Number(raw.trim()) : Number.NaN }) }} /></label>
+          <label className="kso-field">每次扫描上限（份）<input aria-label="每次扫描处理上限" type="number" min={1} max={10000} step={1} required disabled={locked} value={limitDrafts.maxFilesPerScan} onChange={event => { const raw = event.target.value; setLimitDrafts(d => ({ ...d, maxFilesPerScan: raw })); update({ maxFilesPerScan: /^\d+$/.test(raw.trim()) ? Number(raw.trim()) : Number.NaN }) }} /></label>
+          <label className="kso-field">每日处理上限（份）<input aria-label="每日处理上限" type="number" min={1} max={50000} step={1} required disabled={locked} value={limitDrafts.dailyFileLimit} onChange={event => { const raw = event.target.value; setLimitDrafts(d => ({ ...d, dailyFileLimit: raw })); update({ dailyFileLimit: /^\d+$/.test(raw.trim()) ? Number(raw.trim()) : Number.NaN }) }} /></label></div>
         <p className="kso-small">达到上限后保留进度，下次继续处理。</p>
       </div></details>
     </div>

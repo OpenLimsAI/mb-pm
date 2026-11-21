@@ -33,7 +33,7 @@ export default function ResizableKnowledgeShell({ storageKey, sidebar, children 
       if (event.button !== 0) return
       event.preventDefault(); drag.current = { pointerId: event.pointerId, startX: event.clientX, startWidth: width }
       event.currentTarget.setPointerCapture?.(event.pointerId)
-    }} onPointerMove={event => { const current = drag.current; if (current?.pointerId === event.pointerId) resize(current.startWidth + event.clientX - current.startX) }} onPointerUp={event => end(event)} onPointerCancel={event => end(event, true)} onKeyDown={event => {
+    }} onPointerUp={event => end(event)} onPointerCancel={event => end(event, true)} onKeyDown={event => {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End', 'Enter', 'Escape'].includes(event.key)) return
       event.preventDefault()
       if (event.key === 'Escape') { if (drag.current) setWidth(drag.current.startWidth); drag.current = null; return }

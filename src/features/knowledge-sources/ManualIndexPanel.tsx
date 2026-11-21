@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Database, RefreshCw } from 'lucide-react'
 import { sourceError } from './api'
 import { knowledgeV3Get, knowledgeV3Post } from './v3-api'
@@ -7,14 +7,39 @@ interface ManualStatus {jobId:string|null;status:string;indexStatus:string;error
 export default function ManualIndexPanel(props:{paperId:string;canManage:boolean;indexStatus?:string;onChanged?:()=>void}) {return <ManualIndexWorkspace key={props.paperId} {...props}/>}
 function ManualIndexWorkspace({paperId,canManage,indexStatus,onChanged}:{paperId:string;canManage:boolean;indexStatus?:string;onChanged?:()=>void}) {
   const [status,setStatus]=useState<ManualStatus|null>(null),[confirmed,setConfirmed]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[refresh,setRefresh]=useState(0)
+  const [pollAttempt,setPollAttempt]=useState(0)
+  const wasRunning=useRef(false)
+  const onChangedRef=useRef(onChanged)
+  useEffect(()=>{onChangedRef.current=onChanged},[onChanged])
   const running=status?.status==='queued'||status?.status==='running'
   useEffect(()=>{
     if(!canManage)return
-    const controller=new AbortController();const timer=window.setTimeout(()=>{void knowledgeV3Get<ManualStatus>(`/library/manual-index/status?paperId=${encodeURIComponent(paperId)}`,controller.signal).then(next=>{if(!controller.signal.aborted){setStatus(next);setError('')}}).catch(e=>{if(!controller.signal.aborted)setError(sourceError(e))})},0)
+    const controller=new AbortController()
+    const timer=window.setTimeout(()=>{
+      void knowledgeV3Get<ManualStatus>(`/library/manual-index/status?paperId=${encodeURIComponent(paperId)}`,controller.signal)
+        .then(next=>{
+          if(controller.signal.aborted)return
+          const nextRunning=next.status==='queued'||next.status==='running'
+          const transitioned=wasRunning.current&&!nextRunning
+          wasRunning.current=nextRunning
+          setStatus(next);setError('')
+          if(transitioned)onChangedRef.current?.()
+        })
+        .catch(e=>{
+          if(!controller.signal.aborted){
+            setError(sourceError(e))
+            if(wasRunning.current)setPollAttempt(n=>n+1)
+          }
+        })
+    },0)
     return()=>{controller.abort();window.clearTimeout(timer)}
   },[paperId,refresh,canManage])
-  useEffect(()=>{if(!running)return;const timer=window.setTimeout(()=>setRefresh(n=>n+1),5000);return()=>window.clearTimeout(timer)},[running,status])
-  async function start(){if(busy||!confirmed||!canManage||running)return;setBusy(true);setError('');try{const result=await knowledgeV3Post<ManualStatus>('/library/manual-index',{paperId,confirmed:true});setStatus(result);setConfirmed(false);onChanged?.()}catch(e){setError(sourceError(e))}finally{setBusy(false)}}
+  useEffect(()=>{
+    if(!running)return
+    const timer=window.setTimeout(()=>setRefresh(n=>n+1),5000)
+    return()=>window.clearTimeout(timer)
+  },[running,status,pollAttempt])
+  async function start(){if(busy||!confirmed||!canManage||running)return;setBusy(true);setError('');try{const result=await knowledgeV3Post<ManualStatus>('/library/manual-index',{paperId,confirmed:true});wasRunning.current=result.status==='queued'||result.status==='running';setStatus(result);setConfirmed(false);onChangedRef.current?.()}catch(e){setError(sourceError(e))}finally{setBusy(false)}}
   const state=status?.indexStatus||indexStatus||'unknown'
   const ready=state==='ready'
   const enabled=canManage&&status?.canStart!==false

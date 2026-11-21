@@ -117,18 +117,31 @@ function Workspace({ preview, allowed, userName, storageKey }: { preview: boolea
   useEffect(() => { alive.current = true; if (!preview && allowed) void Promise.resolve().then(() => { if (alive.current) return refresh() }); return () => { alive.current = false; requestId.current += 1 } }, [preview, allowed, refresh])
   useEffect(()=>{
     if(locationRestored.current||!libraryV3Ready||preview||!allowed)return
-    locationRestored.current=true
     const parameters=new URLSearchParams(window.location.search)
-    if(['folder','paper','source','document','job','view'].some(key=>parameters.has(key)))return
+    if(['folder','paper','source','document','job','view'].some(key=>parameters.has(key))){
+      locationRestored.current=true
+      return
+    }
     const abort=new AbortController(), initialNavigation=navigationRevision.current
     const knownFolders=JSON.parse(restoreFolderIds) as string[]
-    void knowledgeV3Get<WorkspaceState>('/workspace',abort.signal).then(value=>{if(navigationRevision.current!==initialNavigation || ['folder','paper','source','document','job','view'].some(key=>new URLSearchParams(window.location.search).has(key))||document.activeElement?.matches('input,textarea,select'))return;const target=value.location.folderId;if(target&&(['all','recent','unsorted','starred'].includes(target)||knownFolders.includes(target))){setView('library');setFolder(target)}}).catch(()=>{})
+    void knowledgeV3Get<WorkspaceState>('/workspace',abort.signal).then(value=>{
+      if(abort.signal.aborted)return
+      locationRestored.current=true
+      if(navigationRevision.current!==initialNavigation || ['folder','paper','source','document','job','view'].some(key=>new URLSearchParams(window.location.search).has(key))||document.activeElement?.matches('input,textarea,select'))return
+      const target=value.location.folderId
+      if(target&&(['all','recent','unsorted','starred'].includes(target)||knownFolders.includes(target))){setView('library');setFolder(target)}
+    }).catch(()=>{
+      if(!abort.signal.aborted)locationRestored.current=true
+    })
     return()=>abort.abort()
   },[libraryV3Ready,restoreFolderIds,preview,allowed,setView,setFolder])
   const running = data?.jobs.some(j => active(j.status))
+  const hasData = !!data
+  const jobsRef = useRef(data?.jobs)
+  useEffect(() => { jobsRef.current = data?.jobs }, [data?.jobs])
   const pollDownloads = view !== 'imports' && !showImportDrawer
   useEffect(() => {
-    if (preview || !allowed || !data || !pollDownloads) return
+    if (preview || !allowed || !hasData || !pollDownloads) return
     const abort = new AbortController()
     const delay = running ? 2500 : 15000
     let timer: number
@@ -136,9 +149,10 @@ function Workspace({ preview, allowed, userName, storageKey }: { preview: boolea
       try {
         const result = await getKnowledgeSourceJobs(abort.signal)
         if (abort.signal.aborted) return
-        const changed = JSON.stringify(result.jobs) !== JSON.stringify(data.jobs)
+        const changed = JSON.stringify(result.jobs) !== JSON.stringify(jobsRef.current)
         setJobsError('')
         if (changed) {
+          jobsRef.current = result.jobs
           setData(previous => previous ? { ...previous, jobs: result.jobs } : previous)
           if (!result.jobs.some(j => active(j.status)) || Date.now() - lastFullRefresh.current > 15000) await refresh()
         }
@@ -150,7 +164,7 @@ function Workspace({ preview, allowed, userName, storageKey }: { preview: boolea
     }
     timer = window.setTimeout(poll, delay)
     return () => { abort.abort(); window.clearTimeout(timer) }
-  }, [running, data, preview, allowed, pollDownloads, refresh])
+  }, [running, hasData, preview, allowed, pollDownloads, refresh])
   useEffect(() => { if (!notice) return; const timer = window.setTimeout(() => setNotice(''), 6000); return () => window.clearTimeout(timer) }, [notice])
   const mutate: Mutation = async (method, path, body, success) => {
     if (preview || mutationLock.current) return false
