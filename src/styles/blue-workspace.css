@@ -1,29 +1,21 @@
-/* Blue Edition workspace: use the real application catalogue and account state. */
+/* MBERP Swiss Clinical v2.0 workspace: crisp executive status bar & 1px hairline cards. */
 :root .efficient-portal .workspace-welcome {
   position: relative;
   display: flex;
   align-items: center;
-  min-height: 190px;
+  min-height: 0;
   overflow: hidden;
-  padding: 30px 34px;
-  border: 1px solid var(--workbench-mark);
-  border-radius: 13px;
-  background: var(--workbench-mark);
-  color: var(--workbench-on-mark);
+  padding: 18px 22px;
+  border: 1px solid var(--workbench-line);
+  border-left: 3px solid var(--workbench-brand);
+  border-radius: var(--workbench-radius, 6px);
+  background: var(--workbench-panel);
+  color: var(--workbench-ink);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 :root .efficient-portal .workspace-welcome::after {
-  content: '';
-  position: absolute;
-  top: -105px;
-  right: -15px;
-  width: 340px;
-  height: 340px;
-  border: 1px solid color-mix(in srgb, var(--workbench-highlight, #67baf4) 32%, transparent);
-  border-radius: 50%;
-  box-shadow: 0 0 0 38px color-mix(in srgb, var(--workbench-highlight, #67baf4) 4%, transparent),
-    0 0 0 76px color-mix(in srgb, var(--workbench-highlight, #67baf4) 3%, transparent);
-  pointer-events: none;
+  display: none;
 }
 
 :root .efficient-portal .workspace-welcome-content {
@@ -33,65 +25,67 @@
 }
 
 :root .efficient-portal .workspace-welcome-label {
-  color: #b8d9f1;
-  font-size: 10px;
-  letter-spacing: 2px;
+  color: var(--workbench-brand);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
 }
 
 :root .efficient-portal .workspace-label-line {
-  background: var(--workbench-highlight, #67baf4);
+  background: var(--workbench-brand);
 }
 
 :root .efficient-portal .workspace-welcome h1 {
-  margin: 16px 0 8px;
-  color: var(--workbench-on-mark);
-  font-size: clamp(24px, 2.1vw, 31px);
-  font-weight: 550;
-  letter-spacing: -.3px;
+  margin: 8px 0 4px;
+  color: var(--workbench-ink);
+  font-size: clamp(20px, 1.7vw, 24px);
+  font-weight: 650;
+  letter-spacing: -0.3px;
 }
 
 :root .efficient-portal .workspace-welcome-content > p {
-  color: #d2e2ef;
+  color: var(--workbench-muted);
   font-size: 13px;
-  line-height: 1.8;
+  line-height: 1.65;
 }
 
 :root .efficient-portal .workspace-welcome-meta {
   width: fit-content;
   gap: 7px;
-  margin-top: 20px;
-  padding: 6px 10px;
-  border: 1px solid #ffffff24;
-  border-radius: 6px;
-  color: #d2e2ef;
-  background: #ffffff08;
+  margin-top: 12px;
+  padding: 4px 10px;
+  border: 1px solid var(--workbench-line);
+  border-radius: var(--workbench-radius-sm, 4px);
+  color: var(--workbench-muted);
+  background: var(--workbench-panel-soft);
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
 :root .efficient-portal .workspace-category {
-  margin-top: 27px;
-  scroll-margin-top: calc(var(--workbench-header-height, 72px) + 18px);
+  margin-top: 22px;
+  scroll-margin-top: calc(var(--workbench-header-height, 56px) + 16px);
 }
 
 :root .efficient-portal .workspace-section-heading {
   align-items: center;
-  margin-bottom: 15px;
+  margin-bottom: 12px;
 }
 
 :root .efficient-portal .workspace-section-heading h2 {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 650;
 }
 
 :root .efficient-portal .workspace-section-heading p {
-  margin-top: 5px;
+  margin-top: 4px;
   color: var(--workbench-muted);
   font-size: 12px;
 }
 
 :root .efficient-portal .workspace-app-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 12px;
 }
 
 :root .efficient-portal .workspace-app-card {
@@ -103,19 +97,19 @@
   align-items: start;
   gap: 0;
   min-width: 0;
-  padding: 20px;
+  padding: 16px;
   border: 1px solid var(--workbench-line);
-  border-radius: 10px;
+  border-radius: var(--workbench-radius, 6px);
   background: var(--workbench-panel);
-  box-shadow: 0 3px 14px rgb(30 70 107 / .025);
-  transition: border-color .15s, box-shadow .15s;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: border-color .15s, background-color .15s;
 }
 
 :root .efficient-portal a.workspace-app-card:hover {
   transform: none;
-  background: var(--workbench-panel);
+  background: #fcfdff;
   border-color: var(--workbench-line-strong);
-  box-shadow: 0 6px 20px rgb(30 70 107 / .055);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
 }
 
 :root .efficient-portal .workspace-app-topline {
@@ -125,11 +119,11 @@
 :root .efficient-portal .workspace-app-icon {
   grid-column: 1;
   grid-row: 1;
-  width: 37px;
-  height: 37px;
-  margin-bottom: 17px;
+  width: 34px;
+  height: 34px;
+  margin-bottom: 12px;
   border: 1px solid var(--workbench-line);
-  border-radius: 9px;
+  border-radius: var(--workbench-radius, 6px);
   background: var(--workbench-soft);
   color: var(--workbench-brand);
 }
@@ -284,13 +278,13 @@
   grid-row: 1 / 3;
   align-self: center;
   display: inline-flex;
-  gap: 16px;
+  gap: 14px;
   width: auto;
   height: auto;
-  min-height: 37px;
-  padding: 9px 15px;
+  min-height: 34px;
+  padding: 7px 14px;
   border: 1px solid var(--workbench-mark);
-  border-radius: 7px;
+  border-radius: var(--workbench-radius-sm, 4px);
   color: var(--workbench-on-mark);
   background: var(--workbench-mark);
   font-size: 12px;
@@ -301,7 +295,8 @@
 }
 
 :root .efficient-portal .workspace-ai-grid a.workspace-app-card:hover .workspace-app-entry {
-  background: var(--workbench-mark);
+  background: var(--workbench-brand-strong);
+  border-color: var(--workbench-brand-strong);
 }
 
 :root .efficient-portal .workspace-ai-grid .workspace-app-unavailable {
@@ -310,17 +305,17 @@
 }
 
 :root .efficient-portal .workspace-help {
-  padding: 18px 20px;
+  padding: 16px 18px;
   border: 1px solid var(--workbench-line);
-  border-radius: 9px;
+  border-radius: var(--workbench-radius, 6px);
   background: var(--workbench-panel);
 }
 
 :root .efficient-portal .workspace-help-icon {
-  width: 35px;
-  height: 35px;
+  width: 34px;
+  height: 34px;
   border: 1px solid var(--workbench-line);
-  border-radius: 8px;
+  border-radius: var(--workbench-radius, 6px);
   background: var(--workbench-soft);
   color: var(--workbench-brand);
 }
@@ -329,7 +324,7 @@
   color: var(--workbench-text);
   background: var(--workbench-panel);
   border-color: var(--workbench-line);
-  border-radius: 7px;
+  border-radius: var(--workbench-radius-sm, 4px);
 }
 
 @media (min-width: 1280px) {
@@ -340,8 +335,8 @@
 
 @media (max-width: 760px) {
   :root .efficient-portal .workspace-welcome {
-    min-height: 180px;
-    padding: 25px;
+    min-height: 0;
+    padding: 16px;
   }
 
   :root .efficient-portal .workspace-welcome::after {
