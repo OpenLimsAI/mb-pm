@@ -193,8 +193,8 @@ export default function KnowledgeFallbackLibrary({
               )}
             </>
           )}
-          <KnowledgeButton quiet onClick={() => onPicksChange([])}>
-            取消选择
+          <KnowledgeButton primary onClick={() => onPicksChange([])}>
+            取消
           </KnowledgeButton>
         </div>
       )}
