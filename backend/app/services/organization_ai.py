@@ -66,6 +66,14 @@ def load_legacy_settings() -> dict:
         }
 
 
+_legacy_loader = load_legacy_settings
+
+
+def register_legacy_loader(fn) -> None:
+    global _legacy_loader
+    _legacy_loader = fn
+
+
 def identity(claims):
     values = claims.get("iss"), claims.get("owner")
     if any(not isinstance(v, str) or not v or len(v) > 255 for v in values):
@@ -82,7 +90,7 @@ def public_id(value):
 
 
 def legacy_bootstrap():
-    legacy = load_legacy_settings()
+    legacy = _legacy_loader()
     profiles = []
     for provider, cfg in legacy["providers"].items():
         if not cfg.get("model"):

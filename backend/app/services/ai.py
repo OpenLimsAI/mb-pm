@@ -41,6 +41,7 @@ from app.services.organization_ai import (
     KINDS,
     _lock,
     load_legacy_settings,
+    register_legacy_loader,
 )
 from app.services.rollup import live_health, live_span
 from app.services.solution_ai import (  # noqa: F401
@@ -48,6 +49,7 @@ from app.services.solution_ai import (  # noqa: F401
     NetworkError,
     _chat_transport,
     kimi_parameters,
+    register_chat_dispatcher,
 )
 from app.services.task_deadlines import is_overdue
 
@@ -283,6 +285,10 @@ def chat(provider: str, cfg: dict, messages: list, *, probe=False, timeout=None,
 
 def delete_project_ai_analyses(db: Session, project_id: str) -> None:
     db.query(ProjectAIAnalysis).filter_by(project_id=project_id).delete(synchronize_session=False)
+
+
+register_legacy_loader(lambda: load_legacy_settings())
+register_chat_dispatcher(lambda *args, **kwargs: chat(*args, **kwargs))
 
 
 def test_connection(provider: str, cfg: dict):

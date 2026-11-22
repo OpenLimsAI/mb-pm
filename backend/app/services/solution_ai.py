@@ -348,6 +348,14 @@ def _chat_transport(
     return content, usage
 
 
+_chat_dispatcher = _chat_transport
+
+
+def register_chat_dispatcher(fn) -> None:
+    global _chat_dispatcher
+    _chat_dispatcher = fn
+
+
 def transport_provider(profile):
     return (
         profile["provider"]
@@ -359,7 +367,7 @@ def transport_provider(profile):
 def chat(profile, messages, *, timeout=60):
     # Use only model/messages/stream. In particular do not inherit global vendor tuning.
     provider = transport_provider(profile)
-    return _chat_transport(provider, profile, messages, timeout=timeout, request_fn=pinned_request)
+    return _chat_dispatcher(provider, profile, messages, timeout=timeout, request_fn=pinned_request)
 
 
 def test_connection(db, claims, draft):
