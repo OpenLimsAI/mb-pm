@@ -60,9 +60,9 @@
 :root .feedback-app .feedback-board,
 :root .efficient-portal .portal-panel {
   border-color: var(--workbench-line);
-  border-radius: 12px;
+  border-radius: var(--workbench-radius, 6px);
   background: var(--workbench-panel);
-  box-shadow: 0 1px 3px rgb(30 70 107 / 0.025);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 :root .aa-app :is(.aa-artifact-option, .aa-artifact-search),
@@ -71,7 +71,63 @@
   color: var(--workbench-text);
   background: var(--workbench-panel);
   border-color: var(--workbench-line);
-  border-radius: 12px;
+  border-radius: var(--workbench-radius, 6px);
+}
+
+/* Editorial Science Reader Fusion: scoped strictly to document/report/note reading & writing sheets. */
+:root .ks-app .ks-paper,
+:root .ks-app .ks-source-preview,
+:root .pn-app :is(.pn-note-detail, .pn-note-editor) {
+  background: var(--reader-bg, #faf9f5);
+  border-color: var(--reader-border, #e4e1d8);
+  border-radius: var(--workbench-radius-sm, 4px);
+  color: var(--reader-text, #27272a);
+}
+
+:root .ks-app :is(.ks-paper, .ks-rich-document, .ks-markdown, .ks-source-preview) :is(h1, h2, h3),
+:root .pn-app :is(.pn-note-detail, .pn-note-editor) :is(h1, h2, h3) {
+  font-family: var(--font-editorial-serif);
+  color: var(--reader-ink, #18181b);
+  letter-spacing: -0.015em;
+}
+
+:root .ks-app :is(.ks-paper, .ks-rich-document, .ks-markdown) blockquote,
+:root .pn-app :is(.pn-note-detail, .pn-note-editor) blockquote {
+  background: var(--reader-surface-alt, #f3f1ea);
+  border-left: 2.5px solid var(--reader-link, #2b4c7e);
+  color: var(--reader-text, #27272a);
+}
+
+:root .ks-app :is(.ks-paper, .ks-rich-document, .ks-markdown) table,
+:root .pn-app :is(.pn-note-detail, .pn-note-editor) table {
+  border-collapse: collapse;
+  border-top: 1.5px solid var(--reader-ink, #18181b);
+  border-bottom: 1.5px solid var(--reader-ink, #18181b);
+  font-variant-numeric: tabular-nums;
+}
+
+:root .ks-app :is(.ks-paper, .ks-rich-document, .ks-markdown) th,
+:root .pn-app :is(.pn-note-detail, .pn-note-editor) th {
+  border: 0;
+  border-bottom: 1px solid var(--reader-ink, #18181b);
+  background: transparent;
+  color: var(--reader-ink, #18181b);
+  font-weight: 600;
+}
+
+:root .ks-app :is(.ks-paper, .ks-rich-document, .ks-markdown) td,
+:root .pn-app :is(.pn-note-detail, .pn-note-editor) td {
+  border: 0;
+  border-bottom: 1px solid var(--reader-border, #e4e1d8);
+}
+
+:root .ks-app :is(.ks-paper, .ks-rich-document, .ks-markdown) tbody tr:last-child td,
+:root .pn-app :is(.pn-note-detail, .pn-note-editor) tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+:root .ks-app :is(.ks-paper, .ks-rich-document, .ks-markdown) a {
+  color: var(--reader-link, #2b4c7e);
 }
 
 :root .aa-app .aa-artifact-card:hover,

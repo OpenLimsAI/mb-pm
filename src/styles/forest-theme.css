@@ -1,47 +1,64 @@
-/* Shared Maibo Blue Edition palette. Semantic business states keep their own colors. */
+/* MBERP Design System v2.0: Swiss Clinical Base + Editorial Reader Tokens. */
 :root {
   color-scheme: only light;
   --workbench-brand: #1e466b;
-  --workbench-brand-strong: #153a5b;
-  --workbench-ink: #0d0d0d;
-  --workbench-text: #202b36;
-  --workbench-muted: #607184;
-  --workbench-line: #e0e6ed;
-  --workbench-line-strong: #abc4d9;
-  --workbench-soft: #edf5fb;
-  --workbench-bg: #fafafa;
+  --workbench-brand-strong: #153552;
+  --workbench-ink: #0f172a;
+  --workbench-text: #1e293b;
+  --workbench-muted: #64748b;
+  --workbench-line: #d8e0e8;
+  --workbench-line-subtle: #eef2f6;
+  --workbench-line-strong: #94a3b8;
+  --workbench-soft: #edf3f8;
+  --workbench-bg: #f6f8fa;
   --workbench-panel: #fff;
-  --workbench-panel-soft: #f6f8fb;
+  --workbench-panel-soft: #f8fafc;
   --workbench-mark: #1e466b;
   --workbench-on-brand: #fff;
   --workbench-on-mark: #fff;
-  --workbench-sky: #67baf4;
-  --workbench-highlight: #67baf4;
+  --workbench-sky: #2563eb;
+  --workbench-highlight: #3b82f6;
   --workbench-on-sky: #1e466b;
-  --workbench-header-height: 72px;
-  --workbench-radius: 12px;
+  --workbench-header-height: 56px;
+  --workbench-radius: 6px;
+  --workbench-radius-sm: 4px;
   --app-header-background: var(--workbench-panel);
+  /* Editorial Science Reader Scoped Tokens (used only inside paper/report/note reading sheets) */
+  --reader-bg: #faf9f5;
+  --reader-surface-alt: #f3f1ea;
+  --reader-ink: #18181b;
+  --reader-text: #27272a;
+  --reader-muted: #6b6860;
+  --reader-border: #e4e1d8;
+  --reader-link: #2b4c7e;
+  --reader-cite-bg: #eef2f8;
+  --font-editorial-serif: 'Source Serif 4', Georgia, 'New York', 'Songti SC', 'STSong', serif;
+  --font-mono-tabular: 'JetBrains Mono', 'SF Mono', Menlo, Monaco, Consolas, monospace;
   --forest-brand-50: 245 250 254;
-  --forest-brand-100: 234 244 252;
+  --forest-brand-100: 237 243 248;
   --forest-brand-200: 212 234 249;
   --forest-brand-300: 167 213 246;
-  --forest-brand-400: 103 186 244;
-  --forest-brand-500: 62 137 191;
+  --forest-brand-400: 59 130 246;
+  --forest-brand-500: 37 99 235;
   --forest-brand-600: 40 102 150;
   --forest-brand-700: 30 70 107;
-  --forest-brand-800: 24 58 91;
-  --forest-brand-900: 21 47 72;
-  --forest-ink-900: 13 13 13;
-  --forest-ink-700: 32 43 54;
-  --forest-ink-600: 79 96 112;
-  --forest-ink-500: 96 113 132;
-  --forest-ink-300: 224 230 237;
-  --forest-ink-100: 246 248 251;
+  --forest-brand-800: 21 53 82;
+  --forest-brand-900: 15 23 42;
+  --forest-ink-900: 15 23 42;
+  --forest-ink-700: 30 41 59;
+  --forest-ink-600: 71 85 105;
+  --forest-ink-500: 100 116 139;
+  --forest-ink-300: 216 224 232;
+  --forest-ink-100: 246 248 250;
 }
 
 body {
   background: var(--workbench-bg);
   color: var(--workbench-ink);
+}
+
+:root :is(table td, table th, .metric-value) {
+  font-variant-numeric: tabular-nums;
 }
 
 ::selection {
@@ -53,10 +70,12 @@ body {
   border-color: var(--workbench-line);
   border-radius: var(--workbench-radius);
   background: var(--workbench-panel);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 :root .btn-primary {
   border: 1px solid var(--workbench-brand);
+  border-radius: var(--workbench-radius-sm);
   background: var(--workbench-brand);
   color: var(--workbench-on-brand);
 }
@@ -67,10 +86,10 @@ body {
 }
 
 :root :is(.btn-secondary, .input) {
-  border-color: var(--workbench-line-strong);
+  border-color: var(--workbench-line);
   background: var(--workbench-panel);
   color: var(--workbench-text);
-  border-radius: 8px;
+  border-radius: var(--workbench-radius-sm);
 }
 
 :root .btn-secondary:hover:not(:disabled) {
