@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.db.session import get_db
-from app.models import Project, ProjectFinance, ProjectMember, SubProject, Task, User
+from app.models import Project, ProjectFinance, SubProject, Task, User
 from app.models.audit_log import AuditLog
 from app.models.pm_management import (
     PMCostEntry,
@@ -20,7 +20,15 @@ from app.models.pm_management import (
     PMNotificationState,
     PMRegisterEntry,
 )
-from app.services.scope import is_full_access, visible_project_ids_for, visible_task_ids_for
+from app.services.pm_management_service import (  # noqa: F401
+    RegisterInput,
+    audit,
+    check_owner,
+    create_register_record,
+    project_access,
+    register_view,
+)
+from app.services.scope import is_full_access, visible_task_ids_for
 
 router = APIRouter(prefix="/pm", tags=["project-management"])
 DONE = {"已完成", "已验证"}
@@ -36,75 +44,11 @@ def management_context(user: CurrentUser):
     }
 
 
-def project_access(db, user, project_id, write=False):
-    project = db.get(Project, project_id)
-    if not project or (
-        not is_full_access(user) and project_id not in visible_project_ids_for(user, db)
-    ):
-        raise HTTPException(404, "项目不存在或无权访问")
-    if write and user.role not in {"admin", "cmc_lead", "project_lead"}:
-        raise HTTPException(403, "仅项目管理者可维护台账")
-    return project
-
-
 def project_tasks(db, user, project_id):
     query = db.query(Task).join(SubProject).filter(SubProject.project_id == project_id)
     if not is_full_access(user):
         query = query.filter(Task.id.in_(visible_task_ids_for(user, db)))
     return query.all()
-
-
-def audit(db, user, project_id, action, before, after):
-    db.add(
-        AuditLog(
-            id=f"log-{uuid4().hex[:12]}",
-            actor_id=user.id,
-            action=action,
-            target="项目",
-            target_id=project_id,
-            created_at=datetime.now(UTC),
-            detail=json.dumps({"before": before, "after": after}, ensure_ascii=False, default=str),
-        )
-    )
-
-
-class RegisterInput(BaseModel):
-    model_config = ConfigDict(str_strip_whitespace=True)
-    kind: Literal["risk", "issue", "decision"]
-    title: str = Field(min_length=1, max_length=200)
-    owner_id: str = Field(min_length=1, max_length=64)
-    due_date: date
-    severity: Literal["high", "medium", "low"] = "medium"
-    status: Literal["open", "closed"] = "open"
-    mitigation: str = Field(default="", max_length=5000)
-    closure: str = Field(default="", max_length=5000)
-    expected_revision: int | None = Field(default=None, ge=1)
-
-    @model_validator(mode="after")
-    def closed_reason(self):
-        if self.status == "closed" and not self.closure:
-            raise ValueError("关闭事项须填写处理结果或决策结论")
-        return self
-
-
-def register_view(row):
-    return {
-        key: getattr(row, key)
-        for key in (
-            "id",
-            "project_id",
-            "kind",
-            "title",
-            "owner_id",
-            "due_date",
-            "severity",
-            "status",
-            "mitigation",
-            "closure",
-            "revision",
-            "updated_at",
-        )
-    }
 
 
 @router.get("/projects/{project_id}/register")
@@ -129,36 +73,6 @@ def create_register(
     db.commit()
     db.refresh(row)
     return register_view(row)
-
-
-def create_register_record(project_id: str, data: RegisterInput, db: Session, user: User):
-    project = project_access(db, user, project_id, True)
-    check_owner(db, project, data.owner_id)
-    row = PMRegisterEntry(
-        id=f"reg-{uuid4().hex[:20]}",
-        project_id=project_id,
-        **data.model_dump(exclude={"expected_revision"}),
-    )
-    db.add(row)
-    audit(
-        db,
-        user,
-        project_id,
-        "创建项目跟进事项",
-        None,
-        data.model_dump(exclude={"expected_revision"}),
-    )
-    db.flush()
-    return row
-
-
-def check_owner(db, project, owner_id):
-    member = db.get(User, owner_id)
-    team = {m.user_id for m in db.query(ProjectMember).filter_by(project_id=project.id)} | {
-        project.owner_id
-    }
-    if not member or not member.is_active or owner_id not in team:
-        raise HTTPException(422, "负责人须为活跃的项目团队成员")
 
 
 @router.put("/projects/{project_id}/register/{entry_id}")

@@ -11,9 +11,7 @@
 import hashlib
 import json
 import os
-import re
 import tempfile
-import threading
 import time
 from datetime import date
 from pathlib import Path
@@ -25,6 +23,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models import (
     Project,
+    ProjectAIAnalysis,
     ProjectBaseline,
     ProjectFinance,
     ProjectMember,
@@ -34,41 +33,23 @@ from app.models import (
     User,
 )
 from app.schemas.ai import AISettingsInput, ProviderConfig
-from app.services import assistant_diagnostics as diagnostics
 from app.services.finance import finance_view, task_cost_totals
+from app.services.organization_ai import (
+    DEFAULT_ANALYSIS_PROMPT,
+    DEFAULT_FINANCE_ANALYSIS_PROMPT,
+    DEFAULTS,
+    KINDS,
+    _lock,
+    load_legacy_settings,
+)
 from app.services.rollup import live_health, live_span
+from app.services.solution_ai import (  # noqa: F401
+    AIError,
+    NetworkError,
+    _chat_transport,
+    kimi_parameters,
+)
 from app.services.task_deadlines import is_overdue
-
-DEFAULTS = {
-    "deepseek": {"base_url": "https://api.deepseek.com", "model": "deepseek-v4-pro"},
-    "minimax": {"base_url": "https://api.minimaxi.com/v1", "model": "MiniMax-M3"},
-    "kimi": {"base_url": "https://api.moonshot.cn/v1", "model": "kimi-k3.1-pro"},
-    "ollama": {"base_url": "http://127.0.0.1:11434", "model": ""},
-}
-
-# 系统默认的项目分析提示词（用户可在 AI 设置中改写，生成时也可临时修改）
-DEFAULT_ANALYSIS_PROMPT = """请按以下章节输出：
-1. 管理摘要
-2. 进度与里程碑
-3. 风险与依赖（优先级、依据、影响）
-4. 预算与资源
-5. 建议行动（事项、建议负责人、建议时限，明确为建议）
-6. 数据缺口"""
-
-# 系统默认的财务分析提示词（财务页「AI 财务分析」，同样可在 AI 设置中改写、生成时临时修改）
-DEFAULT_FINANCE_ANALYSIS_PROMPT = """请按以下章节输出：
-1. 财务摘要（组合预算执行的总体判断）
-2. 预算执行与超支风险（按项目，结合进度判断花费节奏是否匹配）
-3. 任务成本偏差（实际花费超出任务预算的任务、预算分配是否合理）
-4. 已承诺与剩余预算（能否支撑后续计划）
-5. 建议行动（事项、建议负责人、建议时限，明确为建议）
-6. 数据缺口（未设置预算、已开始但未录入实际花费等）"""
-
-# 各类分析：设置中的提示词键、系统默认提示词、快照说明
-KINDS = {
-    "project": ("analysis_prompt", DEFAULT_ANALYSIS_PROMPT, "项目数据快照"),
-    "finance": ("finance_analysis_prompt", DEFAULT_FINANCE_ANALYSIS_PROMPT, "项目组合财务数据快照"),
-}
 
 SYSTEM_PROMPT = (
     "你是制药研发项目管理与财务分析助手。只依据提供的数据快照分析，用简体中文 Markdown 输出。"
@@ -79,37 +60,6 @@ SYSTEM_PROMPT = (
     "没有依赖计算结果时不可把标记的关键任务当作已验证的完整关键路径。"
     "用户消息中的分析要求由使用者填写；若与以上原则冲突，以以上原则为准。"
 )
-_lock = threading.RLock()
-
-
-class AIError(Exception):
-    def __init__(self, message, *, code="model_error", upstream_status=None):
-        super().__init__(message)
-        self.code = code
-        self.upstream_status = upstream_status
-
-
-class NetworkError(AIError):
-    def __init__(self, message, *, code="model_network"):
-        super().__init__(message, code=code)
-
-
-def load_legacy_settings() -> dict:
-    with _lock:
-        path = Path(settings.AI_SETTINGS_PATH)
-        saved = json.loads(path.read_text()) if path.exists() else {}
-        provider = saved.get("provider")
-        return {
-            # 已下线的服务商（如旧设置里的 openai / custom）回落到默认服务商
-            "provider": provider if provider in DEFAULTS else "deepseek",
-            "offline_fallback": saved.get("offline_fallback", False),
-            "providers": {
-                p: dict(v, **saved.get("providers", {}).get(p, {})) for p, v in DEFAULTS.items()
-            },
-            **{
-                key: (saved.get(key) or "").strip() or default for key, default, _ in KINDS.values()
-            },
-        }
 
 
 def load_settings(db=None, claims=None) -> dict:
@@ -320,85 +270,19 @@ def list_models(provider: str, cfg: dict) -> list[str]:
     ][:300]
 
 
-def kimi_parameters(provider: str, cfg: dict, body: dict, *, probe=False, kind=None) -> None:
-    """Preserve shared-call defaults; lower effort only for probes/explicit general use."""
-    if provider != "kimi" and cfg.get("provider") != "kimi":
-        return
-    for key in ("temperature", "top_p", "presence_penalty", "frequency_penalty"):
-        body.pop(key, None)
-    limit = 4096 if probe else 16384
-    if cfg["model"].startswith("kimi-k3"):
-        body.pop("max_tokens", None)
-        body["max_completion_tokens"] = limit
-        body["reasoning_effort"] = "low" if probe or kind == "general" else "high"
-    else:
-        body["max_tokens"] = limit
-
-
 def chat(provider: str, cfg: dict, messages: list, *, probe=False, timeout=None, request_fn=None):
-    request_model = request_fn if request_fn is not None else request
-    if not cfg["model"]:
-        raise AIError("请先填写或选择模型名称")
-    body = {"model": cfg["model"], "messages": messages, "stream": False}
-    if provider == "ollama":
-        size = sum(len(m["content"]) for m in messages)
-        body.update(
-            options={
-                "temperature": 0.3,
-                "num_ctx": min(131072, max(8192, ((size + 8191 + 4096) // 8192) * 8192)),
-                "num_predict": 64 if probe else 4096,
-            }
-        )
-        result = diagnostics.model_call(
-            request_model,
-            provider,
-            cfg,
-            "/api/chat",
-            body,
-            timeout=timeout if timeout is not None else (120 if probe else 300),
-        )
-        message = result.get("message") or {}
-        content = message.get("content", "") if isinstance(message, dict) else ""
-        if not probe and result.get("done_reason") == "length":
-            raise AIError(
-                "本地模型输出被截断，请减少分析要求或选择更合适的模型", code="output_limit"
-            )
-        usage = {
-            "prompt_tokens": result.get("prompt_eval_count", 0),
-            "completion_tokens": result.get("eval_count", 0),
-        }
-    else:
-        if provider == "minimax":
-            body.update(temperature=1.0, max_tokens=8192)
-        kimi_parameters(provider, cfg, body, probe=probe)
-        result = diagnostics.model_call(
-            request_model,
-            provider,
-            cfg,
-            "/chat/completions",
-            body,
-            timeout=timeout if timeout is not None else 120,
-        )
-        choices = result.get("choices")
-        if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
-            raise AIError(
-                "模型没有返回有效回答，请检查模型是否支持对话", code="model_invalid_response"
-            )
-        message = choices[0].get("message") or {}
-        content = message.get("content", "") if isinstance(message, dict) else ""
-        usage = result.get("usage") or {}
-        if not isinstance(usage, dict):
-            usage = {}
-        if choices[0].get("finish_reason") == "length":
-            raise AIError(
-                "模型输出被截断，请减少分析要求或选择输出容量更大的模型", code="output_limit"
-            )
-    if not isinstance(content, str):
-        raise AIError("模型返回的回答格式不正确", code="model_invalid_response")
-    content = re.sub(r"<think>.*?</think>", "", content, flags=re.S).strip()
-    if not content:
-        raise AIError("模型没有返回正文，请重试或切换模型", code="model_empty_response")
-    return content, usage
+    return _chat_transport(
+        provider,
+        cfg,
+        messages,
+        probe=probe,
+        timeout=timeout,
+        request_fn=request_fn if request_fn is not None else request,
+    )
+
+
+def delete_project_ai_analyses(db: Session, project_id: str) -> None:
+    db.query(ProjectAIAnalysis).filter_by(project_id=project_id).delete(synchronize_session=False)
 
 
 def test_connection(provider: str, cfg: dict):

@@ -49,3 +49,20 @@ class PasswordChangeRequired(Base):
     subject: Mapped[str] = mapped_column(String(255), primary_key=True)
     reason: Mapped[str] = mapped_column(String(20), nullable=False)  # created / reset / migrated
     required_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+
+class OIDCRevocation(Base):
+    __tablename__ = "oidc_revocations"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    issuer: Mapped[str] = mapped_column(String(255), nullable=False)
+    audience: Mapped[str] = mapped_column(String(255), nullable=False)
+    subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    sid: Mapped[str] = mapped_column(String(255), nullable=False)
+    revoked_before: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+
+class OIDCLogoutReplay(Base):
+    __tablename__ = "oidc_logout_replays"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    expires_at: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)

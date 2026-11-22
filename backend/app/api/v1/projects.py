@@ -23,7 +23,6 @@ from app.api.v1.mdm_integration import reference_user
 from app.db.session import get_db
 from app.models import (
     Project,
-    ProjectAIAnalysis,
     ProjectBaseline,
     ProjectFinance,
     ProjectMember,
@@ -41,6 +40,7 @@ from app.schemas.project import (
     ProjectOut,
     ProjectUpdate,
 )
+from app.services.ai import delete_project_ai_analyses
 from app.services.mdm_links import mdm_url
 from app.services.project_copy import copy_project
 from app.services.rollup import live_health, live_span
@@ -351,8 +351,9 @@ def delete_project(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
     try:
         # 财务、基线、AI 分析在 Project 上没有 ORM 关系，且 SQLite 默认不执行外键级联：显式删除，避免孤儿行。
-        for model in (ProjectFinance, ProjectBaseline, ProjectAIAnalysis):
+        for model in (ProjectFinance, ProjectBaseline):
             db.query(model).filter_by(project_id=project.id).delete(synchronize_session=False)
+        delete_project_ai_analyses(db, project.id)
         # 团队、子项目 → 任务 → 任务依赖 由 ORM cascade 删除。
         db.delete(project)
         db.commit()

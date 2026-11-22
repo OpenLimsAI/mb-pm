@@ -1,5 +1,6 @@
 """Feedback workflow invariants, safe source context and append-only subscriptions."""
 
+import logging
 import re
 from datetime import UTC, datetime
 from urllib.parse import quote, unquote, urlsplit
@@ -10,7 +11,6 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-from app.api.v1 import portal
 from app.models.feedback import (
     Feedback,
     FeedbackCounter,
@@ -19,8 +19,10 @@ from app.models.feedback import (
     FeedbackVote,
     FeedbackWatch,
 )
-from app.services import accounts
+from app.services import accounts, portal_identity
 from app.services.iam_admin import IAMError
+
+logger = logging.getLogger(__name__)
 
 STRUCTURED = (
     "steps_to_reproduce",
@@ -132,7 +134,7 @@ def ensure_numbers(engine):
 
 
 def admin(claims):
-    return "admin" in portal.enabled_roles(claims)
+    return "admin" in portal_identity.enabled_roles(claims)
 
 
 def live_admin(claims):
@@ -200,7 +202,10 @@ def metadata_rows(db, rows, claims):
         try:
             verified_admin = live_admin(claims)
         except HTTPException:
-            pass
+            logger.warning(
+                "Live admin role verification unavailable during feedback metadata read",
+                exc_info=True,
+            )
     result = {}
     for row in rows:
         mine = row.author_id == claims["sub"]

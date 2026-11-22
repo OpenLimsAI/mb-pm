@@ -11,17 +11,25 @@ from cryptography.fernet import InvalidToken
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
-from app.api.v1.pm_management import RegisterInput, check_owner, register_view
-from app.api.v1.task_collaboration import record_activity
-from app.api.v1.tasks import apply_task_create, apply_task_update
 from app.core.security import digest, seal, unseal
 from app.models import AuditLog, Project, SubProject, Task
 from app.models.pm_ai_changes import PMAIChangeReceipt
-from app.models.pm_management import PMRegisterEntry
 from app.models.task_collaboration import TaskAcceptance
 from app.schemas.business_values import MAX_EFFORT
 from app.schemas.task import TaskCreate, TaskOut, TaskUpdate
+from app.services.pm_management_service import (
+    RegisterInput,
+    check_owner,
+    get_register_entry,
+    insert_register_entry,
+    lock_register_entries,
+    register_project_id,
+    register_view,
+    update_register_entry_fields,
+)
 from app.services.scope import visible_project_ids_for, visible_task_ids_for
+from app.services.task_collaboration_service import record_activity
+from app.services.task_records import apply_task_create, apply_task_update
 from app.services.task_state import task_state_patch
 
 PURPOSE = "pm-ai-change-set-v1"
@@ -163,7 +171,7 @@ def action_project(db, action):
             .scalar()
         )
     else:
-        value = db.query(PMRegisterEntry.project_id).filter_by(id=action.entry_id).scalar()
+        value = register_project_id(db, action.entry_id)
     if value is None:
         raise HTTPException(404, "建议关联的记录不存在")
     return value
@@ -254,7 +262,7 @@ def prepare(db, user, run, actions):
         else:
             if action.entry_id not in included_entries:
                 raise HTTPException(422, "跟进事项未包含在本次分析中，请重新生成分析")
-            entry = db.get(PMRegisterEntry, action.entry_id)
+            entry = get_register_entry(db, action.entry_id)
             if entry.revision != action.expected_revision:
                 raise HTTPException(409, "跟进事项版本已变化，请重新核对建议")
             check_owner(db, project, entry.owner_id)
@@ -370,9 +378,7 @@ def apply(db, user, run_id, payload):
     db.query(Task).filter(Task.id.in_(task_ids)).order_by(
         Task.id
     ).with_for_update().populate_existing().all()
-    db.query(PMRegisterEntry).filter(PMRegisterEntry.id.in_(entry_ids)).order_by(
-        PMRegisterEntry.id
-    ).with_for_update().populate_existing().all()
+    lock_register_entries(db, entry_ids)
     changes, _ = prepare(db, user, run, actions)
     if approved["fingerprint"] != fingerprint(actions, changes):
         raise HTTPException(409, "项目数据已变化，请重新预览")
@@ -415,15 +421,18 @@ def apply(db, user, run_id, payload):
                 values = RegisterInput.model_validate(change["after"]).model_dump(
                     exclude={"expected_revision"}
                 )
-                row = PMRegisterEntry(id=entity_id, project_id=action.project_id, **values)
-                db.add(row)
-            else:
-                row = (
-                    db.query(PMRegisterEntry).filter_by(id=action.entry_id).with_for_update().one()
+                insert_register_entry(
+                    db, entry_id=entity_id, project_id=action.project_id, **values
                 )
-                for field in ("status", "closure", "mitigation"):
-                    setattr(row, field, change["after"][field])
-                row.revision += 1
+            else:
+                row = update_register_entry_fields(
+                    db,
+                    action.entry_id,
+                    {
+                        field: change["after"][field]
+                        for field in ("status", "closure", "mitigation")
+                    },
+                )
                 entity_id = row.id
             is_task = isinstance(action, TaskCreateDraft | TaskUpdateDraft)
             href = f"/projects/{quote(change['project_id'], safe='')}?tab={'wbs&task=' + quote(entity_id, safe='') if is_task else 'management'}"
@@ -460,8 +469,11 @@ def apply(db, user, run_id, payload):
         db.flush()
         db.expire_all()
         for result, change in zip(results, changes, strict=True):
-            row = db.get(
-                Task if result["kind"].startswith("task_") else PMRegisterEntry, result["entity_id"]
+            is_task_change = result["kind"].startswith("task_")
+            row = (
+                db.get(Task, result["entity_id"])
+                if is_task_change
+                else get_register_entry(db, result["entity_id"])
             )
             expected = change["after"]
             fields = (
@@ -476,7 +488,7 @@ def apply(db, user, run_id, payload):
                     "owner_id",
                     "sub_project_id",
                 )
-                if isinstance(row, Task)
+                if is_task_change
                 else (
                     "kind",
                     "title",
@@ -490,7 +502,7 @@ def apply(db, user, run_id, payload):
             )
             actual = (
                 TaskOut.model_validate(row).model_dump(mode="json")
-                if isinstance(row, Task)
+                if is_task_change
                 else json.loads(json.dumps(register_view(row), default=str))
             )
             if any(actual.get(field) != expected[field] for field in fields if field in expected):

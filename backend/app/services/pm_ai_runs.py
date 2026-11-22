@@ -639,7 +639,7 @@ def start_worker():
                 if process_one():
                     continue
             except Exception:
-                logger.warning("Project assistant queue polling failed")
+                logger.warning("Project assistant queue polling failed", exc_info=True)
             stop.wait(2)
 
     thread = threading.Thread(target=work, daemon=True, name="pm-ai-runs")

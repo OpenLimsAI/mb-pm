@@ -10,12 +10,12 @@ from fastapi import HTTPException
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, defer
 
-from app.api.v1.pm_management import register_view
-from app.api.v1.task_collaboration import acceptance_out, utc_time
 from app.models import Project, ProjectBaseline, SubProject, Task, TaskDependency, User
 from app.models.pm_management import PMRegisterEntry
 from app.models.task_collaboration import TaskAcceptance, TaskActivity, TaskDeliverable
+from app.services.pm_management_service import register_view
 from app.services.scope import is_full_access, visible_project_ids_for, visible_task_ids_for
+from app.services.task_collaboration_service import acceptance_out, utc_time
 from app.services.task_deadlines import is_overdue, overdue_clause
 from app.services.team import team_ids
 
