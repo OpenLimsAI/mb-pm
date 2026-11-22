@@ -3,6 +3,7 @@
 import http.client
 import ipaddress
 import json
+import re
 import socket
 import ssl
 import time
@@ -15,11 +16,22 @@ from app.core.security import unseal
 from app.models.solution_ai import SolutionAISettings
 from app.schemas.model_network import internal_approved
 from app.schemas.solution_ai import ModelSettingsInput, allowed_address, model_url
-from app.services import ai
 from app.services import assistant_diagnostics as diagnostics
 
 CONFIG_ERROR = "个人模型配置暂不可读取，请联系管理员检查加密配置"
 CONFLICT = "模型配置已有新修改，请重新加载后编辑；未覆盖已保存设置"
+
+
+class AIError(Exception):
+    def __init__(self, message, *, code="model_error", upstream_status=None):
+        super().__init__(message)
+        self.code = code
+        self.upstream_status = upstream_status
+
+
+class NetworkError(AIError):
+    def __init__(self, message, *, code="model_network"):
+        super().__init__(message, code=code)
 
 
 def _load_personal(db, claims):
@@ -147,10 +159,10 @@ def resolved_addresses(host, port, *, allow_private=False):
             or (not allow_private and not ipaddress.ip_address(address).is_global)
             for address in candidates
         ):
-            raise ai.AIError("模型地址解析到禁止访问的网络地址", code="model_network")
+            raise AIError("模型地址解析到禁止访问的网络地址", code="model_network")
         return candidates
     except (socket.gaierror, ValueError):
-        raise ai.AIError("模型地址无法解析，请检查地址与网络", code="model_network") from None
+        raise AIError("模型地址无法解析，请检查地址与网络", code="model_network") from None
 
 
 class PinnedHTTPConnection(http.client.HTTPConnection):
@@ -205,7 +217,7 @@ def pinned_request(provider, cfg, path, body=None, timeout=60):
         response = connection.getresponse()
         diagnostics.transport_status(response.status)
         if response.status < 200 or response.status >= 300:
-            raise ai.AIError(
+            raise AIError(
                 "模型服务拒绝请求，请核对地址、模型、密钥与账户状态",
                 code=diagnostics.upstream_code(response.status),
                 upstream_status=response.status,
@@ -223,35 +235,125 @@ def pinned_request(provider, cfg, path, body=None, timeout=60):
             chunks.append(chunk)
             length += len(chunk)
             if length > 2_000_000:
-                raise ai.AIError("模型回复过长，请缩小问题范围", code="response_too_large")
+                raise AIError("模型回复过长，请缩小问题范围", code="response_too_large")
         result = json.loads(b"".join(chunks))
         if not isinstance(result, dict):
-            raise ai.AIError("模型服务未返回有效的对话结果", code="model_invalid_response")
+            raise AIError("模型服务未返回有效的对话结果", code="model_invalid_response")
         base = result.get("base_resp") or {}
         if (
             result.get("error")
             or not isinstance(base, dict)
             or base.get("status_code") not in (None, 0)
         ):
-            raise ai.AIError("模型服务拒绝请求，请检查个人模型设置", code="model_rejected")
+            raise AIError("模型服务拒绝请求，请检查个人模型设置", code="model_rejected")
         return result
-    except ai.AIError:
+    except AIError:
         raise
     except TimeoutError:
-        raise ai.AIError(
+        raise AIError(
             "模型连接失败或响应无效，请检查个人模型地址与网络", code="model_timeout"
         ) from None
     except (OSError, http.client.HTTPException):
-        raise ai.AIError(
+        raise AIError(
             "模型连接失败或响应无效，请检查个人模型地址与网络", code="model_network"
         ) from None
     except (ValueError, TypeError):
-        raise ai.AIError(
+        raise AIError(
             "模型连接失败或响应无效，请检查个人模型地址与网络", code="model_invalid_response"
         ) from None
     finally:
         if connection is not None:
             connection.close()
+
+
+def kimi_parameters(provider: str, cfg: dict, body: dict, *, probe=False, kind=None) -> None:
+    """Preserve shared-call defaults; lower effort only for probes/explicit general use."""
+    if provider != "kimi" and cfg.get("provider") != "kimi":
+        return
+    for key in ("temperature", "top_p", "presence_penalty", "frequency_penalty"):
+        body.pop(key, None)
+    limit = 4096 if probe else 16384
+    if cfg["model"].startswith("kimi-k3"):
+        body.pop("max_tokens", None)
+        body["max_completion_tokens"] = limit
+        body["reasoning_effort"] = "low" if probe or kind == "general" else "high"
+    else:
+        body["max_tokens"] = limit
+
+
+def _chat_transport(
+    provider: str, cfg: dict, messages: list, *, probe=False, timeout=None, request_fn
+):
+    if not cfg["model"]:
+        raise AIError("请先填写或选择模型名称")
+    body = {"model": cfg["model"], "messages": messages, "stream": False}
+    if provider == "ollama":
+        size = sum(len(m["content"]) for m in messages)
+        body.update(
+            options={
+                "temperature": 0.3,
+                "num_ctx": min(131072, max(8192, ((size + 8191 + 4096) // 8192) * 8192)),
+                "num_predict": 64 if probe else 4096,
+            }
+        )
+        result = diagnostics.model_call(
+            request_fn,
+            provider,
+            cfg,
+            "/api/chat",
+            body,
+            timeout=timeout if timeout is not None else (120 if probe else 300),
+        )
+        message = result.get("message") or {}
+        content = message.get("content", "") if isinstance(message, dict) else ""
+        if not probe and result.get("done_reason") == "length":
+            raise AIError(
+                "本地模型输出被截断，请减少分析要求或选择更合适的模型", code="output_limit"
+            )
+        usage = {
+            "prompt_tokens": result.get("prompt_eval_count", 0),
+            "completion_tokens": result.get("eval_count", 0),
+        }
+    else:
+        if provider == "minimax":
+            body.update(temperature=1.0, max_tokens=8192)
+        kimi_parameters(provider, cfg, body, probe=probe)
+        result = diagnostics.model_call(
+            request_fn,
+            provider,
+            cfg,
+            "/chat/completions",
+            body,
+            timeout=timeout if timeout is not None else 120,
+        )
+        choices = result.get("choices")
+        if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+            raise AIError(
+                "模型没有返回有效回答，请检查模型是否支持对话", code="model_invalid_response"
+            )
+        message = choices[0].get("message") or {}
+        content = message.get("content", "") if isinstance(message, dict) else ""
+        usage = result.get("usage") or {}
+        if not isinstance(usage, dict):
+            usage = {}
+        if choices[0].get("finish_reason") == "length":
+            raise AIError(
+                "模型输出被截断，请减少分析要求或选择输出容量更大的模型", code="output_limit"
+            )
+    if not isinstance(content, str):
+        raise AIError("模型返回的回答格式不正确", code="model_invalid_response")
+    content = re.sub(r"<think>.*?</think>", "", content, flags=re.S).strip()
+    if not content:
+        raise AIError("模型没有返回正文，请重试或切换模型", code="model_empty_response")
+    return content, usage
+
+
+_chat_dispatcher = _chat_transport
+
+
+def register_chat_dispatcher(fn) -> None:
+    global _chat_dispatcher
+    _chat_dispatcher = fn
 
 
 def transport_provider(profile):
@@ -265,7 +367,7 @@ def transport_provider(profile):
 def chat(profile, messages, *, timeout=60):
     # Use only model/messages/stream. In particular do not inherit global vendor tuning.
     provider = transport_provider(profile)
-    return ai.chat(provider, profile, messages, timeout=timeout, request_fn=pinned_request)
+    return _chat_dispatcher(provider, profile, messages, timeout=timeout, request_fn=pinned_request)
 
 
 def test_connection(db, claims, draft):
@@ -277,6 +379,6 @@ def test_connection(db, claims, draft):
     start = time.monotonic()
     try:
         chat(profile, [{"role": "user", "content": "连接测试。请只回复：连接成功。"}], timeout=25)
-    except (ai.AIError, OSError, ValueError, KeyError, TypeError):
+    except (AIError, OSError, ValueError, KeyError, TypeError):
         raise HTTPException(503, "连接测试失败，请核对个人模型地址、名称、密钥和服务状态") from None
     return {"ok": True, "model": profile["model"], "ms": round((time.monotonic() - start) * 1000)}

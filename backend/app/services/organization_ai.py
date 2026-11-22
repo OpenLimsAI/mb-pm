@@ -1,5 +1,9 @@
 """One encrypted model/default registry per verified issuer and organization."""
 
+import json
+import threading
+from pathlib import Path
+
 from cryptography.fernet import InvalidToken
 from fastapi import HTTPException
 from sqlalchemy import update
@@ -14,6 +18,60 @@ from app.schemas.solution_ai import RESERVED_IDS, SharedModelSettingsInput
 PREFIX = "shared:"
 CONFLICT = "共享模型配置已有新修改，请重新加载后编辑；未覆盖已保存设置"
 UNAVAILABLE = "共享模型配置暂不可读取，请联系管理员检查加密配置"
+
+DEFAULTS = {
+    "deepseek": {"base_url": "https://api.deepseek.com", "model": "deepseek-v4-pro"},
+    "minimax": {"base_url": "https://api.minimaxi.com/v1", "model": "MiniMax-M3"},
+    "kimi": {"base_url": "https://api.moonshot.cn/v1", "model": "kimi-k3.1-pro"},
+    "ollama": {"base_url": "http://127.0.0.1:11434", "model": ""},
+}
+
+DEFAULT_ANALYSIS_PROMPT = """请按以下章节输出：
+1. 管理摘要
+2. 进度与里程碑
+3. 风险与依赖（优先级、依据、影响）
+4. 预算与资源
+5. 建议行动（事项、建议负责人、建议时限，明确为建议）
+6. 数据缺口"""
+
+DEFAULT_FINANCE_ANALYSIS_PROMPT = """请按以下章节输出：
+1. 财务摘要（组合预算执行的总体判断）
+2. 预算执行与超支风险（按项目，结合进度判断花费节奏是否匹配）
+3. 任务成本偏差（实际花费超出任务预算的任务、预算分配是否合理）
+4. 已承诺与剩余预算（能否支撑后续计划）
+5. 建议行动（事项、建议负责人、建议时限，明确为建议）
+6. 数据缺口（未设置预算、已开始但未录入实际花费等）"""
+
+KINDS = {
+    "project": ("analysis_prompt", DEFAULT_ANALYSIS_PROMPT, "项目数据快照"),
+    "finance": ("finance_analysis_prompt", DEFAULT_FINANCE_ANALYSIS_PROMPT, "项目组合财务数据快照"),
+}
+_lock = threading.RLock()
+
+
+def load_legacy_settings() -> dict:
+    with _lock:
+        path = Path(settings.AI_SETTINGS_PATH)
+        saved = json.loads(path.read_text()) if path.exists() else {}
+        provider = saved.get("provider")
+        return {
+            "provider": provider if provider in DEFAULTS else "deepseek",
+            "offline_fallback": saved.get("offline_fallback", False),
+            "providers": {
+                p: dict(v, **saved.get("providers", {}).get(p, {})) for p, v in DEFAULTS.items()
+            },
+            **{
+                key: (saved.get(key) or "").strip() or default for key, default, _ in KINDS.values()
+            },
+        }
+
+
+_legacy_loader = load_legacy_settings
+
+
+def register_legacy_loader(fn) -> None:
+    global _legacy_loader
+    _legacy_loader = fn
 
 
 def identity(claims):
@@ -32,9 +90,7 @@ def public_id(value):
 
 
 def legacy_bootstrap():
-    from app.services import ai
-
-    legacy = ai.load_legacy_settings()
+    legacy = _legacy_loader()
     profiles = []
     for provider, cfg in legacy["providers"].items():
         if not cfg.get("model"):
@@ -44,7 +100,7 @@ def legacy_bootstrap():
                 "id": "system_" + provider,
                 "name": "系统 " + provider,
                 "provider": provider,
-                "base_url": cfg.get("base_url") or ai.DEFAULTS[provider]["base_url"],
+                "base_url": cfg.get("base_url") or DEFAULTS[provider]["base_url"],
                 "model": cfg["model"],
                 "api_key": cfg.get("api_key", ""),
             }

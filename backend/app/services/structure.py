@@ -22,12 +22,12 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.api.v1.task_collaboration import record_activity
 from app.models import AuditLog, Project, ProjectFinance, SubProject, Task, TaskDependency, User
 from app.models.task import TASK_WBS_ORDER
 from app.schemas.structure import StructureSaveIn
 from app.services.finance import finance_view, task_cost_totals, update_finance
 from app.services.rollup import live_span, recompute_project, recompute_subproject
+from app.services.task_collaboration_service import record_activity
 from app.services.task_state import task_state_patch
 from app.services.team import ADD_FIRST, team_ids
 

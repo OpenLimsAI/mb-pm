@@ -10,14 +10,25 @@ from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.v1 import pm_management, task_collaboration, tasks
-from app.api.v1.planning import apply_schedule_changes, schedule_state
 from app.core.config import settings
 from app.models import AgentProposal, AuditLog, Project, SubProject, Task, TaskDependency, User
 from app.models.task_collaboration import TaskAcceptance, TaskDeliverable
 from app.schemas import agent_actions as schema
 from app.schemas.task import TaskCreate, TaskUpdate
-from app.services import agent_projects, planning
+from app.services import (
+    agent_projects,
+    planning,
+)
+from app.services import (
+    pm_management_service as pm_management,
+)
+from app.services import (
+    task_collaboration_service as task_collaboration,
+)
+from app.services import (
+    task_records as tasks,
+)
+from app.services.planning import apply_schedule_changes, schedule_state
 from app.services.project_ai_actions import digest
 from app.services.project_schedule_assist import selected_task
 from app.services.rollup import recompute_project

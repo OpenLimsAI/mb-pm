@@ -9,16 +9,16 @@ from typing import Literal
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.api.v1.planning import apply_schedule_changes, schedule_state
-from app.api.v1.task_collaboration import record_activity
-from app.models import AuditLog, SubProject, Task, User
-from app.models.pm_management import PMRegisterEntry
+from app.models import AuditLog, SubProject, User
 from app.models.project_ai_work import ProjectAIAction
 from app.schemas.task import TaskCreate
 from app.services import ai
-from app.services.planning import preview_schedule
+from app.services.planning import apply_schedule_changes, preview_schedule, schedule_state
+from app.services.pm_management_service import insert_register_entry
 from app.services.rollup import recompute_project, recompute_subproject
+from app.services.task_collaboration_service import record_activity
 from app.services.task_order import next_sort_order
+from app.services.task_records import insert_task_from_payload
 from app.services.team import ensure_in_team
 
 
@@ -201,9 +201,7 @@ def apply_action(db, project, user, report, payload):
             notes=f"来源分析：{report.id}\n采纳原因：{draft.reason}",
             sort_order=next_sort_order(db, draft.sub_project_id),
         )
-        task = Task(**data.model_dump())
-        db.add(task)
-        db.flush()
+        task = insert_task_from_payload(db, data)
         record_activity(
             db,
             task,
@@ -214,18 +212,17 @@ def apply_action(db, project, user, report, payload):
         )
         recompute_subproject(db, task.sub_project_id)
     elif draft.kind == "risk":
-        db.add(
-            PMRegisterEntry(
-                id=target_id,
-                project_id=project.id,
-                kind="risk",
-                title=draft.title,
-                owner_id=draft.owner_id,
-                due_date=draft.due_date,
-                severity=draft.severity,
-                mitigation=f"来源分析：{report.id}\n{draft.reason}",
-                status="open",
-            )
+        insert_register_entry(
+            db,
+            entry_id=target_id,
+            project_id=project.id,
+            kind="risk",
+            title=draft.title,
+            owner_id=draft.owner_id,
+            due_date=draft.due_date,
+            severity=draft.severity,
+            mitigation=f"来源分析：{report.id}\n{draft.reason}",
+            status="open",
         )
     else:
         tasks, _, _ = schedule_state(db, user, project.id, lock=True)

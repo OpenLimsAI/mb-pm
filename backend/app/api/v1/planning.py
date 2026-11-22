@@ -10,12 +10,17 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_role
-from app.api.v1.task_collaboration import invalidate_acceptance, record_activity
 from app.db.session import get_db
-from app.models import AuditLog, Project, ProjectMember, SubProject, Task, TaskDependency, User
+from app.models import AuditLog, ProjectMember, SubProject, Task, User
 from app.models.planning import ProjectCalendar, UserWeeklyCapacity
-from app.services.planning import calendar_dict, preview_schedule
-from app.services.rollup import recompute_project, recompute_subproject
+from app.services.planning import (  # noqa: F401
+    apply_schedule_changes,
+    calendar_dict,
+    ensure_project,
+    preview_schedule,
+    schedule_state,
+)
+from app.services.rollup import recompute_project
 from app.services.scope import is_full_access, visible_project_ids_for
 
 router = APIRouter(prefix="/planning", tags=["planning"])
@@ -23,14 +28,6 @@ manager = require_role("admin", "cmc_lead", "project_lead")
 Db = Annotated[Session, Depends(get_db)]
 Manager = Annotated[User, Depends(manager)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
-
-
-def ensure_project(db, user, project_id, lock=False):
-    query = db.query(Project).filter_by(id=project_id)
-    project = (query.with_for_update() if lock else query).first()
-    if not project or project_id not in visible_project_ids_for(user, db):
-        raise HTTPException(404, "项目不存在或不可访问")
-    return project
 
 
 def audit(db, user, action, target, detail):
@@ -105,35 +102,6 @@ class ScheduleInput(BaseModel):
     reason: str = Field(default="", max_length=2000)
 
 
-def schedule_state(db, user, project_id, lock=False):
-    ensure_project(db, user, project_id, lock=lock)
-    subs = db.query(SubProject).filter_by(project_id=project_id).all()
-    query = db.query(Task).filter(Task.sub_project_id.in_([s.id for s in subs])).order_by(Task.id)
-    tasks = (query.with_for_update() if lock else query).all()
-    ids = [task.id for task in tasks]
-    deps = (
-        db.query(TaskDependency)
-        .filter(TaskDependency.predecessor_id.in_(ids), TaskDependency.successor_id.in_(ids))
-        .all()
-    )
-    # The single-project solver cannot prove constraints in either direction.
-    # Never silently drop an external predecessor (including an invisible one).
-    external = (
-        db.query(TaskDependency)
-        .filter(
-            (TaskDependency.predecessor_id.in_(ids) & ~TaskDependency.successor_id.in_(ids))
-            | (~TaskDependency.predecessor_id.in_(ids) & TaskDependency.successor_id.in_(ids))
-        )
-        .first()
-    )
-    if external:
-        raise HTTPException(
-            422,
-            "项目存在跨项目上游或下游依赖，当前单项目推演不能完整校验；请先由负责人协调跨项目计划",
-        )
-    return tasks, deps, calendar_dict(db.get(ProjectCalendar, project_id))
-
-
 @router.post("/projects/{project_id}/schedule-preview")
 def preview(
     project_id: str,
@@ -189,26 +157,6 @@ def apply(
     recompute_project(db, project_id)
     db.commit()
     return result
-
-
-def apply_schedule_changes(db, user, tasks, schedule_changes, activity_note):
-    """Apply a verified plan under the caller's transaction and task locks."""
-    by_id = {task.id: task for task in tasks}
-    for change in schedule_changes:
-        task = by_id[change["task_id"]]
-        task.planned_start = date.fromisoformat(change["new_start"])
-        task.planned_end = date.fromisoformat(change["new_end"])
-        changes = {
-            "planned_start": {"before": change["old_start"], "after": change["new_start"]},
-            "planned_end": {"before": change["old_end"], "after": change["new_end"]},
-        }
-        record_activity(db, task, user, "change", activity_note, changes)
-        invalidate_acceptance(db, task, user)
-        # Explicit timestamp also invalidates structure-editor snapshots.
-        task.updated_at = datetime.now(UTC)
-    db.flush()
-    for sub_id in {task.sub_project_id for task in tasks}:
-        recompute_subproject(db, sub_id)
 
 
 class CapacityInput(BaseModel):

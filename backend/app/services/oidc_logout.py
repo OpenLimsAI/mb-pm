@@ -6,6 +6,7 @@ the server session; no identity or bearer token is placed in a browser URL.
 
 import hashlib
 import json
+import logging
 import time
 from urllib.parse import parse_qs
 
@@ -19,10 +20,19 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.security import decode_access_token, digest, signing_key, unseal
+from app.core.security import (
+    LOGIN_COOKIE,
+    SESSION_COOKIE,
+    decode_access_token,
+    digest,
+    signing_key,
+    unseal,
+)
 from app.models import IAMLogin, IAMSession, PortalLogin, PortalSession
-from app.models.mdm_integration import OIDCLogoutReplay, OIDCRevocation
+from app.models.iam import OIDCLogoutReplay, OIDCRevocation
+from app.services.portal_identity import PORTAL_LOGIN_COOKIE, PORTAL_SESSION_COOKIE
 
+logger = logging.getLogger(__name__)
 EVENT = "http://schemas.openid.net/event/backchannel-logout"
 
 
@@ -224,9 +234,6 @@ def _logout_token_state(client, access: str, audience: str, subject: str, *, por
 
 
 def global_logout(request: Request, db: Session, *, portal: bool = False, all_devices: bool = True):
-    from app.api.v1.portal import PORTAL_LOGIN_COOKIE, PORTAL_SESSION_COOKIE
-    from app.core.security import LOGIN_COOKIE, SESSION_COOKIE
-
     if not all_devices and not settings.OIDC_DEVICE_LOGOUT_ENABLED:
         raise HTTPException(503, "当前设备统一退出尚未启用")
     cookie = PORTAL_SESSION_COOKIE if portal else SESSION_COOKIE
@@ -276,7 +283,17 @@ def global_logout(request: Request, db: Session, *, portal: bool = False, all_de
                     succeeded = not _logout_token_state(
                         client, access, audience, claims["sub"], portal=portal
                     )
-        except (InvalidToken, httpx.HTTPError, HTTPException, ValueError, TypeError, KeyError):
+        except (
+            InvalidToken,
+            httpx.HTTPError,
+            HTTPException,
+            ValueError,
+            TypeError,
+            KeyError,
+        ) as exc:
+            logger.warning(
+                "Global OIDC logout upstream verification failed (%s)", type(exc).__name__
+            )
             succeeded = False
     if claims and (all_devices or isinstance(claims.get("sid"), str) and claims["sid"]):
         # Revoke own PM/portal sessions even if provider notification is delayed.
@@ -332,7 +349,11 @@ def global_logout(request: Request, db: Session, *, portal: bool = False, all_de
                         preserve = candidate_claims.get("sub") != claims["sub"] or (
                             not all_devices and candidate_claims.get("sid") != claims.get("sid")
                         )
-                    except (InvalidToken, HTTPException, ValueError, TypeError, KeyError):
+                    except (InvalidToken, HTTPException, ValueError, TypeError, KeyError) as exc:
+                        logger.warning(
+                            "Preserving cross-app session cookie during global logout (%s)",
+                            type(exc).__name__,
+                        )
                         preserve = True
             if preserve:
                 protected_cookies.add(cookie_name)
@@ -357,9 +378,6 @@ def global_logout(request: Request, db: Session, *, portal: bool = False, all_de
 
 
 def local_logout(request: Request, db: Session, *, portal: bool = False):
-    from app.api.v1.portal import PORTAL_LOGIN_COOKIE, PORTAL_SESSION_COOKIE
-    from app.core.security import LOGIN_COOKIE, SESSION_COOKIE
-
     pairs = (
         [(PortalSession, PORTAL_SESSION_COOKIE), (PortalLogin, PORTAL_LOGIN_COOKIE)]
         if portal

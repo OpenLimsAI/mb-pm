@@ -2,9 +2,15 @@
 
 import hashlib
 import json
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from fastapi import HTTPException
+
+from app.models import Project, SubProject, Task, TaskDependency
+from app.models.planning import ProjectCalendar
+from app.services.rollup import recompute_subproject
+from app.services.scope import visible_project_ids_for
+from app.services.task_collaboration_service import invalidate_acceptance, record_activity
 
 DEFAULT_CALENDAR = {
     "weekdays": [1, 2, 3, 4, 5, 6, 7],
@@ -163,3 +169,58 @@ def preview_schedule(tasks, deps, calendar, task_id, new_start, new_end, locked_
         "previous_finish": max((t.planned_end for t in tasks), default=new_end).isoformat(),
         "new_finish": max((end for _, end in dates.values()), default=new_end).isoformat(),
     }
+
+
+def ensure_project(db, user, project_id, lock=False):
+    query = db.query(Project).filter_by(id=project_id)
+    project = (query.with_for_update() if lock else query).first()
+    if not project or project_id not in visible_project_ids_for(user, db):
+        raise HTTPException(404, "项目不存在或不可访问")
+    return project
+
+
+def schedule_state(db, user, project_id, lock=False):
+    ensure_project(db, user, project_id, lock=lock)
+    subs = db.query(SubProject).filter_by(project_id=project_id).all()
+    query = db.query(Task).filter(Task.sub_project_id.in_([s.id for s in subs])).order_by(Task.id)
+    tasks = (query.with_for_update() if lock else query).all()
+    ids = [task.id for task in tasks]
+    deps = (
+        db.query(TaskDependency)
+        .filter(TaskDependency.predecessor_id.in_(ids), TaskDependency.successor_id.in_(ids))
+        .all()
+    )
+    external = (
+        db.query(TaskDependency)
+        .filter(
+            (TaskDependency.predecessor_id.in_(ids) & ~TaskDependency.successor_id.in_(ids))
+            | (~TaskDependency.predecessor_id.in_(ids) & TaskDependency.successor_id.in_(ids))
+        )
+        .first()
+    )
+    if external:
+        raise HTTPException(
+            422,
+            "项目存在跨项目上游或下游依赖，当前单项目推演不能完整校验；请先由负责人协调跨项目计划",
+        )
+    return tasks, deps, calendar_dict(db.get(ProjectCalendar, project_id))
+
+
+def apply_schedule_changes(db, user, tasks, schedule_changes, activity_note):
+    """Apply a verified plan under the caller's transaction and task locks."""
+    by_id = {task.id: task for task in tasks}
+    for change in schedule_changes:
+        task = by_id[change["task_id"]]
+        task.planned_start = date.fromisoformat(change["new_start"])
+        task.planned_end = date.fromisoformat(change["new_end"])
+        changes = {
+            "planned_start": {"before": change["old_start"], "after": change["new_start"]},
+            "planned_end": {"before": change["old_end"], "after": change["new_end"]},
+        }
+        record_activity(db, task, user, "change", activity_note, changes)
+        invalidate_acceptance(db, task, user)
+        # Explicit timestamp also invalidates structure-editor snapshots.
+        task.updated_at = datetime.now(UTC)
+    db.flush()
+    for sub_id in {task.sub_project_id for task in tasks}:
+        recompute_subproject(db, sub_id)

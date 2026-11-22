@@ -39,10 +39,13 @@ from app.schemas.auth import LoginStart
 from app.schemas.portal import PortalApplicationOut, PortalMeOut, PortalUserOut
 from app.services import iam_login, password_policy
 from app.services.iam_admin import IAMError
+from app.services.portal_identity import (
+    PORTAL_LOGIN_COOKIE,
+    PORTAL_SESSION_COOKIE,
+    enabled_roles,
+)
 
 router = APIRouter(prefix="/portal", tags=["portal"])
-PORTAL_LOGIN_COOKIE = "mbportal_iam_login"
-PORTAL_SESSION_COOKIE = "mbportal_iam_session"
 
 
 def require_configuration() -> None:
@@ -112,20 +115,6 @@ def session_data(request: Request, db: Session) -> dict:
 
 # 工作台「设置 › AI 分析」可修改的角色（与项目管理 ai.config 一致）
 AI_MANAGERS = ("admin", "cmc_lead", "project_lead")
-
-
-def enabled_roles(claims: dict) -> set[str]:
-    entries = claims.get("roles")
-    if not isinstance(entries, list):
-        return set()
-    return {
-        role["name"]
-        for role in entries
-        if isinstance(role, dict)
-        and role.get("owner") == settings.CASDOOR_ORG
-        and role.get("isEnabled", True) is True
-        and isinstance(role.get("name"), str)
-    }
 
 
 def mdm_entry() -> PortalApplicationOut:

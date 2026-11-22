@@ -5,10 +5,10 @@ from urllib.parse import urlsplit
 
 from fastapi import HTTPException
 
-from app.api.v1.knowledge_sources import connected
 from app.core.config import settings
 from app.services import accounts
 from app.services.iam_admin import IAMError
+from app.services.knowledge_source_context import connected
 from app.services.solution_knowledge import _valid_path
 
 HASH_PATTERN = r"^[a-f0-9]{64}$"

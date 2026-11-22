@@ -6,17 +6,21 @@ results and explicit change previews remain the only path to business writes.
 
 import copy
 import json
+import logging
 import re
 import time
 from datetime import UTC, datetime
 
 from fastapi import HTTPException
 from sqlalchemy import update
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.db.session import SessionLocal
 from app.models.pm_ai import PMAIRun
 from app.services import ai, pm_ai_generation
 from app.services.pm_ai_context import ContextRequest, build_context, fingerprint, recheck_user
+
+logger = logging.getLogger(__name__)
 
 WINDOW_CALLS = 12
 WINDOW_TOKENS = 131072
@@ -463,7 +467,10 @@ def execute(run_id, claim):
             provider, profile = config["provider"], config["providers"][config["provider"]]
             if not profile.get("model"):
                 raise ValueError("empty model")
-        except Exception:
+        except (HTTPException, SQLAlchemyError, OSError, ValueError, KeyError, TypeError) as exc:
+            logger.warning(
+                "PM AI workflow model configuration unavailable (%s)", type(exc).__name__
+            )
             workflow["pause_reason"] = "model_configuration"
             checkpoint(
                 run_id,
@@ -719,7 +726,8 @@ def resume(db, user, run):
     try:
         if model_fingerprint(ai.load_settings(db)) != workflow["model_fingerprint"]:
             reason = "model_changed"
-    except Exception:
+    except (HTTPException, SQLAlchemyError, OSError, ValueError, KeyError, TypeError) as exc:
+        logger.warning("PM AI workflow resume model check failed (%s)", type(exc).__name__)
         workflow["pause_reason"] = "model_configuration"
         row.workflow = workflow
         db.commit()

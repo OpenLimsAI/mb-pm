@@ -11,9 +11,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models import AuditLog, Project, User
+from app.models import AuditLog, User
 from app.models.mdm_integration import MDMProjectReceipt
 from app.schemas.mdm_integration import MDMProjectCreate
+from app.services import project_records
 
 
 def fingerprint(body: MDMProjectCreate) -> str:
@@ -37,7 +38,7 @@ def _lock(db: Session, *values: str) -> None:
 
 
 def describe(db: Session, receipt: MDMProjectReceipt) -> dict:
-    project = db.get(Project, receipt.project_id)
+    project = project_records.get_project(db, receipt.project_id)
     if project is None:
         raise HTTPException(409, "创建回执对应项目已不存在，需人工对账")
     reference = {
@@ -106,29 +107,24 @@ def create_project(db: Session, body: MDMProjectCreate, actor: User) -> tuple[di
     owner = db.get(User, body.project.owner_id)
     if owner is None or not owner.is_active:
         raise HTTPException(422, "项目负责人不存在或已停用")
-    if db.scalar(select(Project.id).where(Project.code == body.project.code)):
+    if project_records.project_code_exists(db, body.project.code):
         repeat = existing()
         if repeat is not None:
             return repeat
         raise HTTPException(409, "执行项目编号已存在，不能按编号自动关联")
-    project = Project(
-        id="p-mdm-" + uuid4().hex[:24],
-        **body.project.model_dump(),
-        status="活跃",
-        health="green",
-        progress=0,
-    )
+    project_id = "p-mdm-" + uuid4().hex[:24]
     receipt = MDMProjectReceipt(
         request_id=request_id,
         source_id=body.source_id,
         source_project_id=body.source_project_id,
         request_hash=request_hash,
-        project_id=project.id,
+        project_id=project_id,
         created_by=actor.id,
     )
     try:
-        db.add(project)
-        db.flush()
+        project = project_records.create_mdm_project(
+            db, project_id=project_id, **body.project.model_dump()
+        )
         db.add(receipt)
         db.add(
             AuditLog(

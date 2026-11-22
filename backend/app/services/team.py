@@ -83,3 +83,10 @@ def backfill_assignees(db: Session) -> int:
     if added:
         db.commit()
     return added
+
+
+def check_owner(db: Session, project: Project, owner_id: str) -> None:
+    """校验负责人为活跃账号且在项目团队中（供 PM 台账与 AI 变更共用）。"""
+    member = db.get(User, owner_id)
+    if not member or not member.is_active or owner_id not in team_ids(db, project):
+        raise HTTPException(422, "负责人须为活跃的项目团队成员")
