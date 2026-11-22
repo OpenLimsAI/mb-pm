@@ -365,8 +365,8 @@ export default function LibraryWorkbench({ data, folder, storageKey, density, bu
             <Download aria-hidden="true" />{exporting ? '正在导出…' : '导出所选'}
           </button>
         </div>
-        <button type="button" className="kso-btn quiet ksv-clear-selection" disabled={actionsDisabled}
-          onClick={() => { setSelectedPapers([]); setBulkMenu(null) }}>取消选择</button>
+        <button type="button" className={`kso-btn ksv-clear-selection${selected.length ? ' primary' : ' quiet'}`} disabled={actionsDisabled}
+          onClick={() => { setSelectedPapers([]); setBulkMenu(null) }}>取消</button>
       </div>
     </div>
     <div className={`ksv-reading-layout${paper && readerOpen ? ' has-reader' : ''}`}><div className="ksv-list" ref={listRef} tabIndex={0} aria-label="论文列表" aria-busy={loading} onScroll={e => { interacted.current=true;scroll.current = Math.round(e.currentTarget.scrollTop);locationDirty.current=true;if(Date.now()-lastScrollWrite.current>250){lastScrollWrite.current=Date.now();try{localStorage.setItem(`${storageKey}:v3:scroll:${folder}`,String(scroll.current))}catch{/* Scrolling works without browser storage. */}}persistLocation() }}>
