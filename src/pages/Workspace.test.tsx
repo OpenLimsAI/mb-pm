@@ -1,7 +1,16 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import Workspace from './Workspace'
+
+afterEach(() => {
+  try {
+    window.localStorage?.clear()
+  } catch {
+    // Ignore storage cleanup errors when tests stub restricted storage.
+  }
+  vi.restoreAllMocks()
+})
 
 describe('workspace application entries', () => {
   it('opens local application previews without a production login jump', () => {
@@ -92,4 +101,74 @@ it.each([false, true])('opens data backup only with its own entitlement (%s)', e
 it('links the data backup preview to an explicit preview route', () => {
   render(<MemoryRouter><Workspace user={null} applications={[]} preview onRefresh={vi.fn()} onLogout={vi.fn()} /></MemoryRouter>)
   expect(screen.getByRole('link', { name: '进入数据备份' })).toHaveAttribute('href', '/data-backup?preview=1')
+})
+
+describe('workspace compact icon mode switcher', () => {
+  it('defaults to compact icon mode, hides verbose feature bullets, and preserves all sections and links', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <Workspace user={{ id: 'u1', username: 'researcher', displayName: '研究员' }} applications={[{ id: 'assistant', enabled: true }, { id: 'pm', enabled: true }]} onRefresh={vi.fn()} onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
+    const switcher = screen.getByRole('group', { name: '工作台视图模式' })
+    const compactBtn = within(switcher).getByRole('button', { name: '紧凑图标' })
+    const cardsBtn = within(switcher).getByRole('button', { name: '详细卡片' })
+    expect(compactBtn).toHaveAttribute('aria-pressed', 'true')
+    expect(cardsBtn).toHaveAttribute('aria-pressed', 'false')
+    expect(container.querySelector('.workspace-sections--compact')).toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: '主要功能' })).not.toBeInTheDocument()
+    expect([...container.querySelectorAll('.workspace-category h2')].map(el => el.textContent)).toEqual([
+      'AI 智能版块',
+      '知识信息版块',
+      '业务管理版块',
+      '数据管理版块',
+      '功能设置版块',
+    ])
+    expect(screen.getByRole('link', { name: '进入AI 助手' })).toHaveAttribute('href', '/assistant')
+    expect(screen.getByRole('link', { name: '进入项目管理' })).toHaveAttribute('href', '/launch/pm')
+  })
+
+  it('switches between compact icon mode and detailed cards mode and persists preference in localStorage', () => {
+    const { unmount } = render(
+      <MemoryRouter>
+        <Workspace user={{ id: 'u1', username: 'researcher', displayName: '研究员' }} applications={[]} preview onRefresh={vi.fn()} onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
+    const switcher = screen.getByRole('group', { name: '工作台视图模式' })
+    fireEvent.click(within(switcher).getByRole('button', { name: '详细卡片' }))
+
+    expect(within(switcher).getByRole('button', { name: '详细卡片' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(switcher).getByRole('button', { name: '紧凑图标' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getAllByRole('list', { name: '主要功能' }).length).toBeGreaterThan(0)
+    expect(window.localStorage.getItem('maibo.workspace.viewMode')).toBe('cards')
+
+    unmount()
+    render(
+      <MemoryRouter>
+        <Workspace user={{ id: 'u1', username: 'researcher', displayName: '研究员' }} applications={[]} preview onRefresh={vi.fn()} onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
+    const remountedSwitcher = screen.getByRole('group', { name: '工作台视图模式' })
+    expect(within(remountedSwitcher).getByRole('button', { name: '详细卡片' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getAllByRole('list', { name: '主要功能' }).length).toBeGreaterThan(0)
+
+    fireEvent.click(within(remountedSwitcher).getByRole('button', { name: '紧凑图标' }))
+    expect(within(remountedSwitcher).getByRole('button', { name: '紧凑图标' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('list', { name: '主要功能' })).not.toBeInTheDocument()
+    expect(window.localStorage.getItem('maibo.workspace.viewMode')).toBe('compact')
+  })
+
+  it('falls back safely when localStorage access throws', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked') })
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked') })
+    render(
+      <MemoryRouter>
+        <Workspace user={{ id: 'u1', username: 'researcher', displayName: '研究员' }} applications={[]} preview onRefresh={vi.fn()} onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
+    const switcher = screen.getByRole('group', { name: '工作台视图模式' })
+    expect(within(switcher).getByRole('button', { name: '紧凑图标' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(within(switcher).getByRole('button', { name: '详细卡片' }))
+    expect(within(switcher).getByRole('button', { name: '详细卡片' })).toHaveAttribute('aria-pressed', 'true')
+  })
 })

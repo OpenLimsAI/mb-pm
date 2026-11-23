@@ -1,11 +1,13 @@
 """Real Core/storage acceptance; temporary bases, deterministic local embeddings."""
 
 import asyncio
+import functools
 import hashlib
 import tempfile
+import types
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import httpx
 from fastapi import FastAPI
@@ -18,7 +20,15 @@ from dikw_core.schemas import Layer
 from dikw_core.server.auth import AuthConfig
 from dikw_core.server.errors import install_handlers
 from dikw_core.server.runtime import build_runtime, teardown_runtime
-from folder_core import run_scoped, run_incremental, checked_path, registry, install
+from folder_core import (
+    checked_path,
+    install,
+    registry,
+    run_incremental,
+    run_scoped,
+    scoped_engine,
+    verify_ingest_contract,
+)
 
 
 class Embedder:
@@ -306,6 +316,70 @@ class CoreAcceptance(unittest.IsolatedAsyncioTestCase):
                     conflict = await client.post(url, json=body, headers=headers)
                     self.assertEqual(conflict.status_code, 409)
                     self.assertTrue(md.is_file() and pdf.is_file())
+
+    async def test_verify_ingest_contract_and_scoped_engine_unwrap_decorated_ingest(self):
+        fake_module = types.ModuleType("fake_dikw_ingest")
+
+        def default_iter_source_files(sources_cfg, *, root):
+            return iter(
+                [
+                    (root / "sources" / "alpha.md", "sources/alpha.md"),
+                    (root / "sources" / "beta.md", "sources/beta.md"),
+                ]
+            )
+
+        async def default_with_storage(path):
+            cfg = types.SimpleNamespace(sources="sources")
+            return cfg, Path(path), MagicMock(name="raw_storage")
+
+        def traced_decorator(fn):
+            @functools.wraps(fn)
+            async def wrapper(*args, **kwargs):
+                return await fn(*args, **kwargs)
+
+            return wrapper
+
+        async def raw_ingest(path, *, embedder=None, reporter=None):
+            cfg, root, storage = await _with_storage(path)  # noqa: F821
+            visited = [logical for _, logical in iter_source_files(cfg.sources, root=root)]  # noqa: F821
+            return {
+                "visited": visited,
+                "storage_type": type(storage).__name__,
+                "embedder": embedder,
+            }
+
+        fake_module.iter_source_files = default_iter_source_files
+        fake_module._with_storage = default_with_storage
+        inner_ingest = types.FunctionType(
+            raw_ingest.__code__,
+            fake_module.__dict__,
+            name="ingest",
+            argdefs=raw_ingest.__defaults__,
+            closure=raw_ingest.__closure__,
+        )
+        inner_ingest.__kwdefaults__ = dict(raw_ingest.__kwdefaults__ or {})
+        fake_module.ingest = traced_decorator(inner_ingest)
+
+        unwrapped = verify_ingest_contract(fake_module, version_str="0.6.10")
+        self.assertIs(unwrapped, inner_ingest)
+
+        alpha = self.write("alpha", "Alpha content")
+        beta = self.write("beta", "Beta content")
+        with patch("folder_core.iter_source_files", default_iter_source_files), patch(
+            "folder_core._with_storage", default_with_storage
+        ):
+            scoped_fn = scoped_engine({beta}, {beta}, ingest_module=fake_module)
+            result = await scoped_fn(self.root, embedder="mock-embedder")
+        self.assertEqual(
+            result,
+            {
+                "visited": [beta],
+                "storage_type": "ScopedStorage",
+                "embedder": "mock-embedder",
+            },
+        )
+        upstream_result = await fake_module.ingest(self.root)
+        self.assertEqual(upstream_result["visited"], [alpha, beta])
 
 
 if __name__ == "__main__":

@@ -1,10 +1,32 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Archive, ArrowRight, BookOpen, BriefcaseBusiness, Check, ChevronRight, FilePenLine, MessageSquareText, NotebookPen, Settings2, SlidersHorizontal, LockKeyhole, Radar, Sparkles, RefreshCw, ShieldCheck, UsersRound } from 'lucide-react'
+import { Archive, ArrowRight, BookOpen, BriefcaseBusiness, Check, ChevronRight, FilePenLine, LayoutGrid, LockKeyhole, MessageSquareText, NotebookPen, Radar, RefreshCw, Rows3, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, UsersRound } from 'lucide-react'
 import PortalLayout from '../components/portal/PortalLayout'
 import { workspaceSections } from '../components/portal/workspaceSections'
 import { usePortalContext } from '../components/portal/context'
 import { knowledgeLaunchUrl, siteMode } from '../lib/site'
+
+type WorkspaceViewMode = 'compact' | 'cards'
+
+const VIEW_MODE_STORAGE_KEY = 'maibo.workspace.viewMode'
+
+function readStoredViewMode(): WorkspaceViewMode {
+  try {
+    const value = window.localStorage?.getItem(VIEW_MODE_STORAGE_KEY)
+    if (value === 'compact' || value === 'cards') return value
+  } catch {
+    // Restricted storage environments fall back to compact mode.
+  }
+  return 'compact'
+}
+
+function writeStoredViewMode(mode: WorkspaceViewMode): void {
+  try {
+    window.localStorage?.setItem(VIEW_MODE_STORAGE_KEY, mode)
+  } catch {
+    // Ignore storage write failures in restricted environments.
+  }
+}
 
 export interface WorkspaceUser {
   id: string
@@ -67,10 +89,23 @@ const settingApps: readonly ApplicationPresentation[] = [
 ]
 const icons = { backup: Archive, assistant: Sparkles, solutions: FilePenLine, notes: NotebookPen, knowledge: BookOpen, information: Radar, projects: BriefcaseBusiness, hr: UsersRound, accounts: ShieldCheck, settings: Settings2, ai: SlidersHorizontal, feedback: MessageSquareText }
 
-function ApplicationCard({ application, access, preview }: { application: ApplicationPresentation; access?: WorkspaceApplication; preview: boolean }) {
+function ApplicationCard({ application, access, preview, compact = false }: { application: ApplicationPresentation; access?: WorkspaceApplication; preview: boolean; compact?: boolean }) {
   const Icon = icons[application.kind]
   const enabled = !application.planned && (preview || !application.accessId || access?.enabled === true)
-  const content = (
+  const unavailableReason = application.planned ? '应用待开发，敬请期待。' : (access?.reason || '尚未开通此应用，请联系管理员。')
+  const content = compact ? (
+    <>
+      <span className="workspace-app-icon"><Icon size={20} strokeWidth={1.75} aria-hidden="true" /></span>
+      <h3>{application.name}</h3>
+      <span className="workspace-compact-meta">
+        {application.planned
+          ? '待开发'
+          : enabled
+            ? application.domain
+            : <span className="workspace-compact-locked"><LockKeyhole size={11} aria-hidden="true" /><span>{access?.reason || '待开通'}</span></span>}
+      </span>
+    </>
+  ) : (
     <>
       <div className="workspace-app-topline">
         <span className="workspace-app-icon"><Icon size={27} strokeWidth={1.7} aria-hidden="true" /></span>
@@ -87,15 +122,29 @@ function ApplicationCard({ application, access, preview }: { application: Applic
       {enabled ? <div className="workspace-app-entry">
         <span>进入{application.name}</span>
         <ArrowRight size={20} aria-hidden="true" />
-      </div> : <div className="workspace-app-unavailable"><LockKeyhole size={15} aria-hidden="true" /><span>{application.planned ? '应用待开发，敬请期待。' : access?.reason || '尚未开通此应用，请联系管理员。'}</span></div>}
+      </div> : <div className="workspace-app-unavailable"><LockKeyhole size={15} aria-hidden="true" /><span>{unavailableReason}</span></div>}
     </>
   )
-  const className = `workspace-app-card workspace-app-card--${application.kind}${enabled ? '' : ' workspace-app-card--unavailable'}`
+  const className = `workspace-app-card workspace-app-card--${application.kind}${compact ? ' workspace-app-card--compact' : ''}${enabled ? '' : ' workspace-app-card--unavailable'}`
+  const cardTitle = enabled ? `${application.name} — ${application.description}` : unavailableReason
 
-  if (!enabled || (preview && !application.previewHref)) return <article className={className} aria-label={application.name}>{content}</article>
+  if (!enabled || (preview && !application.previewHref)) {
+    return (
+      <article className={className} aria-label={application.name} title={compact ? cardTitle : undefined}>
+        {content}
+      </article>
+    )
+  }
 
   return (
-    <a className={className} href={preview ? application.previewHref : application.href} target={application.external ? '_blank' : undefined} rel={application.external ? 'noopener noreferrer' : undefined} aria-label={`进入${application.name}`}>
+    <a
+      className={className}
+      href={preview ? application.previewHref : application.href}
+      target={application.external ? '_blank' : undefined}
+      rel={application.external ? 'noopener noreferrer' : undefined}
+      aria-label={`进入${application.name}`}
+      title={compact ? `${application.name} — ${application.description}` : undefined}
+    >
       {content}
     </a>
   )
@@ -104,6 +153,8 @@ function ApplicationCard({ application, access, preview }: { application: Applic
 export default function Workspace({ user, applications, onRefresh, onLogout, preview = false }: WorkspaceProps) {
   const [refreshing, setRefreshing] = useState(false)
   const [notice, setNotice] = useState('')
+  const [viewMode, setViewMode] = useState<WorkspaceViewMode>(readStoredViewMode)
+  const isCompact = viewMode === 'compact'
   const { hash, key } = useLocation()
   useEffect(() => {
     const section = workspaceSections.find(entry => hash === `#${entry.id}`)
@@ -117,6 +168,11 @@ export default function Workspace({ user, applications, onRefresh, onLogout, pre
   const displayName = user?.displayName || user?.username || ''
   // 账号管理仅向获得准入的人显示；界面预览和普通员工不显示。
   const showManagement = !preview && applications.some((entry) => entry.id === 'accounts' && entry.enabled)
+
+  const selectViewMode = (mode: WorkspaceViewMode) => {
+    setViewMode(mode)
+    writeStoredViewMode(mode)
+  }
 
   const refreshIdentity = async () => {
     if (refreshing) return
@@ -134,43 +190,71 @@ export default function Workspace({ user, applications, onRefresh, onLogout, pre
 
   return (
     <PortalLayout user={user} logout={onLogout} preview={preview}>
-        <section className="workspace-welcome" aria-labelledby="workspace-welcome-title">
+        <section className={`workspace-welcome workspace-welcome--${viewMode}`} aria-labelledby="workspace-welcome-title">
           <div className="workspace-welcome-content">
             <div className="workspace-welcome-label"><span className="workspace-label-line" /> MAIBO WORKSPACE</div>
             <h1 id="workspace-welcome-title">{displayName ? `${displayName}，欢迎回来` : '欢迎来到迈博工作空间'}</h1>
             <p>从这里开始，连接项目与知识，继续今天的工作。</p>
-            <div className="workspace-welcome-meta"><ShieldCheck size={16} aria-hidden="true" /><span>{preview ? '迈博数字化应用门户' : '迈博 IAM 统一身份登录'}</span></div>
+            <div className="workspace-welcome-meta"><ShieldCheck size={isCompact ? 14 : 16} aria-hidden="true" /><span>{preview ? '迈博数字化应用门户' : '迈博 IAM 统一身份登录'}</span></div>
+          </div>
+          <div className="workspace-toolbar">
+            <div className="workspace-view-switch" role="group" aria-label="工作台视图模式">
+              <button
+                type="button"
+                className={`workspace-view-option${isCompact ? ' is-active' : ''}`}
+                aria-pressed={isCompact}
+                onClick={() => selectViewMode('compact')}
+              >
+                <LayoutGrid size={14} aria-hidden="true" />
+                <span>紧凑图标</span>
+              </button>
+              <button
+                type="button"
+                className={`workspace-view-option${!isCompact ? ' is-active' : ''}`}
+                aria-pressed={!isCompact}
+                onClick={() => selectViewMode('cards')}
+              >
+                <Rows3 size={14} aria-hidden="true" />
+                <span>详细卡片</span>
+              </button>
+            </div>
+            <button type="button" className="workspace-refresh" onClick={() => { void refreshIdentity() }} disabled={refreshing || preview}><RefreshCw size={14} className={refreshing ? 'workspace-spin' : undefined} aria-hidden="true" /><span>{refreshing ? '正在刷新' : '刷新身份'}</span></button>
           </div>
         </section>
+        <p className="workspace-notice" role="status" aria-live="polite">{notice}</p>
 
-        <section id="workspace-intelligence" tabIndex={-1} className="workspace-category workspace-category--intelligence" aria-labelledby="workspace-intelligence-title">
-          <div className="workspace-section-heading"><div><div className="workspace-section-label">AI INTELLIGENCE</div><h2 id="workspace-intelligence-title">AI 智能版块</h2><p>与 AI 一起拆解问题、整理资料，形成可继续使用的工作成果。</p></div><Sparkles size={25} aria-hidden="true" /></div>
-          <div className="workspace-app-grid workspace-ai-grid">{assistantApps.map(application => <ApplicationCard key={application.id} application={application} access={applications.find(entry => entry.id === application.accessId)} preview={preview} />)}</div>
-        </section>
+        <div className={`workspace-sections workspace-sections--${viewMode}`}>
+          <section id="workspace-intelligence" tabIndex={-1} className="workspace-category workspace-category--intelligence" aria-labelledby="workspace-intelligence-title">
+            <div className="workspace-section-heading"><div><div className="workspace-section-label">AI INTELLIGENCE</div><h2 id="workspace-intelligence-title">AI 智能版块</h2><p>与 AI 一起拆解问题、整理资料，形成可继续使用的工作成果。</p></div><Sparkles size={25} aria-hidden="true" /></div>
+            <div className="workspace-app-grid workspace-ai-grid">{assistantApps.map(application => <ApplicationCard key={application.id} application={application} access={applications.find(entry => entry.id === application.accessId)} preview={preview} compact={isCompact} />)}</div>
+          </section>
 
-        <section id="workspace-knowledge" tabIndex={-1} className="workspace-apps workspace-category workspace-category--knowledge" aria-labelledby="workspace-knowledge-title">
-          <div className="workspace-section-heading">
-            <div><div className="workspace-section-label">KNOWLEDGE & INFORMATION</div><h2 id="workspace-knowledge-title">知识信息版块</h2><p>从资料与笔记出发，连接研究、知识和行业动态。</p></div>
-            <button type="button" className="workspace-refresh" onClick={() => { void refreshIdentity() }} disabled={refreshing || preview}><RefreshCw size={16} className={refreshing ? 'workspace-spin' : undefined} aria-hidden="true" />{refreshing ? '正在刷新' : '刷新身份'}</button>
-          </div>
-          <p className="workspace-notice" role="status" aria-live="polite">{notice}</p>
-          <div className="workspace-app-grid">{knowledgeApps.map(application => <ApplicationCard key={application.id} application={application} access={applications.find(entry => entry.id === application.accessId)} preview={preview} />)}</div>
-        </section>
-        <section id="workspace-business" tabIndex={-1} className="workspace-category workspace-category--business" aria-labelledby="workspace-business-title">
-          <div className="workspace-section-heading"><div><div className="workspace-section-label">BUSINESS MANAGEMENT</div><h2 id="workspace-business-title">业务管理版块</h2><p>集中处理项目协作、人员事务与使用反馈。</p></div><BriefcaseBusiness size={25} aria-hidden="true" /></div>
-          <div className="workspace-app-grid workspace-business-grid">{businessApps.map(application => <ApplicationCard key={application.id} application={application} access={applications.find(entry => entry.id === application.accessId)} preview={preview} />)}</div>
-        </section>
-        <section id="workspace-data" tabIndex={-1} className="workspace-category workspace-category--data" aria-labelledby="workspace-data-title">
-          <div className="workspace-section-heading"><div><div className="workspace-section-label">DATA MANAGEMENT</div><h2 id="workspace-data-title">数据管理版块</h2><p>管理业务数据保护，核对备份状态与恢复能力。</p></div><Archive size={25} aria-hidden="true" /></div>
-          <div className="workspace-app-grid">{dataApps.map(application => <ApplicationCard key={application.id} application={application} access={applications.find(entry => entry.id === application.accessId)} preview={preview} />)}</div>
-        </section>
-        <section id="workspace-settings" tabIndex={-1} className="workspace-category workspace-category--settings" aria-labelledby="workspace-settings-title">
-          <div className="workspace-section-heading"><div><div className="workspace-section-label">PREFERENCES & TOOLS</div><h2 id="workspace-settings-title">功能设置版块</h2><p>管理个人偏好、AI 模型、主数据与账号权限。</p></div><Settings2 size={25} aria-hidden="true" /></div>
-          <div className="workspace-app-grid">{settingApps.filter(application => application.id !== 'accounts' || showManagement).map(application => <ApplicationCard key={application.id} application={application} access={applications.find(entry => entry.id === application.accessId)} preview={preview} />)}</div>
-        </section>
+          <section id="workspace-knowledge" tabIndex={-1} className="workspace-apps workspace-category workspace-category--knowledge" aria-labelledby="workspace-knowledge-title">
+            <div className="workspace-section-heading">
+              <div><div className="workspace-section-label">KNOWLEDGE & INFORMATION</div><h2 id="workspace-knowledge-title">知识信息版块</h2><p>从资料与笔记出发，连接研究、知识和行业动态。</p></div>
+              <BookOpen size={25} aria-hidden="true" />
+            </div>
+            <div className="workspace-app-grid">{knowledgeApps.map(application => <ApplicationCard key={application.id} application={application} access={applications.find(entry => entry.id === application.accessId)} preview={preview} compact={isCompact} />)}</div>
+          </section>
 
-        <aside className="workspace-help" aria-label="账号与访问说明">
-          <span className="workspace-help-icon"><ShieldCheck size={22} strokeWidth={1.6} aria-hidden="true" /></span>
+          <section id="workspace-business" tabIndex={-1} className="workspace-category workspace-category--business" aria-labelledby="workspace-business-title">
+            <div className="workspace-section-heading"><div><div className="workspace-section-label">BUSINESS MANAGEMENT</div><h2 id="workspace-business-title">业务管理版块</h2><p>集中处理项目协作、人员事务与使用反馈。</p></div><BriefcaseBusiness size={25} aria-hidden="true" /></div>
+            <div className="workspace-app-grid workspace-business-grid">{businessApps.map(application => <ApplicationCard key={application.id} application={application} access={applications.find(entry => entry.id === application.accessId)} preview={preview} compact={isCompact} />)}</div>
+          </section>
+
+          <section id="workspace-data" tabIndex={-1} className="workspace-category workspace-category--data" aria-labelledby="workspace-data-title">
+            <div className="workspace-section-heading"><div><div className="workspace-section-label">DATA MANAGEMENT</div><h2 id="workspace-data-title">数据管理版块</h2><p>管理业务数据保护，核对备份状态与恢复能力。</p></div><Archive size={25} aria-hidden="true" /></div>
+            <div className="workspace-app-grid">{dataApps.map(application => <ApplicationCard key={application.id} application={application} access={applications.find(entry => entry.id === application.accessId)} preview={preview} compact={isCompact} />)}</div>
+          </section>
+
+          <section id="workspace-settings" tabIndex={-1} className="workspace-category workspace-category--settings" aria-labelledby="workspace-settings-title">
+            <div className="workspace-section-heading"><div><div className="workspace-section-label">PREFERENCES & TOOLS</div><h2 id="workspace-settings-title">功能设置版块</h2><p>管理个人偏好、AI 模型、主数据与账号权限。</p></div><Settings2 size={25} aria-hidden="true" /></div>
+            <div className="workspace-app-grid">{settingApps.filter(application => application.id !== 'accounts' || showManagement).map(application => <ApplicationCard key={application.id} application={application} access={applications.find(entry => entry.id === application.accessId)} preview={preview} compact={isCompact} />)}</div>
+          </section>
+        </div>
+
+        <aside className={`workspace-help workspace-help--${viewMode}`} aria-label="账号与访问说明">
+          <span className="workspace-help-icon"><ShieldCheck size={isCompact ? 16 : 22} strokeWidth={1.6} aria-hidden="true" /></span>
           <div><strong>一个身份，连接你的工作</strong><p>账号由系统管理员统一开通；修改用户名或密码请在「我的设置」中进行。</p></div>
           <Link to="/help">使用帮助<ChevronRight size={16} aria-hidden="true" /></Link>
         </aside>

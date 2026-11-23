@@ -112,7 +112,8 @@ def verify_ingest_contract(ingest_module=api_ingest, version_str: str | None = N
         raise RuntimeError(
             f"Folder extension requires dikw-core >=0.6.10,<0.8.0 (got {raw_version})"
         )
-    ingest_fn = getattr(ingest_module, "ingest", None)
+    raw_ingest_fn = getattr(ingest_module, "ingest", None)
+    ingest_fn = inspect.unwrap(raw_ingest_fn) if raw_ingest_fn is not None else None
     if not inspect.iscoroutinefunction(ingest_fn):
         raise RuntimeError("Upstream dikw_core.api_ingest.ingest is not an async function")
     required_globals = {"iter_source_files", "_with_storage"}
