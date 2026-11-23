@@ -287,3 +287,24 @@ def test_phase3_folder_core_exec_free_function_cloning_and_version_contract(tmp_
     # Upstream ingest remains untouched and still sees both files
     upstream_res = asyncio.run(fake_ingest.ingest(tmp_path))
     assert upstream_res["visited"] == ["sources/a.md", "sources/b.md"]
+
+    # Decorated upstream ingest (e.g. @traced_op using @functools.wraps) unwraps cleanly
+    import functools
+
+    raw_inner = fake_ingest.ingest
+
+    @functools.wraps(raw_inner)
+    async def traced_wrapper(*args, **kwargs):
+        return await raw_inner(*args, **kwargs)
+
+    fake_ingest.ingest = traced_wrapper
+    assert folder_core.verify_ingest_contract(fake_ingest, version_str="0.6.10") is raw_inner
+    scoped_wrapped = folder_core.scoped_engine(
+        {"sources/a.md"}, {"sources/a.md"}, ingest_module=fake_ingest
+    )
+    wrapped_res = asyncio.run(scoped_wrapped(tmp_path, embedder="wrapped-embed"))
+    assert wrapped_res == {
+        "visited": ["sources/a.md"],
+        "storage_type": "ScopedStorage",
+        "embedder": "wrapped-embed",
+    }

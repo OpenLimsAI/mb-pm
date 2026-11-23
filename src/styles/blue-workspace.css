@@ -2,7 +2,10 @@
 :root .efficient-portal .workspace-welcome {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 20px;
+  flex-wrap: wrap;
   min-height: 0;
   overflow: hidden;
   padding: 18px 22px;
@@ -21,7 +24,9 @@
 :root .efficient-portal .workspace-welcome-content {
   position: relative;
   z-index: 1;
-  width: 100%;
+  flex: 1 1 280px;
+  min-width: 0;
+  width: auto;
 }
 
 :root .efficient-portal .workspace-welcome-label {
@@ -373,6 +378,362 @@
 
 @media (prefers-reduced-motion: reduce) {
   :root .efficient-portal .workspace-app-card {
+    transition: none;
+  }
+}
+
+/* Swiss Clinical v2.0 Toolbar, Notice & Compact Icon Bento Mode */
+:root .efficient-portal .workspace-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+:root .efficient-portal .workspace-view-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--workbench-line);
+  border-radius: var(--workbench-radius-sm, 4px);
+  background: var(--workbench-panel-soft);
+}
+
+:root .efficient-portal .workspace-view-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 26px;
+  padding: 3px 9px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--workbench-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color .15s, color .15s, box-shadow .15s;
+}
+
+:root .efficient-portal .workspace-view-option:hover:not(.is-active) {
+  color: var(--workbench-ink);
+  background: rgba(15, 23, 42, 0.04);
+}
+
+:root .efficient-portal .workspace-view-option.is-active {
+  background: var(--workbench-panel);
+  color: var(--workbench-brand);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 0 0 1px rgba(30, 70, 107, 0.12);
+}
+
+:root .efficient-portal .workspace-toolbar .workspace-refresh {
+  min-height: 32px;
+  padding: 5px 10px;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+:root .efficient-portal .workspace-toolbar .workspace-refresh:disabled {
+  cursor: default;
+}
+
+:root .efficient-portal .workspace-notice:empty {
+  display: none;
+  margin: 0;
+  min-height: 0;
+}
+
+:root .efficient-portal .workspace-notice:not(:empty) {
+  margin: 8px 0 0;
+  padding: 6px 12px;
+  border: 1px solid var(--workbench-line);
+  border-radius: var(--workbench-radius-sm, 4px);
+  background: var(--workbench-panel);
+  font-size: 12px;
+  color: var(--workbench-text);
+}
+
+:root .efficient-portal .workspace-welcome.workspace-welcome--compact {
+  align-items: center;
+  padding: 12px 18px;
+}
+
+:root .efficient-portal .workspace-welcome--compact .workspace-welcome-content {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+:root .efficient-portal .workspace-welcome--compact .workspace-welcome-label,
+:root .efficient-portal .workspace-welcome--compact .workspace-welcome-content > p {
+  display: none;
+}
+
+:root .efficient-portal .workspace-welcome--compact h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -0.2px;
+}
+
+:root .efficient-portal .workspace-welcome--compact .workspace-welcome-meta {
+  margin-top: 0;
+  padding: 3px 9px;
+  gap: 6px;
+  font-size: 11px;
+}
+
+:root .efficient-portal .workspace-sections--compact {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+
+:root .efficient-portal .workspace-sections--compact .workspace-category {
+  display: flex;
+  flex-direction: column;
+  margin-top: 0;
+  padding: 12px 14px;
+  background: var(--workbench-panel);
+  border: 1px solid var(--workbench-line);
+  border-radius: var(--workbench-radius, 6px);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+:root .efficient-portal .workspace-sections--compact .workspace-section-heading {
+  margin-bottom: 10px;
+}
+
+:root .efficient-portal .workspace-sections--compact .workspace-section-label,
+:root .efficient-portal .workspace-sections--compact .workspace-section-heading p,
+:root .efficient-portal .workspace-sections--compact .workspace-section-heading > svg {
+  display: none;
+}
+
+:root .efficient-portal .workspace-sections--compact .workspace-section-heading h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--workbench-muted);
+  letter-spacing: 0.2px;
+}
+
+:root .efficient-portal .workspace-sections--compact .workspace-category .workspace-app-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 8px;
+  flex: 1;
+}
+
+@media (min-width: 1180px) {
+  :root .efficient-portal .workspace-sections--compact {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+    align-items: stretch;
+  }
+
+  :root .efficient-portal .workspace-sections--compact #workspace-intelligence {
+    grid-column: span 3;
+  }
+
+  :root .efficient-portal .workspace-sections--compact #workspace-knowledge {
+    grid-column: span 9;
+  }
+
+  :root .efficient-portal .workspace-sections--compact #workspace-business {
+    grid-column: span 9;
+  }
+
+  :root .efficient-portal .workspace-sections--compact #workspace-data {
+    grid-column: span 3;
+  }
+
+  :root .efficient-portal .workspace-sections--compact #workspace-settings {
+    grid-column: span 12;
+  }
+
+  :root .efficient-portal .workspace-sections--compact #workspace-intelligence .workspace-app-grid,
+  :root .efficient-portal .workspace-sections--compact #workspace-data .workspace-app-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  :root .efficient-portal .workspace-sections--compact #workspace-knowledge .workspace-app-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  :root .efficient-portal .workspace-sections--compact #workspace-business .workspace-app-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  :root .efficient-portal .workspace-sections--compact #workspace-settings .workspace-app-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+}
+
+@media (max-width: 639px) {
+  :root .efficient-portal .workspace-sections--compact .workspace-category .workspace-app-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+}
+
+:root .efficient-portal .workspace-sections--compact .workspace-app-card.workspace-app-card--compact {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0;
+  padding: 12px 10px 10px;
+  min-height: 92px;
+  border: 1px solid #e5ecf2;
+  border-radius: 6px;
+  background: #f8fafc;
+  box-shadow: none;
+  transition: border-color .15s, background-color .15s, box-shadow .15s;
+}
+
+:root .efficient-portal .workspace-sections--compact a.workspace-app-card.workspace-app-card--compact:hover {
+  transform: none;
+  background: #ffffff;
+  border-color: var(--workbench-brand);
+  box-shadow: 0 2px 6px rgba(30, 70, 107, 0.08);
+}
+
+:root .efficient-portal .workspace-sections--compact .workspace-app-card--compact.workspace-app-card--unavailable {
+  background: #f4f6f9;
+  border-color: #e6ecf1;
+}
+
+:root .efficient-portal .workspace-sections--compact .workspace-app-card--compact .workspace-app-icon {
+  width: 40px;
+  height: 40px;
+  margin: 0 0 7px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--workbench-line);
+  background: #ffffff;
+  color: var(--workbench-brand);
+  flex-shrink: 0;
+}
+
+:root .efficient-portal .workspace-sections--compact .workspace-app-card--assistant.workspace-app-card--compact:not(.workspace-app-card--unavailable) .workspace-app-icon {
+  background: var(--workbench-mark);
+  border-color: var(--workbench-mark);
+  color: var(--workbench-on-mark);
+}
+
+:root .efficient-portal .workspace-sections--compact .workspace-app-card--compact.workspace-app-card--unavailable .workspace-app-icon {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: var(--workbench-muted);
+}
+
+:root .efficient-portal .workspace-sections--compact .workspace-app-card--compact h3 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--workbench-ink);
+  max-width: 100%;
+}
+
+:root .efficient-portal .workspace-sections--compact .workspace-app-card--compact.workspace-app-card--unavailable h3 {
+  color: #475569;
+}
+
+:root .efficient-portal .workspace-sections--compact .workspace-compact-meta {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--workbench-muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:root .efficient-portal .workspace-sections--compact .workspace-compact-locked {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  max-width: 100%;
+  vertical-align: bottom;
+}
+
+:root .efficient-portal .workspace-sections--compact .workspace-compact-locked > svg {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+}
+
+:root .efficient-portal .workspace-sections--compact .workspace-compact-locked > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:root .efficient-portal .workspace-help.workspace-help--compact {
+  min-height: 42px;
+  margin-top: 12px;
+  padding: 9px 14px;
+  gap: 10px;
+}
+
+:root .efficient-portal .workspace-help--compact .workspace-help-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+}
+
+:root .efficient-portal .workspace-help--compact > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+:root .efficient-portal .workspace-help--compact strong {
+  font-size: 12.5px;
+  color: var(--workbench-ink);
+}
+
+:root .efficient-portal .workspace-help--compact p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--workbench-muted);
+}
+
+:root .efficient-portal .workspace-help--compact > a {
+  padding: 2px 0;
+  font-size: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root .efficient-portal .workspace-view-option,
+  :root .efficient-portal .workspace-sections--compact .workspace-app-card.workspace-app-card--compact {
     transition: none;
   }
 }
