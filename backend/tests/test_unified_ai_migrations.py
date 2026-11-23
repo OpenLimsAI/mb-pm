@@ -90,7 +90,8 @@ def test_unified_migration_graph_has_unique_revisions_and_keeps_historical_branc
                 revisions.append(ast.literal_eval(node.value))
     assert len(revisions) == len(set(revisions))
     scripts = ScriptDirectory.from_config(migration_config())
-    assert set(scripts.get_heads()) == {"007", "032"}
+    assert scripts.get_heads() == ["033"]
+    assert scripts.get_revision("033").down_revision == ("007", "032")
     assert scripts.get_revision("028").down_revision == "027"
     assert scripts.get_revision("029").down_revision == "028"
     assert scripts.get_revision("030").down_revision == "029"
